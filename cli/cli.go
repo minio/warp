@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/profile"
+
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
 	"github.com/minio/m3/pkg"
@@ -32,7 +34,6 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/trie"
 	"github.com/minio/minio/pkg/words"
-	"github.com/pkg/profile"
 	completeinstall "github.com/posener/complete/cmd/install"
 )
 
@@ -52,17 +53,6 @@ func Main(args []string) {
 			mainComplete()
 			return
 		}
-	}
-
-	// Enable profiling supported modes are [cpu, mem, block].
-	// ``MC_PROFILER`` supported options are [cpu, mem, block].
-	switch os.Getenv("MC_PROFILER") {
-	case "cpu":
-		defer profile.Start(profile.CPUProfile, profile.ProfilePath(".")).Stop()
-	case "mem":
-		defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
-	case "block":
-		defer profile.Start(profile.BlockProfile, profile.ProfilePath(".")).Stop()
 	}
 
 	probe.Init() // Set project's root source path.
@@ -130,7 +120,40 @@ func registerApp(name string) *cli.App {
 		cli.ShowAppHelp(ctx)
 	}
 
-	app.Before = registerBefore
+	app.Before = func(ctx *cli.Context) error {
+		var after []func()
+		if s := ctx.String("cpuprofile"); s != "" {
+			after = append(after, profile.Start(profile.CPUProfile, profile.ProfilePath(s)).Stop)
+		}
+		if s := ctx.String("memprofile"); s != "" {
+			after = append(after, profile.Start(profile.MemProfile, profile.ProfilePath(s)).Stop)
+		}
+		if s := ctx.String("blockprofile"); s != "" {
+			after = append(after, profile.Start(profile.BlockProfile, profile.ProfilePath(s)).Stop)
+		}
+		if s := ctx.String("mutexprofile"); s != "" {
+			after = append(after, profile.Start(profile.MutexProfile, profile.ProfilePath(s)).Stop)
+		}
+		if s := ctx.String("trace"); s != "" {
+			after = append(after, profile.Start(profile.TraceProfile, profile.ProfilePath(s)).Stop)
+		}
+		if len(after) == 0 {
+			return nil
+		}
+		x := app.After
+		app.After = func(ctx *cli.Context) error {
+			err := x(ctx)
+			if err != nil {
+				return err
+			}
+			for _, fn := range after {
+				fn()
+			}
+			return nil
+		}
+		return nil
+	}
+
 	app.ExtraInfo = func() map[string]string {
 		if globalDebug {
 			return getSystemData()
@@ -139,11 +162,11 @@ func registerApp(name string) *cli.App {
 	}
 
 	app.HideHelpCommand = true
-	app.Usage = "MinIO Client for cloud storage and filesystems."
+	app.Usage = "MinIO Benchmark tool for S3 compatible systems."
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.ReleaseTag
-	//app.Flags = append(mcFlags, globalFlags...)
+	app.Flags = append(app.Flags, globalFlags...)
 	//app.CustomAppHelpTemplate = mcHelpTemplate
 	app.CommandNotFound = commandNotFound // handler function declared above.
 	app.EnableBashCompletion = true
