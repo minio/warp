@@ -97,7 +97,7 @@ func newCsv(o Options) (Source, error) {
 		o: o,
 	}
 	c.builder = make([]byte, 0, o.csv.maxLen+1)
-	c.buf = newCircularBuffer(make([]byte, o.csv.maxLen*(o.csv.cols+1)*(o.csv.cols+1)), o.totalSize)
+	c.buf = newCircularBuffer(make([]byte, o.csv.maxLen*(o.csv.cols+1)*(o.csv.rows+1)), o.totalSize)
 	c.rng = rand.New(rand.NewSource(o.csv.seed))
 
 	return &c, nil
@@ -127,11 +127,14 @@ func (c *csvSource) Reader() io.Reader {
 }
 
 // randString fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
+// Should never be considered for true random data generation.
 func randString(dst []byte, rng *rand.Rand) {
 	letterRunes := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
-
+	// Use a single seed.
+	rnd := uint32(rng.Int31())
 	for i := range dst {
-		dst[i] = letterRunes[rng.Intn(len(letterRunes))]
+		dst[i] = letterRunes[(rnd>>16)%uint32(len(letterRunes))]
+		rnd *= 2654435761
 	}
 }
 

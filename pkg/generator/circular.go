@@ -57,7 +57,7 @@ func (c *circularBuffer) Read(p []byte) (n int, err error) {
 
 		copied := copy(p, toDo)
 		// Assign remaining back to c.left
-		c.left = toDo[:copied]
+		c.left = toDo[copied:]
 		p = p[copied:]
 		c.read += int64(copied)
 		n += copied

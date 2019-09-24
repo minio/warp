@@ -1,10 +1,15 @@
 package generator
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
+
+	"github.com/secure-io/sio-go"
 )
 
 func WithRandomData() RandomOpts {
@@ -58,9 +63,10 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	buf    *circularBuffer
-	rng    *rand.Rand
-	xorSrc [16]byte
+	buf     *circularBuffer
+	rng     *rand.Rand
+	randSrc [16]byte
+	databuf *bytes.Reader
 }
 
 func newRandom(o Options) (Source, error) {
@@ -79,8 +85,9 @@ func newRandom(o Options) (Source, error) {
 	}
 
 	return &randomSrc{
-		rng: rng,
-		buf: newCircularBuffer(data, o.totalSize),
+		databuf: bytes.NewReader(data),
+		rng:     rng,
+		buf:     newCircularBuffer(data, o.totalSize),
 	}, nil
 }
 
@@ -94,13 +101,20 @@ func (r *randomSrc) Reader() io.Reader {
 		return r.buf
 	}
 
-	// Xor with a 16 byte buffer.
-	_, err := io.ReadFull(r.rng, r.xorSrc[:])
+	_, err := io.ReadFull(r.rng, r.randSrc[:])
 	if err != nil {
 		panic(err)
 	}
-	for i := range data {
-		data[i] ^= r.xorSrc[i&15]
+
+	// Scramble data
+	block, _ := aes.NewCipher(r.randSrc[:])
+	gcm, _ := cipher.NewGCM(block)
+	stream := sio.NewStream(gcm, sio.BufSize)
+	r.databuf.Reset(data)
+	rr := stream.EncryptReader(r.databuf, r.randSrc[:stream.NonceSize()], nil)
+	_, err = io.ReadFull(rr, data)
+	if err != nil {
+		panic(err)
 	}
 	return r.buf.Reset()
 }

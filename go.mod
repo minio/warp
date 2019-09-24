@@ -14,6 +14,7 @@ require (
 	github.com/minio/sha256-simd v0.1.0
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
+	github.com/secure-io/sio-go v0.1.0
 	github.com/segmentio/go-prompt v1.2.1-0.20161017233205-f0d19b6901ad
 )
 
