@@ -3,7 +3,6 @@ package generator
 import (
 	"io"
 	"io/ioutil"
-	"os"
 	"testing"
 )
 
@@ -70,6 +69,10 @@ func BenchmarkWithCSV(b *testing.B) {
 		args args
 	}{
 		{
+			name: "64KB-5x100",
+			args: args{opts: []Option{WithSize(1 << 16), WithCSV().Size(5, 100).Apply()}},
+		},
+		{
 			name: "1MB-10x500",
 			args: args{opts: []Option{WithSize(1 << 20), WithCSV().Size(10, 500).Apply()}},
 		},
@@ -87,7 +90,7 @@ func BenchmarkWithCSV(b *testing.B) {
 			}
 			payload, err := ioutil.ReadAll(got.Reader())
 			b.SetBytes(int64(len(payload)))
-			ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
+			//ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -109,6 +112,10 @@ func BenchmarkWithRandomData(b *testing.B) {
 		name string
 		args args
 	}{
+		{
+			name: "64KB",
+			args: args{opts: []Option{WithSize(1 << 16), WithRandomData().Apply()}},
+		},
 		{
 			name: "1MB",
 			args: args{opts: []Option{WithSize(1 << 20), WithRandomData().Apply()}},

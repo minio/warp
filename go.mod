@@ -11,6 +11,7 @@ require (
 	github.com/minio/cli v1.21.0
 	github.com/minio/mc v0.0.0-20190919160124-93297260beaf
 	github.com/minio/minio v0.0.0-20190903181048-8a71b0ec5a72
+	github.com/minio/minio-go/v6 v6.0.32
 	github.com/minio/sha256-simd v0.1.0
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953

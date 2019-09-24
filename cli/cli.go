@@ -25,8 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/profile"
-
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
 	"github.com/minio/m3/pkg"
@@ -34,6 +32,7 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/trie"
 	"github.com/minio/minio/pkg/words"
+	"github.com/pkg/profile"
 	completeinstall "github.com/posener/complete/cmd/install"
 )
 
@@ -77,6 +76,7 @@ func Main(args []string) {
 }
 
 var appCmds = []cli.Command{
+	putCmd,
 	updateCmd,
 	versionCmd,
 }

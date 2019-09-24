@@ -33,6 +33,11 @@ var globalFlags = []cli.Flag{
 		Value: "",
 		Usage: "Write an local execution trace to the specified file before exiting.",
 	},
+	cli.StringFlag{
+		Name:  "bucket",
+		Value: "_m3_benchmark_",
+		Usage: "Bucket to use for benchmark data",
+	},
 	cli.BoolFlag{
 		Name:  "quiet, q",
 		Usage: "disable progress bar display",
@@ -85,4 +90,12 @@ func setGlobals(quiet, debug, json, noColor bool) {
 	if globalNoColor || globalQuiet {
 		console.SetColorOff()
 	}
+}
+
+// Flags common across all I/O commands such as cp, mirror, stat, pipe etc.
+var ioFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "encrypt-key",
+		Usage: "encrypt/decrypt objects (using server-side encryption with customer provided keys)",
+	},
 }
