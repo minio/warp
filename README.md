@@ -1,2 +1,2 @@
-# m3
-:coffee: yet another s3 benchmarking tool 
+# warp
+:coffee: generate warp numbers for your object storage
