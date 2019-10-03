@@ -325,6 +325,7 @@ github.com/minio/highwayhash v0.0.0-20181220011308-93ed73d64169/go.mod h1:NL8wme
 github.com/minio/highwayhash v1.0.0/go.mod h1:xQboMTeM9nY9v/LlAOxFctujiv5+Aq2hR5dxBpaMbdc=
 github.com/minio/lsync v0.0.0-20190207022115-a4e43e3d0887/go.mod h1:ni10+iSX7FO8N2rv41XM444V6w4rYO0dZo5KIkbn/YA=
 github.com/minio/lsync v1.0.1/go.mod h1:tCFzfo0dlvdGl70IT4IAK/5Wtgb0/BrTmo/jE8pArKA=
+github.com/minio/m3 v0.0.0-20191002025210-9379e5937424 h1:zIPkIPBHsCKSAgV9lwKjTBEYBHflYOve11NHifnospU=
 github.com/minio/mc v0.0.0-20190311071728-2e612b23d665/go.mod h1:7qLZXNjCD55DJ3iqe1uWoUh1MASRVd1M6wnqSdyhx7Y=
 github.com/minio/mc v0.0.0-20190401030144-a1355e50e2e8/go.mod h1:rnJByweU1h98rGmAcWcKen1sCAlekF38kbSrq6OLmAg=
 github.com/minio/mc v0.0.0-20190529152718-f4bb0b8850cb/go.mod h1:GMIQKmYuGc7q10DsJJO8peBXCTRx5itwIHheVo+bKso=

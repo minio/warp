@@ -1,4 +1,4 @@
-module github.com/minio/m3
+module github.com/minio/warp
 
 go 1.13
 

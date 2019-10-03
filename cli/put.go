@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/minio/cli"
-	"github.com/minio/m3/pkg/sse"
+	"github.com/minio/warp/pkg/sse"
 )
 
 // cp command flags.

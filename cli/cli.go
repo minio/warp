@@ -1,5 +1,5 @@
 /*
- * M3 (C) 2019- MinIO, Inc.
+ * Warp (C) 2019- MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ import (
 
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
-	"github.com/minio/m3/pkg"
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/trie"
 	"github.com/minio/minio/pkg/words"
+	"github.com/minio/warp/pkg"
 	"github.com/pkg/profile"
 	completeinstall "github.com/posener/complete/cmd/install"
 )

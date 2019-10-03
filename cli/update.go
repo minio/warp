@@ -1,5 +1,5 @@
 /*
- * M3 (C) 2019- MinIO, Inc.
+ * Warp (C) 2019- MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,10 +35,10 @@ import (
 	"github.com/inconshreveable/go-update"
 	"github.com/mattn/go-isatty"
 	"github.com/minio/cli"
-	"github.com/minio/m3/pkg"
 	json "github.com/minio/mc/pkg/colorjson"
 	"github.com/minio/mc/pkg/probe"
 	_ "github.com/minio/sha256-simd" // Needed for sha256 hash verifier.
+	"github.com/minio/warp/pkg"
 	"github.com/segmentio/go-prompt"
 )
 

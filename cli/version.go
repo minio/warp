@@ -1,5 +1,5 @@
 /*
- * M3 (C) 2019- MinIO, Inc.
+ * Warp (C) 2019- MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/minio/m3/pkg"
+	"github.com/minio/warp/pkg"
 
 	"github.com/fatih/color"
 	"github.com/minio/cli"
