@@ -45,10 +45,14 @@ var (
 	globalTermWidth int
 )
 
+const (
+	appName = "warp"
+)
+
 func Main(args []string) {
 	if len(args) > 1 {
 		switch args[1] {
-		case "m3", filepath.Base(args[0]):
+		case appName, filepath.Base(args[0]):
 			mainComplete()
 			return
 		}
@@ -180,7 +184,7 @@ func installAutoCompletion() {
 		return
 	}
 
-	if completeinstall.IsInstalled(filepath.Base(os.Args[0])) || completeinstall.IsInstalled("m3") {
+	if completeinstall.IsInstalled(filepath.Base(os.Args[0])) || completeinstall.IsInstalled(appName) {
 		console.Infoln("autocompletion is already enabled in your '$SHELLRC'")
 		return
 	}
@@ -221,7 +225,7 @@ func getSystemData() map[string]string {
 
 // Function invoked when invalid command is passed.
 func commandNotFound(ctx *cli.Context, command string) {
-	msg := fmt.Sprintf("`%s` is not a m3 command. See `m3 --help`.", command)
+	msg := fmt.Sprintf("`%s` is not a %s command. See `m3 --help`.", command, appName)
 	closestCommands := findClosestCommands(command)
 	if len(closestCommands) > 0 {
 		msg += fmt.Sprintf("\n\nDid you mean one of these?\n")

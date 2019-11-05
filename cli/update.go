@@ -45,7 +45,7 @@ import (
 // Check for new software updates.
 var updateCmd = cli.Command{
 	Name:   "update",
-	Usage:  "update m3 to latest release",
+	Usage:  "update "+appName+" to latest release",
 	Action: mainUpdate,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
@@ -72,7 +72,7 @@ EXIT STATUS:
  -1 - error in getting update information
 
 EXAMPLES:
-  1. Check and update m3:
+  1. Check and update warp:
      $ {{.HelpName}}
 `,
 }
@@ -80,20 +80,20 @@ EXAMPLES:
 const (
 	releaseTagTimeLayout = "2006-01-02T15-04-05Z"
 	osARCH               = runtime.GOOS + "-" + runtime.GOARCH
-	releaseURL           = "https://dl.min.io/client/m3/release/" + osARCH + "/"
+	releaseURL           = "https://dl.min.io/client/"+appName+"/release/" + osARCH + "/"
 )
 
 var (
 	// Newer official download info URLs appear earlier below.
 	releaseInfoURLs = []string{
-		releaseURL + "m3.sha256sum",
-		releaseURL + "m3.shasum",
+		releaseURL + appName+".sha256sum",
+		releaseURL + appName+".shasum",
 	}
 
 	// For windows our files have .exe additionally.
 	releaseWindowsInfoURLs = []string{
-		releaseURL + "m3.exe.sha256sum",
-		releaseURL + "m3.exe.shasum",
+		releaseURL + appName+".exe.sha256sum",
+		releaseURL + appName+".exe.shasum",
 	}
 )
 
@@ -110,7 +110,7 @@ func checkUpdate(ctx *cli.Context) {
 		} else {
 			printMsg(updateMessage{
 				Status:  "success",
-				Message: prepareUpdateMessage("Run `m3 update`", latestReleaseTime.Sub(currentReleaseTime)),
+				Message: prepareUpdateMessage("Run `"+appName+" update`", latestReleaseTime.Sub(currentReleaseTime)),
 			})
 		}
 	}
@@ -231,7 +231,6 @@ func IsSourceBuild() bool {
 // Any change here should be discussed by opening an issue at
 // https://github.com/minio/mc/issues.
 func getUserAgent() string {
-	const name = "m3"
 	userAgentParts := []string{}
 	// Helper function to concisely append a pair of strings to a
 	// the user-agent slice.
@@ -239,7 +238,7 @@ func getUserAgent() string {
 		userAgentParts = append(userAgentParts, p, q)
 	}
 
-	uaAppend(name+" (", runtime.GOOS)
+	uaAppend(appName+" (", runtime.GOOS)
 	uaAppend("; ", runtime.GOARCH)
 	if IsDCOS() {
 		uaAppend("; ", "dcos")
@@ -254,9 +253,9 @@ func getUserAgent() string {
 		uaAppend("; ", "source")
 	}
 
-	uaAppend(") "+name+"/", pkg.Version)
-	uaAppend(" "+name+"/", pkg.ReleaseTag)
-	uaAppend(" "+name+"/", pkg.CommitID)
+	uaAppend(") "+appName+"/", pkg.Version)
+	uaAppend(" "+appName+"/", pkg.ReleaseTag)
+	uaAppend(" "+appName+"/", pkg.CommitID)
 
 	return strings.Join(userAgentParts, "")
 }
@@ -320,7 +319,7 @@ func DownloadReleaseData(timeout time.Duration) (data string, err *probe.Error) 
 //
 // fbe246edbd382902db9a4035df7dce8cb441357d mc.RELEASE.2016-10-07T01-16-39Z
 //
-// The second word must be `m3.` appended to a standard release tag.
+// The second word must be `warp.` appended to a standard release tag.
 func parseReleaseData(data string) (sha256Hex string, releaseTime time.Time, err *probe.Error) {
 	fields := strings.Fields(data)
 	if len(fields) != 2 {
@@ -334,7 +333,7 @@ func parseReleaseData(data string) (sha256Hex string, releaseTime time.Time, err
 	if len(fields) != 2 {
 		return sha256Hex, releaseTime, probe.NewError(fmt.Errorf("Unknown release information `%s`", releaseInfo))
 	}
-	if fields[0] != "m3" {
+	if fields[0] != appName {
 		return sha256Hex, releaseTime, probe.NewError(fmt.Errorf("Unknown release `%s`", releaseInfo))
 	}
 
@@ -357,7 +356,7 @@ func getLatestReleaseTime(timeout time.Duration) (sha256Hex string, releaseTime 
 
 func getDownloadURL(releaseTag string) (downloadURL string) {
 	// Check if we are docker environment, return docker update command
-	const cmd = "m3"
+	const cmd = appName
 	if IsDocker() {
 		// Construct release tag name.
 		return fmt.Sprintf("docker pull minio/%s:%s", cmd, releaseTag)
@@ -423,7 +422,7 @@ var (
 
 func doUpdate(sha256Hex string, latestReleaseTime time.Time, ok bool) (updateStatusMsg string, err *probe.Error) {
 	if !ok {
-		updateStatusMsg = colorGreenBold("m3 update to version RELEASE.%s canceled.",
+		updateStatusMsg = colorGreenBold(appName+" update to version RELEASE.%s canceled.",
 			latestReleaseTime.Format(releaseTagTimeLayout))
 		return updateStatusMsg, nil
 	}
@@ -450,7 +449,7 @@ func doUpdate(sha256Hex string, latestReleaseTime time.Time, ok bool) (updateSta
 		return updateStatusMsg, probe.NewError(e)
 	}
 
-	return colorGreenBold("m3 updated to version RELEASE.%s successfully.",
+	return colorGreenBold(appName+" updated to version RELEASE.%s successfully.",
 		latestReleaseTime.Format(releaseTagTimeLayout)), nil
 }
 
@@ -482,7 +481,6 @@ func (s updateMessage) JSON() string {
 }
 
 func mainUpdate(ctx *cli.Context) {
-	const name = "m3"
 	if len(ctx.Args()) != 0 {
 		cli.ShowCommandHelpAndExit(ctx, "update", -1)
 	}
@@ -492,7 +490,7 @@ func mainUpdate(ctx *cli.Context) {
 
 	updateMsg, sha256Hex, _, latestReleaseTime, err := getUpdateInfo(10 * time.Second)
 	if err != nil {
-		errorIf(err, "Unable to update ‘"+name+"’.")
+		errorIf(err, "Unable to update ‘"+appName+"’.")
 		os.Exit(-1)
 	}
 
@@ -501,7 +499,7 @@ func mainUpdate(ctx *cli.Context) {
 	if updateMsg == "" {
 		printMsg(updateMessage{
 			Status:  "success",
-			Message: colorGreenBold("You are already running the most recent version of ‘" + name + "’."),
+			Message: colorGreenBold("You are already running the most recent version of ‘" + appName + "’."),
 		})
 		os.Exit(0)
 	}
@@ -518,7 +516,7 @@ func mainUpdate(ctx *cli.Context) {
 		var err *probe.Error
 		updateStatusMsg, err = doUpdate(sha256Hex, latestReleaseTime, isUpdate)
 		if err != nil {
-			errorIf(err, "Unable to update ‘"+name+"’.")
+			errorIf(err, "Unable to update ‘"+appName+"’.")
 			os.Exit(-1)
 		}
 		printMsg(updateMessage{Status: "success", Message: updateStatusMsg})
@@ -544,7 +542,7 @@ func prepareUpdateMessage(downloadURL string, older time.Duration) string {
 
 // colorizeUpdateMessage - inspired from Yeoman project npm package https://github.com/yeoman/update-notifier
 func colorizeUpdateMessage(updateString string, newerThan string) string {
-	msgLine1Fmt := " You are running an older version of m3 released %s "
+	msgLine1Fmt := " You are running an older version of "+appName+" released %s "
 	msgLine2Fmt := " Update: %s "
 
 	// Calculate length *without* color coding: with ANSI terminal

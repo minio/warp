@@ -34,12 +34,12 @@ func mainComplete() error {
 		complCmds[cmd.Name] = cmdToCompleteCmd(cmd, "")
 	}
 	complFlags := flagsToCompleteFlags(nil)
-	m3Complete := complete.Command{
+	cliComplete := complete.Command{
 		Sub:         complCmds,
 		GlobalFlags: complFlags,
 	}
 	// Answer to bash completion call
-	complete.New(filepath.Base(os.Args[0]), m3Complete).Run()
+	complete.New(filepath.Base(os.Args[0]), cliComplete).Run()
 	return nil
 }
 

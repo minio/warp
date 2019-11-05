@@ -5,3 +5,7 @@ type Benchmark struct {
 	Start   func(sync chan struct{})
 	Cleanup func()
 }
+
+func Run() {
+	
+}

@@ -35,7 +35,7 @@ var globalFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "bucket",
-		Value: "_m3_benchmark_",
+		Value: "_"+appName+"_benchmark_",
 		Usage: "Bucket to use for benchmark data",
 	},
 	cli.BoolFlag{
