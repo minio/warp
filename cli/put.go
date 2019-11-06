@@ -1,9 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"runtime"
+	"time"
 
 	"github.com/minio/cli"
+	"github.com/minio/minio-go/v6"
+	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/pkg/generator"
 	"github.com/minio/warp/pkg/sse"
 )
 
@@ -14,8 +21,8 @@ var (
 
 // Copy command.
 var putCmd = cli.Command{
-	Name:   "cp",
-	Usage:  "copy objects",
+	Name:   "put",
+	Usage:  "put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
 	Flags:  append(append(putFlags, ioFlags...), globalFlags...),
@@ -40,20 +47,52 @@ EXAMPLES:
 // mainPut is the entry point for cp command.
 func mainPut(ctx *cli.Context) error {
 	// Parse encryption keys per command.
-	encKeyDB, err := sse.EncKeys(ctx)
-	fatalIf(err, "Unable to parse encryption keys.")
+	encKeyDB, perr := sse.EncKeys(ctx)
+	fatalIf(perr, "Unable to parse encryption keys.")
 
 	checkPutSyntax(ctx, encKeyDB)
+	src, err := generator.NewFn(generator.WithCSV().Size(10, 1000).Apply(), generator.WithPrefixSize(2))
+	if err != nil {
+		log.Fatal(err)
+	}
+	cl, err := minio.New("127.0.0.1:9000", "minio", "minio123", false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	b := bench.Upload{
+		Common: bench.Common{
+			Client:      cl,
+			Concurrency: runtime.GOMAXPROCS(0),
+			Source:      src,
+			Bucket:      ctx.GlobalString("bucket"),
+			Location:    "",
+			PutOpts:     minio.PutObjectOptions{},
+		},
+	}
+	fmt.Println(b.Common.Bucket)
+	b.Prepare(context.Background())
+
+	tStart := time.Now().Add(time.Second)
+	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(time.Minute))
+	defer cancel()
+	start := make(chan struct{})
+	go func() {
+		<-time.After(time.Until(tStart))
+		close(start)
+	}()
+	b.Start(ctx2, start)
+	b.Cleanup(context.Background())
+
 	return nil
 }
 
 func checkPutSyntax(ctx *cli.Context, encKeyDB map[string][]sse.PrefixSSEPair) {
-	if len(ctx.Args()) < 2 {
-		cli.ShowCommandHelpAndExit(ctx, "cp", 1) // last argument is exit code.
-	}
+	//if len(ctx.Args()) < 2 {
+	//	cli.ShowCommandHelpAndExit(ctx, "put", 1) // last argument is exit code.
+	//}
 	// extract URLs.
-	URLs := ctx.Args()
-	if len(URLs) < 2 {
-		fatalIf(errDummy().Trace(ctx.Args()...), fmt.Sprintf("Unable to parse source and target arguments."))
-	}
+	//URLs := ctx.Args()
+	//if len(URLs) < 2 {
+	//	fatalIf(errDummy().Trace(ctx.Args()...), fmt.Sprintf("Unable to parse source and target arguments."))
+	//}
 }

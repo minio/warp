@@ -63,10 +63,12 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
+	o       Options
 	buf     *circularBuffer
 	rng     *rand.Rand
 	randSrc [16]byte
 	databuf *bytes.Reader
+	obj     Object
 }
 
 func newRandom(o Options) (Source, error) {
@@ -83,22 +85,34 @@ func newRandom(o Options) (Source, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return &randomSrc{
+	r := randomSrc{
+		o:       o,
 		databuf: bytes.NewReader(data),
 		rng:     rng,
 		buf:     newCircularBuffer(data, o.totalSize),
-	}, nil
+		obj: Object{
+			Reader:      nil,
+			Name:        "",
+			ContentType: "application/octet-stream",
+			Size:        o.totalSize,
+		},
+	}
+	return &r, nil
 }
 
-func (r *randomSrc) Reader() io.Reader {
+func (r *randomSrc) Object() *Object {
 	data := r.buf.data
+	var nBuf [16]byte
+	randAsciiBytes(nBuf[:], r.rng)
+	r.obj.setName(string(nBuf[:]) + ".bin")
+
 	if len(data) < 128 {
 		_, err := io.ReadFull(r.rng, data)
 		if err != nil {
 			panic(err)
 		}
-		return r.buf
+		r.obj.Reader = r.buf
+		return &r.obj
 	}
 
 	_, err := io.ReadFull(r.rng, r.randSrc[:])
@@ -116,7 +130,8 @@ func (r *randomSrc) Reader() io.Reader {
 	if err != nil {
 		panic(err)
 	}
-	return r.buf.Reset()
+	r.obj.Reader = r.buf.Reset()
+	return &r.obj
 }
 
 func (r *randomSrc) String() string {

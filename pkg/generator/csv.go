@@ -3,7 +3,6 @@ package generator
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 )
 
@@ -87,6 +86,7 @@ type csvSource struct {
 	o       Options
 	buf     *circularBuffer
 	builder []byte
+	obj     Object
 
 	// We may need a faster RNG for this...
 	rng *rand.Rand
@@ -99,11 +99,14 @@ func newCsv(o Options) (Source, error) {
 	c.builder = make([]byte, 0, o.csv.maxLen+1)
 	c.buf = newCircularBuffer(make([]byte, o.csv.maxLen*(o.csv.cols+1)*(o.csv.rows+1)), o.totalSize)
 	c.rng = rand.New(rand.NewSource(o.csv.seed))
+	c.obj.ContentType = "text/csv"
+	c.obj.Size = o.totalSize
+	c.obj.setPrefix(o)
 
 	return &c, nil
 }
 
-func (c *csvSource) Reader() io.Reader {
+func (c *csvSource) Object() *Object {
 	opts := c.o.csv
 	var dst = c.buf.data[:0]
 	for i := 0; i < opts.rows; i++ {
@@ -113,7 +116,7 @@ func (c *csvSource) Reader() io.Reader {
 				fieldLen += c.rng.Intn(opts.maxLen - opts.minLen)
 			}
 			build := c.builder[:fieldLen]
-			randString(build[:fieldLen-1], c.rng)
+			randAsciiBytes(build[:fieldLen-1], c.rng)
 			build[fieldLen-1] = opts.comma
 			if j == opts.cols-1 {
 				build[fieldLen-1] = '\n'
@@ -122,20 +125,12 @@ func (c *csvSource) Reader() io.Reader {
 		}
 	}
 	c.buf.data = dst
-	return c.buf.Reset()
+	c.obj.Reader = c.buf.Reset()
+	var nBuf [16]byte
+	randAsciiBytes(nBuf[:], c.rng)
+	c.obj.setName(string(nBuf[:]) + ".csv")
+	return &c.obj
 
-}
-
-// randString fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
-// Should never be considered for true random data generation.
-func randString(dst []byte, rng *rand.Rand) {
-	letterRunes := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
-	// Use a single seed.
-	rnd := uint32(rng.Int31())
-	for i := range dst {
-		dst[i] = letterRunes[(rnd>>16)%uint32(len(letterRunes))]
-		rnd *= 2654435761
-	}
 }
 
 func (c *csvSource) String() string {

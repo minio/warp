@@ -47,7 +47,8 @@ func TestNew(t *testing.T) {
 				t.Errorf("New() got = nil, want not nil")
 			}
 			t.Log(got)
-			b, err := ioutil.ReadAll(got.Reader())
+			obj := got.Object()
+			b, err := ioutil.ReadAll(obj.Reader)
 			if err != nil {
 				return
 			}
@@ -88,13 +89,15 @@ func BenchmarkWithCSV(b *testing.B) {
 				b.Errorf("New() error = %v", err)
 				return
 			}
-			payload, err := ioutil.ReadAll(got.Reader())
+			obj := got.Object()
+			payload, err := ioutil.ReadAll(obj.Reader)
 			b.SetBytes(int64(len(payload)))
 			//ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, err := io.Copy(ioutil.Discard, got.Reader())
+				obj := got.Object()
+				_, err := io.Copy(ioutil.Discard, obj.Reader)
 				if err != nil {
 					b.Errorf("New() error = %v", err)
 					return
@@ -132,13 +135,15 @@ func BenchmarkWithRandomData(b *testing.B) {
 				b.Errorf("New() error = %v", err)
 				return
 			}
-			payload, err := ioutil.ReadAll(got.Reader())
+			obj := got.Object()
+			payload, err := ioutil.ReadAll(obj.Reader)
 			b.SetBytes(int64(len(payload)))
 			//ioutil.WriteFile(tt.name+".bin", payload, os.ModePerm)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, err := io.Copy(ioutil.Discard, got.Reader())
+				obj = got.Object()
+				_, err := io.Copy(ioutil.Discard, obj.Reader)
 				if err != nil {
 					b.Errorf("New() error = %v", err)
 					return
