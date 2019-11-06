@@ -39,6 +39,7 @@ type Object struct {
 
 func (o *Object) setPrefix(opts Options) {
 	if opts.randomPrefix <= 0 {
+		o.PreFix = ""
 		return
 	}
 	b := make([]byte, opts.randomPrefix)
@@ -50,6 +51,7 @@ func (o *Object) setPrefix(opts Options) {
 func (o *Object) setName(s string) {
 	if len(o.PreFix) == 0 {
 		o.Name = s
+		return
 	}
 	o.Name = o.PreFix + "/" + s
 }

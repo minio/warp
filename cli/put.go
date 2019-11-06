@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"runtime"
 	"time"
 
 	"github.com/minio/cli"
@@ -51,7 +49,11 @@ func mainPut(ctx *cli.Context) error {
 	fatalIf(perr, "Unable to parse encryption keys.")
 
 	checkPutSyntax(ctx, encKeyDB)
-	src, err := generator.NewFn(generator.WithCSV().Size(10, 1000).Apply(), generator.WithPrefixSize(2))
+	prefixSize := 8
+	if ctx.Bool("no-prefix") {
+		prefixSize = 0
+	}
+	src, err := generator.NewFn(generator.WithCSV().Size(10, 1000).Apply(), generator.WithPrefixSize(prefixSize))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,14 +64,13 @@ func mainPut(ctx *cli.Context) error {
 	b := bench.Upload{
 		Common: bench.Common{
 			Client:      cl,
-			Concurrency: runtime.GOMAXPROCS(0),
+			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.GlobalString("bucket"),
+			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     minio.PutObjectOptions{},
 		},
 	}
-	fmt.Println(b.Common.Bucket)
 	b.Prepare(context.Background())
 
 	tStart := time.Now().Add(time.Second)

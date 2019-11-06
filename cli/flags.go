@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"runtime"
+
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
 )
@@ -32,11 +34,6 @@ var globalFlags = []cli.Flag{
 		Name:  "trace",
 		Value: "",
 		Usage: "Write an local execution trace to the specified file before exiting.",
-	},
-	cli.StringFlag{
-		Name:  "bucket",
-		Value: appName + "-benchmark-bucket",
-		Usage: "Bucket to use for benchmark data",
 	},
 	cli.BoolFlag{
 		Name:  "quiet, q",
@@ -97,5 +94,32 @@ var ioFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "encrypt-key",
 		Usage: "encrypt/decrypt objects (using server-side encryption with customer provided keys)",
+	},
+	cli.StringFlag{
+		Name:  "bucket",
+		Value: appName + "-benchmark-bucket",
+		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
+	},
+	cli.IntFlag{
+		Name:  "concurrent",
+		Value: runtime.GOMAXPROCS(0),
+		Usage: "Run this many concurrent operations",
+	},
+	cli.BoolFlag{
+		Name:  "no-prefix",
+		Usage: "Use separate prefix for each uploader",
+	},
+}
+
+var genFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "generator",
+		Value: "random",
+		Usage: "Use specific data generator",
+	},
+	cli.IntFlag{
+		Name:  "objsize",
+		Value: 10 << 20,
+		Usage: "Object Size",
 	},
 }
