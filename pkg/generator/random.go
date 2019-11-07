@@ -37,7 +37,7 @@ func (o RandomOpts) validate() error {
 
 // RngSeed will which to a fixed RNG seed to make usage predictable.
 func (o RandomOpts) RngSeed(s int64) RandomOpts {
-	o.seed = s
+	o.seed = &s
 	return o
 }
 
@@ -50,13 +50,13 @@ func (o RandomOpts) Size(s int) RandomOpts {
 
 // RandomOpts are the options for the random data source.
 type RandomOpts struct {
-	seed int64
+	seed *int64
 	size int
 }
 
 func randomOptsDefaults() RandomOpts {
 	return RandomOpts{
-		seed: rand.Int63(),
+		seed: nil,
 		// 10 MB before we wrap around.
 		size: 10 << 20,
 	}
@@ -72,7 +72,12 @@ type randomSrc struct {
 }
 
 func newRandom(o Options) (Source, error) {
-	rng := rand.New(rand.NewSource(o.random.seed))
+	rndSrc := rand.NewSource(int64(rand.Uint64()))
+	if o.random.seed != nil {
+		rndSrc = rand.NewSource(*o.random.seed)
+	}
+	rng := rand.New(rndSrc)
+
 	size := o.random.size
 	if int64(size) > o.totalSize {
 		size = int(o.totalSize)
@@ -97,6 +102,7 @@ func newRandom(o Options) (Source, error) {
 			Size:        o.totalSize,
 		},
 	}
+	r.obj.setPrefix(o)
 	return &r, nil
 }
 

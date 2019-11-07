@@ -52,12 +52,17 @@ func (c *Common) deleteAllInBucket(ctx context.Context) {
 		case obj, ok := <-objects:
 			if !ok {
 				close(remove)
+				// Wait for deletes to finish
+				err := <-errCh
+				if err.Err != nil {
+					log.Fatal(err.Err)
+				}
 				return
 			}
 			if obj.Err != nil {
 				log.Fatal(obj.Err)
 			}
-			log.Printf("Deleting: %+v", obj)
+			//log.Printf("Deleting: %+v", obj)
 			remove <- obj.Key
 		case err := <-errCh:
 			log.Fatal(err)

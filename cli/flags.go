@@ -92,6 +92,29 @@ func setGlobals(quiet, debug, json, noColor bool) {
 // Flags common across all I/O commands such as cp, mirror, stat, pipe etc.
 var ioFlags = []cli.Flag{
 	cli.StringFlag{
+		Name:   "host",
+		Usage:  "host",
+		EnvVar: appNameUC + "_HOST",
+		Value:  "127.0.0.1:9000",
+	},
+	cli.StringFlag{
+		Name:   "access-key",
+		Usage:  "Specify access key",
+		EnvVar: appNameUC + "_ACCESS_KEY",
+		Value:  "",
+	},
+	cli.StringFlag{
+		Name:   "secret-key",
+		Usage:  "Specify secret key",
+		EnvVar: appNameUC + "_SECRET_KEY",
+		Value:  "",
+	},
+	cli.BoolFlag{
+		Name:   "tls",
+		Usage:  "Use TLS (HTTPS) for transport",
+		EnvVar: appNameUC + "_TLS",
+	},
+	cli.StringFlag{
 		Name:  "encrypt-key",
 		Usage: "encrypt/decrypt objects (using server-side encryption with customer provided keys)",
 	},
@@ -108,18 +131,5 @@ var ioFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "no-prefix",
 		Usage: "Use separate prefix for each uploader",
-	},
-}
-
-var genFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:  "generator",
-		Value: "random",
-		Usage: "Use specific data generator",
-	},
-	cli.IntFlag{
-		Name:  "objsize",
-		Value: 10 << 20,
-		Usage: "Object Size",
 	},
 }

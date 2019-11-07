@@ -12,6 +12,11 @@ type Options struct {
 	randomPrefix int
 }
 
+// OptionApplier allows to abstract generator options.
+type OptionApplier interface {
+	Apply() Option
+}
+
 func defaultOptions() Options {
 	o := Options{
 		src:          newRandom,

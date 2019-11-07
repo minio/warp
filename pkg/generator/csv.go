@@ -57,7 +57,7 @@ func (o CsvOpts) FieldLen(min, max int) CsvOpts {
 
 // RngSeed will which to a fixed RNG seed to make usage predictable.
 func (o CsvOpts) RngSeed(s int64) CsvOpts {
-	o.seed = s
+	o.seed = &s
 	return o
 }
 
@@ -66,7 +66,7 @@ type CsvOpts struct {
 	err            error
 	cols, rows     int
 	comma          byte
-	seed           int64
+	seed           *int64
 	minLen, maxLen int
 }
 
@@ -76,7 +76,7 @@ func csvOptsDefaults() CsvOpts {
 		cols:   500,
 		rows:   15,
 		comma:  ',',
-		seed:   rand.Int63(),
+		seed:   nil,
 		minLen: 5,
 		maxLen: 15,
 	}
@@ -98,7 +98,11 @@ func newCsv(o Options) (Source, error) {
 	}
 	c.builder = make([]byte, 0, o.csv.maxLen+1)
 	c.buf = newCircularBuffer(make([]byte, o.csv.maxLen*(o.csv.cols+1)*(o.csv.rows+1)), o.totalSize)
-	c.rng = rand.New(rand.NewSource(o.csv.seed))
+	rndSrc := rand.NewSource(int64(rand.Uint64()))
+	if o.csv.seed != nil {
+		rndSrc = rand.NewSource(*o.csv.seed)
+	}
+	c.rng = rand.New(rndSrc)
 	c.obj.ContentType = "text/csv"
 	c.obj.Size = o.totalSize
 	c.obj.setPrefix(o)

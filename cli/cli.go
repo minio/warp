@@ -46,7 +46,8 @@ var (
 )
 
 const (
-	appName = "warp"
+	appName   = "warp"
+	appNameUC = "WARP"
 )
 
 func Main(args []string) {

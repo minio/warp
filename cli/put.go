@@ -8,7 +8,6 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
-	"github.com/minio/warp/pkg/generator"
 	"github.com/minio/warp/pkg/sse"
 )
 
@@ -17,25 +16,25 @@ var (
 	putFlags = []cli.Flag{}
 )
 
-// Copy command.
+// Put command.
 var putCmd = cli.Command{
 	Name:   "put",
 	Usage:  "put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  append(append(putFlags, ioFlags...), globalFlags...),
+	Flags:  append(append(append(putFlags, ioFlags...), globalFlags...), genFlags...),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
 USAGE:
-  {{.HelpName}} [FLAGS] HOSTS
+  {{.HelpName}} [FLAGS]
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
 ENVIRONMENT VARIABLES:
-  MC_ENCRYPT:      list of comma delimited prefixes
-  MC_ENCRYPT_KEY:  list of comma delimited prefix=secret values
+  ` + appNameUC + `_ENCRYPT:      list of comma delimited prefixes
+  ` + appNameUC + `_ENCRYPT_KEY:  list of comma delimited prefix=secret values
 
 EXAMPLES:
 ...
@@ -49,15 +48,8 @@ func mainPut(ctx *cli.Context) error {
 	fatalIf(perr, "Unable to parse encryption keys.")
 
 	checkPutSyntax(ctx, encKeyDB)
-	prefixSize := 8
-	if ctx.Bool("no-prefix") {
-		prefixSize = 0
-	}
-	src, err := generator.NewFn(generator.WithCSV().Size(10, 1000).Apply(), generator.WithPrefixSize(prefixSize))
-	if err != nil {
-		log.Fatal(err)
-	}
-	cl, err := minio.New("127.0.0.1:9000", "minio", "minio123", false)
+	src := newGenSource(ctx)
+	cl, err := minio.New(ctx.String("host"), ctx.String("access-key"), ctx.String("secret-key"), false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,6 +63,7 @@ func mainPut(ctx *cli.Context) error {
 			PutOpts:     minio.PutObjectOptions{},
 		},
 	}
+	log.Println("Preparing server.")
 	b.Prepare(context.Background())
 
 	tStart := time.Now().Add(time.Second)
@@ -81,7 +74,9 @@ func mainPut(ctx *cli.Context) error {
 		<-time.After(time.Until(tStart))
 		close(start)
 	}()
+	log.Println("Done. Starting benchmark")
 	b.Start(ctx2, start)
+	log.Println("Done. Starting cleanup")
 	b.Cleanup(context.Background())
 
 	return nil
