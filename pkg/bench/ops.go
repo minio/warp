@@ -60,12 +60,12 @@ func (o Operations) SortByStartTime() {
 
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx,thread,op,bytes,file,error,start,end,duration_ms\n")
+	_, err := bw.WriteString("idx,thread,op,bytes,file,error,start,end,duration_ns\n")
 	if err != nil {
 		return err
 	}
 	for i, op := range o {
-		_, err := fmt.Fprintf(bw, "%d,%d,%s,%d,%s,%s,%s,%s,%d\n", i, op.Thread, op.Op, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Millisecond)
+		_, err := fmt.Fprintf(bw, "%d,%d,%s,%d,%s,%s,%s,%s,%d\n", i, op.Thread, op.Op, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}

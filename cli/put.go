@@ -77,6 +77,7 @@ func mainPut(ctx *cli.Context) error {
 	}()
 	log.Println("Done. Starting benchmark")
 	ops := b.Start(ctx2, start)
+	ops.SortByStartTime()
 	log.Println("Done. Starting cleanup")
 	b.Cleanup(context.Background())
 
