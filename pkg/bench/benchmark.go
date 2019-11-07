@@ -10,7 +10,7 @@ import (
 
 type Benchmark interface {
 	Prepare(ctx context.Context)
-	Start(ctx context.Context, sync chan struct{})
+	Start(ctx context.Context, sync chan struct{}) Operations
 	Cleanup(ctx context.Context)
 }
 

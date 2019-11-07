@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/minio/cli"
@@ -75,11 +76,11 @@ func mainPut(ctx *cli.Context) error {
 		close(start)
 	}()
 	log.Println("Done. Starting benchmark")
-	b.Start(ctx2, start)
+	ops := b.Start(ctx2, start)
 	log.Println("Done. Starting cleanup")
 	b.Cleanup(context.Background())
 
-	return nil
+	return ops.CSV(os.Stdout)
 }
 
 func checkPutSyntax(ctx *cli.Context, encKeyDB map[string][]sse.PrefixSSEPair) {

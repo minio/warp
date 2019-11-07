@@ -2,6 +2,7 @@ package bench
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -15,17 +16,13 @@ func (u *Upload) Prepare(ctx context.Context) {
 	u.createEmptyBucket(ctx)
 }
 
-type Results struct {
-	mu         sync.Mutex
-	TotalBytes int64
-	TotalTime  time.Duration
-}
-
-func (u *Upload) Start(ctx context.Context, start chan struct{}) {
+func (u *Upload) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
+	c := NewCollector()
 	for i := 0; i < u.Concurrency; i++ {
 		go func(i int) {
+			rcv := c.Receiver()
 			defer wg.Done()
 			src := u.Source()
 			opts := u.PutOpts
@@ -40,21 +37,29 @@ func (u *Upload) Start(ctx context.Context, start chan struct{}) {
 				}
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
-				start := time.Now()
+				op := Operation{
+					Op:     "PUT",
+					Thread: uint16(i),
+					Size:   obj.Size,
+					File:   obj.Name,
+				}
+				op.Start = time.Now()
 				n, err := u.Client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				op.End = time.Now()
 				if err != nil {
 					log.Println("upload error:", err)
-					continue
+					op.Err = err.Error()
 				}
 				if n != obj.Size {
-					log.Println("short upload. want:", obj.Size, "got:", n)
-					continue
+					op.Err = fmt.Sprint("short upload. want:", obj.Size, "got:", n)
+					log.Println(op.Err)
 				}
-				log.Printf("uploaded %+v, took %v\n", obj, time.Since(start))
+				rcv <- op
 			}
 		}(i)
 	}
 	wg.Wait()
+	return c.Close()
 }
 
 func (u *Upload) Cleanup(ctx context.Context) {
