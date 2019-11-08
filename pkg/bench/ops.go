@@ -2,9 +2,12 @@ package bench
 
 import (
 	"bufio"
+	"encoding/csv"
 	"fmt"
 	"io"
+	"math"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -52,12 +55,181 @@ func (c *Collector) Close() Operations {
 	return c.ops
 }
 
+// Aggregate the operation into segment if it belongs there.
+func (o Operation) Aggregate(s *Segment) {
+	if len(s.Op) > 0 && o.Op != s.Op {
+		return
+	}
+	if o.End.Before(s.Start) {
+		return
+	}
+	if o.Start.After(s.EndsBefore) {
+		return
+	}
+	startedInSegment := o.Start.After(s.Start) || o.Start.Equal(s.Start)
+	endedInSegment := o.End.Before(s.EndsBefore)
+
+	// Correct op, in time range.
+	if startedInSegment && endedInSegment {
+		if len(o.Err) != 0 {
+			s.Errors++
+			return
+		}
+		// We are completely within segment.
+		s.TotalBytes += o.Size
+		s.FullOps++
+		s.OpsStarted++
+		s.OpsEnded++
+		return
+	}
+	// Operation partially within segment.
+	s.PartialOps++
+	if startedInSegment {
+		s.OpsStarted++
+		if len(o.Err) != 0 {
+			// Errors are only counted in segments they started in.
+			return
+		}
+
+	}
+	if endedInSegment {
+		s.OpsEnded++
+		if len(o.Err) != 0 {
+			s.Errors++
+			return
+		}
+	}
+	//segmentDur := s.EndsBefore.Sub(s.Start)
+	opDur := o.End.Sub(o.Start)
+
+	partStart := o.Start
+	partEnd := o.End
+	if !startedInSegment {
+		partStart = s.Start
+	}
+	if !endedInSegment {
+		partEnd = s.EndsBefore
+	}
+	partDur := partEnd.Sub(partStart)
+	partSize := o.Size * int64(partDur) / int64(opDur)
+
+	// If we overflow int64, fall back to float64
+	if float64(o.Size)*float64(partDur) > math.MaxInt64 {
+		partSize = int64(float64(o.Size) * float64(partDur) / float64(opDur))
+	}
+
+	// Sanity check
+	if partSize < 0 || partSize > o.Size {
+		panic(fmt.Errorf("invalid part size: %d (op: %+v seg:%+v)", partSize, o, s))
+	}
+	s.TotalBytes += partSize
+}
+
+// SortByStartTime will sort the operations by start time.
+// Earliest operations first.
 func (o Operations) SortByStartTime() {
 	sort.Slice(o, func(i, j int) bool {
 		return o[i].Start.Before(o[j].Start)
 	})
 }
 
+// ByOp separates the operations by op.
+func (o Operations) ByOp() map[string]Operations {
+	dst := make(map[string]Operations, 1)
+	for _, o := range o {
+		dst[o.Op] = append(dst[o.Op], o)
+	}
+	return dst
+}
+
+// TimeRange returns the full time range from start of first operation to end of the last.
+func (o Operations) TimeRange() (start, end time.Time) {
+	if len(o) == 0 {
+		return
+	}
+	start = o[0].Start
+	end = o[0].End
+	for _, op := range o {
+		if op.Start.Before(start) {
+			start = op.Start
+		}
+		if end.Before(op.End) {
+			end = op.End
+		}
+	}
+	return
+}
+
+// ActiveTimeRange returns the "active" time range.
+// All threads must have completed at least one request
+// and the last start time of any thread.
+// If there is no active time range both values will be the same.
+func (o Operations) ActiveTimeRange() (start, end time.Time) {
+	if len(o) == 0 {
+		return
+	}
+	t := o.Threads()
+	firstEnded := make(map[uint16]time.Time, t)
+	lastStarted := make(map[uint16]time.Time, t)
+	for _, op := range o {
+		ended, ok := firstEnded[op.Thread]
+		if !ok || ended.After(op.End) {
+			firstEnded[op.Thread] = op.End
+		}
+		started, ok := lastStarted[op.Thread]
+		if !ok || started.Before(op.Start) {
+			lastStarted[op.Thread] = op.Start
+		}
+		// Set ended to largest value
+		if end.Before(op.End) {
+			end = op.End
+		}
+	}
+	for _, ended := range firstEnded {
+		if ended.After(start) {
+			start = ended
+		}
+	}
+	for _, started := range lastStarted {
+		if end.After(started) {
+			end = started
+		}
+	}
+	if start.After(end) {
+		return start, start
+	}
+	return
+}
+
+// Threads returns the number of threads found.
+func (o Operations) Threads() int {
+	if len(o) == 0 {
+		return 0
+	}
+	maxT := uint16(0)
+	for _, op := range o {
+		if op.Thread > maxT {
+			maxT = op.Thread
+		}
+	}
+	return int(maxT)
+}
+
+// Errors returns the errors found.
+func (o Operations) Errors() []string {
+	if len(o) == 0 {
+		return nil
+	}
+	errs := []string{}
+	for _, op := range o {
+		if len(op.Err) != 0 {
+			errs = append(errs, op.Err)
+		}
+	}
+	return errs
+}
+
+// CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
 	_, err := bw.WriteString("idx,thread,op,bytes,file,error,start,end,duration_ns\n")
@@ -71,4 +243,55 @@ func (o Operations) CSV(w io.Writer) error {
 		}
 	}
 	return bw.Flush()
+}
+
+// OperationsFromCSV will load operations from CSV.
+func OperationsFromCSV(r io.Reader) (Operations, error) {
+	var ops Operations
+	cr := csv.NewReader(r)
+	cr.Comma = ','
+	cr.ReuseRecord = true
+	header, err := cr.Read()
+	if err != nil {
+		return nil, err
+	}
+	fieldIdx := make(map[string]int)
+	for i, s := range header {
+		fieldIdx[s] = i
+	}
+	for {
+		values, err := cr.Read()
+		if err == io.EOF {
+			break
+		}
+		if len(values) == 0 {
+			continue
+		}
+		start, err := time.Parse(time.RFC3339Nano, values[fieldIdx["start"]])
+		if err != nil {
+			return nil, err
+		}
+		end, err := time.Parse(time.RFC3339Nano, values[fieldIdx["end"]])
+		if err != nil {
+			return nil, err
+		}
+		size, err := strconv.ParseInt(values[fieldIdx["bytes"]], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		thread, err := strconv.ParseUint(values[fieldIdx["thread"]], 10, 16)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, Operation{
+			Op:     values[fieldIdx["op"]],
+			Start:  start,
+			End:    end,
+			Err:    values[fieldIdx["error"]],
+			Size:   size,
+			File:   values[fieldIdx["file"]],
+			Thread: uint16(thread),
+		})
+	}
+	return ops, nil
 }
