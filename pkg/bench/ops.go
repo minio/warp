@@ -15,13 +15,14 @@ import (
 type Operations []Operation
 
 type Operation struct {
-	Op     string
-	Start  time.Time
-	End    time.Time
-	Err    string
-	Size   int64
-	File   string
-	Thread uint16
+	OpType    string    `json:"type"`
+	Start     time.Time `json:"start"`
+	FirstByte time.Time `json:"end"`
+	End       time.Time `json:"end"`
+	Err       string    `json:"err"`
+	Size      int64     `json:"size"`
+	File      string    `json:"file"`
+	Thread    uint16    `json:"thread"`
 }
 
 type Collector struct {
@@ -57,7 +58,7 @@ func (c *Collector) Close() Operations {
 
 // Aggregate the operation into segment if it belongs there.
 func (o Operation) Aggregate(s *Segment) {
-	if len(s.Op) > 0 && o.Op != s.Op {
+	if len(s.OpType) > 0 && o.OpType != s.OpType {
 		return
 	}
 	if o.End.Before(s.Start) {
@@ -133,13 +134,32 @@ func (o Operations) SortByStartTime() {
 	})
 }
 
+// FilterByOp returns operations of a specific type.
+func (o Operations) FilterByOp(opType string) Operations {
+	dst := make(Operations, 0, len(o))
+	for _, o := range o {
+		if o.OpType == opType {
+			dst = append(dst, o)
+		}
+	}
+	return dst
+}
+
 // ByOp separates the operations by op.
 func (o Operations) ByOp() map[string]Operations {
 	dst := make(map[string]Operations, 1)
 	for _, o := range o {
-		dst[o.Op] = append(dst[o.Op], o)
+		dst[o.OpType] = append(dst[o.OpType], o)
 	}
 	return dst
+}
+
+// FirstOpType returns the type of the first entry empty string if there are no ops.
+func (o Operations) FirstOpType() string {
+	if len(o) == 0 {
+		return ""
+	}
+	return o[0].OpType
 }
 
 // TimeRange returns the full time range from start of first operation to end of the last.
@@ -232,12 +252,12 @@ func (o Operations) Errors() []string {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx,thread,op,bytes,file,error,start,end,duration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tbytes\tfile\terror\tstart\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
 	for i, op := range o {
-		_, err := fmt.Fprintf(bw, "%d,%d,%s,%d,%s,%s,%s,%s,%d\n", i, op.Thread, op.Op, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -249,7 +269,7 @@ func (o Operations) CSV(w io.Writer) error {
 func OperationsFromCSV(r io.Reader) (Operations, error) {
 	var ops Operations
 	cr := csv.NewReader(r)
-	cr.Comma = ','
+	cr.Comma = '\t'
 	cr.ReuseRecord = true
 	header, err := cr.Read()
 	if err != nil {
@@ -284,7 +304,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			return nil, err
 		}
 		ops = append(ops, Operation{
-			Op:     values[fieldIdx["op"]],
+			OpType: values[fieldIdx["op"]],
 			Start:  start,
 			End:    end,
 			Err:    values[fieldIdx["error"]],

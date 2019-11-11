@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"encoding/csv"
 	"fmt"
 	"io"
 	"math"
@@ -9,21 +10,20 @@ import (
 )
 
 type SegmentOptions struct {
-	Op             string
 	From           time.Time
 	PerSegDuration time.Duration
 }
 
 type Segment struct {
-	Op         string
-	TotalBytes int64
-	FullOps    int
-	PartialOps int
-	OpsStarted int
-	OpsEnded   int
-	Errors     int
-	Start      time.Time
-	EndsBefore time.Time
+	OpType     string    `json:"op"`
+	TotalBytes int64     `json:"total_bytes"`
+	FullOps    int       `json:"full_ops"`
+	PartialOps int       `json:"partial_ops"`
+	OpsStarted int       `json:"ops_started"`
+	OpsEnded   int       `json:"ops_ended"`
+	Errors     int       `json:"errors"`
+	Start      time.Time `json:"start"`
+	EndsBefore time.Time `json:"ends_before"`
 }
 
 type Segments []Segment
@@ -33,7 +33,6 @@ type Segments []Segment
 func (o Operations) Total() Segment {
 	start, end := o.ActiveTimeRange()
 	return o.Segment(SegmentOptions{
-		Op:             "",
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
 	})[0]
@@ -49,7 +48,6 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 	segStart := so.From
 	for segStart.Before(end.Add(-so.PerSegDuration)) {
 		s := Segment{
-			Op:         so.Op,
 			TotalBytes: 0,
 			FullOps:    0,
 			PartialOps: 0,
@@ -85,11 +83,49 @@ func (s Segments) Print(w io.Writer) error {
 	return nil
 }
 
+// Print segments to a supplied writer.
+func (s Segments) CSV(w io.Writer) error {
+	cw := csv.NewWriter(w)
+	cw.Comma = '\t'
+	err := cw.Write([]string{"index", "op", "start_time", "end_time", "duration_s", "bytes", "full_ops", "partial_ops", "ops_started", "ops_ended", "errors", "mib_per_sec", "ops_ended_per_sec"})
+	if err != nil {
+		return err
+	}
+	for i, seg := range s {
+		err := seg.CSV(cw, i)
+		if err != nil {
+			return err
+		}
+	}
+	cw.Flush()
+	return nil
+}
+
+// CSV writes a CSV representation of the segment to the supplied writer.
+func (s Segment) CSV(w *csv.Writer, idx int) error {
+	mb, ops := s.SpeedPerSec()
+	return w.Write([]string{
+		fmt.Sprint(idx),
+		s.OpType,
+		fmt.Sprint(s.Start),
+		fmt.Sprint(s.EndsBefore),
+		fmt.Sprint(float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)),
+		fmt.Sprint(s.TotalBytes),
+		fmt.Sprint(s.FullOps),
+		fmt.Sprint(s.PartialOps),
+		fmt.Sprint(s.OpsStarted),
+		fmt.Sprint(s.OpsEnded),
+		fmt.Sprint(s.Errors),
+		fmt.Sprint(mb),
+		fmt.Sprint(ops),
+	})
+}
+
 // String returns a string representation of the segment
 func (s Segment) String() string {
-	type ss Segment
 	mb, ops := s.SpeedPerSec()
-	return fmt.Sprintf("%.02f MB/s, %.02f ops ended/s.\n(details): %+v", mb, ops, ss(s))
+	return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s. Full Ops: %d, Partial Ops: %d, Started: %v",
+		s.EndsBefore.Sub(s.Start), mb, ops, s.FullOps, s.PartialOps, s.Start)
 }
 
 // SortByThroughput sorts the segments by throughput.

@@ -81,6 +81,7 @@ func Main(args []string) {
 }
 
 var appCmds = []cli.Command{
+	getCmd,
 	putCmd,
 	updateCmd,
 	versionCmd,

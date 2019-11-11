@@ -38,7 +38,7 @@ func (u *Upload) Start(ctx context.Context, start chan struct{}) Operations {
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
 				op := Operation{
-					Op:     "PUT",
+					OpType: "PUT",
 					Thread: uint16(i),
 					Size:   obj.Size,
 					File:   obj.Name,

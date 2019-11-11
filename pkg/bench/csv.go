@@ -11,7 +11,7 @@ import (
 // Fields with a Comma, fields with a quote or newline, and
 // fields which start with a space must be enclosed in quotes.
 func fieldNeedsQuotes(field string) bool {
-	const comma = ','
+	const comma = '\t'
 	if field == "" {
 		return false
 	}

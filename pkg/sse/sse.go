@@ -158,3 +158,13 @@ type PrefixSSEPair struct {
 	Prefix string
 	SSE    encrypt.ServerSide
 }
+
+// get SSE Key if object prefix matches with given resource.
+func GetSSE(resource string, encKeys []PrefixSSEPair) encrypt.ServerSide {
+	for _, k := range encKeys {
+		if strings.HasPrefix(resource, k.Prefix) {
+			return k.SSE
+		}
+	}
+	return nil
+}
