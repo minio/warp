@@ -6,7 +6,6 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
-	"github.com/minio/warp/pkg/sse"
 )
 
 // cp command flags.
@@ -47,11 +46,7 @@ EXAMPLES:
 
 // mainPut is the entry point for cp command.
 func mainGet(ctx *cli.Context) error {
-	// Parse encryption keys per command.
-	encKeyDB, perr := sse.EncKeys(ctx)
-	fatalIf(perr, "Unable to parse encryption keys.")
-
-	checkPutSyntax(ctx, encKeyDB)
+	checkGetSyntax(ctx)
 	src := newGenSource(ctx)
 	cl, err := minio.New(ctx.String("host"), ctx.String("access-key"), ctx.String("secret-key"), false)
 	if err != nil {
@@ -64,16 +59,17 @@ func mainGet(ctx *cli.Context) error {
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
-			PutOpts:     minio.PutObjectOptions{
-				//ServerSideEncryption: sse.GetSSE(encKeyDB),
+			PutOpts: minio.PutObjectOptions{
+				ServerSideEncryption: newSSE(ctx),
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
+		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: newSSE(ctx)},
 	}
 	return runBench(ctx, &b)
 }
 
-func checkGetSyntax(ctx *cli.Context, encKeyDB map[string][]sse.PrefixSSEPair) {
+func checkGetSyntax(ctx *cli.Context) {
 	//if len(ctx.Args()) < 2 {
 	//	cli.ShowCommandHelpAndExit(ctx, "put", 1) // last argument is exit code.
 	//}

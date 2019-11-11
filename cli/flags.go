@@ -114,9 +114,9 @@ var ioFlags = []cli.Flag{
 		Usage:  "Use TLS (HTTPS) for transport",
 		EnvVar: appNameUC + "_TLS",
 	},
-	cli.StringFlag{
-		Name:  "encrypt-key",
-		Usage: "encrypt/decrypt objects (using server-side encryption with customer provided keys)",
+	cli.BoolFlag{
+		Name:  "encrypt",
+		Usage: "encrypt/decrypt objects (using server-side encryption with random keys)",
 	},
 	cli.StringFlag{
 		Name:  "bucket",

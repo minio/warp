@@ -40,8 +40,8 @@ func (g *Get) Prepare(ctx context.Context) {
 	for i := 0; i < g.Concurrency; i++ {
 		go func() {
 			defer wg.Done()
+			src := g.Source()
 			for range obj {
-				src := g.Source()
 				opts := g.PutOpts
 				rcv := g.Collector.Receiver()
 				done := ctx.Done()
