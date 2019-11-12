@@ -8,7 +8,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
-	github.com/klauspost/compress v1.5.0
+	github.com/klauspost/compress v1.9.1
 	github.com/mattn/go-isatty v0.0.7
 	github.com/minio/cli v1.21.0
 	github.com/minio/mc v0.0.0-20190919160124-93297260beaf

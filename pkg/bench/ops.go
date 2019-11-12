@@ -64,7 +64,7 @@ func (o Operation) Aggregate(s *Segment) {
 	if o.End.Before(s.Start) {
 		return
 	}
-	if o.Start.After(s.EndsBefore) {
+	if o.Start.After(s.EndsBefore) || o.Start.Equal(s.EndsBefore) {
 		return
 	}
 	startedInSegment := o.Start.After(s.Start) || o.Start.Equal(s.Start)
@@ -283,6 +283,9 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		values, err := cr.Read()
 		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return nil, err
 		}
 		if len(values) == 0 {
 			continue

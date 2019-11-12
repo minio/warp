@@ -81,10 +81,21 @@ func Main(args []string) {
 }
 
 var appCmds = []cli.Command{
+	analyzeCmd,
 	getCmd,
 	putCmd,
 	updateCmd,
 	versionCmd,
+}
+
+func combineFlags(flags ...[]cli.Flag) []cli.Flag {
+	var dst []cli.Flag
+	for _, fl := range flags {
+		for _, flag := range fl {
+			dst = append(dst, flag)
+		}
+	}
+	return dst
 }
 
 // Collection of mc commands currently supported

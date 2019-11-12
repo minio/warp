@@ -19,13 +19,12 @@ var (
 	}
 )
 
-// Put command.
 var getCmd = cli.Command{
 	Name:   "get",
-	Usage:  "get objects",
+	Usage:  "benchmark get objects",
 	Action: mainGet,
 	Before: setGlobalsFromContext,
-	Flags:  append(append(append(getFlags, ioFlags...), globalFlags...), genFlags...),
+	Flags:  combineFlags(globalFlags, ioFlags, genFlags, getFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -35,16 +34,13 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-ENVIRONMENT VARIABLES:
-  ` + appNameUC + `_ENCRYPT:      list of comma delimited prefixes
-  ` + appNameUC + `_ENCRYPT_KEY:  list of comma delimited prefix=secret values
 
 EXAMPLES:
 ...
  `,
 }
 
-// mainPut is the entry point for cp command.
+// mainGet is the entry point for get command.
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
 	src := newGenSource(ctx)

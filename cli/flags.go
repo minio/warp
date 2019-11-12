@@ -130,6 +130,6 @@ var ioFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:  "no-prefix",
-		Usage: "Use separate prefix for each uploader",
+		Usage: "Do not use separate prefix for each thread",
 	},
 }

@@ -110,7 +110,7 @@ func (r *randomSrc) Object() *Object {
 	data := r.buf.data
 	var nBuf [16]byte
 	randAsciiBytes(nBuf[:], r.rng)
-	r.obj.setName(string(nBuf[:]) + ".bin")
+	r.obj.setName(string(nBuf[:]) + ".rnd")
 
 	if len(data) < 128 {
 		_, err := io.ReadFull(r.rng, data)

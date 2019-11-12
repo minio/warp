@@ -19,10 +19,10 @@ var (
 // Put command.
 var putCmd = cli.Command{
 	Name:   "put",
-	Usage:  "put objects",
+	Usage:  "benchmark put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  append(append(append(putFlags, ioFlags...), globalFlags...), genFlags...),
+	Flags:  combineFlags(globalFlags, ioFlags, genFlags, putFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -32,9 +32,6 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-ENVIRONMENT VARIABLES:
-  ` + appNameUC + `_ENCRYPT:      list of comma delimited prefixes
-  ` + appNameUC + `_ENCRYPT_KEY:  list of comma delimited prefix=secret values
 
 EXAMPLES:
 ...
