@@ -2,9 +2,7 @@ package bench
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
@@ -14,7 +12,7 @@ import (
 var zstdDec, _ = zstd.NewReader(nil)
 
 func TestOperations_Segment(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/small-get.csv.zst")
+	b, err := ioutil.ReadFile("testdata/warp-benchdata-put.csv.zst")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,14 +29,20 @@ func TestOperations_Segment(t *testing.T) {
 			From:           time.Time{},
 			PerSegDuration: time.Second,
 		})
-		fmt.Println("Operation type:", typ)
-		segs.Print(os.Stdout)
-		//segs.CSV(os.Stdout)
+		t.Log("Operation type:", typ)
+
+		var buf bytes.Buffer
+		err := segs.Print(&buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		segs.SortByThroughput()
-		fmt.Println("Errors:", len(ops.Errors()))
-		fmt.Println("Fastest:", segs.Median(1))
-		fmt.Println("Average:", ops.Total())
-		fmt.Println("50% Median:", segs.Median(0.5))
-		fmt.Println("Slowest:", segs.Median(0.0))
+		t.Log("Errors:", len(ops.Errors()))
+		t.Log("Fastest:", segs.Median(1))
+		t.Log("Average:", ops.Total())
+		t.Log("50% Median:", segs.Median(0.5))
+		t.Log("Slowest:", segs.Median(0.0))
+		t.Log(buf.String())
 	}
 }

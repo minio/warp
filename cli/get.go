@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"log"
-
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -24,7 +23,7 @@ var getCmd = cli.Command{
 	Usage:  "benchmark get objects",
 	Action: mainGet,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, genFlags, getFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -45,9 +44,7 @@ func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
 	src := newGenSource(ctx)
 	cl, err := minio.New(ctx.String("host"), ctx.String("access-key"), ctx.String("secret-key"), false)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(probe.NewError(err), "Unable to create MinIO client")
 	b := bench.Get{
 		Common: bench.Common{
 			Client:      cl,
@@ -66,12 +63,5 @@ func mainGet(ctx *cli.Context) error {
 }
 
 func checkGetSyntax(ctx *cli.Context) {
-	//if len(ctx.Args()) < 2 {
-	//	cli.ShowCommandHelpAndExit(ctx, "put", 1) // last argument is exit code.
-	//}
-	// extract URLs.
-	//URLs := ctx.Args()
-	//if len(URLs) < 2 {
-	//	fatalIf(errDummy().Trace(ctx.Args()...), fmt.Sprintf("Unable to parse source and target arguments."))
-	//}
+	checkAnalyze(ctx)
 }

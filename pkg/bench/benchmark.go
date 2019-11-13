@@ -9,11 +9,18 @@ import (
 )
 
 type Benchmark interface {
+	// Prepare for the benchmark run
 	Prepare(ctx context.Context)
+
+	// Start will execute the main benchmark.
+	// Operations should begin executing when the start channel is closed.
 	Start(ctx context.Context, sync chan struct{}) Operations
+
+	// Clean up after the benchmark run.
 	Cleanup(ctx context.Context)
 }
 
+// Common contains common benchmark parameters.
 type Common struct {
 	Client *minio.Client
 
@@ -26,6 +33,8 @@ type Common struct {
 	PutOpts minio.PutObjectOptions
 }
 
+// createEmptyBucket will create an empty bucket
+// or delete all content if it already exists.
 func (c *Common) createEmptyBucket(ctx context.Context) {
 	x, err := c.Client.BucketExists(c.Bucket)
 	if err != nil {
@@ -41,6 +50,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) {
 	c.deleteAllInBucket(ctx)
 }
 
+// deleteAllInBucket will delete all content in a bucket.
 func (c *Common) deleteAllInBucket(ctx context.Context) {
 	doneCh := make(chan struct{})
 	defer close(doneCh)

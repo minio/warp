@@ -1,7 +1,6 @@
 package bench
 
 import (
-	"bufio"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -56,45 +55,4 @@ func csvEscapeString(field string) string {
 	}
 	w.WriteByte('"')
 	return w.String()
-}
-
-func csvWriteEscaped(w bufio.Writer, field string) error {
-	if !fieldNeedsQuotes(field) {
-		_, err := w.WriteString(field)
-		return err
-	}
-	if err := w.WriteByte('"'); err != nil {
-		return err
-	}
-	for len(field) > 0 {
-		// Search for special characters.
-		i := strings.IndexAny(field, "\"\r\n")
-		if i < 0 {
-			i = len(field)
-		}
-
-		// Copy verbatim everything before the special character.
-		if _, err := w.WriteString(field[:i]); err != nil {
-			return err
-		}
-		field = field[i:]
-
-		// Encode the special character.
-		if len(field) > 0 {
-			var err error
-			switch field[0] {
-			case '"':
-				_, err = w.WriteString(`""`)
-			case '\r':
-				err = w.WriteByte('\r')
-			case '\n':
-				err = w.WriteByte('\n')
-			}
-			field = field[1:]
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return w.WriteByte('"')
 }

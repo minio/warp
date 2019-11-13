@@ -210,10 +210,6 @@ func installAutoCompletion() {
 	}
 }
 
-func registerBefore(ctx *cli.Context) error {
-	return nil
-}
-
 // Get os/arch/platform specific information.
 // Returns a map of current os/arch/platform/memstats.
 func getSystemData() map[string]string {

@@ -1,12 +1,8 @@
 package cli
 
 import (
-	"context"
-	"log"
-	"os"
-	"time"
-
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -22,7 +18,7 @@ var putCmd = cli.Command{
 	Usage:  "benchmark put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, genFlags, putFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -43,10 +39,8 @@ func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
 	src := newGenSource(ctx)
 	cl, err := minio.New(ctx.String("host"), ctx.String("access-key"), ctx.String("secret-key"), false)
-	if err != nil {
-		log.Fatal(err)
-	}
-	b := bench.Upload{
+	fatalIf(probe.NewError(err), "Unable to create MinIO client")
+	b := bench.Put{
 		Common: bench.Common{
 			Client:      cl,
 			Concurrency: ctx.Int("concurrent"),
@@ -56,33 +50,10 @@ func mainPut(ctx *cli.Context) error {
 			PutOpts:     minio.PutObjectOptions{},
 		},
 	}
-	log.Println("Preparing server.")
-	b.Prepare(context.Background())
-
-	tStart := time.Now().Add(time.Second)
-	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(time.Minute))
-	defer cancel()
-	start := make(chan struct{})
-	go func() {
-		<-time.After(time.Until(tStart))
-		close(start)
-	}()
-	log.Println("Done. Starting benchmark")
-	ops := b.Start(ctx2, start)
-	ops.SortByStartTime()
-	log.Println("Done. Starting cleanup")
-	b.Cleanup(context.Background())
-
-	return ops.CSV(os.Stdout)
+	return runBench(ctx, &b)
 }
 
 func checkPutSyntax(ctx *cli.Context) {
-	//if len(ctx.Args()) < 2 {
-	//	cli.ShowCommandHelpAndExit(ctx, "put", 1) // last argument is exit code.
-	//}
-	// extract URLs.
-	//URLs := ctx.Args()
-	//if len(URLs) < 2 {
-	//	fatalIf(errDummy().Trace(ctx.Args()...), fmt.Sprintf("Unable to parse source and target arguments."))
-	//}
+	checkAnalyze(ctx)
+
 }

@@ -16,8 +16,9 @@ type Operations []Operation
 
 type Operation struct {
 	OpType    string    `json:"type"`
+	ObjPerOp  int       `json:"ops"`
 	Start     time.Time `json:"start"`
-	FirstByte time.Time `json:"end"`
+	FirstByte time.Time `json:"first_byte"`
 	End       time.Time `json:"end"`
 	Err       string    `json:"err"`
 	Size      int64     `json:"size"`
@@ -81,6 +82,7 @@ func (o Operation) Aggregate(s *Segment) {
 		s.FullOps++
 		s.OpsStarted++
 		s.OpsEnded++
+		s.ObjsPerOp = o.ObjPerOp
 		return
 	}
 	// Operation partially within segment.
@@ -160,6 +162,14 @@ func (o Operations) FirstOpType() string {
 		return ""
 	}
 	return o[0].OpType
+}
+
+// FirstObjPerOp returns the number of objects per operation of the first entry, or 0 if there are no ops.
+func (o Operations) FirstObjPerOp() int {
+	if len(o) == 0 {
+		return 0
+	}
+	return o[0].ObjPerOp
 }
 
 // TimeRange returns the full time range from start of first operation to end of the last.
@@ -252,12 +262,12 @@ func (o Operations) Errors() []string {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tbytes\tfile\terror\tstart\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
 	for i, op := range o {
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -306,14 +316,19 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
+		objs, err := strconv.ParseInt(values[fieldIdx["n_objects"]], 10, 64)
+		if err != nil {
+			return nil, err
+		}
 		ops = append(ops, Operation{
-			OpType: values[fieldIdx["op"]],
-			Start:  start,
-			End:    end,
-			Err:    values[fieldIdx["error"]],
-			Size:   size,
-			File:   values[fieldIdx["file"]],
-			Thread: uint16(thread),
+			OpType:   values[fieldIdx["op"]],
+			ObjPerOp: int(objs),
+			Start:    start,
+			End:      end,
+			Err:      values[fieldIdx["error"]],
+			Size:     size,
+			File:     values[fieldIdx["file"]],
+			Thread:   uint16(thread),
 		})
 	}
 	return ops, nil

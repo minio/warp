@@ -3,20 +3,25 @@ package bench
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/minio/mc/pkg/console"
 )
 
-type Upload struct {
+// Put benchmarks upload speed.
+type Put struct {
 	Common
 }
 
-func (u *Upload) Prepare(ctx context.Context) {
+// Prepare will create an empty bucket ot delete any content already there.
+func (u *Put) Prepare(ctx context.Context) {
 	u.createEmptyBucket(ctx)
 }
 
-func (u *Upload) Start(ctx context.Context, start chan struct{}) Operations {
+// Start will execute the main benchmark.
+// Operations should begin executing when the start channel is closed.
+func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
 	c := NewCollector()
@@ -38,21 +43,22 @@ func (u *Upload) Start(ctx context.Context, start chan struct{}) Operations {
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
 				op := Operation{
-					OpType: "PUT",
-					Thread: uint16(i),
-					Size:   obj.Size,
-					File:   obj.Name,
+					OpType:   "PUT",
+					Thread:   uint16(i),
+					Size:     obj.Size,
+					File:     obj.Name,
+					ObjPerOp: 1,
 				}
 				op.Start = time.Now()
 				n, err := u.Client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
-					log.Println("upload error:", err)
+					console.Println("upload error:", err)
 					op.Err = err.Error()
 				}
 				if n != obj.Size {
 					op.Err = fmt.Sprint("short upload. want:", obj.Size, "got:", n)
-					log.Println(op.Err)
+					console.Println(op.Err)
 				}
 				rcv <- op
 			}
@@ -62,6 +68,7 @@ func (u *Upload) Start(ctx context.Context, start chan struct{}) Operations {
 	return c.Close()
 }
 
-func (u *Upload) Cleanup(ctx context.Context) {
+// Cleanup deletes everything uploaded to the bucket.
+func (u *Put) Cleanup(ctx context.Context) {
 	u.deleteAllInBucket(ctx)
 }

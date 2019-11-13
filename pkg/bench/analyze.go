@@ -9,13 +9,17 @@ import (
 	"time"
 )
 
+// SegmentOptions describe options used to segment operations.
 type SegmentOptions struct {
 	From           time.Time
 	PerSegDuration time.Duration
 }
 
+// A Segment represents totals of operations in a specific time segment
+// starting at Start and ending before EndsBefore.
 type Segment struct {
 	OpType     string    `json:"op"`
+	ObjsPerOp  int       `json:"objects_per_op"`
 	TotalBytes int64     `json:"total_bytes"`
 	FullOps    int       `json:"full_ops"`
 	PartialOps int       `json:"partial_ops"`
@@ -26,6 +30,7 @@ type Segment struct {
 	EndsBefore time.Time `json:"ends_before"`
 }
 
+// Segments is a slice of segment elements.
 type Segments []Segment
 
 // Total will return the total of active operations.
@@ -39,6 +44,7 @@ func (o Operations) Total() Segment {
 }
 
 // Segment will segment the operations o.
+// Operations should be of the same type.
 func (o Operations) Segment(so SegmentOptions) Segments {
 	start, end := o.ActiveTimeRange()
 	if start.After(so.From) {
@@ -48,6 +54,8 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 	segStart := so.From
 	for segStart.Before(end.Add(-so.PerSegDuration)) {
 		s := Segment{
+			OpType:     o.FirstOpType(),
+			ObjsPerOp:  o.FirstObjPerOp(),
 			TotalBytes: 0,
 			FullOps:    0,
 			PartialOps: 0,
@@ -83,11 +91,11 @@ func (s Segments) Print(w io.Writer) error {
 	return nil
 }
 
-// Print segments to a supplied writer.
+// CSV writes segments to a supplied writer as CSV data.
 func (s Segments) CSV(w io.Writer) error {
 	cw := csv.NewWriter(w)
 	cw.Comma = '\t'
-	err := cw.Write([]string{"index", "op", "start_time", "end_time", "duration_s", "bytes", "full_ops", "partial_ops", "ops_started", "ops_ended", "errors", "mib_per_sec", "ops_ended_per_sec"})
+	err := cw.Write([]string{"index", "op", "duration_s", "objects_per_op", "bytes", "full_ops", "partial_ops", "ops_started", "ops_ended", "errors", "mb_per_sec", "ops_ended_per_sec", "start_time", "end_time"})
 	if err != nil {
 		return err
 	}
@@ -107,9 +115,8 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 	return w.Write([]string{
 		fmt.Sprint(idx),
 		s.OpType,
-		fmt.Sprint(s.Start),
-		fmt.Sprint(s.EndsBefore),
 		fmt.Sprint(float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)),
+		fmt.Sprint(s.ObjsPerOp),
 		fmt.Sprint(s.TotalBytes),
 		fmt.Sprint(s.FullOps),
 		fmt.Sprint(s.PartialOps),
@@ -118,14 +125,18 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 		fmt.Sprint(s.Errors),
 		fmt.Sprint(mb),
 		fmt.Sprint(ops),
+		fmt.Sprint(s.Start),
+		fmt.Sprint(s.EndsBefore),
 	})
 }
 
 // String returns a string representation of the segment
 func (s Segment) String() string {
 	mb, ops := s.SpeedPerSec()
-	return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s. Full Ops: %d, Partial Ops: %d, Started: %s",
-		s.EndsBefore.Sub(s.Start), mb, ops, s.FullOps, s.PartialOps, s.Start.Format(time.RFC3339))
+	return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s.",
+		s.EndsBefore.Sub(s.Start).Round(time.Millisecond), mb, ops)
+	//return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s. [Full Ops: %d, Partial Ops: %d, Started: %s]",
+	//	s.EndsBefore.Sub(s.Start), mb, ops, s.FullOps, s.PartialOps, s.Start.Format(time.RFC3339))
 }
 
 // SortByThroughput sorts the segments by throughput.

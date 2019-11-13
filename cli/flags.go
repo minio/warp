@@ -36,8 +36,9 @@ var globalFlags = []cli.Flag{
 		Usage: "Write an local execution trace to the specified file before exiting.",
 	},
 	cli.BoolFlag{
-		Name:  "quiet, q",
-		Usage: "disable progress bar display",
+		Name:   "quiet, q",
+		Usage:  "disable progress bar display",
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:  "no-color",
@@ -129,7 +130,7 @@ var ioFlags = []cli.Flag{
 		Usage: "Run this many concurrent operations",
 	},
 	cli.BoolFlag{
-		Name:  "no-prefix",
+		Name:  "noprefix",
 		Usage: "Do not use separate prefix for each thread",
 	},
 }

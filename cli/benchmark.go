@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
+
+	"github.com/minio/mc/pkg/probe"
+
+	"github.com/minio/mc/pkg/console"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
@@ -20,11 +23,12 @@ var benchFlags = []cli.Flag{
 	},
 }
 
-// mainPut is the entry point for cp command.
+// runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
-	log.Println("Preparing server.")
+	console.Println("Preparing server.")
 	b.Prepare(context.Background())
 
+	// Start after waiting a second.
 	tStart := time.Now().Add(time.Second)
 	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(time.Minute))
 	defer cancel()
@@ -33,10 +37,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		<-time.After(time.Until(tStart))
 		close(start)
 	}()
-	log.Println("Done. Starting benchmark")
+	console.Println("Done. Starting benchmark...")
 	ops := b.Start(ctx2, start)
 	ops.SortByStartTime()
-	log.Println("Done. Starting cleanup")
+	console.Println("Done. Starting cleanup...")
 	b.Cleanup(context.Background())
 
 	fileName := ctx.String("benchdata")
@@ -45,20 +49,17 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 	f, err := os.Create(fileName)
 	if err != nil {
-		log.Println("Unable to write benchmark data:", err)
+		console.Error("Unable to write benchmark data:", err)
 	} else {
 		defer f.Close()
 		enc, err := zstd.NewWriter(f)
-		if err != nil {
-			log.Fatal(err)
-		}
+		fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+
 		defer enc.Close()
 		err = ops.CSV(enc)
-		if err != nil {
-			log.Fatal(err)
-		}
+		fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-		log.Printf("Benchmark data written to %q\n", fileName)
+		console.Printf("Benchmark data written to %q\n", fileName)
 	}
 	printAnalysis(ctx, ops)
 	return nil
