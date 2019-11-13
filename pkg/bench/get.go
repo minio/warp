@@ -84,6 +84,24 @@ func (g *Get) Prepare(ctx context.Context) {
 	wg.Wait()
 }
 
+type firstByteRecorder struct {
+	t *time.Time
+	r io.Reader
+}
+
+func (f *firstByteRecorder) Read(p []byte) (n int, err error) {
+	if f.t != nil || len(p) == 0 {
+		return f.r.Read(p)
+	}
+	// Read a single byte.
+	n, err = f.r.Read(p[:1])
+	if n > 0 {
+		t := time.Now()
+		f.t = &t
+	}
+	return n, err
+}
+
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
 func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
@@ -105,6 +123,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					return
 				default:
 				}
+				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				op := Operation{
 					OpType:   "GET",
@@ -114,7 +133,8 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					ObjPerOp: 1,
 				}
 				op.Start = time.Now()
-				gotObj, err := g.Client.GetObject(g.Bucket, obj.Name, opts)
+				var err error
+				fbr.r, err = g.Client.GetObject(g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Println("download error:", err)
 					op.Err = err.Error()
@@ -122,12 +142,12 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					rcv <- op
 					continue
 				}
-				op.FirstByte = time.Now()
-				n, err := io.Copy(ioutil.Discard, gotObj)
+				n, err := io.Copy(ioutil.Discard, &fbr)
 				if err != nil {
 					console.Println("download error:", err)
 					op.Err = err.Error()
 				}
+				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != obj.Size && op.Err == "" {
 					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, "got:", n)

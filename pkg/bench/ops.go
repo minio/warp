@@ -15,15 +15,15 @@ import (
 type Operations []Operation
 
 type Operation struct {
-	OpType    string    `json:"type"`
-	ObjPerOp  int       `json:"ops"`
-	Start     time.Time `json:"start"`
-	FirstByte time.Time `json:"first_byte"`
-	End       time.Time `json:"end"`
-	Err       string    `json:"err"`
-	Size      int64     `json:"size"`
-	File      string    `json:"file"`
-	Thread    uint16    `json:"thread"`
+	OpType    string     `json:"type"`
+	ObjPerOp  int        `json:"ops"`
+	Start     time.Time  `json:"start"`
+	FirstByte *time.Time `json:"first_byte"`
+	End       time.Time  `json:"end"`
+	Err       string     `json:"err"`
+	Size      int64      `json:"size"`
+	File      string     `json:"file"`
+	Thread    uint16     `json:"thread"`
 }
 
 type Collector struct {
@@ -262,12 +262,16 @@ func (o Operations) Errors() []string {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
 	for i, op := range o {
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		var ttfb string
+		if op.FirstByte != nil {
+			ttfb = op.FirstByte.Format(time.RFC3339Nano)
+		}
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -304,6 +308,14 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
+		var ttfb *time.Time
+		if fb := values[fieldIdx["first_byte"]]; fb != "" {
+			t, err := time.Parse(time.RFC3339Nano, fb)
+			if err != nil {
+				return nil, err
+			}
+			ttfb = &t
+		}
 		end, err := time.Parse(time.RFC3339Nano, values[fieldIdx["end"]])
 		if err != nil {
 			return nil, err
@@ -321,14 +333,15 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			return nil, err
 		}
 		ops = append(ops, Operation{
-			OpType:   values[fieldIdx["op"]],
-			ObjPerOp: int(objs),
-			Start:    start,
-			End:      end,
-			Err:      values[fieldIdx["error"]],
-			Size:     size,
-			File:     values[fieldIdx["file"]],
-			Thread:   uint16(thread),
+			OpType:    values[fieldIdx["op"]],
+			ObjPerOp:  int(objs),
+			Start:     start,
+			FirstByte: ttfb,
+			End:       end,
+			Err:       values[fieldIdx["error"]],
+			Size:      size,
+			File:      values[fieldIdx["file"]],
+			Thread:    uint16(thread),
 		})
 	}
 	return ops, nil
