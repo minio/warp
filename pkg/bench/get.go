@@ -45,9 +45,9 @@ type Get struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Get) Prepare(ctx context.Context) {
-	console.Println("Creating Bucket...")
+	console.Infoln("Creating Bucket...")
 	g.createEmptyBucket(ctx)
-	console.Println("Uploading", g.CreateObjects, "Objects...")
+	console.Infoln("Uploading", g.CreateObjects, "Objects...")
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -152,7 +152,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				var err error
 				fbr.r, err = g.Client.GetObject(g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Println("download error:", err)
+					console.Infoln("download error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -160,14 +160,14 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				n, err := io.Copy(ioutil.Discard, &fbr)
 				if err != nil {
-					console.Println("download error:", err)
+					console.Infoln("download error:", err)
 					op.Err = err.Error()
 				}
 				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != obj.Size && op.Err == "" {
 					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, "got:", n)
-					console.Println(op.Err)
+					console.Infoln(op.Err)
 				}
 				rcv <- op
 			}

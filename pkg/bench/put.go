@@ -69,12 +69,12 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 				n, err := u.Client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
-					console.Println("upload error:", err)
+					console.Infoln("upload error:", err)
 					op.Err = err.Error()
 				}
 				if n != obj.Size {
 					op.Err = fmt.Sprint("short upload. want:", obj.Size, "got:", n)
-					console.Println(op.Err)
+					console.Infoln(op.Err)
 				}
 				rcv <- op
 			}

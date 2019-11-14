@@ -36,9 +36,9 @@ type message interface {
 // printMsg prints message string or JSON structure depending on the type of output console.
 func printMsg(msg message) {
 	if !globalJSON {
-		console.Println(msg.String())
+		console.Infoln(msg.String())
 	} else {
-		console.Println(msg.JSON())
+		console.Infoln(msg.JSON())
 	}
 }
 
@@ -89,7 +89,7 @@ func fatal(err *probe.Error, msg string, data ...interface{}) {
 		if e != nil {
 			console.Fatalln(probe.NewError(e))
 		}
-		console.Println(string(json))
+		console.Infoln(string(json))
 		console.Fatalln()
 	}
 
@@ -160,7 +160,7 @@ func errorIf(err *probe.Error, msg string, data ...interface{}) {
 		if e != nil {
 			console.Fatalln(probe.NewError(e))
 		}
-		console.Println(string(json))
+		console.Infoln(string(json))
 		return
 	}
 	msg = fmt.Sprintf(msg, data...)

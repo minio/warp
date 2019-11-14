@@ -10,14 +10,14 @@ require (
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/klauspost/compress v1.9.1
 	github.com/mattn/go-isatty v0.0.7
-	github.com/minio/cli v1.21.0
-	github.com/minio/mc v0.0.0-20190919160124-93297260beaf
-	github.com/minio/minio v0.0.0-20190903181048-8a71b0ec5a72
-	github.com/minio/minio-go/v6 v6.0.32
-	github.com/minio/sha256-simd v0.1.0
+	github.com/minio/cli v1.22.0
+	github.com/minio/mc v0.0.0-20191012041914-735aa139b19c
+	github.com/minio/minio v0.0.0-20191112111625-d97d53bddc9d
+	github.com/minio/minio-go/v6 v6.0.39
+	github.com/minio/sha256-simd v0.1.1
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
-	github.com/secure-io/sio-go v0.1.0
+	github.com/secure-io/sio-go v0.3.0
 	github.com/segmentio/go-prompt v1.2.1-0.20161017233205-f0d19b6901ad
 )
 

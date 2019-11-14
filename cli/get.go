@@ -18,7 +18,6 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -59,11 +58,10 @@ EXAMPLES:
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
 	src := newGenSource(ctx)
-	cl, err := minio.New(ctx.String("host"), ctx.String("access-key"), ctx.String("secret-key"), false)
-	fatalIf(probe.NewError(err), "Unable to create MinIO client")
+
 	b := bench.Get{
 		Common: bench.Common{
-			Client:      cl,
+			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
@@ -80,4 +78,5 @@ func mainGet(ctx *cli.Context) error {
 
 func checkGetSyntax(ctx *cli.Context) {
 	checkAnalyze(ctx)
+	checkBenchmark(ctx)
 }
