@@ -144,12 +144,55 @@ func (o Operation) Aggregate(s *Segment) {
 	s.TotalBytes += partSize
 }
 
+// TTFB returns the time to first byte or 0 if nothing was recorded.
+func (o Operation) TTFB() time.Duration {
+	if o.FirstByte == nil {
+		return 0
+	}
+	return o.FirstByte.Sub(o.Start)
+}
+
 // SortByStartTime will sort the operations by start time.
 // Earliest operations first.
 func (o Operations) SortByStartTime() {
 	sort.Slice(o, func(i, j int) bool {
 		return o[i].Start.Before(o[j].Start)
 	})
+}
+
+// SortByTTFB sorts by time to first byte.
+// Smallest first.
+func (o Operations) SortByTTFB() {
+	sort.Slice(o, func(i, j int) bool {
+		a, b := o[i], o[j]
+		if a.FirstByte == nil || b.FirstByte == nil {
+			return a.Start.Before(b.Start)
+		}
+		return a.FirstByte.Sub(a.Start) < b.FirstByte.Sub(b.Start)
+	})
+}
+
+// FilterByHasTTFB returns operations that has or has not time to first byte.
+func (o Operations) FilterByHasTTFB(hasTTFB bool) Operations {
+	dst := make(Operations, 0, len(o))
+	for _, o := range o {
+		if (o.FirstByte != nil) == hasTTFB {
+			dst = append(dst, o)
+		}
+	}
+	return dst
+}
+
+// FilterInsideRange returns operations that are inside the specified time range.
+func (o Operations) FilterInsideRange(start, end time.Time) Operations {
+	dst := make(Operations, 0, len(o))
+	for _, o := range o {
+		if o.Start.Before(start) || o.End.After(end) {
+			continue
+		}
+		dst = append(dst, o)
+	}
+	return dst
 }
 
 // FilterByOp returns operations of a specific type.

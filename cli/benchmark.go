@@ -126,6 +126,7 @@ func (rp *runningProfiles) stop(ctx *cli.Context, fileName string) {
 	// Ask for profile data, which will come compressed with zip format
 	zippedData, adminErr := rp.client.DownloadProfilingData()
 	fatalIf(probe.NewError(adminErr), "Unable to download profile data.")
+	defer zippedData.Close()
 
 	f, err := os.Create(fileName)
 	if err != nil {

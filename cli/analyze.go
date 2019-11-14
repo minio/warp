@@ -134,12 +134,16 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			continue
 		}
 		segs.SortByThroughput()
+		totals, ttfb := ops.Total()
 		console.Println("Operation:", typ)
 		console.Println("Errors:", len(ops.Errors()))
-		console.Println("Average:", ops.Total())
+		console.Println("Average:", totals)
 		console.Println("Fastest:", segs.Median(1))
 		console.Println("50% Median:", segs.Median(0.5))
 		console.Println("Slowest:", segs.Median(0.0))
+		if ttfb.Average > 0 {
+			console.Println("Time To First Byte:", ttfb)
+		}
 		if wrSegs != nil {
 			err := segs.CSV(wrSegs)
 			errorIf(probe.NewError(err), "Error writing analysis")

@@ -54,11 +54,16 @@ func TestOperations_Segment(t *testing.T) {
 		}
 
 		segs.SortByThroughput()
+		totals, ttfb := ops.Total()
+
 		t.Log("Errors:", len(ops.Errors()))
 		t.Log("Fastest:", segs.Median(1))
-		t.Log("Average:", ops.Total())
+		t.Log("Average:", totals)
 		t.Log("50% Median:", segs.Median(0.5))
 		t.Log("Slowest:", segs.Median(0.0))
+		if ttfb.Average > 0 {
+			t.Log("Time To First Byte:", ttfb)
+		}
 		t.Log(buf.String())
 	}
 }

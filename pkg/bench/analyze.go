@@ -46,17 +46,57 @@ type Segment struct {
 	EndsBefore time.Time `json:"ends_before"`
 }
 
+// TTFB contains time to first byte stats.
+type TTFB struct {
+	Average time.Duration
+	Worst   time.Duration
+	Best    time.Duration
+	Median  time.Duration
+}
+
 // Segments is a slice of segment elements.
 type Segments []Segment
 
 // Total will return the total of active operations.
 // See ActiveTimeRange how this is determined.
-func (o Operations) Total() Segment {
+func (o Operations) Total() (Segment, TTFB) {
 	start, end := o.ActiveTimeRange()
 	return o.Segment(SegmentOptions{
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
-	})[0]
+	})[0], o.TTFB(start, end)
+}
+
+// TTFB returns time to first byte stats for all operations completely within the time segment.
+func (o Operations) TTFB(start, end time.Time) TTFB {
+	if start.After(end) || start.Equal(end) {
+		return TTFB{}
+	}
+
+	filtered := o.FilterByHasTTFB(true).FilterInsideRange(start, end)
+	if len(filtered) == 0 {
+		return TTFB{}
+	}
+	filtered.SortByTTFB()
+
+	res := TTFB{
+		Average: 0,
+		Worst:   0,
+		Best:    time.Minute * 10000,
+		Median:  filtered[len(filtered)/2].TTFB(),
+	}
+	for _, op := range filtered {
+		ttfb := op.TTFB()
+		res.Average += ttfb
+		if res.Best > ttfb {
+			res.Best = ttfb
+		}
+		if res.Worst < ttfb {
+			res.Worst = ttfb
+		}
+	}
+	res.Average /= time.Duration(len(filtered))
+	return res
 }
 
 // Segment will segment the operations o.
@@ -193,4 +233,12 @@ func (s Segments) Median(m float64) Segment {
 	m = math.Max(m, 0)
 	m = math.Min(m, float64(len(s)-1))
 	return s[int(m)]
+}
+
+// String returns a human printable version of the time to first byte.
+func (t TTFB) String() string {
+	if t.Average == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v", t.Average, t.Median, t.Best, t.Worst)
 }
