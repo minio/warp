@@ -41,7 +41,7 @@ var benchFlags = []cli.Flag{
 	},
 	cli.StringSliceFlag{
 		Name:  "serverprof",
-		Usage: "Run server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'",
+		Usage: "Run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'.",
 		Value: &emptyStringSlice,
 	},
 	cli.DurationFlag{
