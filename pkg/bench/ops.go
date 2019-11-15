@@ -99,6 +99,7 @@ func (o Operation) Aggregate(s *Segment) {
 		s.OpsStarted++
 		s.OpsEnded++
 		s.ObjsPerOp = o.ObjPerOp
+		s.Objects += float64(o.ObjPerOp)
 		return
 	}
 	// Operation partially within segment.
@@ -118,9 +119,8 @@ func (o Operation) Aggregate(s *Segment) {
 			return
 		}
 	}
-	//segmentDur := s.EndsBefore.Sub(s.Start)
-	opDur := o.End.Sub(o.Start)
 
+	opDur := o.End.Sub(o.Start)
 	partStart := o.Start
 	partEnd := o.End
 	if !startedInSegment {
@@ -141,6 +141,7 @@ func (o Operation) Aggregate(s *Segment) {
 	if partSize < 0 || partSize > o.Size {
 		panic(fmt.Errorf("invalid part size: %d (op: %+v seg:%+v)", partSize, o, s))
 	}
+	s.Objects += float64(o.ObjPerOp) * float64(partDur) / float64(opDur)
 	s.TotalBytes += partSize
 }
 

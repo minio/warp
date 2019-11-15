@@ -41,6 +41,7 @@ type Segment struct {
 	PartialOps int       `json:"partial_ops"`
 	OpsStarted int       `json:"ops_started"`
 	OpsEnded   int       `json:"ops_ended"`
+	Objects    float64   `json:"objects"`
 	Errors     int       `json:"errors"`
 	Start      time.Time `json:"start"`
 	EndsBefore time.Time `json:"ends_before"`
@@ -117,6 +118,7 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 			PartialOps: 0,
 			OpsStarted: 0,
 			OpsEnded:   0,
+			Objects:    0,
 			Start:      segStart,
 			EndsBefore: segStart.Add(so.PerSegDuration),
 		}
@@ -130,9 +132,11 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 }
 
 // SpeedPerSec returns mb/s for the segment and the ops ended per second.
-func (s Segment) SpeedPerSec() (mb, ops float64) {
-	mb = (float64(s.TotalBytes) / (1024 * 1024)) / (float64(s.EndsBefore.Sub(s.Start)) / (float64(time.Second)))
-	ops = float64(s.OpsEnded) / (float64(s.EndsBefore.Sub(s.Start)) / (float64(time.Second)))
+func (s Segment) SpeedPerSec() (mb, ops, objs float64) {
+	scale := float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)
+	mb = float64(s.TotalBytes) / (1024 * 1024) / scale
+	ops = float64(s.OpsEnded) / scale
+	objs = s.Objects / scale
 	return
 }
 
@@ -151,7 +155,23 @@ func (s Segments) Print(w io.Writer) error {
 func (s Segments) CSV(w io.Writer) error {
 	cw := csv.NewWriter(w)
 	cw.Comma = '\t'
-	err := cw.Write([]string{"index", "op", "duration_s", "objects_per_op", "bytes", "full_ops", "partial_ops", "ops_started", "ops_ended", "errors", "mb_per_sec", "ops_ended_per_sec", "start_time", "end_time"})
+	err := cw.Write([]string{
+		"index",
+		"op",
+		"duration_s",
+		"objects_per_op",
+		"bytes",
+		"full_ops",
+		"partial_ops",
+		"ops_started",
+		"ops_ended",
+		"errors",
+		"mb_per_sec",
+		"ops_ended_per_sec",
+		"objs_per_sec",
+		"start_time",
+		"end_time",
+	})
 	if err != nil {
 		return err
 	}
@@ -167,7 +187,7 @@ func (s Segments) CSV(w io.Writer) error {
 
 // CSV writes a CSV representation of the segment to the supplied writer.
 func (s Segment) CSV(w *csv.Writer, idx int) error {
-	mb, ops := s.SpeedPerSec()
+	mb, ops, objs := s.SpeedPerSec()
 	return w.Write([]string{
 		fmt.Sprint(idx),
 		s.OpType,
@@ -181,6 +201,7 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 		fmt.Sprint(s.Errors),
 		fmt.Sprint(mb),
 		fmt.Sprint(ops),
+		fmt.Sprint(objs),
 		fmt.Sprint(s.Start),
 		fmt.Sprint(s.EndsBefore),
 	})
@@ -188,27 +209,25 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 
 // String returns a string representation of the segment
 func (s Segment) String() string {
-	mb, ops := s.SpeedPerSec()
-	return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s",
-		s.EndsBefore.Sub(s.Start).Round(time.Millisecond), mb, ops)
-	//return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s. [Full Ops: %d, Partial Ops: %d, Started: %s]",
-	//	s.EndsBefore.Sub(s.Start), mb, ops, s.FullOps, s.PartialOps, s.Start.Format(time.RFC3339))
-}
-
-// StringWithOPO returns a string representation of the segment with
-// objects per operation.
-func (s Segment) StringWithOPO(opo int) string {
-	mb, ops := s.SpeedPerSec()
-	return fmt.Sprintf("%v, %.02f MB/s, %.02f ops ended/s, %.02f objects/s",
-		s.EndsBefore.Sub(s.Start).Round(time.Millisecond), mb, ops, ops*float64(opo))
+	mb, ops, objs := s.SpeedPerSec()
+	if true || s.ObjsPerOp > 1 {
+		speed := ""
+		if mb > 0 {
+			speed = fmt.Sprintf("%.02f MB/s, ", mb)
+		}
+		return fmt.Sprintf("%s%.02f ops ended/s, %.02f obj/s (%v)",
+			speed, ops, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
+	}
+	return fmt.Sprintf("%.02f MB/s, %.02f ops ended/s (%v)",
+		mb, ops, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
 }
 
 // SortByThroughput sorts the segments by throughput.
 // Slowest first.
 func (s Segments) SortByThroughput() {
 	sort.Slice(s, func(i, j int) bool {
-		imb, _ := s[i].SpeedPerSec()
-		jmb, _ := s[j].SpeedPerSec()
+		imb, _, _ := s[i].SpeedPerSec()
+		jmb, _, _ := s[j].SpeedPerSec()
 		return imb < jmb
 	})
 }
@@ -217,9 +236,19 @@ func (s Segments) SortByThroughput() {
 // Lowest first.
 func (s Segments) SortByOpsEnded() {
 	sort.Slice(s, func(i, j int) bool {
-		_, iops := s[i].SpeedPerSec()
-		_, jops := s[j].SpeedPerSec()
+		_, iops, _ := s[i].SpeedPerSec()
+		_, jops, _ := s[j].SpeedPerSec()
 		return iops < jops
+	})
+}
+
+// SortByOpsEnded sorts the segments by the number of distributed objects processed.
+// Lowest first.
+func (s Segments) SortByObjsPerSec() {
+	sort.Slice(s, func(i, j int) bool {
+		_, _, io := s[i].SpeedPerSec()
+		_, _, jo := s[j].SpeedPerSec()
+		return io < jo
 	})
 }
 

@@ -24,6 +24,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
+
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
@@ -124,7 +126,7 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 				continue
 			}
 		}
-		console.Println("")
+		console.Println("-------------------")
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysisDur(ctx),
@@ -137,33 +139,33 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
-			segs.SortByOpsEnded()
+			segs.SortByObjsPerSec()
 		}
 
 		opo := ops.FirstObjPerOp()
+		console.SetColor("Print", color.New(color.FgHiWhite))
 		if opo > 1 {
-			console.Println("Operation:", typ, "-", opo, "objects per operation")
+			console.Println("Operation:", typ, opo, "objects per operation")
 		} else {
 			console.Println("Operation:", typ)
 		}
 		if errs := ops.Errors(); len(errs) > 0 {
+			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", len(errs))
 		}
-		if opo <= 1 {
-			console.Println("Average:", totals)
-			console.Println("Fastest:", segs.Median(1))
-			console.Println("50% Median:", segs.Median(0.5))
-			console.Println("Slowest:", segs.Median(0.0))
-		} else {
-			console.Println("Average:", totals.StringWithOPO(opo))
-			console.Println("Fastest:", segs.Median(1).StringWithOPO(opo))
-			console.Println("50% Median:", segs.Median(0.5).StringWithOPO(opo))
-			console.Println("Slowest:", segs.Median(0.0).StringWithOPO(opo))
-		}
+		console.SetColor("Print", color.New(color.FgWhite))
+		console.Println("* Average:", totals)
+		console.SetColor("Print", color.New(color.FgHiWhite))
+		console.Println("\nAggregated, split into", len(segs), "x", analysisDur(ctx), "time segments:")
+		console.SetColor("Print", color.New(color.FgWhite))
+		console.Println("* Fastest:", segs.Median(1))
+		console.Println("* 50% Median:", segs.Median(0.5))
+		console.Println("* Slowest:", segs.Median(0.0))
 		if ttfb.Average > 0 {
 			console.Println("Time To First Byte:", ttfb)
 		}
 		if wrSegs != nil {
+			segs.SortByTime()
 			err := segs.CSV(wrSegs)
 			errorIf(probe.NewError(err), "Error writing analysis")
 		}
