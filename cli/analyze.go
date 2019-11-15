@@ -133,14 +133,33 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			console.Println("Skipping", typ, "too few samples.")
 			continue
 		}
-		segs.SortByThroughput()
 		totals, ttfb := ops.Total()
-		console.Println("Operation:", typ)
-		console.Println("Errors:", len(ops.Errors()))
-		console.Println("Average:", totals)
-		console.Println("Fastest:", segs.Median(1))
-		console.Println("50% Median:", segs.Median(0.5))
-		console.Println("Slowest:", segs.Median(0.0))
+		if totals.TotalBytes > 0 {
+			segs.SortByThroughput()
+		} else {
+			segs.SortByOpsEnded()
+		}
+
+		opo := ops.FirstObjPerOp()
+		if opo > 1 {
+			console.Println("Operation:", typ, "-", opo, "objects per operation")
+		} else {
+			console.Println("Operation:", typ)
+		}
+		if errs := ops.Errors(); len(errs) > 0 {
+			console.Println("Errors:", len(errs))
+		}
+		if opo <= 1 {
+			console.Println("Average:", totals)
+			console.Println("Fastest:", segs.Median(1))
+			console.Println("50% Median:", segs.Median(0.5))
+			console.Println("Slowest:", segs.Median(0.0))
+		} else {
+			console.Println("Average:", totals.StringWithOPO(opo))
+			console.Println("Fastest:", segs.Median(1).StringWithOPO(opo))
+			console.Println("50% Median:", segs.Median(0.5).StringWithOPO(opo))
+			console.Println("Slowest:", segs.Median(0.0).StringWithOPO(opo))
+		}
 		if ttfb.Average > 0 {
 			console.Println("Time To First Byte:", ttfb)
 		}

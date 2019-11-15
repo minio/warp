@@ -84,6 +84,7 @@ var appCmds = []cli.Command{
 	analyzeCmd,
 	getCmd,
 	putCmd,
+	deleteCmd,
 	updateCmd,
 	versionCmd,
 }

@@ -30,6 +30,11 @@ var (
 			Value: 1000,
 			Usage: "Number of objects to upload.",
 		},
+		cli.StringFlag{
+			Name:  "obj.size",
+			Value: "10MB",
+			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
+		},
 	}
 )
 

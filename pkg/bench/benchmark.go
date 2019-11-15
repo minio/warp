@@ -18,8 +18,8 @@ package bench
 
 import (
 	"context"
-	"log"
 
+	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -54,12 +54,12 @@ type Common struct {
 func (c *Common) createEmptyBucket(ctx context.Context) {
 	x, err := c.Client.BucketExists(c.Bucket)
 	if err != nil {
-		log.Fatal(err)
+		console.Fatal(err)
 	}
 	if !x {
 		err = c.Client.MakeBucket(c.Bucket, c.Location)
 		if err != nil {
-			log.Fatal(err)
+			console.Fatal(err)
 		}
 		return
 	}
@@ -81,17 +81,16 @@ func (c *Common) deleteAllInBucket(ctx context.Context) {
 				// Wait for deletes to finish
 				err := <-errCh
 				if err.Err != nil {
-					log.Fatal(err.Err)
+					console.Error(err.Err)
 				}
 				return
 			}
 			if obj.Err != nil {
-				log.Fatal(obj.Err)
+				console.Error(obj.Err)
 			}
-			//log.Printf("Deleting: %+v", obj)
 			remove <- obj.Key
 		case err := <-errCh:
-			log.Fatal(err)
+			console.Error(err)
 		}
 	}
 }

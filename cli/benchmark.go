@@ -81,15 +81,17 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if err != nil {
 		console.Error("Unable to write benchmark data:", err)
 	} else {
-		defer f.Close()
-		enc, err := zstd.NewWriter(f)
-		fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+		func() {
+			defer f.Close()
+			enc, err := zstd.NewWriter(f)
+			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-		defer enc.Close()
-		err = ops.CSV(enc)
-		fatalIf(probe.NewError(err), "Unable to write benchmark output")
+			defer enc.Close()
+			err = ops.CSV(enc)
+			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-		console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+		}()
 	}
 	console.Infoln("Starting cleanup...")
 	b.Cleanup(context.Background())

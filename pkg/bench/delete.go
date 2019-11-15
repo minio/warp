@@ -19,52 +19,48 @@ package bench
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/minio/mc/pkg/console"
 
-	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/generator"
 )
 
 // Get benchmarks download speed.
-type Get struct {
+type Delete struct {
 	CreateObjects int
+	BatchSize     int
 	Collector     *Collector
 	objects       []generator.Object
 
-	// Default Get options.
-	GetOpts minio.GetObjectOptions
 	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (g *Get) Prepare(ctx context.Context) {
+func (d *Delete) Prepare(ctx context.Context) {
 	console.Infoln("Creating Bucket...")
-	g.createEmptyBucket(ctx)
-	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	d.createEmptyBucket(ctx)
+	src := d.Source()
+	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())
 	var wg sync.WaitGroup
-	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
-	obj := make(chan struct{}, g.CreateObjects)
-	for i := 0; i < g.CreateObjects; i++ {
+	wg.Add(d.Concurrency)
+	d.Collector = NewCollector()
+	obj := make(chan struct{}, d.CreateObjects)
+	for i := 0; i < d.CreateObjects; i++ {
 		obj <- struct{}{}
 	}
 	close(obj)
 	var mu sync.Mutex
-	for i := 0; i < g.Concurrency; i++ {
+	for i := 0; i < d.Concurrency; i++ {
 		go func() {
 			defer wg.Done()
-			src := g.Source()
+			src := d.Source()
 			for range obj {
-				opts := g.PutOpts
-				rcv := g.Collector.Receiver()
+				opts := d.PutOpts
+				rcv := d.Collector.Receiver()
 				done := ctx.Done()
 
 				select {
@@ -82,7 +78,7 @@ func (g *Get) Prepare(ctx context.Context) {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := g.Client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				n, err := d.Client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Fatal("upload error:", err)
@@ -92,45 +88,33 @@ func (g *Get) Prepare(ctx context.Context) {
 				}
 				mu.Lock()
 				obj.Reader = nil
-				g.objects = append(g.objects, *obj)
+				d.objects = append(d.objects, *obj)
 				mu.Unlock()
 				rcv <- op
 			}
 		}()
 	}
 	wg.Wait()
-}
 
-type firstByteRecorder struct {
-	t *time.Time
-	r io.Reader
-}
-
-func (f *firstByteRecorder) Read(p []byte) (n int, err error) {
-	if f.t != nil || len(p) == 0 {
-		return f.r.Read(p)
-	}
-	// Read a single byte.
-	n, err = f.r.Read(p[:1])
-	if n > 0 {
-		t := time.Now()
-		f.t = &t
-	}
-	return n, err
+	// Shuffle objects.
+	// Benchmark will pick from slice in order.
+	a := d.objects
+	rand.Shuffle(len(a), func(i, j int) {
+		a[i], a[j] = a[j], a[i]
+	})
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
+func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
-	wg.Add(g.Concurrency)
-	c := g.Collector
-	for i := 0; i < g.Concurrency; i++ {
+	wg.Add(d.Concurrency)
+	c := d.Collector
+	var mu sync.Mutex
+	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
-			rng := rand.New(rand.NewSource(int64(i)))
 			rcv := c.Receiver()
 			defer wg.Done()
-			opts := g.GetOpts
 			done := ctx.Done()
 
 			<-start
@@ -140,36 +124,49 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					return
 				default:
 				}
-				fbr := firstByteRecorder{}
-				obj := g.objects[rng.Intn(len(g.objects))]
+
+				// Fetch d.BatchSize objects
+				mu.Lock()
+				if len(d.objects) == 0 {
+					mu.Unlock()
+					return
+				}
+				objs := d.objects
+				if len(objs) > d.BatchSize {
+					objs = objs[:d.BatchSize]
+				}
+				d.objects = d.objects[len(objs):]
+				mu.Unlock()
+
+				// Queue all in batch.
+				objects := make(chan string, len(objs))
+				for _, obj := range objs {
+					objects <- obj.Name
+				}
+				close(objects)
+
 				op := Operation{
-					OpType:   "GET",
+					OpType:   "DELETE",
 					Thread:   uint16(i),
-					Size:     obj.Size,
-					File:     obj.Name,
-					ObjPerOp: 1,
+					Size:     0,
+					File:     "",
+					ObjPerOp: len(objs),
 				}
 				op.Start = time.Now()
-				var err error
-				fbr.r, err = g.Client.GetObject(g.Bucket, obj.Name, opts)
-				if err != nil {
-					console.Infoln("download error:", err)
-					op.Err = err.Error()
-					op.End = time.Now()
-					rcv <- op
-					continue
+				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
+				errCh := d.Client.RemoveObjectsWithContext(context.Background(), d.Bucket, objects)
+
+				// Wait for errCh to close.
+				for {
+					err, ok := <-errCh
+					if !ok {
+						break
+					}
+					if err.Err != nil {
+						op.Err = err.Err.Error()
+					}
 				}
-				n, err := io.Copy(ioutil.Discard, &fbr)
-				if err != nil {
-					console.Infoln("download error:", err)
-					op.Err = err.Error()
-				}
-				op.FirstByte = fbr.t
 				op.End = time.Now()
-				if n != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, "got:", n)
-					console.Infoln(op.Err)
-				}
 				rcv <- op
 			}
 		}(i)
@@ -179,6 +176,6 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (g *Get) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx)
+func (d *Delete) Cleanup(ctx context.Context) {
+	d.deleteAllInBucket(ctx)
 }
