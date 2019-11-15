@@ -210,16 +210,12 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 // String returns a string representation of the segment
 func (s Segment) String() string {
 	mb, ops, objs := s.SpeedPerSec()
-	if true || s.ObjsPerOp > 1 {
-		speed := ""
-		if mb > 0 {
-			speed = fmt.Sprintf("%.02f MB/s, ", mb)
-		}
-		return fmt.Sprintf("%s%.02f ops ended/s, %.02f obj/s (%v)",
-			speed, ops, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
+	speed := ""
+	if mb > 0 {
+		speed = fmt.Sprintf("%.02f MB/s, ", mb)
 	}
-	return fmt.Sprintf("%.02f MB/s, %.02f ops ended/s (%v)",
-		mb, ops, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
+	return fmt.Sprintf("%s%.02f obj/s, %.02f ops ended/s (%v)",
+		speed, objs, ops, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
 }
 
 // SortByThroughput sorts the segments by throughput.
