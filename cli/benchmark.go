@@ -79,7 +79,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		pg := newProgressBar(int64(bechDur))
 		go func() {
 			defer close(pgDone)
-			defer pg.FinishPrint("")
+			defer pg.FinishPrint("\n")
 			tick := time.Tick(time.Millisecond * 125)
 			done := ctx2.Done()
 			for {

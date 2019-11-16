@@ -52,6 +52,7 @@ func newProgressBar(total int64) *progressBar {
 
 	// Show current speed is true.
 	bar.ShowSpeed = false
+	bar.ShowTimeLeft = false
 
 	// Custom callback with colorized bar.
 	bar.Callback = func(s string) {

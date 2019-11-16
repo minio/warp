@@ -28,7 +28,7 @@ var (
 		cli.IntFlag{
 			Name:  "objects",
 			Value: 10000,
-			Usage: "Number of objects to upload.",
+			Usage: "Number of objects to upload. Rounded to have equal concurrent objects.",
 		},
 		cli.StringFlag{
 			Name:  "obj.size",
