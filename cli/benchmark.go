@@ -58,7 +58,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	// Start after waiting a second.
 	tStart := time.Now().Add(time.Second)
-	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(ctx.Duration("duration")))
+	bechDur := ctx.Duration("duration")
+	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
 	defer cancel()
 	start := make(chan struct{})
 	go func() {
@@ -73,7 +74,33 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof := startProfiling(ctx)
 	console.Infoln("Starting benchmark...")
+	pgDone := make(chan struct{})
+	if !globalQuiet && !globalJSON {
+		pg := newProgressBar(int64(bechDur))
+		go func() {
+			defer close(pgDone)
+			defer pg.FinishPrint("")
+			tick := time.Tick(time.Millisecond * 125)
+			done := ctx2.Done()
+			for {
+				select {
+				case t := <-tick:
+					elapsed := t.Sub(tStart)
+					if elapsed < 0 {
+						continue
+					}
+					pg.Set64(int64(elapsed))
+				case <-done:
+					pg.Set64(int64(bechDur))
+					return
+				}
+			}
+		}()
+	} else {
+		close(pgDone)
+	}
 	ops := b.Start(ctx2, start)
+	<-pgDone
 	ops.SortByStartTime()
 	prof.stop(ctx, fileName+".profiles.zip")
 

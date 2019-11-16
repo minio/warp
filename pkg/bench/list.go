@@ -24,51 +24,61 @@ import (
 	"time"
 
 	"github.com/minio/mc/pkg/console"
-
 	"github.com/minio/warp/pkg/generator"
 )
 
 // Get benchmarks download speed.
-type Delete struct {
+type List struct {
 	CreateObjects int
-	BatchSize     int
+	NoPrefix      bool
 	Collector     *Collector
-	objects       []generator.Object
+	objects       [][]generator.Object
 
 	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (d *Delete) Prepare(ctx context.Context) {
+func (d *List) Prepare(ctx context.Context) {
 	console.Infoln("Creating Bucket...")
 	d.createEmptyBucket(ctx)
 	src := d.Source()
-	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())
+	objPerPrefix := d.CreateObjects / d.Concurrency
+	if d.NoPrefix {
+		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with no prefixes")
+	} else {
+		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with", d.Concurrency, "prefixes")
+	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	d.Collector = NewCollector()
-	obj := make(chan struct{}, d.CreateObjects)
-	for i := 0; i < d.CreateObjects; i++ {
-		obj <- struct{}{}
-	}
-	close(obj)
+	d.objects = make([][]generator.Object, d.Concurrency)
 	var mu sync.Mutex
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
 			src := d.Source()
-			for range obj {
-				opts := d.PutOpts
-				rcv := d.Collector.Receiver()
-				done := ctx.Done()
+			opts := d.PutOpts
+			rcv := d.Collector.Receiver()
+			done := ctx.Done()
+			exists := make(map[string]struct{}, objPerPrefix)
 
+			for j := 0; j < objPerPrefix; j++ {
 				select {
 				case <-done:
 					return
 				default:
 				}
 				obj := src.Object()
+				// Assure we don't have duplicates
+				for {
+					if _, ok := exists[obj.Name]; ok {
+						obj = src.Object()
+						continue
+					}
+					break
+				}
+				exists[obj.Name] = struct{}{}
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -88,7 +98,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 				}
 				mu.Lock()
 				obj.Reader = nil
-				d.objects = append(d.objects, *obj)
+				d.objects[i] = append(d.objects[i], *obj)
 				mu.Unlock()
 				rcv <- op
 			}
@@ -106,16 +116,20 @@ func (d *Delete) Prepare(ctx context.Context) {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
+func (d *List) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
-	var mu sync.Mutex
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()
 			defer wg.Done()
 			done := ctx.Done()
+			objs := d.objects[i]
+			wantN := len(objs)
+			if d.NoPrefix {
+				wantN *= d.Concurrency
+			}
 
 			<-start
 			for {
@@ -125,45 +139,32 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 				default:
 				}
 
-				// Fetch d.BatchSize objects
-				mu.Lock()
-				if len(d.objects) == 0 {
-					mu.Unlock()
-					return
-				}
-				objs := d.objects
-				if len(objs) > d.BatchSize {
-					objs = objs[:d.BatchSize]
-				}
-				d.objects = d.objects[len(objs):]
-				mu.Unlock()
-
-				// Queue all in batch.
-				objects := make(chan string, len(objs))
-				for _, obj := range objs {
-					objects <- obj.Name
-				}
-				close(objects)
-
+				prefix := objs[0].PreFix
 				op := Operation{
-					OpType:   "DELETE",
-					Thread:   uint16(i),
-					Size:     0,
-					File:     "",
-					ObjPerOp: len(objs),
+					File:   prefix,
+					OpType: "LIST",
+					Thread: uint16(i),
+					Size:   0,
 				}
 				op.Start = time.Now()
-				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := d.Client.RemoveObjectsWithContext(context.Background(), d.Bucket, objects)
+
+				// List all objects with prefix
+				listCh := d.Client.ListObjectsV2(d.Bucket, objs[0].PreFix, true, nil)
 
 				// Wait for errCh to close.
 				for {
-					err, ok := <-errCh
+					err, ok := <-listCh
 					if !ok {
 						break
 					}
 					if err.Err != nil {
 						op.Err = err.Err.Error()
+					}
+					op.ObjPerOp++
+				}
+				if op.ObjPerOp != wantN {
+					if op.Err == "" {
+						op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
 					}
 				}
 				op.End = time.Now()
@@ -176,6 +177,6 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (d *Delete) Cleanup(ctx context.Context) {
+func (d *List) Cleanup(ctx context.Context) {
 	d.deleteAllInBucket(ctx)
 }

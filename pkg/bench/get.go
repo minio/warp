@@ -59,7 +59,7 @@ func (g *Get) Prepare(ctx context.Context) {
 	close(obj)
 	var mu sync.Mutex
 	for i := 0; i < g.Concurrency; i++ {
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			src := g.Source()
 			for range obj {
@@ -96,7 +96,7 @@ func (g *Get) Prepare(ctx context.Context) {
 				mu.Unlock()
 				rcv <- op
 			}
-		}()
+		}(i)
 	}
 	wg.Wait()
 }
