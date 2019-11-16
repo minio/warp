@@ -69,7 +69,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	fileName := ctx.String("benchdata")
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s", appName, time.Now().Format("2006-01-02[150405]"))
+		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
 	}
 
 	prof := startProfiling(ctx)
