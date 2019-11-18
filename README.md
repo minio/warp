@@ -127,6 +127,12 @@ When benchmarks have finished all request data will be saved to a file and an an
 
 The saved data can be re-evaluated by running `warp analyze (filename)`. 
 
+It is possible to merge analyses from concurrent runs using the `warp merge file1 file2 ...`.
+This will combine the data as if it was run on the same client. 
+Only the time segments that was actually overlapping will be considered.
+This is based on the absolute time of each recording, 
+so be sure that clocks are reasonably synchronized.  
+
 ## Analysis data
 
 All analysis will be done on a reduced part of the full data. 
