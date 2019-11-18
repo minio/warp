@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"sort"
 	"strconv"
 	"sync"
@@ -306,6 +305,23 @@ func (o Operations) Threads() int {
 	return int(maxT)
 }
 
+// OffsetThreads adds an offset to all thread ids and
+// returns the highest thread number.
+func (o Operations) OffsetThreads(n uint16) uint16 {
+	if len(o) == 0 {
+		return 0
+	}
+	maxT := uint16(0)
+	for i, op := range o {
+		op.Thread += n
+		if op.Thread > maxT {
+			maxT = op.Thread
+		}
+		o[i] = op
+	}
+	return maxT
+}
+
 // Errors returns the errors found.
 func (o Operations) Errors() []string {
 	if len(o) == 0 {
@@ -320,20 +336,10 @@ func (o Operations) Errors() []string {
 	return errs
 }
 
-func randID(n int) string {
-	id := make([]byte, n)
-	letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
-	for i := range id {
-		id[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(id)
-}
-
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
-	runID := randID(10)
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\trun_id\top\tn_objects\tbytes\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
@@ -342,7 +348,7 @@ func (o Operations) CSV(w io.Writer) error {
 		if op.FirstByte != nil {
 			ttfb = op.FirstByte.Format(time.RFC3339Nano)
 		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, runID, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
