@@ -161,6 +161,10 @@ func (d *List) Start(ctx context.Context, start chan struct{}) Operations {
 						op.Err = err.Err.Error()
 					}
 					op.ObjPerOp++
+					if op.FirstByte == nil {
+						now := time.Now()
+						op.FirstByte = &now
+					}
 				}
 				if op.ObjPerOp != wantN {
 					if op.Err == "" {

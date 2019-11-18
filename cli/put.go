@@ -22,7 +22,6 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-// cp command flags.
 var (
 	putFlags = []cli.Flag{
 		cli.StringFlag{

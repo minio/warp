@@ -156,15 +156,15 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		}
 		console.SetColor("Print", color.New(color.FgWhite))
 		console.Println("* Average:", totals)
+		if ttfb.Average > 0 {
+			console.Println("* First Byte:", ttfb)
+		}
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nAggregated, split into", len(segs), "x", analysisDur(ctx), "time segments:")
 		console.SetColor("Print", color.New(color.FgWhite))
 		console.Println("* Fastest:", segs.Median(1))
 		console.Println("* 50% Median:", segs.Median(0.5))
 		console.Println("* Slowest:", segs.Median(0.0))
-		if ttfb.Average > 0 {
-			console.Println("Time To First Byte:", ttfb)
-		}
 		if wrSegs != nil {
 			segs.SortByTime()
 			err := segs.CSV(wrSegs)

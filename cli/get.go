@@ -22,12 +22,11 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-// cp command flags.
 var (
 	getFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
-			Value: 1000,
+			Value: 2500,
 			Usage: "Number of objects to upload.",
 		},
 		cli.StringFlag{

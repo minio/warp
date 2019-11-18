@@ -23,7 +23,6 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-// cp command flags.
 var (
 	deleteFlags = []cli.Flag{
 		cli.IntFlag{
