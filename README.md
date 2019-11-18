@@ -1,3 +1,3 @@
 # warp
 
-:coffee: yet another s3 benchmarking tool 
+:coffee: s3 benchmarking tool 
