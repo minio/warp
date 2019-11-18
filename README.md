@@ -1,6 +1,7 @@
-# warp
 
-:coffee: s3 benchmarking tool 
+![warp](https://user-images.githubusercontent.com/5663952/69064122-f80aad00-0a1d-11ea-88b2-2c738b1cff98.png)
+
+S3 benchmarking tool. 
 
 # configuration
 
@@ -19,6 +20,10 @@ so it should *not* contain any data.
 
 If you are running TLS, you can enable server-side-encryption of objects using `-encrypt`. 
 A random key will be generated and used.
+
+# usage
+
+`warp command [options]`
 
 # benchmarks
 
