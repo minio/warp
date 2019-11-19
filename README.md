@@ -142,6 +142,12 @@ the time segment will *stop* when the last request of a thread is initiated.
 This is to exclude variations due to warm-up and threads finishing at different times.
 Therefore the analysis time will typically be slightly below the selected benchmark duration.
 
+In this run "only" 42.9 seconds are included in the aggregate data, due to big payload size and low throughput:
+```
+Operation: PUT
+* Average: 37.19 MB/s, 0.37 obj/s, 0.33 ops ended/s (42.957s)
+```
+
 The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`, default 1s. 
 For each segment the throughput is calculated across all threads.
 

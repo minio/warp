@@ -153,7 +153,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				var err error
 				fbr.r, err = g.Client.GetObject(g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Infoln("download error:", err)
+					console.Errorln("download error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -161,14 +161,14 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				n, err := io.Copy(ioutil.Discard, &fbr)
 				if err != nil {
-					console.Infoln("download error:", err)
+					console.Errorln("download error:", err)
 					op.Err = err.Error()
 				}
 				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != obj.Size && op.Err == "" {
 					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, "got:", n)
-					console.Infoln(op.Err)
+					console.Errorln(op.Err)
 				}
 				rcv <- op
 			}

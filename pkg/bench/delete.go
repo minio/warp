@@ -163,6 +163,7 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 						break
 					}
 					if err.Err != nil {
+						console.Errorln(err.Err)
 						op.Err = err.Err.Error()
 					}
 				}
