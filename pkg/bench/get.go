@@ -93,6 +93,7 @@ func (g *Get) Prepare(ctx context.Context) {
 				mu.Lock()
 				obj.Reader = nil
 				g.objects = append(g.objects, *obj)
+				g.prepareProgress(float64(len(g.objects)) / float64(g.CreateObjects))
 				mu.Unlock()
 				rcv <- op
 			}

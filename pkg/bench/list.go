@@ -99,6 +99,7 @@ func (d *List) Prepare(ctx context.Context) {
 				mu.Lock()
 				obj.Reader = nil
 				d.objects[i] = append(d.objects[i], *obj)
+				d.prepareProgress(float64(len(d.objects)) / float64(objPerPrefix*d.Concurrency))
 				mu.Unlock()
 				rcv <- op
 			}

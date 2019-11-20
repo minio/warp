@@ -89,6 +89,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 				mu.Lock()
 				obj.Reader = nil
 				d.objects = append(d.objects, *obj)
+				d.prepareProgress(float64(len(d.objects)) / float64(d.CreateObjects))
 				mu.Unlock()
 				rcv <- op
 			}

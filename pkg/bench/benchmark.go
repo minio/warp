@@ -18,6 +18,7 @@ package bench
 
 import (
 	"context"
+	"math"
 
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
@@ -34,19 +35,27 @@ type Benchmark interface {
 
 	// Clean up after the benchmark run.
 	Cleanup(ctx context.Context)
+
+	// Common returns the common parameters.
+	GetCommon() *Common
 }
 
 // Common contains common benchmark parameters.
 type Common struct {
 	Client *minio.Client
 
-	Concurrency int
-	Source      func() generator.Source
-	Bucket      string
-	Location    string
+	Concurrency     int
+	Source          func() generator.Source
+	Bucket          string
+	Location        string
+	PrepareProgress chan float64
 
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
+}
+
+func (c *Common) GetCommon() *Common {
+	return c
 }
 
 // createEmptyBucket will create an empty bucket
@@ -92,5 +101,17 @@ func (c *Common) deleteAllInBucket(ctx context.Context) {
 		case err := <-errCh:
 			console.Error(err)
 		}
+	}
+}
+
+// prepareProgress updates preparation progess with the value 0->1.
+func (c *Common) prepareProgress(progress float64) {
+	if c.PrepareProgress == nil {
+		return
+	}
+	progress = math.Max(0, math.Min(1, progress))
+	select {
+	case c.PrepareProgress <- progress:
+	default:
 	}
 }

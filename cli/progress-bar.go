@@ -32,7 +32,7 @@ type progressBar struct {
 }
 
 // newProgressBar - instantiate a progress bar.
-func newProgressBar(total int64) *progressBar {
+func newProgressBar(total int64, units pb.Units) *progressBar {
 	// Progress bar speific theme customization.
 	console.SetColor("Bar", color.New(color.FgGreen, color.Bold))
 
@@ -53,6 +53,7 @@ func newProgressBar(total int64) *progressBar {
 	// Show current speed is true.
 	bar.ShowSpeed = false
 	bar.ShowTimeLeft = false
+	bar.ManualUpdate = true
 
 	// Custom callback with colorized bar.
 	bar.Callback = func(s string) {

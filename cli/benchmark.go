@@ -23,6 +23,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/cheggaaa/pb"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
@@ -54,8 +55,51 @@ var benchFlags = []cli.Flag{
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	console.Infoln("Preparing server.")
-	b.Prepare(context.Background())
 
+	pgDone := make(chan struct{})
+	c := b.GetCommon()
+	if !globalQuiet && !globalJSON {
+		c.PrepareProgress = make(chan float64, 1)
+		const pgScale = 10000
+		pg := newProgressBar(pgScale, pb.U_NO)
+		pg.ShowCounters = false
+		pg.ShowElapsedTime = false
+		pg.ShowSpeed = false
+		pg.ShowTimeLeft = false
+		pg.ShowFinalTime = true
+		go func() {
+			defer close(pgDone)
+			defer pg.FinishPrint("\n")
+			tick := time.Tick(time.Millisecond * 125)
+			pg.Set(-1)
+			newVal := int64(-1)
+			for {
+				select {
+				case <-tick:
+					current := pg.Get()
+					if current != newVal {
+						pg.Set64(newVal)
+						pg.Update()
+					}
+				case pct, ok := <-c.PrepareProgress:
+					if !ok {
+						pg.Set64(pgScale)
+						pg.Update()
+						return
+					}
+					newVal = int64(pct * pgScale)
+				}
+			}
+		}()
+	} else {
+		close(pgDone)
+	}
+
+	b.Prepare(context.Background())
+	if c.PrepareProgress != nil {
+		close(c.PrepareProgress)
+		<-pgDone
+	}
 	// Start after waiting a second.
 	tStart := time.Now().Add(time.Second)
 	bechDur := ctx.Duration("duration")
@@ -74,9 +118,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof := startProfiling(ctx)
 	console.Infoln("Starting benchmark...")
-	pgDone := make(chan struct{})
+	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
-		pg := newProgressBar(int64(bechDur))
+		pg := newProgressBar(int64(bechDur), pb.U_DURATION)
 		go func() {
 			defer close(pgDone)
 			defer pg.FinishPrint("\n")
@@ -90,8 +134,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 						continue
 					}
 					pg.Set64(int64(elapsed))
+					pg.Update()
 				case <-done:
 					pg.Set64(int64(bechDur))
+					pg.Update()
 					return
 				}
 			}
