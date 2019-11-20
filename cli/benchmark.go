@@ -84,7 +84,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 				case pct, ok := <-c.PrepareProgress:
 					if !ok {
 						pg.Set64(pgScale)
-						pg.Update()
+						if newVal > 0 {
+							pg.Update()
+						}
 						return
 					}
 					newVal = int64(pct * pgScale)

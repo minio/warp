@@ -87,7 +87,7 @@ func (g *Get) Prepare(ctx context.Context) {
 					console.Fatal("upload error:", err)
 				}
 				if n != obj.Size {
-					console.Fatal(fmt.Sprint("short upload. want:", obj.Size, "got:", n))
+					console.Fatal("short upload. want:", obj.Size, ", got:", n)
 				}
 				mu.Lock()
 				obj.Reader = nil
@@ -167,7 +167,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, "got:", n)
+					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
 					console.Errorln(op.Err)
 				}
 				rcv <- op

@@ -73,7 +73,7 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 					op.Err = err.Error()
 				}
 				if n != obj.Size {
-					err := fmt.Sprint("short upload. want:", obj.Size, "got:", n)
+					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", n)
 					if op.Err == "" {
 						op.Err = err
 					}

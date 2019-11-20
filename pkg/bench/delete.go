@@ -18,7 +18,6 @@ package bench
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -83,7 +82,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 					console.Fatal("upload error:", err)
 				}
 				if n != obj.Size {
-					console.Fatal(fmt.Sprint("short upload. want:", obj.Size, "got:", n))
+					console.Fatal("short upload. want:", obj.Size, ", got:", n)
 				}
 				mu.Lock()
 				obj.Reader = nil
