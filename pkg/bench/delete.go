@@ -41,7 +41,6 @@ type Delete struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *Delete) Prepare(ctx context.Context) {
-	console.Infoln("Creating Bucket...")
 	d.createEmptyBucket(ctx)
 	src := d.Source()
 	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())

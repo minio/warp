@@ -40,7 +40,6 @@ type List struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *List) Prepare(ctx context.Context) {
-	console.Infoln("Creating Bucket...")
 	d.createEmptyBucket(ctx)
 	src := d.Source()
 	objPerPrefix := d.CreateObjects / d.Concurrency

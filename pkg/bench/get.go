@@ -45,7 +45,6 @@ type Get struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Get) Prepare(ctx context.Context) {
-	console.Infoln("Creating Bucket...")
 	g.createEmptyBucket(ctx)
 	src := g.Source()
 	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())

@@ -66,12 +66,14 @@ func (c *Common) createEmptyBucket(ctx context.Context) {
 		console.Fatal(err)
 	}
 	if !x {
+		console.Infof("Creating Bucket %q...\n", c.Bucket)
 		err = c.Client.MakeBucket(c.Bucket, c.Location)
 		if err != nil {
 			console.Fatal(err)
 		}
 		return
 	}
+	console.Infof("Clearing Bucket %q...\n", c.Bucket)
 	c.deleteAllInBucket(ctx)
 }
 
