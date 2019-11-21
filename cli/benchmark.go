@@ -50,6 +50,11 @@ var benchFlags = []cli.Flag{
 		Usage: "Duration to run the benchmark. Use 's' and 'm' to specify seconds and minutes.",
 		Value: 5 * time.Minute,
 	},
+	cli.BoolFlag{
+		Name:   "keep-data",
+		Usage:  "Leave benchmark data. Do not run cleanup after benchmark. Bucket will still be cleaned prior to benchmark",
+		Hidden: true,
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -168,8 +173,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
-	console.Infoln("Starting cleanup...")
-	b.Cleanup(context.Background())
+	if !ctx.Bool("keep-data") {
+		console.Infoln("Starting cleanup...")
+		b.Cleanup(context.Background())
+	}
 	printAnalysis(ctx, ops)
 	return nil
 }
