@@ -44,10 +44,12 @@ type Benchmark interface {
 type Common struct {
 	Client *minio.Client
 
-	Concurrency     int
-	Source          func() generator.Source
-	Bucket          string
-	Location        string
+	Concurrency int
+	Source      func() generator.Source
+	Bucket      string
+	Location    string
+	// Clear bucket before benchmark
+	Clear           bool
 	PrepareProgress chan float64
 
 	// Default Put options.
@@ -73,8 +75,10 @@ func (c *Common) createEmptyBucket(ctx context.Context) {
 		}
 		return
 	}
-	console.Infof("Clearing Bucket %q...\n", c.Bucket)
-	c.deleteAllInBucket(ctx)
+	if c.Clear {
+		console.Infof("Clearing Bucket %q...\n", c.Bucket)
+		c.deleteAllInBucket(ctx)
+	}
 }
 
 // deleteAllInBucket will delete all content in a bucket.

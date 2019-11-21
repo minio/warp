@@ -18,6 +18,8 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -51,6 +53,10 @@ var benchFlags = []cli.Flag{
 		Value: 5 * time.Minute,
 	},
 	cli.BoolFlag{
+		Name:  "noclear",
+		Usage: "Do not clear bucket before or after running benchmarks. Use when running multiple clients.",
+	},
+	cli.BoolFlag{
 		Name:   "keep-data",
 		Usage:  "Leave benchmark data. Do not run cleanup after benchmark. Bucket will still be cleaned prior to benchmark",
 		Hidden: true,
@@ -63,6 +69,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
+	c.Clear = !ctx.Bool("no-clear")
 	if !globalQuiet && !globalJSON {
 		c.PrepareProgress = make(chan float64, 1)
 		const pgScale = 10000
@@ -120,7 +127,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	fileName := ctx.String("benchdata")
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
 	}
 
 	prof := startProfiling(ctx)
@@ -173,7 +180,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
-	if !ctx.Bool("keep-data") {
+	if !ctx.Bool("keep-data") && !ctx.Bool("no-clear") {
 		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
@@ -251,4 +258,24 @@ func checkBenchmark(ctx *cli.Context) {
 			fatalIf(errDummy(), "Profiler type %s unrecognized. Possible values are: %v.", profilerType, profilerTypes)
 		}
 	}
+}
+
+// pRandAscii return pseudorandom ASCII string with length n.
+// Should never be considered for true random data generation.
+func pRandAscii(n int) string {
+	const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+	// Use a single seed.
+	dst := make([]byte, n)
+	var seed [8]byte
+
+	// Get something random
+	_, _ = rand.Read(seed[:])
+	rnd := binary.LittleEndian.Uint32(seed[0:4])
+	rnd2 := binary.LittleEndian.Uint32(seed[4:8])
+	for i := range dst {
+		dst[i] = asciiLetters[int(rnd>>16)%len(asciiLetters)]
+		rnd ^= rnd2
+		rnd *= 2654435761
+	}
+	return string(dst)
 }

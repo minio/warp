@@ -302,11 +302,11 @@ func (o Operations) Threads() int {
 			maxT = op.Thread
 		}
 	}
-	return int(maxT)
+	return int(maxT) + 1
 }
 
 // OffsetThreads adds an offset to all thread ids and
-// returns the highest thread number.
+// returns the next thread number.
 func (o Operations) OffsetThreads(n uint16) uint16 {
 	if len(o) == 0 {
 		return 0
@@ -319,7 +319,7 @@ func (o Operations) OffsetThreads(n uint16) uint16 {
 		}
 		o[i] = op
 	}
-	return maxT
+	return maxT + 1
 }
 
 // Errors returns the errors found.
