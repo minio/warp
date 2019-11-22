@@ -1,5 +1,5 @@
 
-![warp](https://user-images.githubusercontent.com/5663952/69064122-f80aad00-0a1d-11ea-88b2-2c738b1cff98.png)
+![warp](https://user-images.githubusercontent.com/5663952/69431113-580f9500-0d37-11ea-8265-46142e7b15cc.png)
 
 S3 benchmarking tool. 
 
