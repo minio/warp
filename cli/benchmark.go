@@ -180,11 +180,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
+	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("no-clear") {
 		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
-	printAnalysis(ctx, ops)
 	return nil
 }
 
