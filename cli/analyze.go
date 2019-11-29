@@ -131,12 +131,13 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysisDur(ctx),
+			AllThreads:     true,
 		})
 		if len(segs) <= 1 {
 			console.Println("Skipping", typ, "too few samples.")
 			continue
 		}
-		totals, ttfb := ops.Total()
+		totals, ttfb := ops.Total(true)
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
@@ -158,6 +159,20 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		console.Println("* Average:", totals)
 		if ttfb.Average > 0 {
 			console.Println("* First Byte:", ttfb)
+		}
+		if eps := ops.Endpoints(); len(eps) > 1 {
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Println("Hosts:")
+
+			for _, ep := range eps {
+				totals, ttfb := ops.FilterByEndpoint(ep).Total(false)
+				console.SetColor("Print", color.New(color.FgWhite))
+				console.Print(" * ", ep, ": Avg: ", totals.ShortString())
+				if ttfb.Average > 0 {
+					console.Print(". TTFB ", ttfb)
+				}
+				console.Println("")
+			}
 		}
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nAggregated, split into", len(segs), "x", analysisDur(ctx), "time segments:")

@@ -275,13 +275,41 @@ func (o Operations) TimeRange() (start, end time.Time) {
 // All threads must have completed at least one request
 // and the last start time of any thread.
 // If there is no active time range both values will be the same.
-func (o Operations) ActiveTimeRange() (start, end time.Time) {
+func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 	if len(o) == 0 {
 		return
 	}
-	t := o.Threads()
-	firstEnded := make(map[uint16]time.Time, t)
-	lastStarted := make(map[uint16]time.Time, t)
+	// Only discard one.
+	if !allThreads {
+		startF := o[0].Start
+		endF := o[0].End
+		for _, op := range o {
+			if op.End.Before(startF) {
+				startF = op.End
+			}
+			if endF.Before(op.Start) {
+				endF = op.Start
+			}
+		}
+		start = endF
+		end = startF
+		for _, op := range o {
+			if op.Start.After(startF) && op.Start.Before(start) {
+				start = op.Start
+			}
+			if op.End.Before(endF) && op.End.After(end) {
+				end = op.End
+			}
+		}
+		if start.After(end) {
+			return start, start
+		}
+
+		return
+	}
+	threads := o.Threads()
+	firstEnded := make(map[uint16]time.Time, threads)
+	lastStarted := make(map[uint16]time.Time, threads)
 	for _, op := range o {
 		ended, ok := firstEnded[op.Thread]
 		if !ok || ended.After(op.End) {
