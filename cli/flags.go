@@ -115,7 +115,7 @@ func setGlobals(quiet, debug, json, noColor bool) {
 var ioFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:   "host",
-		Usage:  "host",
+		Usage:  "host. Multiple hosts can be specified as a comma separated list.",
 		EnvVar: appNameUC + "_HOST",
 		Value:  "127.0.0.1:9000",
 	},

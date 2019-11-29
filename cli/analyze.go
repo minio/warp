@@ -146,9 +146,9 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		opo := ops.FirstObjPerOp()
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		if opo > 1 {
-			console.Println("Operation:", typ, opo, "objects per operation. Concurrency:", ops.Threads())
+			console.Printf("Operation: %v. Objects per operation: %d. Concurrency: %d. Hosts: %d.\n", typ, opo, ops.Threads(), ops.Hosts())
 		} else {
-			console.Println("Operation:", typ, "- Concurrency:", ops.Threads())
+			console.Printf("Operation: %v. Concurrency: %d. Hosts: %d.\n", typ, ops.Threads(), ops.Hosts())
 		}
 		if errs := ops.Errors(); len(errs) > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))

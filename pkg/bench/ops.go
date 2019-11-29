@@ -40,6 +40,7 @@ type Operation struct {
 	Size      int64      `json:"size"`
 	File      string     `json:"file"`
 	Thread    uint16     `json:"thread"`
+	Endpoint  string     `json:"endpoint"`
 }
 
 type Collector struct {
@@ -207,11 +208,31 @@ func (o Operations) FilterByOp(opType string) Operations {
 	return dst
 }
 
+// FilterByEndpoint returns operations run against a specific endpoint.
+func (o Operations) FilterByEndpoint(endpoint string) Operations {
+	dst := make(Operations, 0, len(o))
+	for _, o := range o {
+		if o.Endpoint == endpoint {
+			dst = append(dst, o)
+		}
+	}
+	return dst
+}
+
 // ByOp separates the operations by op.
 func (o Operations) ByOp() map[string]Operations {
 	dst := make(map[string]Operations, 1)
 	for _, o := range o {
 		dst[o.OpType] = append(dst[o.OpType], o)
+	}
+	return dst
+}
+
+// ByOp separates the operations by endpoint.
+func (o Operations) ByEndpoint() map[string]Operations {
+	dst := make(map[string]Operations, 1)
+	for _, o := range o {
+		dst[o.Endpoint] = append(dst[o.Endpoint], o)
 	}
 	return dst
 }
@@ -322,6 +343,35 @@ func (o Operations) OffsetThreads(n uint16) uint16 {
 	return maxT + 1
 }
 
+// Hosts returns the number of servers.
+func (o Operations) Hosts() int {
+	if len(o) == 0 {
+		return 0
+	}
+	endpoints := make(map[string]struct{}, 1)
+	for _, op := range o {
+		endpoints[op.Endpoint] = struct{}{}
+	}
+	return len(endpoints)
+}
+
+// Endpoints returns the endpoints as a sorted slice.
+func (o Operations) Endpoints() []string {
+	if len(o) == 0 {
+		return nil
+	}
+	endpoints := make(map[string]struct{}, 1)
+	for _, op := range o {
+		endpoints[op.Endpoint] = struct{}{}
+	}
+	dst := make([]string, 0, len(endpoints))
+	for k := range endpoints {
+		dst = append(dst, k)
+	}
+	sort.Strings(dst)
+	return dst
+}
+
 // Errors returns the errors found.
 func (o Operations) Errors() []string {
 	if len(o) == 0 {
@@ -339,7 +389,7 @@ func (o Operations) Errors() []string {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
@@ -348,7 +398,7 @@ func (o Operations) CSV(w io.Writer) error {
 		if op.FirstByte != nil {
 			ttfb = op.FirstByte.Format(time.RFC3339Nano)
 		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -409,6 +459,10 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
+		var endpoint string
+		if idx, ok := fieldIdx["endpoint"]; ok {
+			endpoint = values[idx]
+		}
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
 			ObjPerOp:  int(objs),
@@ -419,6 +473,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			Size:      size,
 			File:      values[fieldIdx["file"]],
 			Thread:    uint16(thread),
+			Endpoint:  endpoint,
 		})
 	}
 	return ops, nil
