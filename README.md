@@ -191,3 +191,35 @@ The bigger a percentage of the operation is within a segment the larger part of 
 
 This is why there can be a partial object attributed to a segment, because only a part of the operation took place in the segment.
 
+# Comparing Benchmarks
+
+It is possible to compare two recorded runs using the `warp cmp (file-before) (file-after)` to
+see the differences between before and after. 
+There is no need for 'before' to be chronologically before 'after', but the differences will be shown
+as change from 'before' to 'after'.
+
+An example:
+```
+λ warp cmp warp-get-2019-11-29[125341]-7ylR.csv.zst warp-get-2019-11-29[124533]-HOhm.csv.zst                   
+-------------------                                                                                            
+Operation: PUT                                                                                                 
+Duration: 1m4s -> 1m2s                                                                                         
+* Average: +2.63% (+1.0 MB/s) throughput, +2.63% (+1.0) obj/s                                                  
+* Fastest: -4.51% (-4.1) obj/s                                                                                 
+* 50% Median: +3.11% (+1.1 MB/s) throughput, +3.11% (+1.1) obj/s                                               
+* Slowest: +1.66% (+0.4 MB/s) throughput, +1.66% (+0.4) obj/s                                                  
+-------------------                                                                                            
+Operation: GET                                                                                                 
+Operations: 16768 -> 171105                                                                                    
+Duration: 30s -> 5m0s                                                                                          
+* Average: +2.10% (+11.7 MB/s) throughput, +2.10% (+11.7) obj/s                                                
+* First Byte: Average: -405.876µs (-2%), Median: -2.1µs (-0%), Best: -998.1µs (-50%), Worst: +41.0014ms (+65%) 
+* Fastest: +2.35% (+14.0 MB/s) throughput, +2.35% (+14.0) obj/s                                                
+* 50% Median: +2.81% (+15.8 MB/s) throughput, +2.81% (+15.8) obj/s                                             
+* Slowest: -10.02% (-52.0) obj/s                                                                               
+```
+
+All relevant differences are listed. This is two `warp get` runs. 
+Differences in parameters will be shown.
+
+The usual analysis parameters can be applied to define segment lengths.
