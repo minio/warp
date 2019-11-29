@@ -191,3 +191,17 @@ The bigger a percentage of the operation is within a segment the larger part of 
 
 This is why there can be a partial object attributed to a segment, because only a part of the operation took place in the segment.
 
+# Merging benchmarks
+
+It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
+
+The command will output a combined data file with all data that overlap in time.
+
+The combined output will effectively be the same as having run a single benchmark with a higher concurrency setting.
+The main reason for running the benchmark on several clients would be to help eliminate client bottlenecks.
+
+It is important to note that only data that strictly overlaps in absolute time will be considered for analysis.
+
+When running benchmarks on several clients it is likely a good idea to specify the `-noclear` parameter so
+clients don't accidentally delete each others data on startup or shutdown.
+
