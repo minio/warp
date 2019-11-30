@@ -93,7 +93,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 	}
 	_ = wrSegs
 	timeDur := func(ops bench.Operations) time.Duration {
-		start, end := ops.ActiveTimeRange()
+		start, end := ops.ActiveTimeRange(true)
 		return end.Sub(start).Round(time.Second)
 	}
 
