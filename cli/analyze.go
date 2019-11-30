@@ -143,7 +143,7 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			console.Println("Skipping", typ, "too few samples.")
 			continue
 		}
-		totals, ttfb := ops.Total(true)
+		totals := ops.Total(true)
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
@@ -161,25 +161,22 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", len(errs))
 		}
-		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println("* Average:", totals)
-		if ttfb.Average > 0 {
-			console.Println("* First Byte:", ttfb)
-		}
 		if ctx.Bool("requests") {
 			printRequestAnalysis(ctx, ops)
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Println("\nThroughput:")
 		}
+		console.SetColor("Print", color.New(color.FgWhite))
+		console.Println("* Average:", totals)
+
 		if eps := ops.Endpoints(); len(eps) > 1 {
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nThroughput by host:")
 
 			for _, ep := range eps {
-				totals, ttfb := ops.FilterByEndpoint(ep).Total(false)
+				totals := ops.FilterByEndpoint(ep).Total(false)
 				console.SetColor("Print", color.New(color.FgWhite))
 				console.Print(" * ", ep, ": Avg: ", totals.ShortString())
-				if ttfb.Average > 0 {
-					console.Print(". TTFB ", ttfb)
-				}
 				console.Println("")
 			}
 		}
@@ -199,9 +196,11 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 
 func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	console.Println("\nRequests:")
+	start, end := ops.ActiveTimeRange(true)
+	active := ops.FilterInsideRange(start, end)
+	console.Print("\nRequests - ", len(active), ":\n")
 	console.SetColor("Print", color.New(color.FgWhite))
-	active := ops.FilterInsideRange(ops.ActiveTimeRange(true))
+
 	if len(active) == 0 {
 		console.Println("Not enough requests")
 	}
@@ -210,9 +209,12 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 		"Slowest:", active.Median(1).Duration(),
 		"50%:", active.Median(0.5).Duration(),
 		"90%:", active.Median(0.9).Duration(),
-		"99%:", active.Median(0.99).Duration(),
-		"n:", len(active), "")
+		"99%:", active.Median(0.99).Duration())
 
+	ttfb := active.TTFB(start, end)
+	if ttfb.Average > 0 {
+		console.Println(" * First Byte:", ttfb)
+	}
 	if eps := ops.Endpoints(); len(eps) > 1 {
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nRequests by host:")
@@ -224,11 +226,15 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 			}
 			filtered.SortByDuration()
 			console.SetColor("Print", color.New(color.FgWhite))
-			console.Println(" *", ep, "- Fastest:", filtered.Median(0).Duration(),
+			console.Println(" *", ep, "-", len(filtered), "requests:",
+				"\n\t- Fastest:", filtered.Median(0).Duration(),
 				"Slowest:", filtered.Median(1).Duration(),
 				"50%:", filtered.Median(0.5).Duration(),
-				"90%:", filtered.Median(0.9).Duration(),
-				"n:", len(filtered), "")
+				"90%:", filtered.Median(0.9).Duration())
+			ttfb := filtered.TTFB(filtered.TimeRange())
+			if ttfb.Average > 0 {
+				console.Println("\t- First Byte:", ttfb)
+			}
 		}
 	}
 }

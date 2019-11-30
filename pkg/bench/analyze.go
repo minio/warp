@@ -62,13 +62,13 @@ type Segments []Segment
 // Total will return the total of active operations.
 // See ActiveTimeRange how this is determined.
 // Specify whether one operation for all threads should be skipped or just a single.
-func (o Operations) Total(allThreads bool) (Segment, TTFB) {
+func (o Operations) Total(allThreads bool) Segment {
 	start, end := o.ActiveTimeRange(allThreads)
 	return o.Segment(SegmentOptions{
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
 		AllThreads:     allThreads,
-	})[0], o.TTFB(start, end)
+	})[0]
 }
 
 // TTFB returns time to first byte stats for all operations completely within the time segment.
