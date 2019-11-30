@@ -162,6 +162,30 @@ Aggregated, split into 59 x 1s time segments:
 * 50% Median: 2419.56 MB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
 * Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
+### Per request statistics
+
+By adding the `-requests` parameter it is possible to display per request statistics.
+
+This is not enabled by default, since it is assumed the benchmarks are throughput limited, 
+but in certain scenarios it can be useful to determine problems with individual hosts for instance.
+
+Example:
+
+```
+Requests:
+ * Fastest: 2.9965ms Slowest: 62.9993ms 50%: 21.0006ms 90%: 31.0021ms 99%: 41.0016ms n: 16720
+
+Requests by host:
+ * http://127.0.0.1:9001 - Fastest: 2.9965ms Slowest: 55.0015ms 50%: 18.0002ms 90%: 28.001ms n: 2395
+ * http://127.0.0.1:9002 - Fastest: 4.999ms Slowest: 60.9925ms 50%: 20.9993ms 90%: 31.001ms n: 2395
+ * http://127.0.0.1:9003 - Fastest: 6.9988ms Slowest: 56.0005ms 50%: 20.9978ms 90%: 31.001ms n: 2395
+ * http://127.0.0.1:9004 - Fastest: 5.0002ms Slowest: 62.9993ms 50%: 22.0009ms 90%: 33.001ms n: 2395
+ * http://127.0.0.1:9005 - Fastest: 6.9934ms Slowest: 54.002ms 50%: 21.0008ms 90%: 30.9998ms n: 2396
+ * http://127.0.0.1:9006 - Fastest: 6.0019ms Slowest: 54.9972ms 50%: 22.9985ms 90%: 33.0007ms n: 2396
+ * http://127.0.0.1:9007 - Fastest: 7.9968ms Slowest: 55.0899ms 50%: 21.998ms 90%: 30.9998ms n: 2396
+```
+
+The fastest and slowest request times are shown, as well as selected percentiles and the total amount is requests considered.
 
 ### CSV output
 

@@ -74,6 +74,12 @@ func (c *Collector) Close() Operations {
 	return c.ops
 }
 
+// SortByDuration will sort the operations by duration taken to complete.
+// Fastest operations first.
+func (o Operation) Duration() time.Duration {
+	return o.End.Sub(o.Start)
+}
+
 // Aggregate the operation into segment if it belongs there.
 func (o Operation) Aggregate(s *Segment) {
 	if len(s.OpType) > 0 && o.OpType != s.OpType {
@@ -162,6 +168,28 @@ func (o Operations) SortByStartTime() {
 	})
 }
 
+// SortByDuration will sort the operations by duration taken to complete.
+// Fastest operations first.
+func (o Operations) SortByDuration() {
+	o.SortByStartTime()
+	sort.SliceStable(o, func(i, j int) bool {
+		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
+		return a < b
+	})
+}
+
+// Median returns the m part median of the assumed sorted list of operations.
+// m is clamped to the range 0 -> 1.
+func (o Operations) Median(m float64) Operation {
+	if len(o) == 0 {
+		return Operation{}
+	}
+	m = math.Round(float64(len(o)) * m)
+	m = math.Max(m, 0)
+	m = math.Min(m, float64(len(o)-1)+1e-10)
+	return o[int(m)]
+}
+
 // SortByTTFB sorts by time to first byte.
 // Smallest first.
 func (o Operations) SortByTTFB() {
@@ -224,6 +252,19 @@ func (o Operations) ByOp() map[string]Operations {
 	dst := make(map[string]Operations, 1)
 	for _, o := range o {
 		dst[o.OpType] = append(dst[o.OpType], o)
+	}
+	return dst
+}
+
+// OpTypes returns a list of the operation types in the order they appear.
+func (o Operations) OpTypes() []string {
+	tmp := make(map[string]struct{}, 5)
+	dst := make([]string, 0, 5)
+	for _, o := range o {
+		if _, ok := tmp[o.OpType]; !ok {
+			dst = append(dst, o.OpType)
+		}
+		tmp[o.OpType] = struct{}{}
 	}
 	return dst
 }
