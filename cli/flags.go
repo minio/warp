@@ -66,8 +66,9 @@ var globalFlags = []cli.Flag{
 		Usage: "disable color theme",
 	},
 	cli.BoolFlag{
-		Name:  "json",
-		Usage: "enable JSON formatted output",
+		Name:   "json",
+		Usage:  "enable JSON formatted output",
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:  "debug",
