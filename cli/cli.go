@@ -82,6 +82,7 @@ func Main(args []string) {
 
 var appCmds = []cli.Command{
 	analyzeCmd,
+	cmpCmd,
 	getCmd,
 	putCmd,
 	deleteCmd,
