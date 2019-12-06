@@ -11,8 +11,11 @@ The S3 server to use can be specified on the commandline using `-host`, `-access
 
 It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY` and `WARP_TLS` environment variables.
 
-Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000,10.0.0.3:9000` 
-will do a round-robin between the specified servers.
+Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
+will do a round-robin between the specified servers. 
+
+Alternatively numerical ranges can be specified using `10.0.0.{1...10}:9000` which will add `10.0.0.1` through `10.0.0.10`.
+This syntax can be used for any part of the host name and port.  
  
 The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
 

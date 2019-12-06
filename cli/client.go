@@ -2,18 +2,42 @@ package cli
 
 import (
 	"errors"
+	"log"
 	"strings"
 	"sync"
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
 	"github.com/minio/warp/pkg"
 )
 
+// parseHosts will parse the host parameter given.
+func parseHosts(h string) []string {
+	hosts := strings.Split(h, ",")
+	dst := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		if !ellipses.HasEllipses(host) {
+			dst = append(dst, host)
+			continue
+		}
+		patterns, perr := ellipses.FindEllipsesPatterns(host)
+		if perr != nil {
+			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
+
+			log.Fatal(perr.Error())
+		}
+		for _, p := range patterns {
+			dst = append(dst, p.Expand()...)
+		}
+	}
+	return dst
+}
+
 func newClient(ctx *cli.Context) func() *minio.Client {
-	hosts := strings.Split(ctx.String("host"), ",")
+	hosts := parseHosts(ctx.String("host"))
 	switch len(hosts) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
@@ -46,7 +70,7 @@ func newClient(ctx *cli.Context) func() *minio.Client {
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
-	hosts := strings.Split(ctx.String("host"), ",")
+	hosts := parseHosts(ctx.String("host"))
 	if len(hosts) == 0 {
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO admin client")
 	}
