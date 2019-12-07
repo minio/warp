@@ -45,6 +45,12 @@ By default all benchmarks save all request details to a file named `warp-operati
 A custom file name can be specified using the `-benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
+When running benchmarks on several clients, it is possible to synchronize their start time 
+using the `-syncstart` parameter.
+The time format is 'hh:mm' where hours are specified in 24h format, and parsed as local server time.
+Using this will make it more reliable to [merge benchmarks](https://github.com/minio/warp#merging-benchmarks) 
+from the clients for total result. 
+ 
 ## get
 
 Benchmarking get operations will upload `-objects` objects of size `-obj.size` and attempt to 

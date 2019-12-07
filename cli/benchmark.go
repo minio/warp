@@ -61,6 +61,11 @@ var benchFlags = []cli.Flag{
 		Usage:  "Leave benchmark data. Do not run cleanup after benchmark. Bucket will still be cleaned prior to benchmark",
 		Hidden: true,
 	},
+	cli.StringFlag{
+		Name:  "syncstart",
+		Usage: "Specify a benchmark start time. Time format is 'hh:mm' where hours are specified in 24h format, server TZ.",
+		Value: "",
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -114,8 +119,20 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(c.PrepareProgress)
 		<-pgDone
 	}
-	// Start after waiting a second.
+
+	// Start after waiting a second or until we reached the start time.
 	tStart := time.Now().Add(time.Second)
+	if st := ctx.String("syncstart"); st != "" {
+		startTime := parseLocalTime(st)
+		now := time.Now()
+		if startTime.Before(now) {
+			console.Errorln("Did not manage to prepare before syncstart")
+			tStart = time.Now()
+		} else {
+			tStart = startTime
+		}
+	}
+
 	bechDur := ctx.Duration("duration")
 	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
 	defer cancel()
@@ -131,7 +148,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 
 	prof := startProfiling(ctx)
-	console.Infoln("Starting benchmark...")
+	console.Infoln("Starting benchmark in", tStart.Sub(time.Now()).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
 		pg := newProgressBar(int64(bechDur), pb.U_DURATION)
@@ -259,6 +276,24 @@ func checkBenchmark(ctx *cli.Context) {
 			fatalIf(errDummy(), "Profiler type %s unrecognized. Possible values are: %v.", profilerType, profilerTypes)
 		}
 	}
+	if st := ctx.String("syncstart"); st != "" {
+		t := parseLocalTime(st)
+		if t.Before(time.Now()) {
+			fatalIf(errDummy(), "syncstart is in the past: %v", t)
+		}
+	}
+}
+
+// time format for start time.
+const timeLayout = "15:04"
+
+func parseLocalTime(s string) time.Time {
+	t, err := time.ParseInLocation(timeLayout, s, time.Local)
+	fatalIf(probe.NewError(err), "Unable to parse time: %s", s)
+	now := time.Now()
+	y, m, d := now.Date()
+	t = t.AddDate(y, int(m)-1, d-1)
+	return t
 }
 
 // pRandAscii return pseudorandom ASCII string with length n.
