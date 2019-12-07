@@ -78,16 +78,18 @@ func (d *List) Prepare(ctx context.Context) {
 					break
 				}
 				exists[obj.Name] = struct{}{}
+				client := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
+					Endpoint: client.EndpointURL().String(),
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := d.Client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				n, err := client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Fatal("upload error:", err)
@@ -140,16 +142,18 @@ func (d *List) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 
 				prefix := objs[0].PreFix
+				client := d.Client()
 				op := Operation{
-					File:   prefix,
-					OpType: "LIST",
-					Thread: uint16(i),
-					Size:   0,
+					File:     prefix,
+					OpType:   "LIST",
+					Thread:   uint16(i),
+					Size:     0,
+					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := d.Client.ListObjectsV2(d.Bucket, objs[0].PreFix, true, nil)
+				listCh := client.ListObjectsV2(d.Bucket, objs[0].PreFix, true, nil)
 
 				// Wait for errCh to close.
 				for {

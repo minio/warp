@@ -110,7 +110,7 @@ func mainMerge(ctx *cli.Context) error {
 		}()
 	}
 	for typ, ops := range allOps.ByOp() {
-		start, end := ops.ActiveTimeRange()
+		start, end := ops.ActiveTimeRange(true)
 		if !start.Before(end) {
 			console.Errorf("Type %v contains no overlapping items", typ)
 		}

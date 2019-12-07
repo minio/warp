@@ -11,6 +11,12 @@ The S3 server to use can be specified on the commandline using `-host`, `-access
 
 It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY` and `WARP_TLS` environment variables.
 
+Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
+will do a round-robin between the specified servers. 
+
+Alternatively numerical ranges can be specified using `10.0.0.{1...10}:9000` which will add `10.0.0.1` through `10.0.0.10`.
+This syntax can be used for any part of the host name and port.  
+ 
 The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
 
 By default operations are performed on a bucket called `warp-benchmark-bucket`.
@@ -159,6 +165,49 @@ Aggregated, split into 59 x 1s time segments:
 * 50% Median: 2419.56 MB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
 * Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
+### Per request statistics
+
+By adding the `-requests` parameter it is possible to display per request statistics.
+
+This is not enabled by default, since it is assumed the benchmarks are throughput limited, 
+but in certain scenarios it can be useful to determine problems with individual hosts for instance.
+
+Example:
+
+```
+Operation: GET. Concurrency: 12. Hosts: 7.                                                       
+                                                                                                 
+Requests - 16720:                                                                                
+ * Fastest: 2.9965ms Slowest: 62.9993ms 50%: 21.0006ms 90%: 31.0021ms 99%: 41.0016ms             
+ * First Byte: Average: 20.575134ms, Median: 20.0007ms, Best: 1.9985ms, Worst: 62.9993ms         
+                                                                                                 
+Requests by host:                                                                                
+ * http://127.0.0.1:9001 - 2395 requests:                                                        
+        - Fastest: 2.9965ms Slowest: 55.0015ms 50%: 18.0002ms 90%: 28.001ms                      
+        - First Byte: Average: 17.139147ms, Median: 16.9998ms, Best: 1.9985ms, Worst: 53.0026ms  
+ * http://127.0.0.1:9002 - 2395 requests:                                                        
+        - Fastest: 4.999ms Slowest: 60.9925ms 50%: 20.9993ms 90%: 31.001ms                       
+        - First Byte: Average: 20.174683ms, Median: 19.9996ms, Best: 3.999ms, Worst: 59.9912ms   
+ * http://127.0.0.1:9003 - 2395 requests:                                                        
+        - Fastest: 6.9988ms Slowest: 56.0005ms 50%: 20.9978ms 90%: 31.001ms                      
+        - First Byte: Average: 20.272876ms, Median: 19.9983ms, Best: 5.0012ms, Worst: 55.0012ms  
+ * http://127.0.0.1:9004 - 2395 requests:                                                        
+        - Fastest: 5.0002ms Slowest: 62.9993ms 50%: 22.0009ms 90%: 33.001ms                      
+        - First Byte: Average: 22.039164ms, Median: 21.0015ms, Best: 4.0003ms, Worst: 62.9993ms  
+ * http://127.0.0.1:9005 - 2396 requests:                                                        
+        - Fastest: 6.9934ms Slowest: 54.002ms 50%: 21.0008ms 90%: 30.9998ms                      
+        - First Byte: Average: 20.871833ms, Median: 20.0006ms, Best: 4.9998ms, Worst: 52.0019ms  
+ * http://127.0.0.1:9006 - 2396 requests:                                                        
+        - Fastest: 6.0019ms Slowest: 54.9972ms 50%: 22.9985ms 90%: 33.0007ms                     
+        - First Byte: Average: 22.430863ms, Median: 21.9986ms, Best: 5.0008ms, Worst: 53.9981ms  
+ * http://127.0.0.1:9007 - 2396 requests:                                                        
+        - Fastest: 7.9968ms Slowest: 55.0899ms 50%: 21.998ms 90%: 30.9998ms                      
+        - First Byte: Average: 21.049681ms, Median: 20.9989ms, Best: 6.9958ms, Worst: 54.0884ms  
+```
+
+The fastest and slowest request times are shown, as well as selected percentiles and the total amount is requests considered.
+
+Note that different metrics are used to select the number of requests per host and for the combined, so there will likely be differences.
 
 ### CSV output
 

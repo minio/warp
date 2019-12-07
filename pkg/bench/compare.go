@@ -159,7 +159,7 @@ func Compare(before, after Operations, analysis time.Duration) (*Comparison, err
 		if len(segs) <= 1 {
 			return nil, errors.New("too few samples")
 		}
-		totals, _ := ops.Total()
+		totals := ops.Total(true)
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
@@ -180,8 +180,8 @@ func Compare(before, after Operations, analysis time.Duration) (*Comparison, err
 	res.Slowest.Compare(bs.Median(0.0), as.Median(0.0))
 	res.Fastest.Compare(bs.Median(1), as.Median(1))
 
-	beforeTotals, beforeTTFB := before.Total()
-	afterTotals, afterTTFB := after.Total()
+	beforeTotals, beforeTTFB := before.Total(true), before.TTFB(before.TimeRange())
+	afterTotals, afterTTFB := after.Total(true), after.TTFB(after.TimeRange())
 
 	res.Average.Compare(beforeTotals, afterTotals)
 	res.TTFB = beforeTTFB.Compare(afterTTFB)

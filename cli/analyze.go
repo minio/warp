@@ -49,6 +49,10 @@ var analyzeFlags = []cli.Flag{
 		Value: "",
 		Usage: "Only output for this op. Can be GET/PUT/DELETE, etc.",
 	},
+	cli.BoolFlag{
+		Name:  "requests",
+		Usage: "Display individual request stats.",
+	},
 }
 
 var analyzeCmd = cli.Command{
@@ -120,23 +124,26 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			wrSegs = f
 		}
 	}
-
-	for typ, ops := range ops.ByOp() {
+	ops.SortByStartTime()
+	types := ops.OpTypes()
+	for _, typ := range types {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
 			if wantOp != typ {
 				continue
 			}
 		}
+		ops := ops.FilterByOp(typ)
 		console.Println("-------------------")
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysisDur(ctx),
+			AllThreads:     true,
 		})
 		if len(segs) <= 1 {
 			console.Println("Skipping", typ, "too few samples.")
 			continue
 		}
-		totals, ttfb := ops.Total()
+		totals := ops.Total(true)
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
@@ -146,29 +153,88 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		opo := ops.FirstObjPerOp()
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		if opo > 1 {
-			console.Println("Operation:", typ, opo, "objects per operation. Concurrency:", ops.Threads())
+			console.Printf("Operation: %v. Objects per operation: %d. Concurrency: %d. Hosts: %d.\n", typ, opo, ops.Threads(), ops.Hosts())
 		} else {
-			console.Println("Operation:", typ, "- Concurrency:", ops.Threads())
+			console.Printf("Operation: %v. Concurrency: %d. Hosts: %d.\n", typ, ops.Threads(), ops.Hosts())
 		}
 		if errs := ops.Errors(); len(errs) > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", len(errs))
 		}
+		if ctx.Bool("requests") {
+			printRequestAnalysis(ctx, ops)
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Println("\nThroughput:")
+		}
 		console.SetColor("Print", color.New(color.FgWhite))
 		console.Println("* Average:", totals)
-		if ttfb.Average > 0 {
-			console.Println("* First Byte:", ttfb)
+
+		if eps := ops.Endpoints(); len(eps) > 1 {
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Println("\nThroughput by host:")
+
+			for _, ep := range eps {
+				totals := ops.FilterByEndpoint(ep).Total(false)
+				console.SetColor("Print", color.New(color.FgWhite))
+				console.Print(" * ", ep, ": Avg: ", totals.ShortString())
+				console.Println("")
+			}
 		}
 		console.SetColor("Print", color.New(color.FgHiWhite))
-		console.Println("\nAggregated, split into", len(segs), "x", analysisDur(ctx), "time segments:")
+		console.Println("\nAggregated Throughput, split into", len(segs), "x", analysisDur(ctx), "time segments:")
 		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println("* Fastest:", segs.Median(1))
-		console.Println("* 50% Median:", segs.Median(0.5))
-		console.Println("* Slowest:", segs.Median(0.0))
+		console.Println(" * Fastest:", segs.Median(1))
+		console.Println(" * 50% Median:", segs.Median(0.5))
+		console.Println(" * Slowest:", segs.Median(0.0))
 		if wrSegs != nil {
 			segs.SortByTime()
 			err := segs.CSV(wrSegs)
 			errorIf(probe.NewError(err), "Error writing analysis")
+		}
+	}
+}
+
+func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
+	console.SetColor("Print", color.New(color.FgHiWhite))
+	start, end := ops.ActiveTimeRange(true)
+	active := ops.FilterInsideRange(start, end)
+	console.Print("\nRequests - ", len(active), ":\n")
+	console.SetColor("Print", color.New(color.FgWhite))
+
+	if len(active) == 0 {
+		console.Println("Not enough requests")
+	}
+	active.SortByDuration()
+	console.Println(" * Fastest:", active.Median(0).Duration(),
+		"Slowest:", active.Median(1).Duration(),
+		"50%:", active.Median(0.5).Duration(),
+		"90%:", active.Median(0.9).Duration(),
+		"99%:", active.Median(0.99).Duration())
+
+	ttfb := active.TTFB(start, end)
+	if ttfb.Average > 0 {
+		console.Println(" * First Byte:", ttfb)
+	}
+	if eps := ops.Endpoints(); len(eps) > 1 {
+		console.SetColor("Print", color.New(color.FgHiWhite))
+		console.Println("\nRequests by host:")
+
+		for _, ep := range eps {
+			filtered := ops.FilterByEndpoint(ep)
+			if len(filtered) <= 1 {
+				continue
+			}
+			filtered.SortByDuration()
+			console.SetColor("Print", color.New(color.FgWhite))
+			console.Println(" *", ep, "-", len(filtered), "requests:",
+				"\n\t- Fastest:", filtered.Median(0).Duration(),
+				"Slowest:", filtered.Median(1).Duration(),
+				"50%:", filtered.Median(0.5).Duration(),
+				"90%:", filtered.Median(0.9).Duration())
+			ttfb := filtered.TTFB(filtered.TimeRange())
+			if ttfb.Average > 0 {
+				console.Println("\t- First Byte:", ttfb)
+			}
 		}
 	}
 }

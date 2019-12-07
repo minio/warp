@@ -44,6 +44,7 @@ func TestOperations_Segment(t *testing.T) {
 		segs := ops.Segment(SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: time.Second,
+			AllThreads:     true,
 		})
 		t.Log("Operation type:", typ)
 
@@ -54,7 +55,7 @@ func TestOperations_Segment(t *testing.T) {
 		}
 
 		segs.SortByThroughput()
-		totals, ttfb := ops.Total()
+		totals, ttfb := ops.Total(true)
 
 		t.Log("Errors:", len(ops.Errors()))
 		t.Log("Fastest:", segs.Median(1))

@@ -72,16 +72,18 @@ func (g *Get) Prepare(ctx context.Context) {
 				default:
 				}
 				obj := src.Object()
+				client := g.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
+					Endpoint: client.EndpointURL().String(),
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := g.Client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Fatal("upload error:", err)
@@ -142,16 +144,18 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
+				client := g.Client()
 				op := Operation{
 					OpType:   "GET",
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
+					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 				var err error
-				fbr.r, err = g.Client.GetObject(g.Bucket, obj.Name, opts)
+				fbr.r, err = client.GetObject(g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Errorln("download error:", err)
 					op.Err = err.Error()

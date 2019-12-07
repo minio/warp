@@ -58,15 +58,17 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
+				client := u.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
+					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
-				n, err := u.Client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				n, err := client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Errorln("upload error:", err)

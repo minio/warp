@@ -29,6 +29,7 @@ import (
 type SegmentOptions struct {
 	From           time.Time
 	PerSegDuration time.Duration
+	AllThreads     bool
 }
 
 // A Segment represents totals of operations in a specific time segment
@@ -60,12 +61,14 @@ type Segments []Segment
 
 // Total will return the total of active operations.
 // See ActiveTimeRange how this is determined.
-func (o Operations) Total() (Segment, TTFB) {
-	start, end := o.ActiveTimeRange()
+// Specify whether one operation for all threads should be skipped or just a single.
+func (o Operations) Total(allThreads bool) Segment {
+	start, end := o.ActiveTimeRange(allThreads)
 	return o.Segment(SegmentOptions{
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
-	})[0], o.TTFB(start, end)
+		AllThreads:     allThreads,
+	})[0]
 }
 
 // TTFB returns time to first byte stats for all operations completely within the time segment.
@@ -103,7 +106,7 @@ func (o Operations) TTFB(start, end time.Time) TTFB {
 // Segment will segment the operations o.
 // Operations should be of the same type.
 func (o Operations) Segment(so SegmentOptions) Segments {
-	start, end := o.ActiveTimeRange()
+	start, end := o.ActiveTimeRange(so.AllThreads)
 	if start.After(so.From) {
 		so.From = start
 	}
@@ -216,6 +219,17 @@ func (s Segment) String() string {
 	}
 	return fmt.Sprintf("%s%.02f obj/s, %.02f ops ended/s (%v)",
 		speed, objs, ops, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
+}
+
+// ShortString returns a string representation of the segment without ops ended/s.
+func (s Segment) ShortString() string {
+	mb, _, objs := s.SpeedPerSec()
+	speed := ""
+	if mb > 0 {
+		speed = fmt.Sprintf("%.02f MB/s, ", mb)
+	}
+	return fmt.Sprintf("%s%.02f obj/s (%v)",
+		speed, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
 }
 
 // SortByThroughput sorts the segments by throughput.

@@ -67,16 +67,18 @@ func (d *Delete) Prepare(ctx context.Context) {
 				default:
 				}
 				obj := src.Object()
+				client := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
+					Endpoint: client.EndpointURL().String(),
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := d.Client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				n, err := client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Fatal("upload error:", err)
@@ -144,16 +146,18 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				close(objects)
 
+				client := d.Client()
 				op := Operation{
 					OpType:   "DELETE",
 					Thread:   uint16(i),
 					Size:     0,
 					File:     "",
 					ObjPerOp: len(objs),
+					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := d.Client.RemoveObjectsWithContext(context.Background(), d.Bucket, objects)
+				errCh := client.RemoveObjectsWithContext(context.Background(), d.Bucket, objects)
 
 				// Wait for errCh to close.
 				for {

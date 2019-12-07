@@ -40,6 +40,7 @@ type Operation struct {
 	Size      int64      `json:"size"`
 	File      string     `json:"file"`
 	Thread    uint16     `json:"thread"`
+	Endpoint  string     `json:"endpoint"`
 }
 
 type Collector struct {
@@ -71,6 +72,12 @@ func (c *Collector) Close() Operations {
 	close(c.rcv)
 	c.rcvWg.Wait()
 	return c.ops
+}
+
+// SortByDuration will sort the operations by duration taken to complete.
+// Fastest operations first.
+func (o Operation) Duration() time.Duration {
+	return o.End.Sub(o.Start)
 }
 
 // Aggregate the operation into segment if it belongs there.
@@ -161,6 +168,28 @@ func (o Operations) SortByStartTime() {
 	})
 }
 
+// SortByDuration will sort the operations by duration taken to complete.
+// Fastest operations first.
+func (o Operations) SortByDuration() {
+	o.SortByStartTime()
+	sort.SliceStable(o, func(i, j int) bool {
+		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
+		return a < b
+	})
+}
+
+// Median returns the m part median of the assumed sorted list of operations.
+// m is clamped to the range 0 -> 1.
+func (o Operations) Median(m float64) Operation {
+	if len(o) == 0 {
+		return Operation{}
+	}
+	m = math.Round(float64(len(o)) * m)
+	m = math.Max(m, 0)
+	m = math.Min(m, float64(len(o)-1)+1e-10)
+	return o[int(m)]
+}
+
 // SortByTTFB sorts by time to first byte.
 // Smallest first.
 func (o Operations) SortByTTFB() {
@@ -207,11 +236,44 @@ func (o Operations) FilterByOp(opType string) Operations {
 	return dst
 }
 
+// FilterByEndpoint returns operations run against a specific endpoint.
+func (o Operations) FilterByEndpoint(endpoint string) Operations {
+	dst := make(Operations, 0, len(o))
+	for _, o := range o {
+		if o.Endpoint == endpoint {
+			dst = append(dst, o)
+		}
+	}
+	return dst
+}
+
 // ByOp separates the operations by op.
 func (o Operations) ByOp() map[string]Operations {
 	dst := make(map[string]Operations, 1)
 	for _, o := range o {
 		dst[o.OpType] = append(dst[o.OpType], o)
+	}
+	return dst
+}
+
+// OpTypes returns a list of the operation types in the order they appear.
+func (o Operations) OpTypes() []string {
+	tmp := make(map[string]struct{}, 5)
+	dst := make([]string, 0, 5)
+	for _, o := range o {
+		if _, ok := tmp[o.OpType]; !ok {
+			dst = append(dst, o.OpType)
+		}
+		tmp[o.OpType] = struct{}{}
+	}
+	return dst
+}
+
+// ByOp separates the operations by endpoint.
+func (o Operations) ByEndpoint() map[string]Operations {
+	dst := make(map[string]Operations, 1)
+	for _, o := range o {
+		dst[o.Endpoint] = append(dst[o.Endpoint], o)
 	}
 	return dst
 }
@@ -254,13 +316,41 @@ func (o Operations) TimeRange() (start, end time.Time) {
 // All threads must have completed at least one request
 // and the last start time of any thread.
 // If there is no active time range both values will be the same.
-func (o Operations) ActiveTimeRange() (start, end time.Time) {
+func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 	if len(o) == 0 {
 		return
 	}
-	t := o.Threads()
-	firstEnded := make(map[uint16]time.Time, t)
-	lastStarted := make(map[uint16]time.Time, t)
+	// Only discard one.
+	if !allThreads {
+		startF := o[0].Start
+		endF := o[0].End
+		for _, op := range o {
+			if op.End.Before(startF) {
+				startF = op.End
+			}
+			if endF.Before(op.Start) {
+				endF = op.Start
+			}
+		}
+		start = endF
+		end = startF
+		for _, op := range o {
+			if op.Start.After(startF) && op.Start.Before(start) {
+				start = op.Start
+			}
+			if op.End.Before(endF) && op.End.After(end) {
+				end = op.End
+			}
+		}
+		if start.After(end) {
+			return start, start
+		}
+
+		return
+	}
+	threads := o.Threads()
+	firstEnded := make(map[uint16]time.Time, threads)
+	lastStarted := make(map[uint16]time.Time, threads)
 	for _, op := range o {
 		ended, ok := firstEnded[op.Thread]
 		if !ok || ended.After(op.End) {
@@ -322,6 +412,35 @@ func (o Operations) OffsetThreads(n uint16) uint16 {
 	return maxT + 1
 }
 
+// Hosts returns the number of servers.
+func (o Operations) Hosts() int {
+	if len(o) == 0 {
+		return 0
+	}
+	endpoints := make(map[string]struct{}, 1)
+	for _, op := range o {
+		endpoints[op.Endpoint] = struct{}{}
+	}
+	return len(endpoints)
+}
+
+// Endpoints returns the endpoints as a sorted slice.
+func (o Operations) Endpoints() []string {
+	if len(o) == 0 {
+		return nil
+	}
+	endpoints := make(map[string]struct{}, 1)
+	for _, op := range o {
+		endpoints[op.Endpoint] = struct{}{}
+	}
+	dst := make([]string, 0, len(endpoints))
+	for k := range endpoints {
+		dst = append(dst, k)
+	}
+	sort.Strings(dst)
+	return dst
+}
+
 // Errors returns the errors found.
 func (o Operations) Errors() []string {
 	if len(o) == 0 {
@@ -339,7 +458,7 @@ func (o Operations) Errors() []string {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
@@ -348,7 +467,7 @@ func (o Operations) CSV(w io.Writer) error {
 		if op.FirstByte != nil {
 			ttfb = op.FirstByte.Format(time.RFC3339Nano)
 		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -409,6 +528,10 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
+		var endpoint string
+		if idx, ok := fieldIdx["endpoint"]; ok {
+			endpoint = values[idx]
+		}
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
 			ObjPerOp:  int(objs),
@@ -419,6 +542,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			Size:      size,
 			File:      values[fieldIdx["file"]],
 			Thread:    uint16(thread),
+			Endpoint:  endpoint,
 		})
 	}
 	return ops, nil
