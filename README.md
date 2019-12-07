@@ -240,7 +240,7 @@ The bigger a percentage of the operation is within a segment the larger part of 
 
 This is why there can be a partial object attributed to a segment, because only a part of the operation took place in the segment.
 
-# Comparing Benchmarks
+## Comparing Benchmarks
 
 It is possible to compare two recorded runs using the `warp cmp (file-before) (file-after)` to
 see the differences between before and after. 
@@ -272,7 +272,8 @@ All relevant differences are listed. This is two `warp get` runs.
 Differences in parameters will be shown.
 
 The usual analysis parameters can be applied to define segment lengths.
-# Merging benchmarks
+
+## Merging benchmarks
 
 It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
 
@@ -285,4 +286,20 @@ It is important to note that only data that strictly overlaps in absolute time w
 
 When running benchmarks on several clients it is likely a good idea to specify the `-noclear` parameter so
 clients don't accidentally delete each others data on startup or shutdown.
+
+# Server Profiling
+
+When running against a MinIO server it is possible to enable profiling while the benchmark is running.
+
+This is done by adding `-serverprof=type` parameter with the type of profile you would like. This requires that the credentials allows admin access for the first host.
+
+| Type  | Description                                                                                                                                |
+|-------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| cpu   | CPU profile determines where a program spends its time while actively consuming CPU cycles (as opposed while sleeping or waiting for I/O). |
+| mem   | Heap profile reports the currently live allocations; used to monitor current memory usage or check for memory leaks.                       |
+| block | Block profile show where goroutines block waiting on synchronization primitives (including timer channels).                                |
+| mutex | Mutex profile reports the lock contentions. When you think your CPU is not fully utilized due to a mutex contention, use this profile.     |
+| trace | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.              |
+
+Profiles for all cluster members will be downloaded as a zip file. Analyzing the profiles requires the Go tools to be installed. See [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) for basic usage of the profile tools and an introduction to the [Go execution tracer](https://blog.gopheracademy.com/advent-2017/go-execution-tracer/) for more information.
 
