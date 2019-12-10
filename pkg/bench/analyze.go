@@ -36,6 +36,7 @@ type SegmentOptions struct {
 // starting at Start and ending before EndsBefore.
 type Segment struct {
 	OpType     string    `json:"op"`
+	Host       string    `json:"host"`
 	ObjsPerOp  int       `json:"objects_per_op"`
 	TotalBytes int64     `json:"total_bytes"`
 	FullOps    int       `json:"full_ops"`
@@ -112,9 +113,14 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 	}
 	var segments []Segment
 	segStart := so.From
+	host := ""
+	if e := o.Endpoints(); len(e) == 1 {
+		host = e[0]
+	}
 	for segStart.Before(end.Add(-so.PerSegDuration)) {
 		s := Segment{
 			OpType:     o.FirstOpType(),
+			Host:       host,
 			ObjsPerOp:  o.FirstObjPerOp(),
 			TotalBytes: 0,
 			FullOps:    0,
@@ -161,6 +167,7 @@ func (s Segments) CSV(w io.Writer) error {
 	err := cw.Write([]string{
 		"index",
 		"op",
+		"host",
 		"duration_s",
 		"objects_per_op",
 		"bytes",
@@ -194,6 +201,7 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 	return w.Write([]string{
 		fmt.Sprint(idx),
 		s.OpType,
+		s.Host,
 		fmt.Sprint(float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)),
 		fmt.Sprint(s.ObjsPerOp),
 		fmt.Sprint(s.TotalBytes),
