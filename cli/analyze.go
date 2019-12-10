@@ -191,6 +191,10 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 				totals := ops.FilterByEndpoint(ep).Total(false)
 				console.SetColor("Print", color.New(color.FgWhite))
 				console.Print(" * ", ep, ": Avg: ", totals.ShortString(), "\n")
+				if errs := ops.Errors(); len(errs) > 0 {
+					console.SetColor("Print", color.New(color.FgHiRed))
+					console.Println("Errors:", len(errs))
+				}
 				if hostDetails {
 					ops := ops.FilterByEndpoint(ep)
 					segs := ops.Segment(bench.SegmentOptions{
@@ -198,6 +202,7 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 						PerSegDuration: analysisDur(ctx),
 						AllThreads:     true,
 					})
+					console.SetColor("Print", color.New(color.FgWhite))
 					if len(segs) <= 1 {
 						console.Println("Skipping", typ, "host:", ep, " - Too few samples.")
 						continue
