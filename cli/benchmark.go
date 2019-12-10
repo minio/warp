@@ -74,7 +74,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
-	c.Clear = !ctx.Bool("no-clear")
+	c.Clear = !ctx.Bool("noclear")
 	if !globalQuiet && !globalJSON {
 		c.PrepareProgress = make(chan float64, 1)
 		const pgScale = 10000
@@ -199,7 +199,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		}()
 	}
 	printAnalysis(ctx, ops)
-	if !ctx.Bool("keep-data") && !ctx.Bool("no-clear") {
+	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
