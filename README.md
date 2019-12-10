@@ -171,6 +171,39 @@ Aggregated, split into 59 x 1s time segments:
 * 50% Median: 2419.56 MB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
 * Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
+
+### Analysis Parameters
+
+Beside the important `-analysis.dur` which specifies the time segment size for aggregated data
+there are some additional parameters that can be used.
+
+Specifying `-analyze.hostdetails` will output time aggregated data per host instead of just averages. 
+For instance:
+
+```
+Throughput by host:
+ * http://127.0.0.1:9001: Avg: 81.48 MB/s, 81.48 obj/s (4m59.976s)
+        - Fastest: 86.46 MB/s, 86.46 obj/s (1s)
+        - 50% Median: 82.23 MB/s, 82.23 obj/s (1s)
+        - Slowest: 68.14 MB/s, 68.14 obj/s (1s)
+ * http://127.0.0.1:9002: Avg: 81.48 MB/s, 81.48 obj/s (4m59.968s)
+        - Fastest: 87.36 MB/s, 87.36 obj/s (1s)
+        - 50% Median: 82.28 MB/s, 82.28 obj/s (1s)
+        - Slowest: 68.40 MB/s, 68.40 obj/s (1s)
+```
+
+
+`-analyze.op=GET` will only analyze GET operations.
+
+Specifying `-analyze.host=http://127.0.0.1:9001` will only consider data from this specific host. 
+
+Warp will automatically discard the time taking the first and last request of all threads to finish.
+However, if you would like to discard additional time from the aggregated data, 
+this is possible. For instance `analyze.skip=10s` will skip the first 10 seconds of data for each operation type.
+
+Note that skipping data will not always result in the exact reduction in time for the aggregated data
+since the start time will still be aligned with requests starting. 
+
 ### Per request statistics
 
 By adding the `-requests` parameter it is possible to display per request statistics.
@@ -226,6 +259,7 @@ These are the data fields exported:
 |---------------------|-------------|
 | `index`             | Index of the segment  |
 | `op`                | Operation executed  |
+| `host`              | If only one host, host name, otherwise empty  |
 | `duration_s`        | Duration of the segment in seconds  |
 | `objects_per_op`    | Objects per operation  |
 | `bytes`             | Total bytes of operations (*distributed)  |

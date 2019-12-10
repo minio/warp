@@ -214,6 +214,7 @@ func (o Operations) FilterByHasTTFB(hasTTFB bool) Operations {
 }
 
 // FilterInsideRange returns operations that are inside the specified time range.
+// Operations starting before start or ending after end are discarded.
 func (o Operations) FilterInsideRange(start, end time.Time) Operations {
 	dst := make(Operations, 0, len(o))
 	for _, o := range o {

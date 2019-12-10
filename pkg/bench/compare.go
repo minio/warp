@@ -53,6 +53,8 @@ func (c *CmpSegment) Compare(before, after Segment) {
 	c.OpsEndedPerSec = 100 * (opsA - opsB) / opsB
 	if mbB > 0 {
 		c.ThroughputPerSec = 100 * (mbA - mbB) / mbB
+	} else {
+		c.ThroughputPerSec = 0
 	}
 }
 
@@ -62,7 +64,7 @@ func (c CmpSegment) String() string {
 	mbB, _, objsB := c.Before.SpeedPerSec()
 	mbA, _, objsA := c.After.SpeedPerSec()
 
-	if c.ThroughputPerSec > 0 {
+	if c.ThroughputPerSec != 0 {
 		speed = fmt.Sprintf("%s%.02f%% (%s%.1f MB/s) throughput, ",
 			plusPositiveF(c.ThroughputPerSec), c.ThroughputPerSec,
 			plusPositiveF(c.ThroughputPerSec), mbA-mbB,
@@ -70,7 +72,7 @@ func (c CmpSegment) String() string {
 	}
 	return fmt.Sprintf("%s%s%.02f%% (%s%.1f) obj/s",
 		speed, plusPositiveF(c.ObjPerSec), c.ObjPerSec,
-		plusPositiveF(c.ObjPerSec), objsA-objsB,
+		plusPositiveF(objsA-objsB), objsA-objsB,
 	)
 }
 

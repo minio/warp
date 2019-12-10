@@ -49,6 +49,21 @@ var analyzeFlags = []cli.Flag{
 		Value: "",
 		Usage: "Only output for this op. Can be GET/PUT/DELETE, etc.",
 	},
+	cli.StringFlag{
+		Name:  "analyze.host",
+		Value: "",
+		Usage: "Only output for this host.",
+	},
+	cli.DurationFlag{
+		Name:   "analyze.skip",
+		Usage:  "Additional duration to skip when analyzing data.",
+		Hidden: false,
+		Value:  0,
+	},
+	cli.BoolFlag{
+		Name:  "analyze.hostdetails",
+		Usage: "Do detailed time segmentation per host",
+	},
 	cli.BoolFlag{
 		Name:  "requests",
 		Usage: "Display individual request stats.",
@@ -124,6 +139,11 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			wrSegs = f
 		}
 	}
+	if onlyHost := ctx.String("analyze.host"); onlyHost != "" {
+		ops = ops.FilterByEndpoint(onlyHost)
+	}
+	hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
+
 	ops.SortByStartTime()
 	types := ops.OpTypes()
 	for _, typ := range types {
@@ -133,6 +153,11 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			}
 		}
 		ops := ops.FilterByOp(typ)
+		if d := ctx.Duration("analyze.skip"); d > 0 {
+			start, end := ops.TimeRange()
+			start = start.Add(d)
+			ops = ops.FilterInsideRange(start, end)
+		}
 		console.Println("-------------------")
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
@@ -176,8 +201,34 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			for _, ep := range eps {
 				totals := ops.FilterByEndpoint(ep).Total(false)
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", totals.ShortString())
-				console.Println("")
+				console.Print(" * ", ep, ": Avg: ", totals.ShortString(), "\n")
+				if errs := ops.Errors(); len(errs) > 0 {
+					console.SetColor("Print", color.New(color.FgHiRed))
+					console.Println("Errors:", len(errs))
+				}
+				if hostDetails {
+					ops := ops.FilterByEndpoint(ep)
+					segs := ops.Segment(bench.SegmentOptions{
+						From:           time.Time{},
+						PerSegDuration: analysisDur(ctx),
+						AllThreads:     true,
+					})
+					console.SetColor("Print", color.New(color.FgWhite))
+					if len(segs) <= 1 {
+						console.Println("Skipping", typ, "host:", ep, " - Too few samples.")
+						continue
+					}
+					totals := ops.Total(true)
+					if totals.TotalBytes > 0 {
+						segs.SortByThroughput()
+					} else {
+						segs.SortByObjsPerSec()
+					}
+					console.SetColor("Print", color.New(color.FgWhite))
+					console.Println("\t- Fastest:", segs.Median(1).ShortString())
+					console.Println("\t- 50% Median:", segs.Median(0.5).ShortString())
+					console.Println("\t- Slowest:", segs.Median(0.0).ShortString())
+				}
 			}
 		}
 		console.SetColor("Print", color.New(color.FgHiWhite))
@@ -190,6 +241,31 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			segs.SortByTime()
 			err := segs.CSV(wrSegs)
 			errorIf(probe.NewError(err), "Error writing analysis")
+
+			// Write segments per endpoint
+			eps := ops.Endpoints()
+			if hostDetails && len(eps) > 1 {
+				for _, ep := range eps {
+					ops := ops.FilterByEndpoint(ep)
+					segs := ops.Segment(bench.SegmentOptions{
+						From:           time.Time{},
+						PerSegDuration: analysisDur(ctx),
+						AllThreads:     true,
+					})
+					if len(segs) <= 1 {
+						continue
+					}
+					totals := ops.Total(true)
+					if totals.TotalBytes > 0 {
+						segs.SortByThroughput()
+					} else {
+						segs.SortByObjsPerSec()
+					}
+					segs.SortByTime()
+					err := segs.CSV(wrSegs)
+					errorIf(probe.NewError(err), "Error writing analysis")
+				}
+			}
 		}
 	}
 }
