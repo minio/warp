@@ -54,6 +54,12 @@ var analyzeFlags = []cli.Flag{
 		Value: "",
 		Usage: "Only output for this host.",
 	},
+	cli.DurationFlag{
+		Name:   "analyze.skip",
+		Usage:  "Additional duration to skip when analyzing data.",
+		Hidden: false,
+		Value:  0,
+	},
 	cli.BoolFlag{
 		Name:  "analyze.hostdetails",
 		Usage: "Do detailed time segmentation per host",
@@ -147,6 +153,11 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 			}
 		}
 		ops := ops.FilterByOp(typ)
+		if d := ctx.Duration("analyze.skip"); d > 0 {
+			start, end := ops.TimeRange()
+			start = start.Add(d)
+			ops = ops.FilterInsideRange(start, end)
+		}
 		console.Println("-------------------")
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},

@@ -197,6 +197,13 @@ Throughput by host:
 
 Specifying `-analyze.host=http://127.0.0.1:9001` will only consider data from this specific host. 
 
+Warp will automatically discard the time taking the first and last request of all threads to finish.
+However, if you would like to discard additional time from the aggregated data, 
+this is possible. For instance `analyze.skip=10s` will skip the first 10 seconds of data for each operation type.
+
+Note that skipping data will not always result in the exact reduction in time for the aggregated data
+since the start time will still be aligned with requests starting. 
+
 ### Per request statistics
 
 By adding the `-requests` parameter it is possible to display per request statistics.
