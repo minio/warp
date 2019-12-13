@@ -39,9 +39,9 @@ This can however also be tweaked using the `-concurrent` parameter.
 
 Tweaking concurrency can have an impact on performance, especially if there is latency to the server tested.
 
-Most benchmarks will also use different prefixes for each "thread" running. This can also
+Most benchmarks will also use different prefixes for each "thread" running.
 
-By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss].csv.zst`.
+By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`.
 A custom file name can be specified using the `-benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
@@ -66,7 +66,6 @@ The analysis will include the upload stats as `PUT` operations and the `GET` ope
 ```
 Operation: GET
 * Average: 2344.50 MB/s, 234.45 obj/s, 234.44 ops ended/s (59.119s)
-* First Byte: Average: 1.467052ms, Median: 1.001ms, Best: 0s, Worst: 22.9984ms
 
 Aggregated, split into 59 x 1s time segments:
 * Fastest: 2693.83 MB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
@@ -74,7 +73,8 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
 
-The `GET` operations will contain the time until the first byte was received.
+The `GET` operations will contain the time until the first byte was received. 
+This can be accessed using the `-requests` parameter.
 
 ## put
 
@@ -120,12 +120,11 @@ Benchmarking list operations will upload `-objects` objects of size `-obj.size` 
 The list operations are done per prefix.
 
 The analysis will include the upload stats as `PUT` operations and the `LIST` operations separately.
-The time from request start to first object is recorded as well.
+The time from request start to first object is recorded as well and can be accessed using the `-requests` parameter.
 
 ```
 Operation: LIST 833 objects per operation
 * Average: 30991.05 obj/s, 37.10 ops ended/s (59.387s)
-* First Byte: Average: 322.013799ms, Median: 322.9992ms, Best: 278.0002ms, Worst: 394.0013ms
 
 Aggregated, split into 59 x 1s time segments:
 * Fastest: 31831.96 obj/s, 39.00 ops ended/s (1s)
@@ -143,7 +142,7 @@ It is possible to merge analyses from concurrent runs using the `warp merge file
 This will combine the data as if it was run on the same client. 
 Only the time segments that was actually overlapping will be considered.
 This is based on the absolute time of each recording, 
-so be sure that clocks are reasonably synchronized.  
+so be sure that clocks are reasonably synchronized or use the `-syncstart` parameter.  
 
 ## Analysis data
 
