@@ -66,6 +66,12 @@ var benchFlags = []cli.Flag{
 		Usage: "Specify a benchmark start time. Time format is 'hh:mm' where hours are specified in 24h format, server TZ.",
 		Value: "",
 	},
+	cli.StringFlag{
+		Name:   "warp-client",
+		Usage:  "Connect to warp clients and run benchmarks there.",
+		EnvVar: "",
+		Value:  "",
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -204,6 +210,85 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		b.Cleanup(context.Background())
 	}
 	return nil
+}
+
+func runServerBenchmark(ctx *cli.Context) error {
+	// Serialize parameters
+	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}}
+	s := serverRequest{
+		Operation: serverReqBenchmark,
+		Benchmark: struct {
+			Command string
+			Args    cli.Args
+			Flags   map[string]string
+		}{
+			Command: ctx.Command.Name,
+			Args:    ctx.Args(),
+			Flags:   make(map[string]string),
+		},
+	}
+	app := registerApp("warp", benchCmds)
+	//cmd := app.Command(s.Benchmark.Command)
+	//	cflags := flag.NewFlagSet("benchmark", nil)
+	flags := append([]string{"warp", s.Benchmark.Command}, s.Benchmark.Args...)
+	for _, flag := range ctx.Command.Flags {
+		if _, ok := excludeFlags[flag.GetName()]; ok {
+			continue
+		}
+		if ctx.IsSet(flag.GetName()) {
+			var err error
+			s.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
+			if err != nil {
+				return err
+			}
+			// TODO: Escape ot find better solution??
+			flags = append(flags, fmt.Sprintf(`-%s=%s`, flag.GetName(), s.Benchmark.Flags[flag.GetName()]))
+		}
+	}
+	fmt.Println(s, flags)
+	// endless:
+	app.Run(flags)
+
+	os.Exit(0)
+	return nil
+}
+
+func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
+	switch flag.(type) {
+	case cli.StringFlag:
+		if ctx.IsSet(flag.GetName()) {
+			return ctx.String(flag.GetName()), nil
+		}
+	case cli.BoolFlag:
+		if ctx.IsSet(flag.GetName()) {
+			return "true", nil
+		}
+	case cli.Int64Flag:
+		if ctx.IsSet(flag.GetName()) {
+			return fmt.Sprintf(`"%v"`, ctx.Int64(flag.GetName())), nil
+		}
+	case cli.IntFlag:
+		if ctx.IsSet(flag.GetName()) {
+			return fmt.Sprintf(`"%v"`, ctx.Int(flag.GetName())), nil
+		}
+	case cli.DurationFlag:
+		if ctx.IsSet(flag.GetName()) {
+			return ctx.Duration(flag.GetName()).String(), nil
+		}
+	case cli.UintFlag:
+		if ctx.IsSet(flag.GetName()) {
+			return fmt.Sprintf(`"%v"`, ctx.Uint(flag.GetName())), nil
+		}
+	case cli.Uint64Flag:
+		if ctx.IsSet(flag.GetName()) {
+			return fmt.Sprintf(`"%v"`, ctx.Uint64(flag.GetName())), nil
+		}
+	default:
+		if ctx.IsSet(flag.GetName()) {
+			return "", fmt.Errorf("unhandled flag type: %T", flag)
+		}
+	}
+	return "", nil
 }
 
 type runningProfiles struct {

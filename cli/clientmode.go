@@ -91,6 +91,11 @@ type clientReply struct {
 
 type serverRequest struct {
 	Operation string `json:"op"`
+	Benchmark struct {
+		Command string
+		Args    cli.Args
+		Flags   map[string]string
+	}
 }
 
 func (s serverInfo) validate() error {
