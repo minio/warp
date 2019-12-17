@@ -18,7 +18,6 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -62,10 +61,7 @@ EXAMPLES:
 // mainGet is the entry point for get command.
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
-	fatalIf(probe.NewError(runServerBenchmark(ctx)), "Error running remote benchmark")
-
 	src := newGenSource(ctx)
-
 	b := bench.Get{
 		Common: bench.Common{
 			Client:      newClient(ctx),

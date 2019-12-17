@@ -20,12 +20,17 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cheggaaa/pb"
+	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
@@ -76,6 +81,12 @@ var benchFlags = []cli.Flag{
 
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
+	if activeBenchmark != nil {
+		return runClientBenchmark(ctx, b)
+	}
+
+	fatalIf(probe.NewError(runServerBenchmark(ctx)), "Error running remote benchmark")
+
 	console.Infoln("Preparing server.")
 
 	pgDone := make(chan struct{})
@@ -212,9 +223,83 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	return nil
 }
 
+var activeBenchmark *clientBenchmark
+
+type clientBenchmark struct {
+	results      bench.Operations
+	startPrepare chan struct{}
+	donePrepare  chan struct{}
+	startBench   chan struct{}
+	doneBench    chan struct{}
+	startClenaup chan struct{}
+	doneClenaup  chan struct{}
+}
+
+func runClientBenchmark(ctx *cli.Context, b bench.Benchmark) error {
+	b.Prepare(context.Background())
+
+	// Start after waiting a second or until we reached the start time.
+	tStart := time.Now().Add(time.Second)
+	if st := ctx.String("syncstart"); st != "" {
+		startTime := parseLocalTime(st)
+		now := time.Now()
+		if startTime.Before(now) {
+			console.Errorln("Did not manage to prepare before syncstart")
+			tStart = time.Now()
+		} else {
+			tStart = startTime
+		}
+	}
+
+	bechDur := ctx.Duration("duration")
+	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
+	defer cancel()
+	start := make(chan struct{})
+	go func() {
+		<-time.After(time.Until(tStart))
+		close(start)
+	}()
+
+	fileName := ctx.String("benchdata")
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+	}
+
+	ops := b.Start(ctx2, start)
+	cancel()
+	ops.SortByStartTime()
+
+	f, err := os.Create(fileName + ".csv.zst")
+	if err != nil {
+		console.Error("Unable to write benchmark data:", err)
+	} else {
+		func() {
+			defer f.Close()
+			enc, err := zstd.NewWriter(f)
+			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+
+			defer enc.Close()
+			err = ops.CSV(enc)
+			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+		}()
+	}
+
+	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
+		console.Infoln("Starting cleanup...")
+		b.Cleanup(context.Background())
+	}
+
+	return nil
+}
+
 func runServerBenchmark(ctx *cli.Context) error {
+	if ctx.String("warp-client") == "" {
+		return nil
+	}
 	// Serialize parameters
-	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}}
+	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
 	s := serverRequest{
 		Operation: serverReqBenchmark,
 		Benchmark: struct {
@@ -227,10 +312,6 @@ func runServerBenchmark(ctx *cli.Context) error {
 			Flags:   make(map[string]string),
 		},
 	}
-	app := registerApp("warp", benchCmds)
-	//cmd := app.Command(s.Benchmark.Command)
-	//	cflags := flag.NewFlagSet("benchmark", nil)
-	flags := append([]string{"warp", s.Benchmark.Command}, s.Benchmark.Args...)
 	for _, flag := range ctx.Command.Flags {
 		if _, ok := excludeFlags[flag.GetName()]; ok {
 			continue
@@ -241,15 +322,46 @@ func runServerBenchmark(ctx *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			// TODO: Escape ot find better solution??
-			flags = append(flags, fmt.Sprintf(`-%s=%s`, flag.GetName(), s.Benchmark.Flags[flag.GetName()]))
 		}
 	}
-	fmt.Println(s, flags)
-	// endless:
-	app.Run(flags)
 
+	si := serverInfo{
+		ID:      pRandAscii(20),
+		Secret:  "",
+		Version: warpServerVersion,
+	}
+
+	hosts := parseHosts(ctx.String("warp-client"))
+	ws := make([]*websocket.Conn, len(hosts))
+	defer func() {
+		for _, c := range ws {
+			if c != nil {
+				c.Close()
+			}
+		}
+	}()
+	for i, host := range hosts {
+		if !strings.Contains(host, ":") {
+			host += ":" + strconv.Itoa(warpServerDefaultPort)
+		}
+		u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
+		var err error
+		ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+		fatalIf(probe.NewError(err), "Unable to connect to warp client")
+		// Send server info
+		err = ws[i].WriteJSON(si)
+		fatalIf(probe.NewError(err), "Unable to send server info to warp client")
+		var resp clientReply
+		err = ws[i].ReadJSON(&resp)
+		fatalIf(probe.NewError(err), "Did not receive response from warp client")
+		if resp.Err != "" {
+			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
+		}
+		// Assume ok.
+	}
+	// TODO: send and wait
 	os.Exit(0)
+
 	return nil
 }
 
