@@ -107,9 +107,9 @@ type clientReply struct {
 type serverRequest struct {
 	Operation string `json:"op"`
 	Benchmark struct {
-		Command string
-		Args    cli.Args
-		Flags   map[string]string
+		Command string            `json:"command"`
+		Args    cli.Args          `json:"args"`
+		Flags   map[string]string `json:"flags"`
 	}
 }
 
