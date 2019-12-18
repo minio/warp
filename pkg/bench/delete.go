@@ -18,6 +18,7 @@ package bench
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -39,7 +40,7 @@ type Delete struct {
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (d *Delete) Prepare(ctx context.Context) {
+func (d *Delete) Prepare(ctx context.Context) error {
 	d.createEmptyBucket(ctx)
 	src := d.Source()
 	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())
@@ -52,6 +53,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 	}
 	close(obj)
 	var mu sync.Mutex
+	var groupErr error
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -81,10 +83,25 @@ func (d *Delete) Prepare(ctx context.Context) {
 				n, err := client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
-					console.Fatal("upload error:", err)
+					err := fmt.Errorf("upload error: %w", err)
+					console.Error(err)
+					mu.Lock()
+					if groupErr == nil {
+						groupErr = err
+					}
+					mu.Unlock()
+					return
+
 				}
 				if n != obj.Size {
-					console.Fatal("short upload. want:", obj.Size, ", got:", n)
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+					console.Error(err)
+					mu.Lock()
+					if groupErr == nil {
+						groupErr = err
+					}
+					mu.Unlock()
+					return
 				}
 				cldone()
 				mu.Lock()
@@ -104,11 +121,12 @@ func (d *Delete) Prepare(ctx context.Context) {
 	rand.Shuffle(len(a), func(i, j int) {
 		a[i], a[j] = a[j], a[i]
 	})
+	return groupErr
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
+func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
@@ -119,7 +137,7 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 			defer wg.Done()
 			done := ctx.Done()
 
-			<-start
+			<-wait
 			for {
 				select {
 				case <-done:
@@ -178,7 +196,7 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 		}(i)
 	}
 	wg.Wait()
-	return c.Close()
+	return c.Close(), nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

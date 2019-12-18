@@ -31,13 +31,14 @@ type Put struct {
 }
 
 // Prepare will create an empty bucket ot delete any content already there.
-func (u *Put) Prepare(ctx context.Context) {
+func (u *Put) Prepare(ctx context.Context) error {
 	u.createEmptyBucket(ctx)
+	return nil
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
+func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
 	c := NewCollector()
@@ -49,7 +50,7 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 			opts := u.PutOpts
 			done := ctx.Done()
 
-			<-start
+			<-wait
 			for {
 				select {
 				case <-done:
@@ -87,7 +88,7 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 		}(i)
 	}
 	wg.Wait()
-	return c.Close()
+	return c.Close(), nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.
