@@ -27,11 +27,11 @@ import (
 
 type Benchmark interface {
 	// Prepare for the benchmark run
-	Prepare(ctx context.Context)
+	Prepare(ctx context.Context) error
 
 	// Start will execute the main benchmark.
 	// Operations should begin executing when the start channel is closed.
-	Start(ctx context.Context, sync chan struct{}) Operations
+	Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 	// Clean up after the benchmark run.
 	Cleanup(ctx context.Context)

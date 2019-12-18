@@ -23,14 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
-	"strconv"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb"
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
@@ -82,13 +79,11 @@ var benchFlags = []cli.Flag{
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if activeBenchmark != nil {
-		return runClientBenchmark(ctx, b)
+		return runClientBenchmark(ctx, b, activeBenchmark)
 	}
-
 	fatalIf(probe.NewError(runServerBenchmark(ctx)), "Error running remote benchmark")
 
 	console.Infoln("Preparing server.")
-
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -131,7 +126,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(pgDone)
 	}
 
-	b.Prepare(context.Background())
+	err := b.Prepare(context.Background())
+	fatalIf(probe.NewError(err), "Error preparing server")
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
 		<-pgDone
@@ -193,7 +189,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	} else {
 		close(pgDone)
 	}
-	ops := b.Start(ctx2, start)
+	ops, _ := b.Start(ctx2, start)
 	cancel()
 	<-pgDone
 	ops.SortByStartTime()
@@ -226,38 +222,109 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 var activeBenchmark *clientBenchmark
 
 type clientBenchmark struct {
-	results      bench.Operations
-	startPrepare chan struct{}
-	donePrepare  chan struct{}
-	startBench   chan struct{}
-	doneBench    chan struct{}
-	startClenaup chan struct{}
-	doneClenaup  chan struct{}
+	sync.Mutex
+	ctx     context.Context
+	results bench.Operations
+	err     error
+	stage   benchmarkStage
+	info    map[benchmarkStage]stageInfo
 }
 
-func runClientBenchmark(ctx *cli.Context, b bench.Benchmark) error {
-	b.Prepare(context.Background())
+type stageInfo struct {
+	start chan struct{}
+	done  chan struct{}
+}
 
-	// Start after waiting a second or until we reached the start time.
-	tStart := time.Now().Add(time.Second)
-	if st := ctx.String("syncstart"); st != "" {
-		startTime := parseLocalTime(st)
-		now := time.Now()
-		if startTime.Before(now) {
-			console.Errorln("Did not manage to prepare before syncstart")
-			tStart = time.Now()
-		} else {
-			tStart = startTime
+func (c *clientBenchmark) init() {
+	c.results = nil
+	c.err = nil
+	c.stage = stageNotStarted
+	c.info = make(map[benchmarkStage]stageInfo, len(benchmarkStages))
+	for _, stage := range benchmarkStages {
+		c.info[stage] = stageInfo{
+			start: make(chan struct{}),
+			done:  make(chan struct{}),
 		}
 	}
+}
 
-	bechDur := ctx.Duration("duration")
-	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
+// waitForStage waits for the stage to be ready and updates the stage when it is
+func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
+	c.Lock()
+	info, ok := c.info[s]
+	ctx := c.ctx
+	c.Unlock()
+	if !ok {
+		return errors.New("waitForStage: unknown stage")
+	}
+	select {
+	case <-info.start:
+		c.setStage(s)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
+// waitForStage waits for the stage to be ready and updates the stage when it is
+func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
+	c.Lock()
+	info := c.info[s]
+	if info.done != nil {
+		close(info.done)
+	}
+	if err != nil && c.err != nil {
+		c.err = err
+	}
+	c.Unlock()
+}
+
+func (c *clientBenchmark) setStage(s benchmarkStage) {
+	c.Lock()
+	c.stage = s
+	c.Unlock()
+}
+
+type benchmarkStage string
+
+const (
+	stagePrepare    benchmarkStage = "prepare"
+	stageBenchmark                 = "benchmark"
+	stageCleanup                   = "cleanup"
+	stageDone                      = "done"
+	stageNotStarted                = ""
+)
+
+var benchmarkStages = []benchmarkStage{
+	stagePrepare, stageBenchmark, stageCleanup,
+}
+
+func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark) error {
+	cb.init()
+	err := cb.waitForStage(stagePrepare)
+	if err != nil {
+		return err
+	}
+	err = b.Prepare(context.Background())
+	cb.stageDone(stagePrepare, err)
+	if err != nil {
+		return err
+	}
+
+	// Start after waiting a second or until we reached the start time.
+	benchDur := ctx.Duration("duration")
+	cb.Lock()
+	ctx2, cancel := context.WithCancel(cb.ctx)
+	start := cb.info[stageBenchmark].start
+	cb.Unlock()
 	defer cancel()
-	start := make(chan struct{})
 	go func() {
-		<-time.After(time.Until(tStart))
-		close(start)
+		// Wait for start signal
+		<-start
+		// Finish after duration
+		<-time.After(benchDur)
+		// Stop the benchmark
+		cancel()
 	}()
 
 	fileName := ctx.String("benchdata")
@@ -265,8 +332,14 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark) error {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
 	}
 
-	ops := b.Start(ctx2, start)
-	cancel()
+	ops, err := b.Start(ctx2, start)
+	cb.Lock()
+	cb.results = ops
+	cb.Unlock()
+	cb.stageDone(stageBenchmark, err)
+	if err != nil {
+		return err
+	}
 	ops.SortByStartTime()
 
 	f, err := os.Create(fileName + ".csv.zst")
@@ -286,121 +359,17 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark) error {
 		}()
 	}
 
+	err = cb.waitForStage(stageCleanup)
+	if err != nil {
+		return err
+	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
+	cb.stageDone(stageCleanup, nil)
 
 	return nil
-}
-
-func runServerBenchmark(ctx *cli.Context) error {
-	if ctx.String("warp-client") == "" {
-		return nil
-	}
-	// Serialize parameters
-	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
-	s := serverRequest{
-		Operation: serverReqBenchmark,
-		Benchmark: struct {
-			Command string
-			Args    cli.Args
-			Flags   map[string]string
-		}{
-			Command: ctx.Command.Name,
-			Args:    ctx.Args(),
-			Flags:   make(map[string]string),
-		},
-	}
-	for _, flag := range ctx.Command.Flags {
-		if _, ok := excludeFlags[flag.GetName()]; ok {
-			continue
-		}
-		if ctx.IsSet(flag.GetName()) {
-			var err error
-			s.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	si := serverInfo{
-		ID:      pRandAscii(20),
-		Secret:  "",
-		Version: warpServerVersion,
-	}
-
-	hosts := parseHosts(ctx.String("warp-client"))
-	ws := make([]*websocket.Conn, len(hosts))
-	defer func() {
-		for _, c := range ws {
-			if c != nil {
-				c.Close()
-			}
-		}
-	}()
-	for i, host := range hosts {
-		if !strings.Contains(host, ":") {
-			host += ":" + strconv.Itoa(warpServerDefaultPort)
-		}
-		u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-		var err error
-		ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
-		fatalIf(probe.NewError(err), "Unable to connect to warp client")
-		// Send server info
-		err = ws[i].WriteJSON(si)
-		fatalIf(probe.NewError(err), "Unable to send server info to warp client")
-		var resp clientReply
-		err = ws[i].ReadJSON(&resp)
-		fatalIf(probe.NewError(err), "Did not receive response from warp client")
-		if resp.Err != "" {
-			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
-		}
-		// Assume ok.
-	}
-	// TODO: send and wait
-	os.Exit(0)
-
-	return nil
-}
-
-func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
-	switch flag.(type) {
-	case cli.StringFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return ctx.String(flag.GetName()), nil
-		}
-	case cli.BoolFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return "true", nil
-		}
-	case cli.Int64Flag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Int64(flag.GetName())), nil
-		}
-	case cli.IntFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Int(flag.GetName())), nil
-		}
-	case cli.DurationFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return ctx.Duration(flag.GetName()).String(), nil
-		}
-	case cli.UintFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Uint(flag.GetName())), nil
-		}
-	case cli.Uint64Flag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Uint64(flag.GetName())), nil
-		}
-	default:
-		if ctx.IsSet(flag.GetName()) {
-			return "", fmt.Errorf("unhandled flag type: %T", flag)
-		}
-	}
-	return "", nil
 }
 
 type runningProfiles struct {
