@@ -110,6 +110,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		connected = serverInfo{}
 		connectedMu.Unlock()
 	}()
+	ws.WriteJSON(clientReply{Time: time.Now()})
 	for {
 		var req serverRequest
 		err := ws.ReadJSON(&req)
@@ -117,6 +118,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			console.Error("Reading server message:", err.Error())
 			return
 		}
+		console.Infoln(req)
 		var resp clientReply
 		switch req.Operation {
 		case "", serverReqDisconnect:
@@ -173,6 +175,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		resp.Time = time.Now()
+		console.Infoln("Sending", resp)
 		// FIXME: handle err
 		_ = ws.WriteJSON(resp)
 	}

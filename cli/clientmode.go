@@ -55,6 +55,7 @@ const warpServerDefaultPort = 7761
 
 // mainPut is the entry point for cp command.
 func mainClient(ctx *cli.Context) error {
+	checkClientSyntax(ctx)
 	addr := "127.0.0.1:" + strconv.Itoa(warpServerDefaultPort)
 	switch ctx.NArg() {
 	case 1:
