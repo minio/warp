@@ -301,6 +301,7 @@ var benchmarkStages = []benchmarkStage{
 
 func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark) error {
 	cb.init()
+	cb.ctx = context.Background()
 	err := cb.waitForStage(stagePrepare)
 	if err != nil {
 		return err

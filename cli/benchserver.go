@@ -49,27 +49,6 @@ func runServerBenchmark(ctx *cli.Context) error {
 	if ctx.String("warp-client") == "" {
 		return nil
 	}
-	// Serialize parameters
-	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
-	s := serverRequest{
-		Operation: serverReqBenchmark,
-	}
-	s.Benchmark.Command = ctx.Command.Name
-	s.Benchmark.Args = ctx.Args()
-	s.Benchmark.Flags = make(map[string]string)
-
-	for _, flag := range ctx.Command.Flags {
-		if _, ok := excludeFlags[flag.GetName()]; ok {
-			continue
-		}
-		if ctx.IsSet(flag.GetName()) {
-			var err error
-			s.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
-			if err != nil {
-				return err
-			}
-		}
-	}
 
 	si := serverInfo{
 		ID:      pRandAscii(20),
@@ -86,6 +65,29 @@ func runServerBenchmark(ctx *cli.Context) error {
 			}
 		}
 	}()
+
+	// Serialize parameters
+	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
+	bench := serverRequest{
+		Operation: serverReqBenchmark,
+	}
+	bench.Benchmark.Command = ctx.Command.Name
+	bench.Benchmark.Args = ctx.Args()
+	bench.Benchmark.Flags = make(map[string]string)
+
+	for _, flag := range ctx.Command.Flags {
+		if _, ok := excludeFlags[flag.GetName()]; ok {
+			continue
+		}
+		if ctx.IsSet(flag.GetName()) {
+			var err error
+			bench.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for i, host := range hosts {
 		if !strings.Contains(host, ":") {
 			host += ":" + strconv.Itoa(warpServerDefaultPort)
@@ -111,14 +113,24 @@ func runServerBenchmark(ctx *cli.Context) error {
 			err := fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
 			fatal(probe.NewError(err), "Unable to start benchmark.")
 		}
+		err = ws[i].WriteJSON(bench)
+		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
+		resp = clientReply{}
+		err = ws[i].ReadJSON(&resp)
+		fatalIf(probe.NewError(err), "Did not receive response from warp client")
+		if resp.Err != "" {
+			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
+		}
+		console.Infof("Client %v connected...", ws[i].RemoteAddr())
 		// Assume ok.
 	}
+	console.Println("All clients connected...")
 
 	// All clients connected.
 	startStage := func(t time.Time, ws *websocket.Conn, stage benchmarkStage) error {
 		req := serverRequest{
 			Operation: serverReqStartStage,
-			Stage:     "stage",
+			Stage:     stage,
 			Time:      t,
 		}
 		err := ws.WriteJSON(req)
@@ -137,6 +149,7 @@ func runServerBenchmark(ctx *cli.Context) error {
 		console.Infof("Client %v: Requested stage start..\n", ws.RemoteAddr())
 		return nil
 	}
+	console.Println("Starting Preparation...")
 	startPrep := time.Now().Add(3 * time.Second)
 	var wg sync.WaitGroup
 	for _, conn := range ws {
@@ -145,14 +158,69 @@ func runServerBenchmark(ctx *cli.Context) error {
 			continue
 		}
 		wg.Add(1)
-		go func() {
+		go func(ws *websocket.Conn) {
 			defer wg.Done()
-			err := startStage(startPrep, conn, stagePrepare)
+			err := startStage(startPrep, ws, stagePrepare)
 			if err != nil {
-
+				// TODO: Probably shouldn't hard fail.
+				fatalIf(probe.NewError(err), "Prepare failed")
 			}
-		}()
+		}(conn)
 	}
+	wg.Wait()
+	waitForStage := func(stage benchmarkStage) error {
+		var wg sync.WaitGroup
+		for i, conn := range ws {
+			if conn == nil {
+				// log?
+				continue
+			}
+			wg.Add(1)
+			go func(i int) {
+				conn := ws[i]
+				defer wg.Done()
+				for {
+					req := serverRequest{
+						Operation: serverReqStageStatus,
+						Stage:     stage,
+						Time:      time.Now(),
+					}
+					err := conn.WriteJSON(req)
+					if err != nil {
+						console.Error(err)
+						// TODO: Reconnect?
+						ws[i] = nil
+						return
+					}
+					var resp clientReply
+					err = conn.ReadJSON(&resp)
+					if err != nil {
+						console.Error(err)
+						// TODO: Reconnect?
+						ws[i] = nil
+						return
+					}
+					if resp.Err != "" {
+						console.Errorf("Client %v returned error: %v", resp.Err)
+						return
+					}
+					if resp.StageInfo.Finished {
+						console.Infof("Client %v finished stage...", conn.RemoteAddr())
+						return
+					}
+					time.Sleep(time.Second)
+				}
+			}(i)
+		}
+		wg.Wait()
+		return nil
+	}
+	err := waitForStage(stagePrepare)
+	if err != nil {
+		fatalIf(probe.NewError(err), "Failed to prepare")
+	}
+	console.Println("All clients prepared...")
+
 	// TODO: send and wait
 	os.Exit(0)
 
