@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
+	"github.com/minio/warp/pkg/bench"
 )
 
 const warpServerVersion = 1
@@ -68,12 +70,12 @@ func runServerBenchmark(ctx *cli.Context) error {
 
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
-	bench := serverRequest{
+	req := serverRequest{
 		Operation: serverReqBenchmark,
 	}
-	bench.Benchmark.Command = ctx.Command.Name
-	bench.Benchmark.Args = ctx.Args()
-	bench.Benchmark.Flags = make(map[string]string)
+	req.Benchmark.Command = ctx.Command.Name
+	req.Benchmark.Args = ctx.Args()
+	req.Benchmark.Flags = make(map[string]string)
 
 	for _, flag := range ctx.Command.Flags {
 		if _, ok := excludeFlags[flag.GetName()]; ok {
@@ -81,7 +83,7 @@ func runServerBenchmark(ctx *cli.Context) error {
 		}
 		if ctx.IsSet(flag.GetName()) {
 			var err error
-			bench.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
+			req.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
 			if err != nil {
 				return err
 			}
@@ -141,7 +143,7 @@ func runServerBenchmark(ctx *cli.Context) error {
 	for i := range hosts {
 		err := connect(i)
 		fatalIf(probe.NewError(err), "Unable to connect to warp client")
-		err = ws[i].WriteJSON(bench)
+		err = ws[i].WriteJSON(req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
 		resp := clientReply{}
 		err = ws[i].ReadJSON(&resp)
@@ -220,6 +222,54 @@ func runServerBenchmark(ctx *cli.Context) error {
 		wg.Wait()
 		return gerr
 	}
+	downloadOps := func() []bench.Operations {
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		console.Infof("Downloading operations...\n")
+		res := make([]bench.Operations, 0, len(ws))
+		for i, conn := range ws {
+			if conn == nil {
+				continue
+			}
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				for {
+					err := ws[i].WriteJSON(serverRequest{Operation: serverReqSendOps})
+					if err != nil {
+						console.Errorln(err)
+						if err := connect(i); err == nil {
+							continue
+						}
+						ws[i] = nil
+						return
+					}
+					var resp clientReply
+					err = ws[i].ReadJSON(&resp)
+					if err != nil {
+						console.Errorln(err)
+						if err := connect(i); err == nil {
+							continue
+						}
+						ws[i] = nil
+						return
+					}
+					if resp.Err != "" {
+						console.Errorf("Client %v returned error: %v\n", resp.Err)
+						return
+					}
+					console.Infof("Client %v: Operations downloaded.\n", ws[i].RemoteAddr())
+
+					mu.Lock()
+					res = append(res, resp.Ops)
+					mu.Unlock()
+					return
+				}
+			}(i)
+		}
+		wg.Wait()
+		return res
+	}
 	waitForStage := func(stage benchmarkStage) error {
 		var wg sync.WaitGroup
 		for i, conn := range ws {
@@ -287,7 +337,44 @@ func runServerBenchmark(ctx *cli.Context) error {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
 
-	console.Infoln("Done. Starting cleanup...")
+	console.Infoln("Done. Downloading operations...")
+	downloaded := downloadOps()
+	var allOps bench.Operations
+	switch len(downloaded) {
+	case 0:
+	case 1:
+		allOps = downloaded[0]
+	default:
+		threads := uint16(0)
+		for _, ops := range downloaded {
+			threads = ops.OffsetThreads(threads)
+			allOps = append(allOps, ops...)
+		}
+	}
+	fileName := ctx.String("benchdata")
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+	}
+
+	allOps.SortByStartTime()
+	f, err := os.Create(fileName + ".csv.zst")
+	if err != nil {
+		console.Error("Unable to write benchmark data:", err)
+	} else {
+		func() {
+			defer f.Close()
+			enc, err := zstd.NewWriter(f)
+			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+
+			defer enc.Close()
+			err = allOps.CSV(enc)
+			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+		}()
+	}
+
+	console.Infoln("Starting cleanup...")
 	err = startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		console.Errorln("Failed to clean up all clients", err)
@@ -303,6 +390,9 @@ func runServerBenchmark(ctx *cli.Context) error {
 		}
 		_ = conn.WriteJSON(serverRequest{Operation: serverReqDisconnect, Time: time.Now()})
 	}
+
+	printAnalysis(ctx, allOps)
+
 	os.Exit(0)
 
 	return nil
