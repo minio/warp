@@ -93,7 +93,17 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 			clients[i] = cl
 		}
 		running := make([]int, len(hosts))
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		lastFinished := make([]time.Time, len(hosts))
+		{
+			// Start with a random host
+			now := time.Now()
+			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(hosts))
+			for i := range lastFinished {
+				t := now
+				t.Add(time.Duration(i + off%len(hosts)))
+				lastFinished[i] = t
+			}
+		}
 		find := func() int {
 			min := math.MaxInt32
 			for _, n := range running {
@@ -101,31 +111,17 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 					min = n
 				}
 			}
-			nEligible := 0
-			for _, n := range running {
-				if n == min {
-					nEligible++
-				}
-			}
-			// Only one, return that
-			if nEligible == 1 {
-				for i, n := range running {
-					if n == min {
-						return i
-					}
-				}
-			}
-			choose := rng.Intn(nEligible)
+			earliest := time.Now().Add(time.Second)
+			earliestIdx := 0
 			for i, n := range running {
 				if n == min {
-					if choose == 0 {
-						return i
+					if lastFinished[i].Before(earliest) {
+						earliest = lastFinished[i]
+						earliestIdx = i
 					}
-					choose--
 				}
 			}
-			// Unless we have a race, this should not be hit.
-			panic("internal error: could not find client")
+			return earliestIdx
 		}
 		return func() (*minio.Client, func()) {
 			mu.Lock()
@@ -134,6 +130,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 			mu.Unlock()
 			return clients[idx], func() {
 				mu.Lock()
+				lastFinished[idx] = time.Now()
 				running[idx]--
 				if running[idx] < 0 {
 					// Will happen if done is called twice.

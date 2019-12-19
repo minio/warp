@@ -48,7 +48,7 @@ will switch between the specified servers.
 Alternatively numerical ranges can be specified using `10.0.0.{1...10}:9000` which will add `10.0.0.1` through `10.0.0.10`.
 This syntax can be used for any part of the host name and port.  
 
-By default a random host is chosen between the hosts that have the least number of requests running. 
+By default a host is chosen between the hosts that have the least number of requests running and with the longest time since the last request finished. 
 This will ensure that in cases where hosts operate at different speeds that the fastest servers will get the most requests.
 It is possible to choose a simple round-robin algorithm by using the `-host-select=roundrobin` parameter.
 If there is only one host this parameter has no effect.   
