@@ -18,12 +18,14 @@ package cli
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
@@ -58,6 +60,7 @@ func Main(args []string) {
 			return
 		}
 	}
+	rand.Seed(time.Now().UnixNano())
 
 	probe.Init() // Set project's root source path.
 	probe.SetAppInfo("Release-Tag", pkg.ReleaseTag)

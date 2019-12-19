@@ -69,7 +69,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				default:
 				}
 				obj := src.Object()
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -103,6 +103,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				d.objects = append(d.objects, *obj)
@@ -164,7 +165,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				close(objects)
 
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "DELETE",
 					Thread:   uint16(i),
@@ -189,6 +190,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					}
 				}
 				op.End = time.Now()
+				cldone()
 				rcv <- op
 			}
 		}(i)

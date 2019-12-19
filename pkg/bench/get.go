@@ -73,7 +73,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				default:
 				}
 				obj := src.Object()
-				client := g.Client()
+				client, cldone := g.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -106,6 +106,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				g.objects = append(g.objects, *obj)
@@ -160,7 +161,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
-				client := g.Client()
+				client, cldone := g.Client()
 				op := Operation{
 					OpType:   "GET",
 					Thread:   uint16(i),
@@ -177,6 +178,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
+					cldone()
 					continue
 				}
 				n, err := io.Copy(ioutil.Discard, &fbr)
@@ -191,6 +193,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					console.Errorln(op.Err)
 				}
 				rcv <- op
+				cldone()
 			}
 		}(i)
 	}

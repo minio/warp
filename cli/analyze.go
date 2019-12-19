@@ -211,14 +211,14 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 					segs := ops.Segment(bench.SegmentOptions{
 						From:           time.Time{},
 						PerSegDuration: analysisDur(ctx),
-						AllThreads:     true,
+						AllThreads:     false,
 					})
 					console.SetColor("Print", color.New(color.FgWhite))
 					if len(segs) <= 1 {
 						console.Println("Skipping", typ, "host:", ep, " - Too few samples.")
 						continue
 					}
-					totals := ops.Total(true)
+					totals := ops.Total(false)
 					if totals.TotalBytes > 0 {
 						segs.SortByThroughput()
 					} else {

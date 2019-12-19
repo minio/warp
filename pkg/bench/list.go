@@ -79,7 +79,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					break
 				}
 				exists[obj.Name] = struct{}{}
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -112,6 +112,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				d.objects[i] = append(d.objects[i], *obj)
@@ -158,7 +159,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				}
 
 				prefix := objs[0].PreFix
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					File:     prefix,
 					OpType:   "LIST",
@@ -193,6 +194,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					}
 				}
 				op.End = time.Now()
+				cldone()
 				rcv <- op
 			}
 		}(i)

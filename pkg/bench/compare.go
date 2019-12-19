@@ -146,7 +146,7 @@ func plusPositiveD(d time.Duration) string {
 func Compare(before, after Operations, analysis time.Duration) (*Comparison, error) {
 	var res Comparison
 	if before.FirstOpType() != after.FirstOpType() {
-		return nil, fmt.Errorf("different operation types. before: %v, after %d", before.FirstOpType(), after.FirstOpType())
+		return nil, fmt.Errorf("different operation types. before: %v, after %v", before.FirstOpType(), after.FirstOpType())
 	}
 	if len(before.Errors()) > 0 || len(after.Errors()) > 0 {
 		return nil, fmt.Errorf("errors recorded in benchmark run. before: %v, after %d", len(before.Errors()), len(after.Errors()))
