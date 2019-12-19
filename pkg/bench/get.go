@@ -72,7 +72,7 @@ func (g *Get) Prepare(ctx context.Context) {
 				default:
 				}
 				obj := src.Object()
-				client := g.Client()
+				client, cldone := g.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -91,6 +91,7 @@ func (g *Get) Prepare(ctx context.Context) {
 				if n != obj.Size {
 					console.Fatal("short upload. want:", obj.Size, ", got:", n)
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				g.objects = append(g.objects, *obj)
@@ -144,7 +145,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
-				client := g.Client()
+				client, cldone := g.Client()
 				op := Operation{
 					OpType:   "GET",
 					Thread:   uint16(i),
@@ -161,6 +162,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
+					cldone()
 					continue
 				}
 				n, err := io.Copy(ioutil.Discard, &fbr)
@@ -175,6 +177,7 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 					console.Errorln(op.Err)
 				}
 				rcv <- op
+				cldone()
 			}
 		}(i)
 	}

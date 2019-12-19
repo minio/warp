@@ -58,7 +58,7 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
-				client := u.Client()
+				client, cldone := u.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -81,6 +81,7 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 					}
 					console.Errorln(err)
 				}
+				cldone()
 				rcv <- op
 			}
 		}(i)

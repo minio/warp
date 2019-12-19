@@ -67,7 +67,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 				default:
 				}
 				obj := src.Object()
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -86,6 +86,7 @@ func (d *Delete) Prepare(ctx context.Context) {
 				if n != obj.Size {
 					console.Fatal("short upload. want:", obj.Size, ", got:", n)
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				d.objects = append(d.objects, *obj)
@@ -146,7 +147,7 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 				close(objects)
 
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "DELETE",
 					Thread:   uint16(i),
@@ -171,6 +172,7 @@ func (d *Delete) Start(ctx context.Context, start chan struct{}) Operations {
 					}
 				}
 				op.End = time.Now()
+				cldone()
 				rcv <- op
 			}
 		}(i)

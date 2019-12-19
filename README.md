@@ -11,12 +11,6 @@ The S3 server to use can be specified on the commandline using `-host`, `-access
 
 It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY` and `WARP_TLS` environment variables.
 
-Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
-will do a round-robin between the specified servers. 
-
-Alternatively numerical ranges can be specified using `10.0.0.{1...10}:9000` which will add `10.0.0.1` through `10.0.0.10`.
-This syntax can be used for any part of the host name and port.  
- 
 The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
 
 By default operations are performed on a bucket called `warp-benchmark-bucket`.
@@ -24,8 +18,9 @@ This can be changed using the `-bucket` parameter.
 Do however note that the bucket will be completely cleaned before and after each run, 
 so it should *not* contain any data.
 
-If you are running TLS, you can enable server-side-encryption of objects using `-encrypt`. 
-A random key will be generated and used.
+If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), 
+you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) of objects using `-encrypt`. 
+A random key will be generated and used for objects.
 
 # usage
 
@@ -45,12 +40,28 @@ By default all benchmarks save all request details to a file named `warp-operati
 A custom file name can be specified using the `-benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
+## multiple hosts
+
+Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
+will switch between the specified servers. 
+
+Alternatively numerical ranges can be specified using `10.0.0.{1...10}:9000` which will add `10.0.0.1` through `10.0.0.10`.
+This syntax can be used for any part of the host name and port.  
+
+By default a host is chosen between the hosts that have the least number of requests running and with the longest time since the last request finished. 
+This will ensure that in cases where hosts operate at different speeds that the fastest servers will get the most requests.
+It is possible to choose a simple round-robin algorithm by using the `-host-select=roundrobin` parameter.
+If there is only one host this parameter has no effect.   
+
 When running benchmarks on several clients, it is possible to synchronize their start time 
 using the `-syncstart` parameter.
 The time format is 'hh:mm' where hours are specified in 24h format, and parsed as local server time.
 Using this will make it more reliable to [merge benchmarks](https://github.com/minio/warp#merging-benchmarks) 
 from the clients for total result. 
- 
+
+When benchmarks are done per host averages will be printed out. 
+For further details, the `-analyze.hostdetails` parameter can also be used. 
+
 ## get
 
 Benchmarking get operations will upload `-objects` objects of size `-obj.size` and attempt to 
@@ -132,7 +143,7 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
 ```
 
-# Analysis
+# analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
 
@@ -144,7 +155,7 @@ Only the time segments that was actually overlapping will be considered.
 This is based on the absolute time of each recording, 
 so be sure that clocks are reasonably synchronized or use the `-syncstart` parameter.  
 
-## Analysis data
+## analysis data
 
 All analysis will be done on a reduced part of the full data. 
 The data aggregation will *start* when all threads have completed one request and 
@@ -171,7 +182,7 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
 
-### Analysis Parameters
+### analysis parameters
 
 Beside the important `-analysis.dur` which specifies the time segment size for aggregated data
 there are some additional parameters that can be used.
@@ -203,7 +214,7 @@ this is possible. For instance `analyze.skip=10s` will skip the first 10 seconds
 Note that skipping data will not always result in the exact reduction in time for the aggregated data
 since the start time will still be aligned with requests starting. 
 
-### Per request statistics
+### per request statistics
 
 By adding the `-requests` parameter it is possible to display per request statistics.
 
@@ -247,7 +258,7 @@ The fastest and slowest request times are shown, as well as selected percentiles
 
 Note that different metrics are used to select the number of requests per host and for the combined, so there will likely be differences.
 
-### CSV output
+### csv output
 
 It is possible to output the CSV data of analysis using `-analyze.out=filename.csv` 
 which will write the CSV data to the specified file. 
@@ -279,7 +290,7 @@ The bigger a percentage of the operation is within a segment the larger part of 
 
 This is why there can be a partial object attributed to a segment, because only a part of the operation took place in the segment.
 
-## Comparing Benchmarks
+## comparing benchmarks
 
 It is possible to compare two recorded runs using the `warp cmp (file-before) (file-after)` to
 see the differences between before and after. 
@@ -312,7 +323,7 @@ Differences in parameters will be shown.
 
 The usual analysis parameters can be applied to define segment lengths.
 
-## Merging benchmarks
+## merging benchmarks
 
 It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
 
@@ -326,7 +337,7 @@ It is important to note that only data that strictly overlaps in absolute time w
 When running benchmarks on several clients it is likely a good idea to specify the `-noclear` parameter so
 clients don't accidentally delete each others data on startup or shutdown.
 
-# Server Profiling
+# server profiling
 
 When running against a MinIO server it is possible to enable profiling while the benchmark is running.
 
