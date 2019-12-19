@@ -268,6 +268,7 @@ func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
 
 // waitForStage waits for the stage to be ready and updates the stage when it is
 func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
+	console.Infoln(s, "done...")
 	c.Lock()
 	info := c.info[s]
 	if info.done != nil {
@@ -320,10 +321,13 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	cb.Unlock()
 	defer cancel()
 	go func() {
+		console.Infoln("Waiting")
 		// Wait for start signal
 		<-start
+		console.Infoln("Starting")
 		// Finish after duration
 		<-time.After(benchDur)
+		console.Infoln("Stopping")
 		// Stop the benchmark
 		cancel()
 	}()
