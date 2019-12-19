@@ -31,12 +31,15 @@ func (s serverRequest) executeBenchmark() (*clientBenchmark, error) {
 	// Reconstruct
 	app := registerApp("warp", benchCmds)
 	cmd := app.Command(s.Benchmark.Command)
+	if cmd == nil {
+		return nil, fmt.Errorf("command %v not found", s.Benchmark.Command)
+	}
 	fs, err := flagSet(cmd.Name, cmd.Flags, s.Benchmark.Args)
 	if err != nil {
 		return nil, err
 	}
 	ctx2 := cli.NewContext(app, fs, nil)
-	ctx2.Args()
+	ctx2.Command = *cmd
 	for k, v := range s.Benchmark.Flags {
 		err := ctx2.Set(k, v)
 		if err != nil {
