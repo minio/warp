@@ -21,9 +21,10 @@ import (
 const warpServerVersion = 1
 
 type serverInfo struct {
-	ID      string `json:"id"`
-	Secret  string `json:"secret"`
-	Version int    `json:"version"`
+	ID        string `json:"id"`
+	Secret    string `json:"secret"`
+	Version   int    `json:"version"`
+	connected bool
 }
 
 func (s serverInfo) validate() error {

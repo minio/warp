@@ -231,8 +231,9 @@ type clientBenchmark struct {
 }
 
 type stageInfo struct {
-	start chan struct{}
-	done  chan struct{}
+	startRequested bool
+	start          chan struct{}
+	done           chan struct{}
 }
 
 func (c *clientBenchmark) init() {
