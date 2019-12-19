@@ -11,12 +11,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
+	"github.com/minio/warp/pkg/bench"
 )
 
 type clientReply struct {
-	Type      clientReplyType `json:"type"`
-	Time      time.Time       `json:"time"`
-	Err       string          `json:"err,omitempty"`
+	Type      clientReplyType  `json:"type"`
+	Time      time.Time        `json:"time"`
+	Err       string           `json:"err,omitempty"`
+	Ops       bench.Operations `json:"ops,omitempty"`
 	StageInfo struct {
 		Started  bool    `json:"started"`
 		Finished bool    `json:"finished"`
@@ -181,9 +183,18 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.StageInfo.Finished = true
 			default:
 			}
+		case serverReqSendOps:
+			if activeBenchmark == nil {
+				resp.Err = "no benchmark running"
+				break
+			}
+			resp.Type = clientRespOps
+			activeBenchmark.Lock()
+			resp.Ops = activeBenchmark.results
+			activeBenchmark.Unlock()
 		}
 		resp.Time = time.Now()
-		console.Infof("Sending %+v\n", resp)
+		console.Infof("Sending %v\n", resp.Type)
 		// FIXME: handle err
 		_ = ws.WriteJSON(resp)
 	}
@@ -240,7 +251,9 @@ const (
 	serverReqBenchmark                   = "benchmark"
 	serverReqStartStage                  = "start_stage"
 	serverReqStageStatus                 = "stage_status"
+	serverReqSendOps                     = "send_ops"
 
 	clientRespBenchmarkStarted clientReplyType = "benchmark_started"
 	clientRespStatus           clientReplyType = "benchmark_status"
+	clientRespOps              clientReplyType = "ops"
 )
