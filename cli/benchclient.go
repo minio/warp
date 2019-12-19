@@ -93,9 +93,10 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.connected = true
 	connectedMu.Lock()
-	if connected.ID == "" {
-		// First connection.
+	if connected.ID == "" || !connected.connected {
+		// First connection or server disconnected.
 		connected = s
 	} else if connected.ID != s.ID {
 		err = errors.New("another server already connected")
@@ -110,10 +111,17 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// When we return, reset connection info.
 		connectedMu.Lock()
-		connected = serverInfo{}
+		connected.connected = false
 		connectedMu.Unlock()
+		ws.Close()
 	}()
-	ws.WriteJSON(clientReply{Time: time.Now()})
+
+	// Confirm the connection
+	err = ws.WriteJSON(clientReply{Time: time.Now()})
+	if err != nil {
+		console.Error("Writing response:", err)
+		return
+	}
 	for {
 		var req serverRequest
 		err := ws.ReadJSON(&req)
@@ -121,7 +129,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			console.Error("Reading server message:", err.Error())
 			return
 		}
-		console.Infof("Request: %v\n", req.Operation)
+		if globalDebug {
+			console.Infof("Request: %v\n", req.Operation)
+		}
 		var resp clientReply
 		switch req.Operation {
 		case "", serverReqDisconnect:
@@ -146,18 +156,24 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.Err = "stage not found"
 				break
 			}
-			select {
-			case <-info.start:
-				// ok, already started
-			default:
-				at := time.Until(req.Time)
-				if at < 0 {
-					at = 0
-				}
-				console.Infoln("Starting stage", req.Stage, "in", at)
-				time.Sleep(at)
-				close(info.start)
+			if info.startRequested {
+				resp.Type = clientRespStatus
+				break
 			}
+			info.startRequested = true
+			activeBenchmark.Lock()
+			activeBenchmark.info[req.Stage] = info
+			activeBenchmark.Unlock()
+
+			wait := time.Until(req.Time)
+			if wait < 0 {
+				wait = 0
+			}
+			console.Infoln("Starting stage", req.Stage, "in", wait)
+			go func() {
+				time.Sleep(wait)
+				close(info.start)
+			}()
 			resp.Type = clientRespStatus
 		case serverReqStageStatus:
 			if activeBenchmark == nil {
@@ -194,9 +210,14 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			activeBenchmark.Unlock()
 		}
 		resp.Time = time.Now()
-		console.Infof("Sending %v\n", resp.Type)
-		// FIXME: handle err
-		_ = ws.WriteJSON(resp)
+		if globalDebug {
+			console.Infof("Sending %v\n", resp.Type)
+		}
+		err = ws.WriteJSON(resp)
+		if err != nil {
+			console.Error("Writing response:", err)
+			return
+		}
 	}
 }
 
