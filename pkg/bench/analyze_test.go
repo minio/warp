@@ -55,7 +55,8 @@ func TestOperations_Segment(t *testing.T) {
 		}
 
 		segs.SortByThroughput()
-		totals, ttfb := ops.Total(true)
+		totals := ops.Total(true)
+		ttfb := ops.TTFB(ops.ActiveTimeRange(true))
 
 		t.Log("Errors:", len(ops.Errors()))
 		t.Log("Fastest:", segs.Median(1))

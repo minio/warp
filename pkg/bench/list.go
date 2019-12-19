@@ -78,7 +78,7 @@ func (d *List) Prepare(ctx context.Context) {
 					break
 				}
 				exists[obj.Name] = struct{}{}
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					OpType:   "PUT",
 					Thread:   uint16(i),
@@ -97,6 +97,7 @@ func (d *List) Prepare(ctx context.Context) {
 				if n != obj.Size {
 					console.Fatal("short upload. want:", obj.Size, ", got:", n)
 				}
+				cldone()
 				mu.Lock()
 				obj.Reader = nil
 				d.objects[i] = append(d.objects[i], *obj)
@@ -142,7 +143,7 @@ func (d *List) Start(ctx context.Context, start chan struct{}) Operations {
 				}
 
 				prefix := objs[0].PreFix
-				client := d.Client()
+				client, cldone := d.Client()
 				op := Operation{
 					File:     prefix,
 					OpType:   "LIST",
@@ -177,6 +178,7 @@ func (d *List) Start(ctx context.Context, start chan struct{}) Operations {
 					}
 				}
 				op.End = time.Now()
+				cldone()
 				rcv <- op
 			}
 		}(i)

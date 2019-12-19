@@ -17,6 +17,7 @@
 package cli
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/minio/cli"
@@ -145,6 +146,11 @@ var ioFlags = []cli.Flag{
 		Name:  "bucket",
 		Value: appName + "-benchmark-bucket",
 		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
+	},
+	cli.StringFlag{
+		Name:  "host-select",
+		Value: string(hostSelectTypeWeighed),
+		Usage: fmt.Sprintf("Host selection algorithm. Can be %q or %q", hostSelectTypeWeighed, hostSelectTypeRoundrobin),
 	},
 	cli.IntFlag{
 		Name:  "concurrent",

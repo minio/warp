@@ -42,7 +42,7 @@ type Benchmark interface {
 
 // Common contains common benchmark parameters.
 type Common struct {
-	Client func() *minio.Client
+	Client func() (cl *minio.Client, done func())
 
 	Concurrency int
 	Source      func() generator.Source
@@ -63,13 +63,15 @@ func (c *Common) GetCommon() *Common {
 // createEmptyBucket will create an empty bucket
 // or delete all content if it already exists.
 func (c *Common) createEmptyBucket(ctx context.Context) {
-	x, err := c.Client().BucketExists(c.Bucket)
+	cl, done := c.Client()
+	defer done()
+	x, err := cl.BucketExists(c.Bucket)
 	if err != nil {
 		console.Fatal(err)
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		err = c.Client().MakeBucket(c.Bucket, c.Location)
+		err = cl.MakeBucket(c.Bucket, c.Location)
 		if err != nil {
 			console.Fatal(err)
 		}
@@ -85,9 +87,11 @@ func (c *Common) createEmptyBucket(ctx context.Context) {
 func (c *Common) deleteAllInBucket(ctx context.Context) {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
-	objects := c.Client().ListObjectsV2(c.Bucket, "", true, doneCh)
+	cl, done := c.Client()
+	defer done()
+	objects := cl.ListObjectsV2(c.Bucket, "", true, doneCh)
 	remove := make(chan string, 1)
-	errCh := c.Client().RemoveObjectsWithContext(ctx, c.Bucket, remove)
+	errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
 	for {
 		select {
 		case obj, ok := <-objects:
