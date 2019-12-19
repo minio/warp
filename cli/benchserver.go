@@ -88,34 +88,56 @@ func runServerBenchmark(ctx *cli.Context) error {
 		}
 	}
 
-	for i, host := range hosts {
-		if !strings.Contains(host, ":") {
-			host += ":" + strconv.Itoa(warpServerDefaultPort)
+	connect := func(i int) error {
+		tries := 0
+		for {
+			err := func() error {
+				host := hosts[i]
+				if !strings.Contains(host, ":") {
+					host += ":" + strconv.Itoa(warpServerDefaultPort)
+				}
+				u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
+				console.Infoln("Connecting to", u)
+				var err error
+				ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+				// Send server info
+				err = ws[i].WriteJSON(si)
+				if err != nil {
+					return err
+				}
+				var resp clientReply
+				err = ws[i].ReadJSON(&resp)
+				if err != nil {
+					return err
+				}
+				if resp.Err != "" {
+					return errors.New(resp.Err)
+				}
+				delta := time.Now().Sub(resp.Time)
+				if delta < 0 {
+					delta = -delta
+				}
+				if delta > time.Second {
+					return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
+				}
+				return nil
+			}()
+			if err != nil && tries == 3 {
+				ws[i] = nil
+				return err
+			}
+			console.Println("Connection failed, retrying")
+			tries++
+			time.Sleep(time.Second)
 		}
-		u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-		var err error
-		ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+	}
+
+	for i := range hosts {
+		err := connect(i)
 		fatalIf(probe.NewError(err), "Unable to connect to warp client")
-		// Send server info
-		err = ws[i].WriteJSON(si)
-		fatalIf(probe.NewError(err), "Unable to send server info to warp client")
-		var resp clientReply
-		err = ws[i].ReadJSON(&resp)
-		fatalIf(probe.NewError(err), "Did not receive response from warp client")
-		if resp.Err != "" {
-			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
-		}
-		delta := time.Now().Sub(resp.Time)
-		if delta < 0 {
-			delta = -delta
-		}
-		if delta > time.Second {
-			err := fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
-			fatal(probe.NewError(err), "Unable to start benchmark.")
-		}
 		err = ws[i].WriteJSON(bench)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
-		resp = clientReply{}
+		resp := clientReply{}
 		err = ws[i].ReadJSON(&resp)
 		fatalIf(probe.NewError(err), "Did not receive response from warp client")
 		if resp.Err != "" {
@@ -127,45 +149,54 @@ func runServerBenchmark(ctx *cli.Context) error {
 	console.Println("All clients connected...")
 
 	// All clients connected.
-	startStage := func(t time.Time, ws *websocket.Conn, stage benchmarkStage) error {
+	startStage := func(t time.Time, i int, stage benchmarkStage) error {
 		req := serverRequest{
 			Operation: serverReqStartStage,
 			Stage:     stage,
 			Time:      t,
 		}
-		err := ws.WriteJSON(req)
+	retry:
+		conn := ws[i]
+		err := conn.WriteJSON(req)
 		if err != nil {
+			console.Error(err)
+			if err := connect(i); err == nil {
+				goto retry
+			}
 			return err
 		}
 		var resp clientReply
-		err = ws.ReadJSON(&resp)
+		err = conn.ReadJSON(&resp)
 		if err != nil {
+			console.Error(err)
+			if err := connect(i); err == nil {
+				goto retry
+			}
 			return err
 		}
 		if resp.Err != "" {
-			console.Errorf("Client %v return error: %v\n", ws.RemoteAddr(), resp.Err)
+			console.Errorf("Client %v return error: %v\n", conn.RemoteAddr(), resp.Err)
 			return errors.New(resp.Err)
 		}
-		console.Infof("Client %v: Requested stage start..\n", ws.RemoteAddr())
+		console.Infof("Client %v: Requested stage start..\n", conn.RemoteAddr())
 		return nil
 	}
 	console.Println("Starting Preparation...")
 	startPrep := time.Now().Add(3 * time.Second)
 	var wg sync.WaitGroup
-	for _, conn := range ws {
+	for i, conn := range ws {
 		if conn == nil {
-			// log?
 			continue
 		}
 		wg.Add(1)
-		go func(ws *websocket.Conn) {
+		go func(i int) {
 			defer wg.Done()
-			err := startStage(startPrep, ws, stagePrepare)
+			err := startStage(startPrep, i, stagePrepare)
 			if err != nil {
 				// TODO: Probably shouldn't hard fail.
 				fatalIf(probe.NewError(err), "Prepare failed")
 			}
-		}(conn)
+		}(i)
 	}
 	wg.Wait()
 	waitForStage := func(stage benchmarkStage) error {
@@ -188,7 +219,9 @@ func runServerBenchmark(ctx *cli.Context) error {
 					err := conn.WriteJSON(req)
 					if err != nil {
 						console.Error(err)
-						// TODO: Reconnect?
+						if err := connect(i); err == nil {
+							continue
+						}
 						ws[i] = nil
 						return
 					}
@@ -196,7 +229,9 @@ func runServerBenchmark(ctx *cli.Context) error {
 					err = conn.ReadJSON(&resp)
 					if err != nil {
 						console.Error(err)
-						// TODO: Reconnect?
+						if err := connect(i); err == nil {
+							continue
+						}
 						ws[i] = nil
 						return
 					}
