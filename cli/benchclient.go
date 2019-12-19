@@ -38,6 +38,7 @@ func (s serverRequest) executeBenchmark() (*clientBenchmark, error) {
 	for k, v := range s.Benchmark.Flags {
 		err := ctx2.Set(k, v)
 		if err != nil {
+			err := fmt.Errorf("parsing parameters (%v:%v): %w", k, v, err)
 			return nil, err
 		}
 	}
@@ -118,7 +119,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			console.Error("Reading server message:", err.Error())
 			return
 		}
-		console.Infoln(req)
+		console.Infof("Request: %v\n", req.Operation)
 		var resp clientReply
 		switch req.Operation {
 		case "", serverReqDisconnect:
@@ -127,6 +128,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			_, err := req.executeBenchmark()
 			resp.Type = clientRespBenchmarkStarted
 			if err != nil {
+				console.Errorln("Starting benchmark:", err)
 				resp.Err = err.Error()
 			}
 		case serverReqStartStage:
@@ -146,6 +148,12 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			case <-info.start:
 				// ok, already started
 			default:
+				at := time.Until(req.Time)
+				if at < 0 {
+					at = 0
+				}
+				console.Infoln("Starting stage", req.Stage, "in", at)
+				time.Sleep(at)
 				close(info.start)
 			}
 			resp.Type = clientRespStatus
@@ -175,7 +183,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		resp.Time = time.Now()
-		console.Infoln("Sending", resp)
+		console.Infof("Sending %+v\n", resp)
 		// FIXME: handle err
 		_ = ws.WriteJSON(resp)
 	}
@@ -199,7 +207,6 @@ func runCommand(ctx *cli.Context, c *cli.Command) (err error) {
 		defer func() {
 			afterErr := c.After(ctx)
 			if afterErr != nil {
-				cli.HandleExitCoder(err)
 				if err != nil {
 					err = cli.NewMultiError(err, afterErr)
 				} else {

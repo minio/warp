@@ -97,9 +97,12 @@ func runServerBenchmark(ctx *cli.Context) error {
 					host += ":" + strconv.Itoa(warpServerDefaultPort)
 				}
 				u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-				console.Infoln("Connecting to", u)
+				console.Infoln("Connecting to", u.String())
 				var err error
 				ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+				if err != nil {
+					return err
+				}
 				// Send server info
 				err = ws[i].WriteJSON(si)
 				if err != nil {
@@ -122,11 +125,14 @@ func runServerBenchmark(ctx *cli.Context) error {
 				}
 				return nil
 			}()
-			if err != nil && tries == 3 {
+			if err == nil {
+				return nil
+			}
+			if tries == 3 {
 				ws[i] = nil
 				return err
 			}
-			console.Println("Connection failed, retrying")
+			console.Errorf("Connection failed:%v, retrying...\n", err)
 			tries++
 			time.Sleep(time.Second)
 		}
@@ -143,10 +149,10 @@ func runServerBenchmark(ctx *cli.Context) error {
 		if resp.Err != "" {
 			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
 		}
-		console.Infof("Client %v connected...", ws[i].RemoteAddr())
+		console.Infof("Client %v connected...\n", ws[i].RemoteAddr())
 		// Assume ok.
 	}
-	console.Println("All clients connected...")
+	console.Infoln("All clients connected...")
 
 	// All clients connected.
 	startStage := func(t time.Time, i int, stage benchmarkStage) error {
@@ -175,30 +181,45 @@ func runServerBenchmark(ctx *cli.Context) error {
 			return err
 		}
 		if resp.Err != "" {
-			console.Errorf("Client %v return error: %v\n", conn.RemoteAddr(), resp.Err)
+			console.Errorf("Client %v returned error: %v\n", conn.RemoteAddr(), resp.Err)
 			return errors.New(resp.Err)
 		}
-		console.Infof("Client %v: Requested stage start..\n", conn.RemoteAddr())
+		console.Infof("Client %v: Requested stage %v start..\n", conn.RemoteAddr(), stage)
 		return nil
 	}
-	console.Println("Starting Preparation...")
-	startPrep := time.Now().Add(3 * time.Second)
-	var wg sync.WaitGroup
-	for i, conn := range ws {
-		if conn == nil {
-			continue
-		}
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			err := startStage(startPrep, i, stagePrepare)
-			if err != nil {
-				// TODO: Probably shouldn't hard fail.
-				fatalIf(probe.NewError(err), "Prepare failed")
+
+	console.Infoln("Starting preparation...")
+	startStageAll := func(stage benchmarkStage, startAt time.Time, failOnErr bool) error {
+		var wg sync.WaitGroup
+		var gerr error
+		var mu sync.Mutex
+		console.Infof("Requesting stage %v start...\n", stage)
+
+		for i, conn := range ws {
+			if conn == nil {
+				continue
 			}
-		}(i)
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				err := startStage(startAt, i, stage)
+				if err != nil {
+					if failOnErr {
+						fatalIf(probe.NewError(err), "Stage start failed.")
+					}
+					console.Errorln("Starting stage error:", err)
+					mu.Lock()
+					if gerr == nil {
+						gerr = err
+					}
+					ws[i] = nil
+					mu.Unlock()
+				}
+			}(i)
+		}
+		wg.Wait()
+		return gerr
 	}
-	wg.Wait()
 	waitForStage := func(stage benchmarkStage) error {
 		var wg sync.WaitGroup
 		for i, conn := range ws {
@@ -218,7 +239,7 @@ func runServerBenchmark(ctx *cli.Context) error {
 					}
 					err := conn.WriteJSON(req)
 					if err != nil {
-						console.Error(err)
+						console.Errorln(err)
 						if err := connect(i); err == nil {
 							continue
 						}
@@ -228,7 +249,7 @@ func runServerBenchmark(ctx *cli.Context) error {
 					var resp clientReply
 					err = conn.ReadJSON(&resp)
 					if err != nil {
-						console.Error(err)
+						console.Errorln(err)
 						if err := connect(i); err == nil {
 							continue
 						}
@@ -236,11 +257,11 @@ func runServerBenchmark(ctx *cli.Context) error {
 						return
 					}
 					if resp.Err != "" {
-						console.Errorf("Client %v returned error: %v", resp.Err)
+						console.Errorf("Client %v returned error: %v\n", resp.Err)
 						return
 					}
 					if resp.StageInfo.Finished {
-						console.Infof("Client %v finished stage...", conn.RemoteAddr())
+						console.Infof("Client %v: Finished stage %v...\n", conn.RemoteAddr(), stage)
 						return
 					}
 					time.Sleep(time.Second)
@@ -250,13 +271,38 @@ func runServerBenchmark(ctx *cli.Context) error {
 		wg.Wait()
 		return nil
 	}
+	_ = startStageAll(stagePrepare, time.Now().Add(time.Second), true)
 	err := waitForStage(stagePrepare)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
-	console.Println("All clients prepared...")
+	console.Infoln("All clients prepared. Starting Benchmarks...")
 
-	// TODO: send and wait
+	err = startStageAll(stageBenchmark, time.Now().Add(3*time.Second), false)
+	if err != nil {
+		console.Errorln("Failed to start all clients", err)
+	}
+	err = waitForStage(stageBenchmark)
+	if err != nil {
+		console.Errorln("Failed to keep connection to all clients", err)
+	}
+
+	console.Infoln("Done. Starting cleanup...")
+	err = startStageAll(stageCleanup, time.Now(), false)
+	if err != nil {
+		console.Errorln("Failed to clean up all clients", err)
+	}
+	err = waitForStage(stageCleanup)
+	if err != nil {
+		console.Errorln("Failed to keep connection to all clients", err)
+	}
+
+	for _, conn := range ws {
+		if conn == nil {
+			continue
+		}
+		_ = conn.WriteJSON(serverRequest{Operation: serverReqDisconnect, Time: time.Now()})
+	}
 	os.Exit(0)
 
 	return nil
@@ -274,11 +320,11 @@ func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
 		}
 	case cli.Int64Flag:
 		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Int64(flag.GetName())), nil
+			return fmt.Sprint(ctx.Int64(flag.GetName())), nil
 		}
 	case cli.IntFlag:
 		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Int(flag.GetName())), nil
+			return fmt.Sprint(ctx.Int(flag.GetName())), nil
 		}
 	case cli.DurationFlag:
 		if ctx.IsSet(flag.GetName()) {
@@ -286,11 +332,11 @@ func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
 		}
 	case cli.UintFlag:
 		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Uint(flag.GetName())), nil
+			return fmt.Sprint(ctx.Uint(flag.GetName())), nil
 		}
 	case cli.Uint64Flag:
 		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprintf(`"%v"`, ctx.Uint64(flag.GetName())), nil
+			return fmt.Sprint(ctx.Uint64(flag.GetName())), nil
 		}
 	default:
 		if ctx.IsSet(flag.GetName()) {
