@@ -143,6 +143,53 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
 ```
 
+# distributed benchmarking
+
+It is possible to coordinate several warp instances automatically. 
+This can be useful for testing performance of a cluster from several clients at once. 
+
+
+## client setup
+
+WARNING: Never run warp clients on a publicly exposed port. Clients have the potential to DDOS any service. 
+
+Clients are started with `warp client [listenaddress:port]`. 
+
+`warp client` Only accepts an optional host/ip to listen on, but otherwise no specific parameters.
+By default warp will listen on `127.0.0.1:7761`.
+
+Only one server can be connected at the time.
+However, when a benchmark is done the client can immediately run another one with different parameters.
+
+There will be a version check to ensure that clients are compatible with the server, 
+but it is always recommended to keep warp versions the same. 
+
+
+## server setup
+
+Any benchmark can be run in server mode. 
+When warp is invoked as a server no actual benchmarking will be done on the server.
+Each client will execute the benchmark. 
+
+The server will coordinate the benchmark runs and make sure they are run correctly.
+
+When the benchmark has finished, the combined benchmark info will be collected, merged and saved/displayed.
+Each client will also save its own data locally.
+
+Enabling server mode is done by adding `-warp.client=client-{1...10}:7761` or a comma separated list of warp client hosts. 
+If no host port is specified the default is added.
+
+Example: `warp get -duration=10m -warp.client=client-{1...10} -host=minio-server-{1...16} -access-key=minio -secret-key=minio123`.
+
+Note that parameters apply to *each* client. So if `concurrent=8` is specified each client will run with 8 concurrent operations.
+
+If a warp server is unable to connect to a client the entire benchmark is aborted.
+
+If the warp server looses connection to a client during a benchmark run an error will be displayed
+and the server will attempt to reconnect.
+If the server is unable to reconnect, the benchmark will continue with the remaining clients.
+
+
 # analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.

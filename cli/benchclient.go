@@ -15,6 +15,7 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+// clientReplyType indicates the client reply type.
 type clientReplyType string
 
 const (
