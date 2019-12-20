@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/mc/pkg/console"
-
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/minio/pkg/ellipses"
