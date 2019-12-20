@@ -107,7 +107,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	console.Infoln("All clients connected...")
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(stagePrepare)
+	err := conns.waitForStage(stagePrepare, true)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
@@ -117,7 +117,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		console.Errorln("Failed to start all clients", err)
 	}
-	err = conns.waitForStage(stageBenchmark)
+	err = conns.waitForStage(stageBenchmark, false)
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
@@ -163,7 +163,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		console.Errorln("Failed to clean up all clients", err)
 	}
-	err = conns.waitForStage(stageCleanup)
+	err = conns.waitForStage(stageCleanup, false)
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
@@ -206,10 +206,20 @@ func (c *connections) closeAll() {
 
 // hostName returns the remote host name of a connection.
 func (c *connections) hostName(i int) string {
-	if c.ws != nil {
+	if c.ws != nil && c.ws[i] != nil {
 		return c.ws[i].RemoteAddr().String()
 	}
 	return c.hosts[i]
+}
+
+// hostName returns the remote host name of a connection.
+func (c *connections) disconnect(i int) {
+	if c.ws[i] != nil {
+		console.Infoln("Disconnecting client", c.hostName(i))
+		c.ws[i].WriteJSON(serverRequest{Operation: serverReqDisconnect})
+		c.ws[i].Close()
+		c.ws[i] = nil
+	}
 }
 
 // roundTrip performs a roundtrip.
@@ -384,7 +394,7 @@ func (c *connections) downloadOps() []bench.Operations {
 }
 
 // waitForStage will wait for stage completion on all clients.
-func (c *connections) waitForStage(stage benchmarkStage) error {
+func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 	var wg sync.WaitGroup
 	for i, conn := range c.ws {
 		if conn == nil {
@@ -401,10 +411,18 @@ func (c *connections) waitForStage(stage benchmarkStage) error {
 				}
 				resp, err := c.roundTrip(i, req)
 				if err != nil {
+					c.disconnect(i)
+					if failOnErr {
+						fatalIf(probe.NewError(err), "Stage failed.")
+					}
 					console.Errorln(err)
 					return
 				}
 				if resp.Err != "" {
+					c.disconnect(i)
+					if failOnErr {
+						fatalIf(probe.NewError(errors.New(resp.Err)), "Stage failed. Client %v returned error.", c.hostName(i))
+					}
 					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
