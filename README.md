@@ -148,6 +148,9 @@ Aggregated, split into 59 x 1s time segments:
 It is possible to coordinate several warp instances automatically. 
 This can be useful for testing performance of a cluster from several clients at once. 
 
+For reliable benchmarks clients should have synchronized clocks. 
+Warp check whether clocks are within one second of the server, 
+but optimally clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service. 
 
 ## client setup
 
