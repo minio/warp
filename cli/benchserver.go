@@ -121,7 +121,10 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	console.Infoln("All clients prepared...")
 
-	err = conns.startStageAll(stageBenchmark, time.Now().Add(3*time.Second), false)
+	const benchmarkWait = 3 * time.Second
+
+	prof := startProfiling(ctx)
+	err = conns.startStageAll(stageBenchmark, time.Now().Add(benchmarkWait), false)
 	if err != nil {
 		console.Errorln("Failed to start all clients", err)
 	}
@@ -129,6 +132,12 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
+
+	fileName := ctx.String("benchdata")
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+	}
+	prof.stop(ctx, fileName+".profiles.zip")
 
 	console.Infoln("Done. Downloading operations...")
 	downloaded := conns.downloadOps()
@@ -143,10 +152,6 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			threads = ops.OffsetThreads(threads)
 			allOps = append(allOps, ops...)
 		}
-	}
-	fileName := ctx.String("benchdata")
-	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
 	}
 
 	allOps.SortByStartTime()
