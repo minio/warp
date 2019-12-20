@@ -84,7 +84,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if ab != nil {
 		return runClientBenchmark(ctx, b, ab)
 	}
-	if done, err := runServerBenchmark(ctx); done {
+	if done, err := runServerBenchmark(ctx); done || err != nil {
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
@@ -166,7 +166,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
 	}
 
-	prof := startProfiling(ctx)
+	prof, err := startProfiling(ctx)
+	fatalIf(probe.NewError(err), "Unable to start profile.")
 	console.Infoln("Starting benchmark in", tStart.Sub(time.Now()).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
@@ -334,10 +335,20 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	go func() {
 		console.Infoln("Waiting")
 		// Wait for start signal
-		<-start
+		select {
+		case <-ctx2.Done():
+			console.Infoln("Aborted")
+			return
+		case <-start:
+		}
 		console.Infoln("Starting")
 		// Finish after duration
-		<-time.After(benchDur)
+		select {
+		case <-ctx2.Done():
+			console.Infoln("Aborted")
+			return
+		case <-time.After(benchDur):
+		}
 		console.Infoln("Stopping")
 		// Stop the benchmark
 		cancel()
@@ -392,10 +403,10 @@ type runningProfiles struct {
 	client *madmin.AdminClient
 }
 
-func startProfiling(ctx *cli.Context) *runningProfiles {
+func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
 	prof := ctx.StringSlice("serverprof")
 	if len(prof) == 0 {
-		return nil
+		return nil, nil
 	}
 	var r runningProfiles
 	r.client = newAdminClient(ctx)
@@ -403,10 +414,12 @@ func startProfiling(ctx *cli.Context) *runningProfiles {
 	// Start profile
 	for _, profilerType := range ctx.StringSlice("serverprof") {
 		_, cmdErr := r.client.StartProfiling(madmin.ProfilerType(profilerType))
-		fatalIf(probe.NewError(cmdErr), "Unable to start profile.")
+		if cmdErr != nil {
+			return nil, cmdErr
+		}
 	}
 	console.Infoln("Server profiling successfully started.")
-	return &r
+	return &r, nil
 }
 
 func (rp *runningProfiles) stop(ctx *cli.Context, fileName string) {

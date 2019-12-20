@@ -123,7 +123,10 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 
 	const benchmarkWait = 3 * time.Second
 
-	prof := startProfiling(ctx)
+	prof, err := startProfiling(ctx)
+	if err != nil {
+		return true, err
+	}
 	err = conns.startStageAll(stageBenchmark, time.Now().Add(benchmarkWait), false)
 	if err != nil {
 		console.Errorln("Failed to start all clients", err)
