@@ -23,6 +23,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
+	"github.com/minio/mc/pkg/probe"
 )
 
 var (
@@ -69,7 +70,8 @@ func mainClient(ctx *cli.Context) error {
 	}
 	http.HandleFunc("/ws", serveWs)
 	console.Infoln("Listening on", addr)
-	return http.ListenAndServe(addr, nil)
+	fatalIf(probe.NewError(http.ListenAndServe(addr, nil)), "Unable to start client")
+	return nil
 }
 
 func checkClientSyntax(ctx *cli.Context) {
