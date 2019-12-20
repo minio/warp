@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,7 +28,7 @@ type clientReply struct {
 }
 
 // executeBenchmark will execute the benchmark and return any error.
-func (s serverRequest) executeBenchmark() (*clientBenchmark, error) {
+func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, error) {
 	// Reconstruct
 	app := registerApp("warp", benchCmds)
 	cmd := app.Command(s.Benchmark.Command)
@@ -48,7 +49,7 @@ func (s serverRequest) executeBenchmark() (*clientBenchmark, error) {
 		}
 	}
 	var cb clientBenchmark
-	cb.init()
+	cb.init(ctx)
 	activeBenchmark = &cb
 
 	console.Infoln("Executing", cmd.Name, "benchmark.")
@@ -137,10 +138,18 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		}
 		var resp clientReply
 		switch req.Operation {
-		case "", serverReqDisconnect:
+		case serverReqDisconnect:
+			if activeBenchmark != nil {
+				activeBenchmark.Lock()
+				activeBenchmark.cancel()
+				activeBenchmark.Unlock()
+			}
+			connectedMu.Lock()
+			connected = serverInfo{}
+			connectedMu.Unlock()
 			return
 		case serverReqBenchmark:
-			_, err := req.executeBenchmark()
+			_, err := req.executeBenchmark(context.Background())
 			resp.Type = clientRespBenchmarkStarted
 			if err != nil {
 				console.Errorln("Starting benchmark:", err)
@@ -211,6 +220,8 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			activeBenchmark.Lock()
 			resp.Ops = activeBenchmark.results
 			activeBenchmark.Unlock()
+		default:
+			resp.Err = "unknown command"
 		}
 		resp.Time = time.Now()
 		if globalDebug {

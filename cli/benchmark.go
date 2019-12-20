@@ -81,7 +81,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if activeBenchmark != nil {
 		return runClientBenchmark(ctx, b, activeBenchmark)
 	}
-	fatalIf(probe.NewError(runServerBenchmark(ctx)), "Error running remote benchmark")
+	if done, err := runServerBenchmark(ctx); done {
+		fatalIf(probe.NewError(err), "Error running remote benchmark")
+		return nil
+	}
 
 	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
@@ -224,6 +227,7 @@ var activeBenchmark *clientBenchmark
 type clientBenchmark struct {
 	sync.Mutex
 	ctx     context.Context
+	cancel  context.CancelFunc
 	results bench.Operations
 	err     error
 	stage   benchmarkStage
@@ -236,11 +240,12 @@ type stageInfo struct {
 	done           chan struct{}
 }
 
-func (c *clientBenchmark) init() {
+func (c *clientBenchmark) init(ctx context.Context) {
 	c.results = nil
 	c.err = nil
 	c.stage = stageNotStarted
 	c.info = make(map[benchmarkStage]stageInfo, len(benchmarkStages))
+	c.ctx, c.cancel = context.WithCancel(ctx)
 	for _, stage := range benchmarkStages {
 		c.info[stage] = stageInfo{
 			start: make(chan struct{}),
@@ -302,8 +307,6 @@ var benchmarkStages = []benchmarkStage{
 }
 
 func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark) error {
-	cb.init()
-	cb.ctx = context.Background()
 	err := cb.waitForStage(stagePrepare)
 	if err != nil {
 		return err

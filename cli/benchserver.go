@@ -48,26 +48,16 @@ type serverRequest struct {
 	Time  time.Time      `json:"time"`
 }
 
-func runServerBenchmark(ctx *cli.Context) error {
+func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if ctx.String("warp-client") == "" {
-		return nil
+		return false, nil
 	}
 
-	si := serverInfo{
-		ID:      pRandAscii(20),
-		Secret:  "",
-		Version: warpServerVersion,
+	conns := newConnections(parseHosts(ctx.String("warp-client")))
+	if len(conns.hosts) == 0 {
+		return true, errors.New("no hosts")
 	}
-
-	hosts := parseHosts(ctx.String("warp-client"))
-	ws := make([]*websocket.Conn, len(hosts))
-	defer func() {
-		for _, c := range ws {
-			if c != nil {
-				c.Close()
-			}
-		}
-	}()
+	defer conns.closeAll()
 
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
@@ -86,260 +76,40 @@ func runServerBenchmark(ctx *cli.Context) error {
 			var err error
 			req.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
 			if err != nil {
-				return err
+				return true, err
 			}
 		}
 	}
 
-	connect := func(i int) error {
-		tries := 0
-		for {
-			err := func() error {
-				host := hosts[i]
-				if !strings.Contains(host, ":") {
-					host += ":" + strconv.Itoa(warpServerDefaultPort)
-				}
-				u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-				console.Infoln("Connecting to", u.String())
-				var err error
-				ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
-				if err != nil {
-					return err
-				}
-				// Send server info
-				err = ws[i].WriteJSON(si)
-				if err != nil {
-					return err
-				}
-				var resp clientReply
-				err = ws[i].ReadJSON(&resp)
-				if err != nil {
-					return err
-				}
-				if resp.Err != "" {
-					return errors.New(resp.Err)
-				}
-				delta := time.Now().Sub(resp.Time)
-				if delta < 0 {
-					delta = -delta
-				}
-				if delta > time.Second {
-					return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
-				}
-				return nil
-			}()
-			if err == nil {
-				return nil
-			}
-			if tries == 3 {
-				ws[i] = nil
-				return err
-			}
-			console.Errorf("Connection failed:%v, retrying...\n", err)
-			tries++
-			time.Sleep(time.Second)
-		}
-	}
-
-	for i := range hosts {
-		err := connect(i)
-		fatalIf(probe.NewError(err), "Unable to connect to warp client")
-		err = ws[i].WriteJSON(req)
+	for i := range conns.hosts {
+		resp, err := conns.roundTrip(i, req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
-		resp := clientReply{}
-		err = ws[i].ReadJSON(&resp)
-		fatalIf(probe.NewError(err), "Did not receive response from warp client")
 		if resp.Err != "" {
 			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
 		}
-		console.Infof("Client %v connected...\n", ws[i].RemoteAddr())
+		console.Infof("Client %v connected...\n", conns.hostname(i))
 		// Assume ok.
 	}
 	console.Infoln("All clients connected...")
 
-	// All clients connected.
-	startStage := func(t time.Time, i int, stage benchmarkStage) error {
-		req := serverRequest{
-			Operation: serverReqStartStage,
-			Stage:     stage,
-			Time:      t,
-		}
-	retry:
-		conn := ws[i]
-		err := conn.WriteJSON(req)
-		if err != nil {
-			console.Error(err)
-			if err := connect(i); err == nil {
-				goto retry
-			}
-			return err
-		}
-		var resp clientReply
-		err = conn.ReadJSON(&resp)
-		if err != nil {
-			console.Error(err)
-			if err := connect(i); err == nil {
-				goto retry
-			}
-			return err
-		}
-		if resp.Err != "" {
-			console.Errorf("Client %v returned error: %v\n", conn.RemoteAddr(), resp.Err)
-			return errors.New(resp.Err)
-		}
-		console.Infof("Client %v: Requested stage %v start..\n", conn.RemoteAddr(), stage)
-		return nil
-	}
-
-	console.Infoln("Starting preparation...")
-	startStageAll := func(stage benchmarkStage, startAt time.Time, failOnErr bool) error {
-		var wg sync.WaitGroup
-		var gerr error
-		var mu sync.Mutex
-		console.Infof("Requesting stage %v start...\n", stage)
-
-		for i, conn := range ws {
-			if conn == nil {
-				continue
-			}
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				err := startStage(startAt, i, stage)
-				if err != nil {
-					if failOnErr {
-						fatalIf(probe.NewError(err), "Stage start failed.")
-					}
-					console.Errorln("Starting stage error:", err)
-					mu.Lock()
-					if gerr == nil {
-						gerr = err
-					}
-					ws[i] = nil
-					mu.Unlock()
-				}
-			}(i)
-		}
-		wg.Wait()
-		return gerr
-	}
-	downloadOps := func() []bench.Operations {
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		console.Infof("Downloading operations...\n")
-		res := make([]bench.Operations, 0, len(ws))
-		for i, conn := range ws {
-			if conn == nil {
-				continue
-			}
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				for {
-					err := ws[i].WriteJSON(serverRequest{Operation: serverReqSendOps})
-					if err != nil {
-						console.Errorln(err)
-						if err := connect(i); err == nil {
-							continue
-						}
-						ws[i] = nil
-						return
-					}
-					var resp clientReply
-					err = ws[i].ReadJSON(&resp)
-					if err != nil {
-						console.Errorln(err)
-						if err := connect(i); err == nil {
-							continue
-						}
-						ws[i] = nil
-						return
-					}
-					if resp.Err != "" {
-						console.Errorf("Client %v returned error: %v\n", resp.Err)
-						return
-					}
-					console.Infof("Client %v: Operations downloaded.\n", ws[i].RemoteAddr())
-
-					mu.Lock()
-					res = append(res, resp.Ops)
-					mu.Unlock()
-					return
-				}
-			}(i)
-		}
-		wg.Wait()
-		return res
-	}
-	waitForStage := func(stage benchmarkStage) error {
-		var wg sync.WaitGroup
-		for i, conn := range ws {
-			if conn == nil {
-				// log?
-				continue
-			}
-			wg.Add(1)
-			go func(i int) {
-				conn := ws[i]
-				defer wg.Done()
-				for {
-					req := serverRequest{
-						Operation: serverReqStageStatus,
-						Stage:     stage,
-						Time:      time.Now(),
-					}
-					err := conn.WriteJSON(req)
-					if err != nil {
-						console.Errorln(err)
-						if err := connect(i); err == nil {
-							continue
-						}
-						ws[i] = nil
-						return
-					}
-					var resp clientReply
-					err = conn.ReadJSON(&resp)
-					if err != nil {
-						console.Errorln(err)
-						if err := connect(i); err == nil {
-							continue
-						}
-						ws[i] = nil
-						return
-					}
-					if resp.Err != "" {
-						console.Errorf("Client %v returned error: %v\n", resp.Err)
-						return
-					}
-					if resp.StageInfo.Finished {
-						console.Infof("Client %v: Finished stage %v...\n", conn.RemoteAddr(), stage)
-						return
-					}
-					time.Sleep(time.Second)
-				}
-			}(i)
-		}
-		wg.Wait()
-		return nil
-	}
-	_ = startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := waitForStage(stagePrepare)
+	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
+	err := conns.waitForStage(stagePrepare)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
-	console.Infoln("All clients prepared. Starting Benchmarks...")
+	console.Infoln("All clients prepared...")
 
-	err = startStageAll(stageBenchmark, time.Now().Add(3*time.Second), false)
+	err = conns.startStageAll(stageBenchmark, time.Now().Add(3*time.Second), false)
 	if err != nil {
 		console.Errorln("Failed to start all clients", err)
 	}
-	err = waitForStage(stageBenchmark)
+	err = conns.waitForStage(stageBenchmark)
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
 
 	console.Infoln("Done. Downloading operations...")
-	downloaded := downloadOps()
+	downloaded := conns.downloadOps()
 	var allOps bench.Operations
 	switch len(downloaded) {
 	case 0:
@@ -375,27 +145,254 @@ func runServerBenchmark(ctx *cli.Context) error {
 		}()
 	}
 
-	console.Infoln("Starting cleanup...")
-	err = startStageAll(stageCleanup, time.Now(), false)
+	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		console.Errorln("Failed to clean up all clients", err)
 	}
-	err = waitForStage(stageCleanup)
+	err = conns.waitForStage(stageCleanup)
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
 
-	for _, conn := range ws {
+	printAnalysis(ctx, allOps)
+
+	return true, nil
+}
+
+type connections struct {
+	hosts []string
+	ws    []*websocket.Conn
+	si    serverInfo
+}
+
+func newConnections(hosts []string) *connections {
+	var c connections
+	c.si = serverInfo{
+		ID:      pRandAscii(20),
+		Secret:  "",
+		Version: warpServerVersion,
+	}
+	c.hosts = hosts
+	c.ws = make([]*websocket.Conn, len(hosts))
+	return &c
+}
+
+func (c *connections) closeAll() {
+	for i, conn := range c.ws {
+		if conn != nil {
+			conn.WriteJSON(serverRequest{Operation: serverReqDisconnect, Time: time.Now()})
+			conn.Close()
+			c.ws[i] = nil
+		}
+	}
+}
+
+func (c *connections) hostname(i int) string {
+	if c.ws != nil {
+		return c.ws[i].RemoteAddr().String()
+	}
+	return c.hosts[i]
+}
+
+func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) {
+	conn := c.ws[i]
+	if conn == nil {
+		err := c.connect(i)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for {
+		conn := c.ws[i]
+		err := conn.WriteJSON(req)
+		if err != nil {
+			console.Error(err)
+			if err := c.connect(i); err == nil {
+				continue
+			}
+			return nil, err
+		}
+		var resp clientReply
+		err = conn.ReadJSON(&resp)
+		if err != nil {
+			console.Error(err)
+			if err := c.connect(i); err == nil {
+				continue
+			}
+			return nil, err
+		}
+		return &resp, nil
+	}
+}
+
+func (c *connections) connect(i int) error {
+	tries := 0
+	for {
+		err := func() error {
+			host := c.hosts[i]
+			if !strings.Contains(host, ":") {
+				host += ":" + strconv.Itoa(warpServerDefaultPort)
+			}
+			u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
+			console.Infoln("Connecting to", u.String())
+			var err error
+			c.ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+			if err != nil {
+				return err
+			}
+			// Send server info
+			err = c.ws[i].WriteJSON(c.si)
+			if err != nil {
+				return err
+			}
+			var resp clientReply
+			err = c.ws[i].ReadJSON(&resp)
+			if err != nil {
+				return err
+			}
+			if resp.Err != "" {
+				return errors.New(resp.Err)
+			}
+			delta := time.Now().Sub(resp.Time)
+			if delta < 0 {
+				delta = -delta
+			}
+			if delta > time.Second {
+				return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
+			}
+			return nil
+		}()
+		if err == nil {
+			return nil
+		}
+		if tries == 3 {
+			c.ws[i] = nil
+			return err
+		}
+		console.Errorf("Connection failed:%v, retrying...\n", err)
+		tries++
+		time.Sleep(time.Second)
+	}
+}
+
+func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error {
+	req := serverRequest{
+		Operation: serverReqStartStage,
+		Stage:     stage,
+		Time:      t,
+	}
+	resp, err := c.roundTrip(i, req)
+	if err != nil {
+		return err
+	}
+	if resp.Err != "" {
+		console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+		return errors.New(resp.Err)
+	}
+	console.Infof("Client %v: Requested stage %v start..\n", c.hostname(i), stage)
+	return nil
+}
+
+func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, failOnErr bool) error {
+	var wg sync.WaitGroup
+	var gerr error
+	var mu sync.Mutex
+	console.Infof("Requesting stage %v start...\n", stage)
+
+	for i, conn := range c.ws {
 		if conn == nil {
 			continue
 		}
-		_ = conn.WriteJSON(serverRequest{Operation: serverReqDisconnect, Time: time.Now()})
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			err := c.startStage(i, startAt, stage)
+			if err != nil {
+				if failOnErr {
+					fatalIf(probe.NewError(err), "Stage start failed.")
+				}
+				console.Errorln("Starting stage error:", err)
+				mu.Lock()
+				if gerr == nil {
+					gerr = err
+				}
+				c.ws[i] = nil
+				mu.Unlock()
+			}
+		}(i)
 	}
+	wg.Wait()
+	return gerr
+}
 
-	printAnalysis(ctx, allOps)
+func (c *connections) downloadOps() []bench.Operations {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	console.Infof("Downloading operations...\n")
+	res := make([]bench.Operations, 0, len(c.ws))
+	for i, conn := range c.ws {
+		if conn == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for {
+				resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps})
+				if err != nil {
+					return
+				}
+				if resp.Err != "" {
+					console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+					return
+				}
+				console.Infof("Client %v: Operations downloaded.\n", c.hostname(i))
 
-	os.Exit(0)
+				mu.Lock()
+				res = append(res, resp.Ops)
+				mu.Unlock()
+				return
+			}
+		}(i)
+	}
+	wg.Wait()
+	return res
+}
 
+func (c *connections) waitForStage(stage benchmarkStage) error {
+	var wg sync.WaitGroup
+	for i, conn := range c.ws {
+		if conn == nil {
+			// log?
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for {
+				req := serverRequest{
+					Operation: serverReqStageStatus,
+					Stage:     stage,
+					Time:      time.Now(),
+				}
+				resp, err := c.roundTrip(i, req)
+				if err != nil {
+					console.Errorln(err)
+					return
+				}
+				if resp.Err != "" {
+					console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+					return
+				}
+				if resp.StageInfo.Finished {
+					console.Infof("Client %v: Finished stage %v...\n", c.hostname(i), stage)
+					return
+				}
+				time.Sleep(time.Second)
+			}
+		}(i)
+	}
+	wg.Wait()
 	return nil
 }
 
