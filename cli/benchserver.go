@@ -74,7 +74,14 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	defer conns.closeAll()
 
 	// Serialize parameters
-	excludeFlags := map[string]struct{}{"warp-client": {}, "serverprof": {}, "autocompletion": {}, "help": {}}
+	excludeFlags := map[string]struct{}{
+		"warp-client":    {},
+		"serverprof":     {},
+		"autocompletion": {},
+		"help":           {},
+		"syncstart":      {},
+		"analyze.out":    {},
+	}
 	req := serverRequest{
 		Operation: serverReqBenchmark,
 	}
@@ -95,6 +102,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		}
 	}
 
+	// Connect to hosts, send benchmark requests.
 	for i := range conns.hosts {
 		resp, err := conns.roundTrip(i, req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
