@@ -162,8 +162,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}()
 
 	fileName := ctx.String("benchdata")
+	cID := pRandAscii(4)
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
 	prof, err := startProfiling(ctx)
@@ -200,6 +201,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	cancel()
 	<-pgDone
 	ops.SortByStartTime()
+	ops.SetClientID(cID)
 	prof.stop(ctx, fileName+".profiles.zip")
 
 	f, err := os.Create(fileName + ".csv.zst")
@@ -355,8 +357,9 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	}()
 
 	fileName := ctx.String("benchdata")
+	cID := pRandAscii(6)
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
 	ops, err := b.Start(ctx2, start)
@@ -367,6 +370,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
+	ops.SetClientID(cID)
 	ops.SortByStartTime()
 
 	f, err := os.Create(fileName + ".csv.zst")

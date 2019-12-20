@@ -40,6 +40,7 @@ type Operation struct {
 	Size      int64      `json:"size"`
 	File      string     `json:"file"`
 	Thread    uint16     `json:"thread"`
+	ClientID  string     `json:"client_id"`
 	Endpoint  string     `json:"endpoint"`
 }
 
@@ -239,6 +240,13 @@ func (o Operations) FilterByOp(opType string) Operations {
 		}
 	}
 	return dst
+}
+
+// SetClientID will set the client ID for all operations.
+func (o Operations) SetClientID(id string) {
+	for i := range o {
+		o[i].ClientID = id
+	}
 }
 
 // FilterByEndpoint returns operations run against a specific endpoint.
@@ -614,7 +622,7 @@ func (o Operations) FilterErrors() Operations {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
@@ -623,7 +631,7 @@ func (o Operations) CSV(w io.Writer) error {
 		if op.FirstByte != nil {
 			ttfb = op.FirstByte.Format(time.RFC3339Nano)
 		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -684,9 +692,12 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
-		var endpoint string
+		var endpoint, clientID string
 		if idx, ok := fieldIdx["endpoint"]; ok {
 			endpoint = values[idx]
+		}
+		if idx, ok := fieldIdx["client_id"]; ok {
+			clientID = values[idx]
 		}
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
@@ -699,6 +710,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			File:      values[fieldIdx["file"]],
 			Thread:    uint16(thread),
 			Endpoint:  endpoint,
+			ClientID:  clientID,
 		})
 	}
 	return ops, nil
