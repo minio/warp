@@ -59,7 +59,9 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	}
 	var cb clientBenchmark
 	cb.init(ctx)
+	activeBenchmarkMu.Lock()
 	activeBenchmark = &cb
+	activeBenchmarkMu.Unlock()
 
 	console.Infoln("Executing", cmd.Name, "benchmark.")
 	if globalDebug {
@@ -154,16 +156,24 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		var resp clientReply
 		switch req.Operation {
 		case serverReqDisconnect:
-			if activeBenchmark != nil {
-				activeBenchmark.Lock()
-				activeBenchmark.cancel()
-				activeBenchmark.Unlock()
+			console.Infoln("Received Disconnect")
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab != nil {
+				ab.cancel()
 			}
 			connectedMu.Lock()
 			connected = serverInfo{}
 			connectedMu.Unlock()
 			return
 		case serverReqBenchmark:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab != nil {
+				ab.cancel()
+			}
 			_, err := req.executeBenchmark(context.Background())
 			resp.Type = clientRespBenchmarkStarted
 			if err != nil {
@@ -171,13 +181,16 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.Err = err.Error()
 			}
 		case serverReqStartStage:
-			if activeBenchmark == nil {
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
 				resp.Err = "no benchmark running"
 				break
 			}
-			activeBenchmark.Lock()
-			stageInfo := activeBenchmark.info
-			activeBenchmark.Unlock()
+			ab.Lock()
+			stageInfo := ab.info
+			ab.Unlock()
 			info, ok := stageInfo[req.Stage]
 			if !ok {
 				resp.Err = "stage not found"
@@ -188,9 +201,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			info.startRequested = true
-			activeBenchmark.Lock()
-			activeBenchmark.info[req.Stage] = info
-			activeBenchmark.Unlock()
+			ab.Lock()
+			ab.info[req.Stage] = info
+			ab.Unlock()
 
 			wait := time.Until(req.StartTime)
 			if wait < 0 {
@@ -203,14 +216,22 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			}()
 			resp.Type = clientRespStatus
 		case serverReqStageStatus:
-			if activeBenchmark == nil {
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
 				resp.Err = "no benchmark running"
 				break
 			}
 			resp.Type = clientRespStatus
-			activeBenchmark.Lock()
-			stageInfo := activeBenchmark.info
-			activeBenchmark.Unlock()
+			ab.Lock()
+			err := ab.err
+			stageInfo := ab.info
+			ab.Unlock()
+			if err != nil {
+				resp.Err = err.Error()
+				break
+			}
 			info, ok := stageInfo[req.Stage]
 			if !ok {
 				resp.Err = "stage not found"
@@ -227,14 +248,17 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			default:
 			}
 		case serverReqSendOps:
-			if activeBenchmark == nil {
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
 				resp.Err = "no benchmark running"
 				break
 			}
 			resp.Type = clientRespOps
-			activeBenchmark.Lock()
-			resp.Ops = activeBenchmark.results
-			activeBenchmark.Unlock()
+			ab.Lock()
+			resp.Ops = ab.results
+			ab.Unlock()
 		default:
 			resp.Err = "unknown command"
 		}

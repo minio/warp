@@ -78,8 +78,11 @@ var benchFlags = []cli.Flag{
 
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
-	if activeBenchmark != nil {
-		return runClientBenchmark(ctx, b, activeBenchmark)
+	activeBenchmarkMu.Lock()
+	ab := activeBenchmark
+	activeBenchmarkMu.Unlock()
+	if ab != nil {
+		return runClientBenchmark(ctx, b, ab)
 	}
 	if done, err := runServerBenchmark(ctx); done {
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
@@ -222,6 +225,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	return nil
 }
 
+var activeBenchmarkMu sync.Mutex
 var activeBenchmark *clientBenchmark
 
 type clientBenchmark struct {
@@ -275,13 +279,16 @@ func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
 // waitForStage waits for the stage to be ready and updates the stage when it is
 func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
 	console.Infoln(s, "done...")
+	if err != nil {
+		console.Errorln(err.Error())
+	}
 	c.Lock()
 	info := c.info[s]
+	if err != nil && c.err == nil {
+		c.err = err
+	}
 	if info.done != nil {
 		close(info.done)
-	}
-	if err != nil && c.err != nil {
-		c.err = err
 	}
 	c.Unlock()
 }

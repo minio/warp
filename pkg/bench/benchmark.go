@@ -62,25 +62,22 @@ func (c *Common) GetCommon() *Common {
 
 // createEmptyBucket will create an empty bucket
 // or delete all content if it already exists.
-func (c *Common) createEmptyBucket(ctx context.Context) {
+func (c *Common) createEmptyBucket(ctx context.Context) error {
 	cl, done := c.Client()
 	defer done()
 	x, err := cl.BucketExists(c.Bucket)
 	if err != nil {
-		console.Fatal(err)
+		return err
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		err = cl.MakeBucket(c.Bucket, c.Location)
-		if err != nil {
-			console.Fatal(err)
-		}
-		return
+		return cl.MakeBucket(c.Bucket, c.Location)
 	}
 	if c.Clear {
 		console.Infof("Clearing Bucket %q...\n", c.Bucket)
 		c.deleteAllInBucket(ctx)
 	}
+	return nil
 }
 
 // deleteAllInBucket will delete all content in a bucket.
