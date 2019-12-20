@@ -20,6 +20,16 @@ import (
 
 const warpServerVersion = 1
 
+type serverRequestOp string
+
+const (
+	serverReqDisconnect  serverRequestOp = "disconnect"
+	serverReqBenchmark                   = "benchmark"
+	serverReqStartStage                  = "start_stage"
+	serverReqStageStatus                 = "stage_status"
+	serverReqSendOps                     = "send_ops"
+)
+
 type serverInfo struct {
 	ID        string `json:"id"`
 	Secret    string `json:"secret"`
@@ -27,6 +37,7 @@ type serverInfo struct {
 	connected bool
 }
 
+// validate the serverinfo.
 func (s serverInfo) validate() error {
 	if s.ID == "" {
 		return errors.New("no server id sent")
@@ -37,6 +48,7 @@ func (s serverInfo) validate() error {
 	return nil
 }
 
+// serverRequest requests an operation from the client and expects a response.
 type serverRequest struct {
 	Operation serverRequestOp `json:"op"`
 	Benchmark struct {
@@ -44,10 +56,12 @@ type serverRequest struct {
 		Args    cli.Args          `json:"args"`
 		Flags   map[string]string `json:"flags"`
 	}
-	Stage benchmarkStage `json:"stage"`
-	Time  time.Time      `json:"time"`
+	Stage     benchmarkStage `json:"stage"`
+	StartTime time.Time      `json:"start_time"`
 }
 
+// runServerBenchmark will run a benchmark server if requested.
+// Returns a bool whether clients were specified.
 func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if ctx.String("warp-client") == "" {
 		return false, nil
@@ -87,7 +101,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		if resp.Err != "" {
 			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
 		}
-		console.Infof("Client %v connected...\n", conns.hostname(i))
+		console.Infof("Client %v connected...\n", conns.hostName(i))
 		// Assume ok.
 	}
 	console.Infoln("All clients connected...")
@@ -159,12 +173,14 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	return true, nil
 }
 
+// connections keeps track of connections to clients.
 type connections struct {
 	hosts []string
 	ws    []*websocket.Conn
 	si    serverInfo
 }
 
+// newConnections creates connections (but does not connect) to clients.
 func newConnections(hosts []string) *connections {
 	var c connections
 	c.si = serverInfo{
@@ -177,23 +193,26 @@ func newConnections(hosts []string) *connections {
 	return &c
 }
 
+// closeAll will close all connections.
 func (c *connections) closeAll() {
 	for i, conn := range c.ws {
 		if conn != nil {
-			conn.WriteJSON(serverRequest{Operation: serverReqDisconnect, Time: time.Now()})
+			conn.WriteJSON(serverRequest{Operation: serverReqDisconnect})
 			conn.Close()
 			c.ws[i] = nil
 		}
 	}
 }
 
-func (c *connections) hostname(i int) string {
+// hostName returns the remote host name of a connection.
+func (c *connections) hostName(i int) string {
 	if c.ws != nil {
 		return c.ws[i].RemoteAddr().String()
 	}
 	return c.hosts[i]
 }
 
+// roundTrip performs a roundtrip.
 func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) {
 	conn := c.ws[i]
 	if conn == nil {
@@ -225,6 +244,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 	}
 }
 
+// connect to a client.
 func (c *connections) connect(i int) error {
 	tries := 0
 	for {
@@ -275,24 +295,26 @@ func (c *connections) connect(i int) error {
 	}
 }
 
+// startStage will start a stage at a specific time on a client.
 func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error {
 	req := serverRequest{
 		Operation: serverReqStartStage,
 		Stage:     stage,
-		Time:      t,
+		StartTime: t,
 	}
 	resp, err := c.roundTrip(i, req)
 	if err != nil {
 		return err
 	}
 	if resp.Err != "" {
-		console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+		console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 		return errors.New(resp.Err)
 	}
-	console.Infof("Client %v: Requested stage %v start..\n", c.hostname(i), stage)
+	console.Infof("Client %v: Requested stage %v start..\n", c.hostName(i), stage)
 	return nil
 }
 
+// startStageAll will start a stage at a specific time on all connected clients.
 func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, failOnErr bool) error {
 	var wg sync.WaitGroup
 	var gerr error
@@ -325,6 +347,8 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 	return gerr
 }
 
+// downloadOps will download operations from all connected clients.
+// If an error is encountered the result will be ignored.
 func (c *connections) downloadOps() []bench.Operations {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -343,10 +367,10 @@ func (c *connections) downloadOps() []bench.Operations {
 					return
 				}
 				if resp.Err != "" {
-					console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
-				console.Infof("Client %v: Operations downloaded.\n", c.hostname(i))
+				console.Infof("Client %v: Operations downloaded.\n", c.hostName(i))
 
 				mu.Lock()
 				res = append(res, resp.Ops)
@@ -359,6 +383,7 @@ func (c *connections) downloadOps() []bench.Operations {
 	return res
 }
 
+// waitForStage will wait for stage completion on all clients.
 func (c *connections) waitForStage(stage benchmarkStage) error {
 	var wg sync.WaitGroup
 	for i, conn := range c.ws {
@@ -373,7 +398,6 @@ func (c *connections) waitForStage(stage benchmarkStage) error {
 				req := serverRequest{
 					Operation: serverReqStageStatus,
 					Stage:     stage,
-					Time:      time.Now(),
 				}
 				resp, err := c.roundTrip(i, req)
 				if err != nil {
@@ -381,11 +405,11 @@ func (c *connections) waitForStage(stage benchmarkStage) error {
 					return
 				}
 				if resp.Err != "" {
-					console.Errorf("Client %v returned error: %v\n", c.hostname(i), resp.Err)
+					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
 				if resp.StageInfo.Finished {
-					console.Infof("Client %v: Finished stage %v...\n", c.hostname(i), stage)
+					console.Infof("Client %v: Finished stage %v...\n", c.hostName(i), stage)
 					return
 				}
 				time.Sleep(time.Second)
@@ -396,6 +420,7 @@ func (c *connections) waitForStage(stage benchmarkStage) error {
 	return nil
 }
 
+// flagToJson converts a flag to a representation that can be reversed into the flag.
 func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
 	switch flag.(type) {
 	case cli.StringFlag:

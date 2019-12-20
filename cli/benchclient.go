@@ -15,6 +15,15 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+type clientReplyType string
+
+const (
+	clientRespBenchmarkStarted clientReplyType = "benchmark_started"
+	clientRespStatus           clientReplyType = "benchmark_status"
+	clientRespOps              clientReplyType = "ops"
+)
+
+// clientReply contains the response to a server request.
 type clientReply struct {
 	Type      clientReplyType  `json:"type"`
 	Time      time.Time        `json:"time"`
@@ -24,7 +33,7 @@ type clientReply struct {
 		Started  bool    `json:"started"`
 		Finished bool    `json:"finished"`
 		Progress float64 `json:"progress"`
-	}
+	} `json:"stage_info"`
 }
 
 // executeBenchmark will execute the benchmark and return any error.
@@ -53,7 +62,10 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	activeBenchmark = &cb
 
 	console.Infoln("Executing", cmd.Name, "benchmark.")
-	console.Infoln("Params:", s.Benchmark.Flags, ctx2.Args())
+	if globalDebug {
+		// params have secret, so disable by default.
+		console.Infoln("Params:", s.Benchmark.Flags, ctx2.Args())
+	}
 	go func() {
 		err := runCommand(ctx2, cmd)
 		cb.Lock()
@@ -66,15 +78,18 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	return &cb, nil
 }
 
+// Information on currently or last connected server.
 var connectedMu sync.Mutex
 var connected serverInfo
 
+// wsUpgrader performs websocket upgrades.
 var wsUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
 }
 
+// serveWs handles incoming requests.
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	ws, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -177,7 +192,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			activeBenchmark.info[req.Stage] = info
 			activeBenchmark.Unlock()
 
-			wait := time.Until(req.Time)
+			wait := time.Until(req.StartTime)
 			if wait < 0 {
 				wait = 0
 			}
@@ -235,6 +250,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// flagSet converts args and flags to a flagset.
 func flagSet(name string, flags []cli.Flag, args []string) (*flag.FlagSet, error) {
 	set := flag.NewFlagSet(name, flag.ContinueOnError)
 	err := set.Parse(args)
@@ -277,18 +293,3 @@ func runCommand(ctx *cli.Context, c *cli.Command) (err error) {
 
 	return cli.HandleAction(c.Action, ctx)
 }
-
-type serverRequestOp string
-type clientReplyType string
-
-const (
-	serverReqDisconnect  serverRequestOp = "disconnect"
-	serverReqBenchmark                   = "benchmark"
-	serverReqStartStage                  = "start_stage"
-	serverReqStageStatus                 = "stage_status"
-	serverReqSendOps                     = "send_ops"
-
-	clientRespBenchmarkStarted clientReplyType = "benchmark_started"
-	clientRespStatus           clientReplyType = "benchmark_status"
-	clientRespOps              clientReplyType = "ops"
-)
