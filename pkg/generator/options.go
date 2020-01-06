@@ -16,13 +16,18 @@
 
 package generator
 
-import "errors"
+import (
+	"errors"
+	"math"
+	"math/rand"
+)
 
 // Options provides options.
 // Use WithXXX functions to set them.
 type Options struct {
 	src          func(o Options) (Source, error)
 	totalSize    int64
+	randSize     bool
 	csv          CsvOpts
 	random       RandomOpts
 	randomPrefix int
@@ -31,6 +36,20 @@ type Options struct {
 // OptionApplier allows to abstract generator options.
 type OptionApplier interface {
 	Apply() Option
+}
+
+// getSize will return a size for an object.
+func (o Options) getSize(rng *rand.Rand) int64 {
+	if !o.randSize {
+		return o.totalSize
+	}
+	logSizeMax := math.Log2(float64(o.totalSize - 1))
+	// Minimum size: 127 bytes, max scale is 256 times smaller than max size.
+	logSizeMin := math.Max(7, logSizeMax-8)
+	lsDelta := logSizeMax - logSizeMin
+	logSize := rng.Float64()*lsDelta + logSizeMin
+	sz := 1 + int64(math.Pow(2, logSize))
+	return sz
 }
 
 func defaultOptions() Options {
@@ -50,7 +69,22 @@ func WithSize(n int64) Option {
 		if n <= 0 {
 			return errors.New("WithSize: size must be > 0")
 		}
+		if o.randSize && o.totalSize < 256 {
+			return errors.New("WithSize: random sized objects should be at least 256 bytes")
+		}
+
 		o.totalSize = n
+		return nil
+	}
+}
+
+// WithRandomSize will randomize the size from 1 byte to the total size set.
+func WithRandomSize(b bool) Option {
+	return func(o *Options) error {
+		if o.totalSize > 0 && o.totalSize < 256 {
+			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
+		}
+		o.randSize = b
 		return nil
 	}
 }

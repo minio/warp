@@ -80,6 +80,10 @@ func (o Operation) Duration() time.Duration {
 	return o.End.Sub(o.Start)
 }
 
+func (o Operation) String() string {
+	return fmt.Sprintf("%s %s/(bucket)/%s, %v->%v, Size: %d, Error: %v", o.OpType, o.Endpoint, o.File, o.Start, o.End, o.Size, o.Err)
+}
+
 // Aggregate the operation into segment if it belongs there.
 func (o Operation) Aggregate(s *Segment) {
 	if len(s.OpType) > 0 && o.OpType != s.OpType {
@@ -295,6 +299,143 @@ func (o Operations) FirstObjPerOp() int {
 	return o[0].ObjPerOp
 }
 
+// MultipleSizes returns whether there are multiple operation sizes.
+func (o Operations) MultipleSizes() bool {
+	if len(o) == 0 {
+		return false
+	}
+	sz := o[0].Size
+	for _, op := range o {
+		if op.Size != sz {
+			return true
+		}
+	}
+	return false
+}
+
+// MinMaxSize returns the minimum and maximum operation sizes.
+func (o Operations) MinMaxSize() (min, max int64) {
+	if len(o) == 0 {
+		return 0, 0
+	}
+
+	min = o[0].Size
+	max = o[0].Size
+	for _, op := range o {
+		if op.Size < min {
+			min = op.Size
+		}
+		if op.Size > max {
+			max = op.Size
+		}
+	}
+	return min, max
+}
+
+// AvgSize returns the average operation size.
+func (o Operations) AvgSize() int64 {
+	if len(o) == 0 {
+		return 0
+	}
+	var total int64
+	for _, op := range o {
+		total += op.Size
+	}
+	return total / int64(len(o))
+}
+
+// SizeSegment is a size segment.
+type SizeSegment struct {
+	Smallest      int64
+	SmallestLog10 int
+	Biggest       int64
+	BiggestLog10  int
+	Ops           Operations
+}
+
+// SizeString returns the size as a string.
+func (s SizeSegment) SizeString() string {
+	return fmt.Sprint(log10ToSize[s.SmallestLog10], " -> ", log10ToSize[s.BiggestLog10])
+}
+
+var log10ToSize = map[int]string{
+	0:  "",
+	1:  "10B",
+	2:  "100B",
+	3:  "1KB",
+	4:  "10KB",
+	5:  "100KB",
+	6:  "1MB",
+	7:  "10MB",
+	8:  "100MB",
+	9:  "1GB",
+	10: "10GB",
+	11: "100GB",
+	12: "1TB",
+}
+
+var log10ToLog2Size = map[int]int64{
+	0:  1,
+	1:  10,
+	2:  100,
+	3:  1 << 10,
+	4:  10 << 10,
+	5:  100 << 10,
+	6:  1 << 20,
+	7:  10 << 20,
+	8:  100 << 20,
+	9:  1 << 30,
+	10: 10 << 30,
+	11: 100 << 30,
+	12: 1 << 40,
+}
+
+// SplitSizes will return log10 separated data.
+// Specify the share of requests that must be in a segment to return it.
+func (o Operations) SplitSizes(minShare float64) []SizeSegment {
+	if !o.MultipleSizes() {
+		min, max := o.MinMaxSize()
+		return []SizeSegment{{
+			Smallest: min,
+			Biggest:  max,
+			Ops:      o,
+		}}
+	}
+	var res []SizeSegment
+	minSz, maxSz := o.MinMaxSize()
+	minLog := int(math.Log10(float64(minSz)))
+	maxLog := int(math.Log10(float64(maxSz)))
+	cLog := minLog
+	wantN := int(float64(len(o)) * minShare)
+	seg := SizeSegment{
+		Smallest:      log10ToLog2Size[cLog],
+		SmallestLog10: cLog,
+		Biggest:       0,
+		Ops:           make(Operations, 0, wantN*2),
+	}
+	for cLog <= maxLog {
+		cLog++
+		seg.Biggest = log10ToLog2Size[cLog]
+		seg.BiggestLog10 = cLog
+		for _, op := range o {
+			if op.Size >= seg.Smallest && op.Size < seg.Biggest {
+				seg.Ops = append(seg.Ops, op)
+			}
+		}
+		if len(seg.Ops) >= wantN {
+			res = append(res, seg)
+			seg = SizeSegment{
+				Smallest:      log10ToLog2Size[cLog],
+				SmallestLog10: cLog,
+				Biggest:       0,
+				Ops:           make(Operations, 0, wantN*2),
+			}
+		}
+	}
+
+	return res
+}
+
 // TimeRange returns the full time range from start of first operation to end of the last.
 func (o Operations) TimeRange() (start, end time.Time) {
 	if len(o) == 0 {
@@ -451,6 +592,20 @@ func (o Operations) Errors() []string {
 	for _, op := range o {
 		if len(op.Err) != 0 {
 			errs = append(errs, op.Err)
+		}
+	}
+	return errs
+}
+
+// Errors returns the errors found.
+func (o Operations) FilterErrors() Operations {
+	if len(o) == 0 {
+		return nil
+	}
+	errs := Operations{}
+	for _, op := range o {
+		if len(op.Err) != 0 {
+			errs = append(errs, op)
 		}
 	}
 	return errs
