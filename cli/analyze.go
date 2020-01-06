@@ -49,6 +49,10 @@ var analyzeFlags = []cli.Flag{
 		Value: "",
 		Usage: "Only output for this op. Can be GET/PUT/DELETE, etc.",
 	},
+	cli.BoolFlag{
+		Name:  "analyze.errors",
+		Usage: "Print out errors",
+	},
 	cli.StringFlag{
 		Name:  "analyze.host",
 		Value: "",
@@ -185,6 +189,12 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		if errs := ops.Errors(); len(errs) > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", len(errs))
+			if ctx.Bool("analyze.errors") {
+				errs := ops.FilterErrors()
+				for _, err := range errs {
+					console.Println(err)
+				}
+			}
 		}
 		if ctx.Bool("requests") {
 			printRequestAnalysis(ctx, ops)
@@ -274,22 +284,53 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
 	start, end := ops.ActiveTimeRange(true)
 	active := ops.FilterInsideRange(start, end)
-	console.Print("\nRequests - ", len(active), ":\n")
-	console.SetColor("Print", color.New(color.FgWhite))
+	if !active.MultipleSizes() {
+		console.Print("\nRequests considered: ", len(active), ":\n")
+		console.SetColor("Print", color.New(color.FgWhite))
 
-	if len(active) == 0 {
-		console.Println("Not enough requests")
-	}
-	active.SortByDuration()
-	console.Println(" * Fastest:", active.Median(0).Duration(),
-		"Slowest:", active.Median(1).Duration(),
-		"50%:", active.Median(0.5).Duration(),
-		"90%:", active.Median(0.9).Duration(),
-		"99%:", active.Median(0.99).Duration())
+		if len(active) == 0 {
+			console.Println("Not enough requests")
+		}
 
-	ttfb := active.TTFB(start, end)
-	if ttfb.Average > 0 {
-		console.Println(" * First Byte:", ttfb)
+		active.SortByDuration()
+		console.Println(" * Fastest:", active.Median(0).Duration(),
+			"Slowest:", active.Median(1).Duration(),
+			"50%:", active.Median(0.5).Duration(),
+			"90%:", active.Median(0.9).Duration(),
+			"99%:", active.Median(0.99).Duration())
+
+		ttfb := active.TTFB(start, end)
+		if ttfb.Average > 0 {
+			console.Println(" * First Byte:", ttfb)
+		}
+	} else {
+		console.Print("\nRequests considered: ", len(active), ". Multiple sizes, average ", active.AvgSize(), " bytes:\n")
+		console.SetColor("Print", color.New(color.FgWhite))
+
+		if len(active) == 0 {
+			console.Println("Not enough requests")
+		}
+
+		sizes := active.SplitSizes(0.05)
+		for _, s := range sizes {
+			active := s.Ops
+			active.SortByDuration()
+
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Print("\nRequest size ", s.SizeString(), ". Requests - ", len(active), ":\n")
+			console.SetColor("Print", color.New(color.FgWhite))
+
+			console.Println(" * Fastest:", active.Median(0).Duration(),
+				"Slowest:", active.Median(1).Duration(),
+				"50%:", active.Median(0.5).Duration(),
+				"90%:", active.Median(0.9).Duration(),
+				"99%:", active.Median(0.99).Duration())
+
+			ttfb := active.TTFB(start, end)
+			if ttfb.Average > 0 {
+				console.Println(" * First Byte:", ttfb)
+			}
+		}
 	}
 	if eps := ops.Endpoints(); len(eps) > 1 {
 		console.SetColor("Print", color.New(color.FgHiWhite))

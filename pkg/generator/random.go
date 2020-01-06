@@ -115,7 +115,7 @@ func newRandom(o Options) (Source, error) {
 			Reader:      nil,
 			Name:        "",
 			ContentType: "application/octet-stream",
-			Size:        o.totalSize,
+			Size:        0,
 		},
 	}
 	r.obj.setPrefix(o)
@@ -123,10 +123,14 @@ func newRandom(o Options) (Source, error) {
 }
 
 func (r *randomSrc) Object() *Object {
-	data := r.buf.data
 	var nBuf [16]byte
 	randAsciiBytes(nBuf[:], r.rng)
+	r.obj.Size = r.o.getSize(r.rng)
 	r.obj.setName(string(nBuf[:]) + ".rnd")
+	data := r.buf.data
+	if int64(len(data)) > r.obj.Size {
+		data = data[:r.obj.Size]
+	}
 
 	if len(data) < 128 {
 		_, err := io.ReadFull(r.rng, data)
@@ -152,10 +156,13 @@ func (r *randomSrc) Object() *Object {
 	if err != nil {
 		panic(err)
 	}
-	r.obj.Reader = r.buf.Reset()
+	r.obj.Reader = r.buf.Reset(r.obj.Size)
 	return &r.obj
 }
 
 func (r *randomSrc) String() string {
+	if r.o.randSize {
+		return fmt.Sprintf("Random data; random size up to %d bytes, %d byte buffer", r.o.totalSize, len(r.buf.data))
+	}
 	return fmt.Sprintf("Random data; %d bytes total, %d byte buffer", r.buf.want, len(r.buf.data))
 }

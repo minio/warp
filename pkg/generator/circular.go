@@ -32,7 +32,13 @@ type circularBuffer struct {
 	read int64
 }
 
-func (c *circularBuffer) Reset() io.Reader {
+// Reset will reset the circular buffer.
+// The number of bytes to return can be specified.
+// If the number of bytes wanted is <= 0 the value will not be updated.
+func (c *circularBuffer) Reset(want int64) io.Reader {
+	if want > 0 {
+		c.want = want
+	}
 	c.read = 0
 	c.left = c.data
 	return c
