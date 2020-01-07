@@ -57,7 +57,7 @@ We use log2 to distribute objects sizes.
 This means that objects will be distributed in equal number for each doubling of the size. 
 This means that `obj.size/64` -> `obj.size/32` will have the same number of objects as `obj.size/2` -> `obj.size`.
 
-Example of objects (horizontally) and their sizes: 
+Example of objects (horizontally) and their sizes, 100MB max: 
 
 ![objects (horizontally) and their sizes](https://user-images.githubusercontent.com/5663952/71828619-83381480-3057-11ea-9d6c-ff03607a66a7.png)
 
