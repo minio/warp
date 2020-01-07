@@ -116,7 +116,7 @@ func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, 
 			}
 			// Use last segment as our base.
 			mb, _, objs := segs[len(segs)-1].SpeedPerSec()
-			// Only use the
+			// Only use the segments we are interested in.
 			segs = segs[len(segs)-wantSamples : len(segs)-1]
 			for _, seg := range segs {
 				segMB, _, segObjs := seg.SpeedPerSec()
@@ -130,14 +130,15 @@ func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, 
 					continue checkloop
 				}
 			}
+			// All checks passed.
 			if mb > 0 {
-				console.Printf("\rThroughput %0.01fMB/s within %d%% for %v. Assuming stability. Terminating benchmark.\n",
-					mb, int(threshold*100),
-					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)))
+				console.Printf("\rThroughput %0.01fMB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					mb, threshold*100,
+					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
 			} else {
-				console.Printf("\rThroughput %0.01f objects/s within %d%% for %v. Assuming stability. Terminating benchmark.\n",
-					objs, int(threshold*100),
-					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)))
+				console.Printf("\rThroughput %0.01f objects/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					objs, threshold*100,
+					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
 			}
 			return
 		}
