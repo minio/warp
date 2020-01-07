@@ -40,6 +40,57 @@ By default all benchmarks save all request details to a file named `warp-operati
 A custom file name can be specified using the `-benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
+## benchmark data
+
+By default warp uploads random data. 
+
+### Object Size
+
+Most benchmarks use the `-obj.size` parameter to decide the size of objects to upload.
+
+#### Random File Sizes
+
+It is possible to randomize object sizes by specifying  `-obj.randsize` and files will have a "random" size up to `-obj.size`. 
+However, there are some things to consider "under the hood".
+
+We use log2 to distribute objects sizes. 
+This means that objects will be distributed in equal number for each doubling of the size. 
+This means that `obj.size/64` -> `obj.size/32` will have the same number of objects as `obj.size/2` -> `obj.size`.
+
+Example of objects (horizontally) and their sizes: 
+
+![objects (horizontally) and their sizes](https://user-images.githubusercontent.com/5663952/71828619-83381480-3057-11ea-9d6c-ff03607a66a7.png)
+
+To see segmented request statistics, use the `-requests` parameter.
+ 
+```
+λ warp analyze warp-get-2020-01-07[024225]-QWK3.csv.zst -requests -analyze.op=GET
+-------------------
+Operation: GET. Concurrency: 12. Hosts: 1.
+
+Requests considered: 1970. Multiple sizes, average 18982515 bytes:
+
+Request size 100B -> 100KB. Requests - 274:
+ * Throughput: Average: 9.5MB/s, 50%: 8.8MB/s, 90%: 1494.8KB/s, 99%: 167.3KB/s, Fastest: 95.8MB/s, Slowest: 154.8KB/s
+ * First Byte: Average: 4.131413ms, Median: 3.9898ms, Best: 994.4µs, Worst: 80.7834ms
+
+Request size 100KB -> 10MB. Requests - 971:
+ * Throughput: Average: 62.8MB/s, 50%: 49.7MB/s, 90%: 39.5MB/s, 99%: 33.3MB/s, Fastest: 1171.5MB/s, Slowest: 6.6MB/s
+ * First Byte: Average: 5.276378ms, Median: 4.9864ms, Best: 993.7µs, Worst: 148.6016ms
+
+Request size 10MB -> 100MB. Requests - 835:
+ * Throughput: Average: 112.3MB/s, 50%: 98.3MB/s, 90%: 59.4MB/s, 99%: 47.5MB/s, Fastest: 1326.3MB/s, Slowest: 45.8MB/s
+ * First Byte: Average: 4.186514ms, Median: 4.9863ms, Best: 990.2µs, Worst: 16.9915ms
+
+Throughput:
+* Average: 1252.19 MB/s, 68.58 obj/s (28.885s, starting 02:42:27 PST)
+
+Aggregated Throughput, split into 28 x 1s time segments:
+ * Fastest: 1611.21 MB/s, 64.32 obj/s (1s, starting 02:42:40 PST)
+ * 50% Median: 1240.15 MB/s, 74.85 obj/s (1s, starting 02:42:41 PST)
+ * Slowest: 1061.56 MB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
+```
+
 ## multiple hosts
 
 Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
