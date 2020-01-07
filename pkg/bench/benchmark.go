@@ -19,6 +19,7 @@ package bench
 import (
 	"context"
 	"math"
+	"time"
 
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
@@ -52,9 +53,21 @@ type Common struct {
 	Clear           bool
 	PrepareProgress chan float64
 
+	// Auto termination is set when this is > 0.
+	AutoTermDur   time.Duration
+	AutoTermScale float64
+
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
 }
+
+const (
+	// Split active ops into this many segments.
+	autoTermSamples = 25
+
+	// Number of segments that must be within limit.
+	autoTermCheck = 7
+)
 
 func (c *Common) GetCommon() *Common {
 	return c

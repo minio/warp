@@ -41,6 +41,10 @@ func (u *Put) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
 	c := NewCollector()
+	if u.AutoTermDur > 0 {
+		ctx = c.AutoTerm(ctx, "PUT", u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
+	}
+
 	for i := 0; i < u.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()

@@ -53,6 +53,20 @@ var benchFlags = []cli.Flag{
 		Value: 5 * time.Minute,
 	},
 	cli.BoolFlag{
+		Name:  "autoterm",
+		Usage: "Auto terminate when benchmark is considered stable.",
+	},
+	cli.DurationFlag{
+		Name:  "autoterm.dur",
+		Usage: "Minimum duration where output must have been stable to allow automatic termination.",
+		Value: 10 * time.Second,
+	},
+	cli.Float64Flag{
+		Name:  "autoterm.pct",
+		Usage: "The percentage the last 6/25 time blocks must be within current speed to auto terminate.",
+		Value: 7.5,
+	},
+	cli.BoolFlag{
 		Name:  "noclear",
 		Usage: "Do not clear bucket before or after running benchmarks. Use when running multiple clients.",
 	},
@@ -75,6 +89,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
+	if ctx.Bool("autoterm") {
+		// TODO: autoterm cannot be used when in client/server mode
+		c.AutoTermDur = ctx.Duration("autoterm.dur")
+		c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
+	}
 	if !globalQuiet && !globalJSON {
 		c.PrepareProgress = make(chan float64, 1)
 		const pgScale = 10000
@@ -280,6 +299,15 @@ func checkBenchmark(ctx *cli.Context) {
 		t := parseLocalTime(st)
 		if t.Before(time.Now()) {
 			fatalIf(errDummy(), "syncstart is in the past: %v", t)
+		}
+	}
+	if ctx.Bool("autoterm") {
+		// TODO: autoterm cannot be used when in client/server mode
+		if ctx.Duration("autoterm.dur") <= 0 {
+			fatalIf(errDummy(), "autoterm.dur cannot be zero or negative")
+		}
+		if ctx.Float64("autoterm.pct") <= 0 {
+			fatalIf(errDummy(), "autoterm.pct cannot be zero or negative")
 		}
 	}
 }

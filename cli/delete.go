@@ -27,7 +27,7 @@ var (
 	deleteFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
-			Value: 100000,
+			Value: 25000,
 			Usage: "Number of objects to upload.",
 		},
 		cli.StringFlag{

@@ -219,6 +219,11 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 }
 
 // String returns a string representation of the segment
+func (s Segment) Duration() time.Duration {
+	return s.EndsBefore.Sub(s.Start)
+}
+
+// String returns a string representation of the segment
 func (s Segment) String() string {
 	mb, ops, objs := s.SpeedPerSec()
 	speed := ""

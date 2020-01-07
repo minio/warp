@@ -128,6 +128,9 @@ func (g *Get) Start(ctx context.Context, start chan struct{}) Operations {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
+	if g.AutoTermDur > 0 {
+		ctx = c.AutoTerm(ctx, "GET", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+	}
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
