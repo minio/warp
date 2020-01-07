@@ -104,6 +104,22 @@ func (o Operations) TTFB(start, end time.Time) TTFB {
 	return res
 }
 
+// OpThroughput returns the average throughput in B/s.
+func (o Operations) OpThroughput() Throughput {
+	var aDur time.Duration
+	var aBytes int64
+	for _, op := range o {
+		if op.Size > 0 {
+			aDur += op.Duration()
+			aBytes += op.Size
+		}
+	}
+	if aDur == 0 {
+		return 0
+	}
+	return Throughput(aBytes) * Throughput(time.Second) / Throughput(aDur)
+}
+
 // Segment will segment the operations o.
 // Operations should be of the same type.
 func (o Operations) Segment(so SegmentOptions) Segments {
@@ -220,13 +236,13 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 
 // String returns a string representation of the segment
 func (s Segment) String() string {
-	mb, ops, objs := s.SpeedPerSec()
+	mb, _, objs := s.SpeedPerSec()
 	speed := ""
 	if mb > 0 {
 		speed = fmt.Sprintf("%.02f MB/s, ", mb)
 	}
-	return fmt.Sprintf("%s%.02f obj/s, %.02f ops ended/s (%v)",
-		speed, objs, ops, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))
+	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
+		speed, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond), s.Start.Format("15:04:05 MST"))
 }
 
 // ShortString returns a string representation of the segment without ops ended/s.
