@@ -81,6 +81,36 @@ func (o Operation) Duration() time.Duration {
 	return o.End.Sub(o.Start)
 }
 
+// Throughput is the throughput as bytes/second.
+type Throughput float64
+
+func (t Throughput) String() string {
+	if t < 2<<10 {
+		return fmt.Sprintf("%.01fB/s", float64(t))
+	}
+	if t < 2<<20 {
+		return fmt.Sprintf("%.01fKB/s", float64(t/1024))
+	}
+	if t < 2<<30 {
+		return fmt.Sprintf("%.01fMB/s", float64(t/1024/1024))
+	}
+	if t < 2<<40 {
+		return fmt.Sprintf("%.01fGB/s", float64(t/1024/1024/1024))
+	}
+	return fmt.Sprintf("%.01fTB/s", float64(t/1024/1024/1024))
+}
+
+func (o Operation) BytesPerSec() Throughput {
+	if o.Size == 0 {
+		return 0
+	}
+	d := o.Duration()
+	if d <= 0 {
+		return Throughput(math.Inf(1))
+	}
+	return Throughput(o.Size*int64(time.Second)) / Throughput(d)
+}
+
 func (o Operation) String() string {
 	return fmt.Sprintf("%s %s/(bucket)/%s, %v->%v, Size: %d, Error: %v", o.OpType, o.Endpoint, o.File, o.Start, o.End, o.Size, o.Err)
 }
@@ -180,6 +210,20 @@ func (o Operations) SortByDuration() {
 	sort.SliceStable(o, func(i, j int) bool {
 		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
 		return a < b
+	})
+}
+
+// SortByThroughput will sort the operations by throughput.
+// Fastest operations first.
+func (o Operations) SortByThroughput() {
+	o.SortByStartTime()
+	sort.SliceStable(o, func(i, j int) bool {
+		a, b := o[i], o[j]
+		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
+		if a.Size == 0 || b.Size == 0 {
+			return aDur < bDur
+		}
+		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
 	})
 }
 
