@@ -72,7 +72,7 @@ func NewCollector() *Collector {
 	return r
 }
 
-// AutoTerm will check if throughout is within 'threshold' (0 -> ) for wantSamples,
+// AutoTerm will check if throughput is within 'threshold' (0 -> ) for wantSamples,
 // when the current operations are split into 'splitInto' segments.
 // The minimum duration for the calculation can be set as well.
 // Segment splitting may cause less than this duration to be used.
