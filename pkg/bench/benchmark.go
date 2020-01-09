@@ -66,6 +66,7 @@ const (
 	autoTermSamples = 25
 
 	// Number of segments that must be within limit.
+	// The last segment will be the one considered 'current speed'.
 	autoTermCheck = 7
 )
 
