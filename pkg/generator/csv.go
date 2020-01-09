@@ -89,8 +89,8 @@ type CsvOpts struct {
 func csvOptsDefaults() CsvOpts {
 	return CsvOpts{
 		err:    nil,
-		cols:   500,
-		rows:   15,
+		cols:   15,
+		rows:   1000,
 		comma:  ',',
 		seed:   nil,
 		minLen: 5,
@@ -120,7 +120,7 @@ func newCsv(o Options) (Source, error) {
 	}
 	c.rng = rand.New(rndSrc)
 	c.obj.ContentType = "text/csv"
-	c.obj.Size = o.totalSize
+	c.obj.Size = 0
 	c.obj.setPrefix(o)
 
 	return &c, nil
@@ -129,6 +129,7 @@ func newCsv(o Options) (Source, error) {
 func (c *csvSource) Object() *Object {
 	opts := c.o.csv
 	var dst = c.buf.data[:0]
+	c.obj.Size = c.o.getSize(c.rng)
 	for i := 0; i < opts.rows; i++ {
 		for j := 0; j < opts.cols; j++ {
 			fieldLen := 1 + opts.minLen
@@ -145,7 +146,7 @@ func (c *csvSource) Object() *Object {
 		}
 	}
 	c.buf.data = dst
-	c.obj.Reader = c.buf.Reset()
+	c.obj.Reader = c.buf.Reset(0)
 	var nBuf [16]byte
 	randAsciiBytes(nBuf[:], c.rng)
 	c.obj.setName(string(nBuf[:]) + ".csv")
