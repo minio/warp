@@ -141,6 +141,10 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
+	if d.AutoTermDur > 0 {
+		ctx = c.AutoTerm(ctx, "LIST", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
+	}
+
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()

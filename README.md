@@ -91,6 +91,38 @@ Aggregated Throughput, split into 28 x 1s time segments:
  * Slowest: 1061.56 MB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
 ```
 
+## automatic termination
+
+Adding `-autoterm` parameter will enable automatic termination when results are considered stable. 
+
+To detect a stable setup, warp continously downsample the current data to 25 data points stretched over the current timeframe.
+
+For a benchmark to be considered "stable", the last 7 of 25 data points must be within a specified percentage. 
+
+Looking at the throughput over time, it could look like this:
+
+![stable](https://user-images.githubusercontent.com/5663952/72053512-0df95900-327c-11ea-8bc5-9b4064fa595f.png)
+
+The red frame shows the window used to evaluate stability. 
+The height of the box is determined by the threshold percentage of the current speed.
+This percentage is user configurable through `-autoterm.pct`, default 7.5%. 
+The metric used for this is either MB/s or obj/s depending on the benchmark type.
+
+To make sure there is a good sample data, a minimum duration of the 7 of 25 samples is set. 
+This is configurable `-autoterm.dur`. 
+This specifies the minimum time length the benchmark must have been stable.
+
+If the benchmark doesn't autoterminate it will continue until the duration is reached.
+This cannot be used when benchmarks are running remotely.
+
+A permanent 'drift' in throughput will prevent automatic termination, 
+if the drift is more than the specified percentage.
+This is by design since this should be recorded.
+
+When using automatic termination be aware that you should not compare average speeds,
+since the length of the benchmark runs will likely be different. 
+Instead 50% medians are a much better metrics.
+
 ## multiple hosts
 
 Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 

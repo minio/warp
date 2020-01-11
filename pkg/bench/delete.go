@@ -132,6 +132,10 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
+	if d.AutoTermDur > 0 {
+		ctx = c.AutoTerm(ctx, "DELETE", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
+	}
+
 	var mu sync.Mutex
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {

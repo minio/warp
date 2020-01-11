@@ -18,6 +18,7 @@ package bench
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -26,6 +27,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/minio/mc/pkg/console"
 )
 
 type Operations []Operation
@@ -45,7 +48,10 @@ type Operation struct {
 }
 
 type Collector struct {
-	ops   Operations
+	ops Operations
+	// The mutex protects the ops above.
+	// Once ops have been added, they should no longer be modified.
+	opsMu sync.Mutex
 	rcv   chan Operation
 	rcvWg sync.WaitGroup
 }
@@ -59,10 +65,86 @@ func NewCollector() *Collector {
 	go func() {
 		defer r.rcvWg.Done()
 		for op := range r.rcv {
+			r.opsMu.Lock()
 			r.ops = append(r.ops, op)
+			r.opsMu.Unlock()
 		}
 	}()
 	return r
+}
+
+// AutoTerm will check if throughput is within 'threshold' (0 -> ) for wantSamples,
+// when the current operations are split into 'splitInto' segments.
+// The minimum duration for the calculation can be set as well.
+// Segment splitting may cause less than this duration to be used.
+func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
+	if wantSamples >= splitInto {
+		panic("wantSamples >= splitInto")
+	}
+	if splitInto == 0 {
+		panic("splitInto == 0 ")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		ticker := time.NewTicker(time.Second)
+
+	checkloop:
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+			}
+			// Time to check if we should terminate.
+			c.opsMu.Lock()
+			// copies
+			ops := c.ops.FilterByOp(op)
+			c.opsMu.Unlock()
+			start, end := ops.ActiveTimeRange(true)
+			if end.Sub(start) <= minDur*time.Duration(splitInto)/time.Duration(wantSamples) {
+				// We don't have enough.
+				continue
+			}
+			segs := ops.Segment(SegmentOptions{
+				From:           start,
+				PerSegDuration: end.Sub(start) / time.Duration(splitInto),
+				AllThreads:     true,
+			})
+			if len(segs) < wantSamples {
+				continue
+			}
+			// Use last segment as our base.
+			mb, _, objs := segs[len(segs)-1].SpeedPerSec()
+			// Only use the segments we are interested in.
+			segs = segs[len(segs)-wantSamples : len(segs)-1]
+			for _, seg := range segs {
+				segMB, _, segObjs := seg.SpeedPerSec()
+				if mb > 0 {
+					if math.Abs(mb-segMB) > threshold*mb {
+						continue checkloop
+					}
+					continue
+				}
+				if math.Abs(objs-segObjs) > threshold*objs {
+					continue checkloop
+				}
+			}
+			// All checks passed.
+			if mb > 0 {
+				console.Printf("\rThroughput %0.01fMB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					mb, threshold*100,
+					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
+			} else {
+				console.Printf("\rThroughput %0.01f objects/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					objs, threshold*100,
+					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
+			}
+			return
+		}
+	}()
+	return ctx
 }
 
 func (c *Collector) Receiver() chan<- Operation {
