@@ -40,6 +40,57 @@ By default all benchmarks save all request details to a file named `warp-operati
 A custom file name can be specified using the `-benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
+## benchmark data
+
+By default warp uploads random data. 
+
+### Object Size
+
+Most benchmarks use the `-obj.size` parameter to decide the size of objects to upload.
+
+#### Random File Sizes
+
+It is possible to randomize object sizes by specifying  `-obj.randsize` and files will have a "random" size up to `-obj.size`. 
+However, there are some things to consider "under the hood".
+
+We use log2 to distribute objects sizes. 
+This means that objects will be distributed in equal number for each doubling of the size. 
+This means that `obj.size/64` -> `obj.size/32` will have the same number of objects as `obj.size/2` -> `obj.size`.
+
+Example of objects (horizontally) and their sizes, 100MB max: 
+
+![objects (horizontally) and their sizes](https://user-images.githubusercontent.com/5663952/71828619-83381480-3057-11ea-9d6c-ff03607a66a7.png)
+
+To see segmented request statistics, use the `-requests` parameter.
+ 
+```
+λ warp analyze warp-get-2020-01-07[024225]-QWK3.csv.zst -requests -analyze.op=GET
+-------------------
+Operation: GET. Concurrency: 12. Hosts: 1.
+
+Requests considered: 1970. Multiple sizes, average 18982515 bytes:
+
+Request size 100B -> 100KB. Requests - 274:
+ * Throughput: Average: 9.5MB/s, 50%: 8.8MB/s, 90%: 1494.8KB/s, 99%: 167.3KB/s, Fastest: 95.8MB/s, Slowest: 154.8KB/s
+ * First Byte: Average: 4.131413ms, Median: 3.9898ms, Best: 994.4µs, Worst: 80.7834ms
+
+Request size 100KB -> 10MB. Requests - 971:
+ * Throughput: Average: 62.8MB/s, 50%: 49.7MB/s, 90%: 39.5MB/s, 99%: 33.3MB/s, Fastest: 1171.5MB/s, Slowest: 6.6MB/s
+ * First Byte: Average: 5.276378ms, Median: 4.9864ms, Best: 993.7µs, Worst: 148.6016ms
+
+Request size 10MB -> 100MB. Requests - 835:
+ * Throughput: Average: 112.3MB/s, 50%: 98.3MB/s, 90%: 59.4MB/s, 99%: 47.5MB/s, Fastest: 1326.3MB/s, Slowest: 45.8MB/s
+ * First Byte: Average: 4.186514ms, Median: 4.9863ms, Best: 990.2µs, Worst: 16.9915ms
+
+Throughput:
+* Average: 1252.19 MB/s, 68.58 obj/s (28.885s, starting 02:42:27 PST)
+
+Aggregated Throughput, split into 28 x 1s time segments:
+ * Fastest: 1611.21 MB/s, 64.32 obj/s (1s, starting 02:42:40 PST)
+ * 50% Median: 1240.15 MB/s, 74.85 obj/s (1s, starting 02:42:41 PST)
+ * Slowest: 1061.56 MB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
+```
+
 ## multiple hosts
 
 Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` 
@@ -142,6 +193,56 @@ Aggregated, split into 59 x 1s time segments:
 * 50% Median: 31199.61 obj/s, 38.00 ops ended/s (1s)
 * Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
 ```
+
+# distributed benchmarking
+
+It is possible to coordinate several warp instances automatically. 
+This can be useful for testing performance of a cluster from several clients at once. 
+
+For reliable benchmarks clients should have synchronized clocks. 
+Warp check whether clocks are within one second of the server, 
+but optimally clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service. 
+
+## client setup
+
+WARNING: Never run warp clients on a publicly exposed port. Clients have the potential to DDOS any service. 
+
+Clients are started with `warp client [listenaddress:port]`. 
+
+`warp client` Only accepts an optional host/ip to listen on, but otherwise no specific parameters.
+By default warp will listen on `127.0.0.1:7761`.
+
+Only one server can be connected at the time.
+However, when a benchmark is done the client can immediately run another one with different parameters.
+
+There will be a version check to ensure that clients are compatible with the server, 
+but it is always recommended to keep warp versions the same. 
+
+
+## server setup
+
+Any benchmark can be run in server mode. 
+When warp is invoked as a server no actual benchmarking will be done on the server.
+Each client will execute the benchmark. 
+
+The server will coordinate the benchmark runs and make sure they are run correctly.
+
+When the benchmark has finished, the combined benchmark info will be collected, merged and saved/displayed.
+Each client will also save its own data locally.
+
+Enabling server mode is done by adding `-warp.client=client-{1...10}:7761` or a comma separated list of warp client hosts. 
+If no host port is specified the default is added.
+
+Example: `warp get -duration=10m -warp.client=client-{1...10} -host=minio-server-{1...16} -access-key=minio -secret-key=minio123`.
+
+Note that parameters apply to *each* client. So if `concurrent=8` is specified each client will run with 8 concurrent operations.
+
+If a warp server is unable to connect to a client the entire benchmark is aborted.
+
+If the warp server looses connection to a client during a benchmark run an error will be displayed
+and the server will attempt to reconnect.
+If the server is unable to reconnect, the benchmark will continue with the remaining clients.
+
 
 # analysis
 

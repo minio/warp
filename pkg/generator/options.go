@@ -47,9 +47,13 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 	// Minimum size: 127 bytes, max scale is 256 times smaller than max size.
 	logSizeMin := math.Max(7, logSizeMax-8)
 	lsDelta := logSizeMax - logSizeMin
-	logSize := rng.Float64()*lsDelta + logSizeMin
-	sz := 1 + int64(math.Pow(2, logSize))
-	return sz
+	random := rng.Float64()
+	logSize := random * lsDelta
+	if logSize > 1 {
+		return 1 + int64(math.Pow(2, logSize+logSizeMin))
+	}
+	// For lowest part, do linear
+	return 1 + int64(random*math.Pow(2, logSizeMin+1))
 }
 
 func defaultOptions() Options {

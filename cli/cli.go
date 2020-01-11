@@ -78,22 +78,30 @@ func Main(args []string) {
 	appName := filepath.Base(args[0])
 
 	// Run the app - exit on error.
-	if err := registerApp(appName).Run(args); err != nil {
+	if err := registerApp(appName, appCmds).Run(args); err != nil {
 		os.Exit(1)
 	}
 }
-
-var appCmds = []cli.Command{
-	analyzeCmd,
-	cmpCmd,
-	getCmd,
-	putCmd,
-	deleteCmd,
-	listCmd,
-	mergeCmd,
-	updateCmd,
-	versionCmd,
+func init() {
+	a := []cli.Command{
+		getCmd,
+		putCmd,
+		deleteCmd,
+		listCmd,
+	}
+	b := []cli.Command{
+		analyzeCmd,
+		cmpCmd,
+		mergeCmd,
+		clientCmd,
+		updateCmd,
+		versionCmd,
+	}
+	appCmds = append(a, b...)
+	benchCmds = a
 }
+
+var appCmds, benchCmds []cli.Command
 
 func combineFlags(flags ...[]cli.Flag) []cli.Flag {
 	var dst []cli.Flag
@@ -117,7 +125,7 @@ func registerCmd(cmd cli.Command) {
 	commandsTree.Insert(cmd.Name)
 }
 
-func registerApp(name string) *cli.App {
+func registerApp(name string, appCmds []cli.Command) *cli.App {
 	for _, cmd := range appCmds {
 		registerCmd(cmd)
 	}

@@ -20,10 +20,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb"
@@ -67,12 +69,28 @@ var benchFlags = []cli.Flag{
 		Usage: "Specify a benchmark start time. Time format is 'hh:mm' where hours are specified in 24h format, server TZ.",
 		Value: "",
 	},
+	cli.StringFlag{
+		Name:   "warp-client",
+		Usage:  "Connect to warp clients and run benchmarks there.",
+		EnvVar: "",
+		Value:  "",
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
-	console.Infoln("Preparing server.")
+	activeBenchmarkMu.Lock()
+	ab := activeBenchmark
+	activeBenchmarkMu.Unlock()
+	if ab != nil {
+		return runClientBenchmark(ctx, b, ab)
+	}
+	if done, err := runServerBenchmark(ctx); done || err != nil {
+		fatalIf(probe.NewError(err), "Error running remote benchmark")
+		return nil
+	}
 
+	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -115,7 +133,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(pgDone)
 	}
 
-	b.Prepare(context.Background())
+	err := b.Prepare(context.Background())
+	fatalIf(probe.NewError(err), "Error preparing server")
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
 		<-pgDone
@@ -144,11 +163,13 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}()
 
 	fileName := ctx.String("benchdata")
+	cID := pRandAscii(4)
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
-	prof := startProfiling(ctx)
+	prof, err := startProfiling(ctx)
+	fatalIf(probe.NewError(err), "Unable to start profile.")
 	console.Infoln("Starting benchmark in", tStart.Sub(time.Now()).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
@@ -177,10 +198,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	} else {
 		close(pgDone)
 	}
-	ops := b.Start(ctx2, start)
+	ops, _ := b.Start(ctx2, start)
 	cancel()
 	<-pgDone
 	ops.SortByStartTime()
+	ops.SetClientID(cID)
 	prof.stop(ctx, fileName+".profiles.zip")
 
 	f, err := os.Create(fileName + ".csv.zst")
@@ -207,14 +229,189 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	return nil
 }
 
+var activeBenchmarkMu sync.Mutex
+var activeBenchmark *clientBenchmark
+
+type clientBenchmark struct {
+	sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	results bench.Operations
+	err     error
+	stage   benchmarkStage
+	info    map[benchmarkStage]stageInfo
+}
+
+type stageInfo struct {
+	startRequested bool
+	start          chan struct{}
+	done           chan struct{}
+}
+
+func (c *clientBenchmark) init(ctx context.Context) {
+	c.results = nil
+	c.err = nil
+	c.stage = stageNotStarted
+	c.info = make(map[benchmarkStage]stageInfo, len(benchmarkStages))
+	c.ctx, c.cancel = context.WithCancel(ctx)
+	for _, stage := range benchmarkStages {
+		c.info[stage] = stageInfo{
+			start: make(chan struct{}),
+			done:  make(chan struct{}),
+		}
+	}
+}
+
+// waitForStage waits for the stage to be ready and updates the stage when it is
+func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
+	c.Lock()
+	info, ok := c.info[s]
+	ctx := c.ctx
+	c.Unlock()
+	if !ok {
+		return errors.New("waitForStage: unknown stage")
+	}
+	select {
+	case <-info.start:
+		c.setStage(s)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
+// waitForStage waits for the stage to be ready and updates the stage when it is
+func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
+	console.Infoln(s, "done...")
+	if err != nil {
+		console.Errorln(err.Error())
+	}
+	c.Lock()
+	info := c.info[s]
+	if err != nil && c.err == nil {
+		c.err = err
+	}
+	if info.done != nil {
+		close(info.done)
+	}
+	c.Unlock()
+}
+
+func (c *clientBenchmark) setStage(s benchmarkStage) {
+	c.Lock()
+	c.stage = s
+	c.Unlock()
+}
+
+type benchmarkStage string
+
+const (
+	stagePrepare    benchmarkStage = "prepare"
+	stageBenchmark                 = "benchmark"
+	stageCleanup                   = "cleanup"
+	stageDone                      = "done"
+	stageNotStarted                = ""
+)
+
+var benchmarkStages = []benchmarkStage{
+	stagePrepare, stageBenchmark, stageCleanup,
+}
+
+func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark) error {
+	err := cb.waitForStage(stagePrepare)
+	if err != nil {
+		return err
+	}
+	err = b.Prepare(context.Background())
+	cb.stageDone(stagePrepare, err)
+	if err != nil {
+		return err
+	}
+
+	// Start after waiting a second or until we reached the start time.
+	benchDur := ctx.Duration("duration")
+	cb.Lock()
+	ctx2, cancel := context.WithCancel(cb.ctx)
+	start := cb.info[stageBenchmark].start
+	cb.Unlock()
+	defer cancel()
+	go func() {
+		console.Infoln("Waiting")
+		// Wait for start signal
+		select {
+		case <-ctx2.Done():
+			console.Infoln("Aborted")
+			return
+		case <-start:
+		}
+		console.Infoln("Starting")
+		// Finish after duration
+		select {
+		case <-ctx2.Done():
+			console.Infoln("Aborted")
+			return
+		case <-time.After(benchDur):
+		}
+		console.Infoln("Stopping")
+		// Stop the benchmark
+		cancel()
+	}()
+
+	fileName := ctx.String("benchdata")
+	cID := pRandAscii(6)
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
+	}
+
+	ops, err := b.Start(ctx2, start)
+	cb.Lock()
+	cb.results = ops
+	cb.Unlock()
+	cb.stageDone(stageBenchmark, err)
+	if err != nil {
+		return err
+	}
+	ops.SetClientID(cID)
+	ops.SortByStartTime()
+
+	f, err := os.Create(fileName + ".csv.zst")
+	if err != nil {
+		console.Error("Unable to write benchmark data:", err)
+	} else {
+		func() {
+			defer f.Close()
+			enc, err := zstd.NewWriter(f)
+			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+
+			defer enc.Close()
+			err = ops.CSV(enc)
+			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+		}()
+	}
+
+	err = cb.waitForStage(stageCleanup)
+	if err != nil {
+		return err
+	}
+	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
+		console.Infoln("Starting cleanup...")
+		b.Cleanup(context.Background())
+	}
+	cb.stageDone(stageCleanup, nil)
+
+	return nil
+}
+
 type runningProfiles struct {
 	client *madmin.AdminClient
 }
 
-func startProfiling(ctx *cli.Context) *runningProfiles {
+func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
 	prof := ctx.String("serverprof")
 	if len(prof) == 0 {
-		return nil
+		return nil, nil
 	}
 	var r runningProfiles
 	r.client = newAdminClient(ctx)
@@ -222,10 +419,10 @@ func startProfiling(ctx *cli.Context) *runningProfiles {
 	// Start profile
 	_, cmdErr := r.client.StartProfiling(madmin.ProfilerType(prof))
 	if cmdErr != nil {
-		fatalIf(probe.NewError(cmdErr), "Unable to start profile.")
+		return nil, cmdErr
 	}
 	console.Infoln("Server profiling successfully started.")
-	return &r
+	return &r, nil
 }
 
 func (rp *runningProfiles) stop(ctx *cli.Context, fileName string) {
