@@ -7,6 +7,7 @@ require (
 	github.com/cheggaaa/pb v1.0.28
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0
+	github.com/gorilla/websocket v1.4.1
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 	github.com/klauspost/compress v1.9.1
 	github.com/mattn/go-isatty v0.0.7

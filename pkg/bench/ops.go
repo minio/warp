@@ -43,6 +43,7 @@ type Operation struct {
 	Size      int64      `json:"size"`
 	File      string     `json:"file"`
 	Thread    uint16     `json:"thread"`
+	ClientID  string     `json:"client_id"`
 	Endpoint  string     `json:"endpoint"`
 }
 
@@ -162,6 +163,36 @@ func (o Operation) Duration() time.Duration {
 	return o.End.Sub(o.Start)
 }
 
+// Throughput is the throughput as bytes/second.
+type Throughput float64
+
+func (t Throughput) String() string {
+	if t < 2<<10 {
+		return fmt.Sprintf("%.01fB/s", float64(t))
+	}
+	if t < 2<<20 {
+		return fmt.Sprintf("%.01fKB/s", float64(t/1024))
+	}
+	if t < 2<<30 {
+		return fmt.Sprintf("%.01fMB/s", float64(t/1024/1024))
+	}
+	if t < 2<<40 {
+		return fmt.Sprintf("%.01fGB/s", float64(t/1024/1024/1024))
+	}
+	return fmt.Sprintf("%.01fTB/s", float64(t/1024/1024/1024))
+}
+
+func (o Operation) BytesPerSec() Throughput {
+	if o.Size == 0 {
+		return 0
+	}
+	d := o.Duration()
+	if d <= 0 {
+		return Throughput(math.Inf(1))
+	}
+	return Throughput(o.Size*int64(time.Second)) / Throughput(d)
+}
+
 func (o Operation) String() string {
 	return fmt.Sprintf("%s %s/(bucket)/%s, %v->%v, Size: %d, Error: %v", o.OpType, o.Endpoint, o.File, o.Start, o.End, o.Size, o.Err)
 }
@@ -264,6 +295,20 @@ func (o Operations) SortByDuration() {
 	})
 }
 
+// SortByThroughput will sort the operations by throughput.
+// Fastest operations first.
+func (o Operations) SortByThroughput() {
+	o.SortByStartTime()
+	sort.SliceStable(o, func(i, j int) bool {
+		a, b := o[i], o[j]
+		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
+		if a.Size == 0 || b.Size == 0 {
+			return aDur < bDur
+		}
+		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
+	})
+}
+
 // Median returns the m part median of the assumed sorted list of operations.
 // m is clamped to the range 0 -> 1.
 func (o Operations) Median(m float64) Operation {
@@ -321,6 +366,13 @@ func (o Operations) FilterByOp(opType string) Operations {
 		}
 	}
 	return dst
+}
+
+// SetClientID will set the client ID for all operations.
+func (o Operations) SetClientID(id string) {
+	for i := range o {
+		o[i].ClientID = id
+	}
 }
 
 // FilterByEndpoint returns operations run against a specific endpoint.
@@ -696,7 +748,7 @@ func (o Operations) FilterErrors() Operations {
 // CSV will write the operations to w as CSV.
 func (o Operations) CSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
 		return err
 	}
@@ -705,7 +757,7 @@ func (o Operations) CSV(w io.Writer) error {
 		if op.FirstByte != nil {
 			ttfb = op.FirstByte.Format(time.RFC3339Nano)
 		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
+		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
 		if err != nil {
 			return err
 		}
@@ -766,9 +818,12 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if err != nil {
 			return nil, err
 		}
-		var endpoint string
+		var endpoint, clientID string
 		if idx, ok := fieldIdx["endpoint"]; ok {
 			endpoint = values[idx]
+		}
+		if idx, ok := fieldIdx["client_id"]; ok {
+			clientID = values[idx]
 		}
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
@@ -781,6 +836,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			File:      values[fieldIdx["file"]],
 			Thread:    uint16(thread),
 			Endpoint:  endpoint,
+			ClientID:  clientID,
 		})
 	}
 	return ops, nil

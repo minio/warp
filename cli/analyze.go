@@ -293,13 +293,16 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 		}
 
 		active.SortByDuration()
-		console.Println(" * Fastest:", active.Median(0).Duration(),
-			"Slowest:", active.Median(1).Duration(),
-			"50%:", active.Median(0.5).Duration(),
+		console.Println(
+			" * 50%:", active.Median(0.5).Duration(),
 			"90%:", active.Median(0.9).Duration(),
-			"99%:", active.Median(0.99).Duration())
+			"99%:", active.Median(0.99).Duration(),
+			"Fastest:", active.Median(0).Duration(),
+			"Slowest:", active.Median(1).Duration(),
+		)
 
 		ttfb := active.TTFB(start, end)
+
 		if ttfb.Average > 0 {
 			console.Println(" * First Byte:", ttfb)
 		}
@@ -314,18 +317,20 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 		sizes := active.SplitSizes(0.05)
 		for _, s := range sizes {
 			active := s.Ops
-			active.SortByDuration()
 
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Print("\nRequest size ", s.SizeString(), ". Requests - ", len(active), ":\n")
 			console.SetColor("Print", color.New(color.FgWhite))
 
-			console.Println(" * Fastest:", active.Median(0).Duration(),
-				"Slowest:", active.Median(1).Duration(),
-				"50%:", active.Median(0.5).Duration(),
-				"90%:", active.Median(0.9).Duration(),
-				"99%:", active.Median(0.99).Duration())
-
+			active.SortByThroughput()
+			console.Print(""+
+				" * Throughput: Average: ", active.OpThroughput(),
+				", 50%: ", active.Median(0.5).BytesPerSec(),
+				", 90%: ", active.Median(0.9).BytesPerSec(),
+				", 99%: ", active.Median(0.99).BytesPerSec(),
+				", Fastest: ", active.Median(0).BytesPerSec(),
+				", Slowest: ", active.Median(1).BytesPerSec(),
+				"\n")
 			ttfb := active.TTFB(start, end)
 			if ttfb.Average > 0 {
 				console.Println(" * First Byte:", ttfb)

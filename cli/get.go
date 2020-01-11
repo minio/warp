@@ -62,7 +62,6 @@ EXAMPLES:
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
 	src := newGenSource(ctx)
-
 	b := bench.Get{
 		Common: bench.Common{
 			Client:      newClient(ctx),

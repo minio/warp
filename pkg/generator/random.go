@@ -137,7 +137,7 @@ func (r *randomSrc) Object() *Object {
 		if err != nil {
 			panic(err)
 		}
-		r.obj.Reader = r.buf
+		r.obj.Reader = r.buf.Reset(r.obj.Size)
 		return &r.obj
 	}
 
