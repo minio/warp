@@ -3,7 +3,6 @@ module github.com/minio/warp
 go 1.13
 
 require (
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cheggaaa/pb v1.0.28
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0
