@@ -46,7 +46,6 @@ func TestOperations_Segment(t *testing.T) {
 			PerSegDuration: time.Second,
 			AllThreads:     true,
 		})
-		t.Log("Operation type:", typ)
 
 		var buf bytes.Buffer
 		err := segs.Print(&buf)
@@ -58,7 +57,8 @@ func TestOperations_Segment(t *testing.T) {
 		totals := ops.Total(true)
 		ttfb := ops.TTFB(ops.ActiveTimeRange(true))
 
-		t.Log("Errors:", len(ops.Errors()))
+		t.Log("Operation type:", typ)
+		t.Log("OpErrors:", len(ops.Errors()))
 		t.Log("Fastest:", segs.Median(1))
 		t.Log("Average:", totals)
 		t.Log("50% Median:", segs.Median(0.5))

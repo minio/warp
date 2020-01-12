@@ -61,8 +61,8 @@ func TestNew(t *testing.T) {
 			}
 			if got == nil {
 				t.Errorf("New() got = nil, want not nil")
+				return
 			}
-			t.Log(got)
 			obj := got.Object()
 			b, err := ioutil.ReadAll(obj.Reader)
 			if err != nil {
@@ -72,7 +72,6 @@ func TestNew(t *testing.T) {
 				t.Errorf("New() size = %v, wantSize = %v", len(b), tt.wantSize)
 				return
 			}
-			//t.Log(string(b))
 		})
 	}
 }
@@ -107,6 +106,10 @@ func BenchmarkWithCSV(b *testing.B) {
 			}
 			obj := got.Object()
 			payload, err := ioutil.ReadAll(obj.Reader)
+			if err != nil {
+				b.Errorf("ioutil error = %v", err)
+				return
+			}
 			b.SetBytes(int64(len(payload)))
 			//ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
 			b.ReportAllocs()
@@ -153,6 +156,10 @@ func BenchmarkWithRandomData(b *testing.B) {
 			}
 			obj := got.Object()
 			payload, err := ioutil.ReadAll(obj.Reader)
+			if err != nil {
+				b.Errorf("ioutil error = %v", err)
+				return
+			}
 			b.SetBytes(int64(len(payload)))
 			//ioutil.WriteFile(tt.name+".bin", payload, os.ModePerm)
 			b.ReportAllocs()

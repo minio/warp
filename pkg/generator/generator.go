@@ -60,7 +60,7 @@ func (o *Object) setPrefix(opts Options) {
 	}
 	b := make([]byte, opts.randomPrefix)
 	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
-	randAsciiBytes(b, rng)
+	randASCIIBytes(b, rng)
 	o.PreFix = string(b)
 }
 
@@ -119,9 +119,9 @@ func init() {
 	}
 }
 
-// randAsciiBytes fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
+// randASCIIBytes fill destination with pseudorandom ASCII characters [a-ZA-Z0-9].
 // Should never be considered for true random data generation.
-func randAsciiBytes(dst []byte, rng *rand.Rand) {
+func randASCIIBytes(dst []byte, rng *rand.Rand) {
 	// Use a single seed.
 	v := rng.Uint64()
 	rnd := uint32(v)

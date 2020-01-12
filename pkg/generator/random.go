@@ -124,7 +124,7 @@ func newRandom(o Options) (Source, error) {
 
 func (r *randomSrc) Object() *Object {
 	var nBuf [16]byte
-	randAsciiBytes(nBuf[:], r.rng)
+	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
 	r.obj.setName(string(nBuf[:]) + ".rnd")
 	data := r.buf.data

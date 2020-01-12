@@ -22,7 +22,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 )
@@ -121,15 +120,6 @@ func fatal(err *probe.Error, msg string, data ...interface{}) {
 	}
 
 	console.Fatalln(fmt.Sprintf("%s %s", msg, errmsg))
-}
-
-// Exit coder wraps cli new exit error with a
-// custom exitStatus number. cli package requires
-// an error with `cli.ExitCoder` compatibility
-// after an action. Which woud allow cli package to
-// exit with the specified `exitStatus`.
-func exitStatus(status int) error {
-	return cli.NewExitError("", status)
 }
 
 // errorIf synonymous with fatalIf but doesn't exit on error != nil

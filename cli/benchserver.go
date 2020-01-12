@@ -95,7 +95,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		}
 		if ctx.IsSet(flag.GetName()) {
 			var err error
-			req.Benchmark.Flags[flag.GetName()], err = flagToJson(ctx, flag)
+			req.Benchmark.Flags[flag.GetName()], err = flagToJSON(ctx, flag)
 			if err != nil {
 				return true, err
 			}
@@ -138,7 +138,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 
 	fileName := ctx.String("benchdata")
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandAscii(4))
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandASCII(4))
 	}
 	prof.stop(ctx, fileName+".profiles.zip")
 
@@ -200,7 +200,7 @@ type connections struct {
 func newConnections(hosts []string) *connections {
 	var c connections
 	c.si = serverInfo{
-		ID:      pRandAscii(20),
+		ID:      pRandASCII(20),
 		Secret:  "",
 		Version: warpServerVersion,
 	}
@@ -299,7 +299,7 @@ func (c *connections) connect(i int) error {
 			if resp.Err != "" {
 				return errors.New(resp.Err)
 			}
-			delta := time.Now().Sub(resp.Time)
+			delta := time.Since(resp.Time)
 			if delta < 0 {
 				delta = -delta
 			}
@@ -454,8 +454,8 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 	return nil
 }
 
-// flagToJson converts a flag to a representation that can be reversed into the flag.
-func flagToJson(ctx *cli.Context, flag cli.Flag) (string, error) {
+// flagToJSON converts a flag to a representation that can be reversed into the flag.
+func flagToJSON(ctx *cli.Context, flag cli.Flag) (string, error) {
 	switch flag.(type) {
 	case cli.StringFlag:
 		if ctx.IsSet(flag.GetName()) {

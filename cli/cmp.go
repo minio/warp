@@ -97,7 +97,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		return end.Sub(start).Round(time.Second)
 	}
 
-	for typ, _ := range before.ByOp() {
+	for typ := range before.ByOp() {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
 			if wantOp != typ {
 				continue

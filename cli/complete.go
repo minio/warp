@@ -43,15 +43,6 @@ func mainComplete() error {
 	return nil
 }
 
-// fsComplete knows how to complete file/dir names by the given path
-type fsComplete struct{}
-
-func (fs fsComplete) Predict(a complete.Args) (prediction []string) {
-	return complete.PredictFiles("*").Predict(a)
-}
-
-var fsCompleter = fsComplete{}
-
 // The list of all commands supported by mc with their mapping
 // with their bash completer function
 var completeCmds = map[string]complete.Predictor{
