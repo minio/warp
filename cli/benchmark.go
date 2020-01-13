@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,10 +45,10 @@ var benchFlags = []cli.Flag{
 		Value: "",
 		Usage: "Output benchmark+profile data to this file. By default unique filename is generated.",
 	},
-	cli.StringSliceFlag{
+	cli.StringFlag{
 		Name:  "serverprof",
 		Usage: "Run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'.",
-		Value: &emptyStringSlice,
+		Value: "",
 	},
 	cli.DurationFlag{
 		Name:  "duration",
@@ -427,7 +428,7 @@ type runningProfiles struct {
 }
 
 func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
-	prof := ctx.StringSlice("serverprof")
+	prof := ctx.String("serverprof")
 	if len(prof) == 0 {
 		return nil, nil
 	}
@@ -435,11 +436,9 @@ func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
 	r.client = newAdminClient(ctx)
 
 	// Start profile
-	for _, profilerType := range ctx.StringSlice("serverprof") {
-		_, cmdErr := r.client.StartProfiling(madmin.ProfilerType(profilerType))
-		if cmdErr != nil {
-			return nil, cmdErr
-		}
+	_, cmdErr := r.client.StartProfiling(madmin.ProfilerType(prof))
+	if cmdErr != nil {
+		return nil, cmdErr
 	}
 	console.Infoln("Server profiling successfully started.")
 	return &r, nil
@@ -481,7 +480,8 @@ func checkBenchmark(ctx *cli.Context) {
 		madmin.ProfilerTrace,
 	}
 
-	for _, profilerType := range ctx.StringSlice("serverprof") {
+	profs := strings.Split(ctx.String("serverprof"), ",")
+	for _, profilerType := range profs {
 		// Check if the provided profiler type is known and supported
 		supportedProfiler := false
 		for _, profiler := range profilerTypes {
