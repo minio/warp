@@ -482,6 +482,9 @@ func checkBenchmark(ctx *cli.Context) {
 
 	profs := strings.Split(ctx.String("serverprof"), ",")
 	for _, profilerType := range profs {
+		if len(profilerType) == 0 {
+			continue
+		}
 		// Check if the provided profiler type is known and supported
 		supportedProfiler := false
 		for _, profiler := range profilerTypes {
