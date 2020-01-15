@@ -45,7 +45,7 @@ import (
 // Check for new software updates.
 var updateCmd = cli.Command{
 	Name:   "update",
-	Usage:  "update "+appName+" to latest release",
+	Usage:  "update " + appName + " to latest release",
 	Action: mainUpdate,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
@@ -80,20 +80,20 @@ EXAMPLES:
 const (
 	releaseTagTimeLayout = "2006-01-02T15-04-05Z"
 	osARCH               = runtime.GOOS + "-" + runtime.GOARCH
-	releaseURL           = "https://dl.min.io/client/"+appName+"/release/" + osARCH + "/"
+	releaseURL           = "https://dl.min.io/client/" + appName + "/release/" + osARCH + "/"
 )
 
 var (
 	// Newer official download info URLs appear earlier below.
 	releaseInfoURLs = []string{
-		releaseURL + appName+".sha256sum",
-		releaseURL + appName+".shasum",
+		releaseURL + appName + ".sha256sum",
+		releaseURL + appName + ".shasum",
 	}
 
 	// For windows our files have .exe additionally.
 	releaseWindowsInfoURLs = []string{
-		releaseURL + appName+".exe.sha256sum",
-		releaseURL + appName+".exe.shasum",
+		releaseURL + appName + ".exe.sha256sum",
+		releaseURL + appName + ".exe.shasum",
 	}
 )
 
@@ -542,7 +542,7 @@ func prepareUpdateMessage(downloadURL string, older time.Duration) string {
 
 // colorizeUpdateMessage - inspired from Yeoman project npm package https://github.com/yeoman/update-notifier
 func colorizeUpdateMessage(updateString string, newerThan string) string {
-	msgLine1Fmt := " You are running an older version of "+appName+" released %s "
+	msgLine1Fmt := " You are running an older version of " + appName + " released %s "
 	msgLine2Fmt := " Update: %s "
 
 	// Calculate length *without* color coding: with ANSI terminal

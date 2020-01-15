@@ -137,7 +137,7 @@ func (c *csvSource) Object() *Object {
 				fieldLen += c.rng.Intn(opts.maxLen - opts.minLen)
 			}
 			build := c.builder[:fieldLen]
-			randAsciiBytes(build[:fieldLen-1], c.rng)
+			randASCIIBytes(build[:fieldLen-1], c.rng)
 			build[fieldLen-1] = opts.comma
 			if j == opts.cols-1 {
 				build[fieldLen-1] = '\n'
@@ -148,7 +148,7 @@ func (c *csvSource) Object() *Object {
 	c.buf.data = dst
 	c.obj.Reader = c.buf.Reset(0)
 	var nBuf [16]byte
-	randAsciiBytes(nBuf[:], c.rng)
+	randASCIIBytes(nBuf[:], c.rng)
 	c.obj.setName(string(nBuf[:]) + ".csv")
 	return &c.obj
 

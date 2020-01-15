@@ -37,8 +37,6 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var emptyStringSlice = cli.StringSlice([]string{})
-
 var benchFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "benchdata",
@@ -182,14 +180,14 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}()
 
 	fileName := ctx.String("benchdata")
-	cID := pRandAscii(4)
+	cID := pRandASCII(4)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
 	prof, err := startProfiling(ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	console.Infoln("Starting benchmark in", tStart.Sub(time.Now()).Round(time.Second), "...")
+	console.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
 		pg := newProgressBar(int64(bechDur), pb.U_DURATION)
@@ -377,7 +375,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	}()
 
 	fileName := ctx.String("benchdata")
-	cID := pRandAscii(6)
+	cID := pRandASCII(6)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
@@ -526,9 +524,9 @@ func parseLocalTime(s string) time.Time {
 	return t
 }
 
-// pRandAscii return pseudorandom ASCII string with length n.
+// pRandASCII return pseudorandom ASCII string with length n.
 // Should never be considered for true random data generation.
-func pRandAscii(n int) string {
+func pRandASCII(n int) string {
 	const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 	// Use a single seed.
 	dst := make([]byte, n)

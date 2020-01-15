@@ -106,9 +106,7 @@ var appCmds, benchCmds []cli.Command
 func combineFlags(flags ...[]cli.Flag) []cli.Flag {
 	var dst []cli.Flag
 	for _, fl := range flags {
-		for _, flag := range fl {
-			dst = append(dst, flag)
-		}
+		dst = append(dst, fl...)
 	}
 	return dst
 }
