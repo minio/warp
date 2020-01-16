@@ -84,6 +84,7 @@ func Main(args []string) {
 }
 func init() {
 	a := []cli.Command{
+		mixedCmd,
 		getCmd,
 		putCmd,
 		deleteCmd,
