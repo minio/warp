@@ -62,6 +62,7 @@ EXAMPLES:
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
 	src := newGenSource(ctx)
+	sse := newSSE(ctx)
 	b := bench.Get{
 		Common: bench.Common{
 			Client:      newClient(ctx),
@@ -70,11 +71,11 @@ func mainGet(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: newSSE(ctx),
+				ServerSideEncryption: sse,
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
-		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: newSSE(ctx)},
+		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 	}
 	return runBench(ctx, &b)
 }

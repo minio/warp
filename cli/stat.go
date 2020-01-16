@@ -39,7 +39,7 @@ var (
 
 var statCmd = cli.Command{
 	Name:   "stat",
-	Usage:  "benchmark stat objects",
+	Usage:  "benchmark stat objects (get fil einfo)",
 	Action: mainStat,
 	Before: setGlobalsFromContext,
 	Flags:  combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags, analyzeFlags),
@@ -62,6 +62,7 @@ EXAMPLES:
 func mainStat(ctx *cli.Context) error {
 	checkStatSyntax(ctx)
 	src := newGenSource(ctx)
+	sse := newSSE(ctx)
 
 	b := bench.Stat{
 		Common: bench.Common{
@@ -71,10 +72,13 @@ func mainStat(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: newSSE(ctx),
+				ServerSideEncryption: sse,
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
+		StatOpts: minio.StatObjectOptions{
+			GetObjectOptions: minio.GetObjectOptions{ServerSideEncryption: sse},
+		},
 	}
 	return runBench(ctx, &b)
 }

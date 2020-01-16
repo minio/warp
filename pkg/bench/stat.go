@@ -157,7 +157,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				var err error
 				objI, err := client.StatObject(g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Errorln("download error:", err)
+					console.Errorln("StatObject error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -166,7 +166,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				}
 				op.End = time.Now()
 				if objI.Size != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", objI.Size)
+					op.Err = fmt.Sprint("unexpected file size. want:", obj.Size, ", got:", objI.Size)
 					console.Errorln(op.Err)
 				}
 				rcv <- op
