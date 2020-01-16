@@ -225,6 +225,28 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
 ```
 
+## stat
+
+Benchmarking [stat object](https://docs.min.io/docs/golang-client-api-reference#StatObject) operations will upload `-objects` objects of size `-obj.size` with `-concurrent` prefixes.
+
+The main benchmark will do individual requests to get object information for the uploaded objects.
+
+Since the object size is of little importance, only objects per second is reported.
+
+Example: 
+```
+$ warp stat -autoterm
+[...]
+-------------------
+Operation: STAT. Concurrency: 12. Hosts: 1.
+* Average: 9536.72 obj/s (36.592s, starting 04:46:38 PST)
+
+Aggregated Throughput, split into 36 x 1s time segments:
+ * Fastest: 10259.67 obj/s (1s, starting 04:46:38 PST)
+ * 50% Median: 9585.33 obj/s (1s, starting 04:47:05 PST)
+ * Slowest: 8897.26 obj/s (1s, starting 04:47:06 PST)
+```
+
 # distributed benchmarking
 
 It is possible to coordinate several warp instances automatically.
