@@ -96,8 +96,11 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		start, end := ops.ActiveTimeRange(true)
 		return end.Sub(start).Round(time.Second)
 	}
-
-	for typ := range before.ByOp() {
+	isMultiOp := before.IsMultiOp()
+	if isMultiOp != after.IsMultiOp() {
+		console.Fatal("Cannot compare multi-operation to single operation.")
+	}
+	for _, typ := range before.OpTypes() {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
 			if wantOp != typ {
 				continue
@@ -106,23 +109,29 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		before := before.FilterByOp(typ)
 		after := after.FilterByOp(typ)
 		console.Println("-------------------")
+		console.SetColor("Print", color.New(color.FgHiWhite))
+		console.Println("Operation:", typ)
+		console.SetColor("Print", color.New(color.FgWhite))
+
 		cmp, err := bench.Compare(before, after, analysisDur(ctx))
 		if err != nil {
 			console.Println(err)
 			continue
 		}
 
-		console.SetColor("Print", color.New(color.FgHiWhite))
-		console.Println("Operation:", typ)
-		console.SetColor("Print", color.New(color.FgWhite))
 		if len(before) != len(after) {
 			console.Println("Operations:", len(before), "->", len(after))
 		}
 		if before.Threads() != after.Threads() {
 			console.Println("Concurrency:", before.Threads(), "->", after.Threads())
 		}
-		if before.FirstObjPerOp() != after.FirstObjPerOp() {
-			console.Println("Objects per operation:", before.FirstObjPerOp(), "->", after.FirstObjPerOp())
+		if len(before.Endpoints()) != len(after.Endpoints()) {
+			console.Println("Endpoints:", len(before.Endpoints()), "->", len(after.Endpoints()))
+		}
+		if !isMultiOp {
+			if before.FirstObjPerOp() != after.FirstObjPerOp() {
+				console.Println("Objects per operation:", before.FirstObjPerOp(), "->", after.FirstObjPerOp())
+			}
 		}
 		if timeDur(before) != timeDur(after) {
 			console.Println("Duration:", timeDur(before), "->", timeDur(after))
@@ -131,10 +140,12 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		if cmp.TTFB != nil {
 			console.Println("* First Byte:", cmp.TTFB)
 		}
-		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println("* Fastest:", cmp.Fastest)
-		console.Println("* 50% Median:", cmp.Median)
-		console.Println("* Slowest:", cmp.Slowest)
+		if !isMultiOp {
+			console.SetColor("Print", color.New(color.FgWhite))
+			console.Println("* Fastest:", cmp.Fastest)
+			console.Println("* 50% Median:", cmp.Median)
+			console.Println("* Slowest:", cmp.Slowest)
+		}
 	}
 }
 
