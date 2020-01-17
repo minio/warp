@@ -205,7 +205,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 	wg.Add(g.Concurrency)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "MIXED", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+		ctx = c.AutoTerm(ctx, "", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {

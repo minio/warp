@@ -361,7 +361,7 @@ func (o Operations) FilterInsideRange(start, end time.Time) Operations {
 func (o Operations) FilterByOp(opType string) Operations {
 	dst := make(Operations, 0, len(o))
 	for _, o := range o {
-		if o.OpType == opType {
+		if o.OpType == opType || opType == "" {
 			dst = append(dst, o)
 		}
 	}

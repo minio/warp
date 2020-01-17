@@ -144,6 +144,55 @@ from the clients for total result.
 When benchmarks are done per host averages will be printed out.
 For further details, the `-analyze.hostdetails` parameter can also be used.
 
+## mixed
+
+Mixed mode benchmark will test several operation types at once. 
+The benchmark will upload `-objects` objects of size `-obj.size` 
+and use these objects as a pool for the benchmark.
+As new objects are uploaded/deleted they are added/removed from the pool.
+
+The distribution of operations can be adjusted with the `-get-distrib`, `-stat-distrib`,
+`-put-distrib` and `-delete-distrib` parameters. 
+The final distribution will be determined by the fraction of each value of the total.
+Note that `put-distrib` must be bigger or equal to `-delete-distrib` to not eventually run out of objects. 
+To disable a type, set its distribution to 0.  
+
+Example:
+```
+λ warp mixed -duration=1m
+[...]
+Mixed operations.
+
+Operation: GET
+ * 632.28 MB/s, 354.78 obj/s (59.993s, starting 07:44:05 PST) (45.0% of operations)
+
+Operation: STAT
+ * 236.38 obj/s (59.966s, starting 07:44:05 PST) (30.0% of operations)
+
+Operation: PUT
+ * 206.11 MB/s, 118.23 obj/s (59.994s, starting 07:44:05 PST) (15.0% of operations)
+
+Operation: DELETE
+ * 78.91 obj/s (59.927s, starting 07:44:05 PST) (10.0% of operations)
+```
+
+It is possible to get request statistics by adding the `-requests` parameter: 
+```
+λ warp mixed -duration=1m -requests
+Mixed operations.
+
+Operation: GET
+ * 705.96 MB/s, 70.60 obj/s (59.976s, starting 06:54:08 PST) (45.0% of operations)
+
+Requests considered: 4175:
+ * 50%: 117.6865ms 90%: 296.2074ms 99%: 546.5379ms Fastest: 7.9655ms Slowest: 739.3079ms
+ * First Byte: Average: 7.408536ms, Median: 3.9905ms, Best: 0s, Worst: 169.5449ms
+
+[...]
+```
+
+If multiple hosts were used statistics for each host will also be displayed.
+ 
 ## get
 
 Benchmarking get operations will upload `-objects` objects of size `-obj.size` and attempt to
