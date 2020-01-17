@@ -22,7 +22,7 @@ If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-
 
 All benchmarks operate concurrently. By default the processor determines the number of operations that will be running concurrently. This can however also be tweaked using the `--concurrent` parameter.
 
-Tweaking concurrency can have an impact on performance, especially if there is latency to the server tested. Most benchmarks will also use different prefixes for each "thread" running.
+Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. Most benchmarks will also use different prefixes for each "thread" running.
 
 By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. A custom file name can be specified using the `--benchdata` parameter. The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
@@ -31,9 +31,9 @@ By default all benchmarks save all request details to a file named `warp-operati
 It is possible to coordinate several warp instances automatically.
 This can be useful for testing performance of a cluster from several clients at once.
 
-For reliable benchmarks clients should have synchronized clocks.
-Warp check whether clocks are within one second of the server,
-but optimally clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
+For reliable benchmarks, clients should have synchronized clocks.
+Warp checks whether clocks are within one second of the server,
+but ideally, clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
 
 ## client setup
 
@@ -49,7 +49,7 @@ warp client [listenaddress:port]
 By default warp will listen on `127.0.0.1:7761`.
 
 Only one server can be connected at the time.
-However, when a benchmark is done the client can immediately run another one with different parameters.
+However, when a benchmark is done, the client can immediately run another one with different parameters.
 
 There will be a version check to ensure that clients are compatible with the server,
 but it is always recommended to keep warp versions the same.
@@ -493,4 +493,3 @@ This is done by adding `--serverprof=type` parameter with the type of profile yo
 | trace | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.     |
 
 Profiles for all cluster members will be downloaded as a zip file. Analyzing the profiles requires the Go tools to be installed. See [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) for basic usage of the profile tools and an introduction to the [Go execution tracer](https://blog.gopheracademy.com/advent-2017/go-execution-tracer/) for more information.
-
