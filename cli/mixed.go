@@ -112,7 +112,7 @@ func mainMixed(ctx *cli.Context) error {
 				ServerSideEncryption: sse,
 			},
 		},
-		Dist: dist,
+		Dist: &dist,
 	}
 	return runBench(ctx, &b)
 }

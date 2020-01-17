@@ -36,7 +36,7 @@ import (
 type Mixed struct {
 	CreateObjects int
 	Collector     *Collector
-	Dist          MixedDistribution
+	Dist          *MixedDistribution
 
 	GetOpts  minio.GetObjectOptions
 	StatOpts minio.StatObjectOptions
