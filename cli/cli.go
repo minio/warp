@@ -89,6 +89,7 @@ func init() {
 		putCmd,
 		deleteCmd,
 		listCmd,
+		statCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,

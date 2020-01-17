@@ -19,8 +19,6 @@ package bench
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	"sync"
 	"time"
@@ -30,20 +28,20 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Get benchmarks download speed.
-type Get struct {
+// Stat benchmarks download speed.
+type Stat struct {
 	CreateObjects int
 	Collector     *Collector
 	objects       []generator.Object
 
-	// Default Get options.
-	GetOpts minio.GetObjectOptions
+	// Default Stat options.
+	StatOpts minio.StatObjectOptions
 	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (g *Get) Prepare(ctx context.Context) error {
+func (g *Stat) Prepare(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
@@ -121,39 +119,21 @@ func (g *Get) Prepare(ctx context.Context) error {
 	return groupErr
 }
 
-type firstByteRecorder struct {
-	t *time.Time
-	r io.Reader
-}
-
-func (f *firstByteRecorder) Read(p []byte) (n int, err error) {
-	if f.t != nil || len(p) == 0 {
-		return f.r.Read(p)
-	}
-	// Read a single byte.
-	n, err = f.r.Read(p[:1])
-	if n > 0 {
-		t := time.Now()
-		f.t = &t
-	}
-	return n, err
-}
-
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "GET", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+		ctx = c.AutoTerm(ctx, "STAT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
 			rcv := c.Receiver()
 			defer wg.Done()
-			opts := g.GetOpts
+			opts := g.StatOpts
 			done := ctx.Done()
 
 			<-wait
@@ -163,37 +143,30 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					return
 				default:
 				}
-				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "GET",
+					OpType:   "STAT",
 					Thread:   uint16(i),
-					Size:     obj.Size,
+					Size:     0,
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 				var err error
-				fbr.r, err = client.GetObject(g.Bucket, obj.Name, opts)
+				objI, err := client.StatObject(g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Errorln("download error:", err)
+					console.Errorln("StatObject error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
 					cldone()
 					continue
 				}
-				n, err := io.Copy(ioutil.Discard, &fbr)
-				if err != nil {
-					console.Errorln("download error:", err)
-					op.Err = err.Error()
-				}
-				op.FirstByte = fbr.t
 				op.End = time.Now()
-				if n != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
+				if objI.Size != obj.Size && op.Err == "" {
+					op.Err = fmt.Sprint("unexpected file size. want:", obj.Size, ", got:", objI.Size)
 					console.Errorln(op.Err)
 				}
 				rcv <- op
@@ -206,6 +179,6 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (g *Get) Cleanup(ctx context.Context) {
+func (g *Stat) Cleanup(ctx context.Context) {
 	g.deleteAllInBucket(ctx)
 }
