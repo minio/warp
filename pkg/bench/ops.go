@@ -504,6 +504,18 @@ func (o Operations) AvgSize() int64 {
 	return total / int64(len(o))
 }
 
+// AvgDuration returns the average operation duration.
+func (o Operations) AvgDuration() time.Duration {
+	if len(o) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, op := range o {
+		total += op.Duration()
+	}
+	return total / time.Duration(len(o))
+}
+
 // SizeSegment is a size segment.
 type SizeSegment struct {
 	Smallest      int64
