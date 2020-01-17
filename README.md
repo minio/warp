@@ -182,11 +182,11 @@ It is possible to get request statistics by adding the `-requests` parameter:
 Mixed operations.
 
 Operation: GET
- * 705.96 MB/s, 70.60 obj/s (59.976s, starting 06:54:08 PST) (45.0% of operations)
+ * 725.42 MB/s, 72.54 obj/s (59.961s, starting 07:07:34 PST) (45.0% of operations)
 
-Requests considered: 4175:
- * 50%: 117.6865ms 90%: 296.2074ms 99%: 546.5379ms Fastest: 7.9655ms Slowest: 739.3079ms
- * First Byte: Average: 7.408536ms, Median: 3.9905ms, Best: 0s, Worst: 169.5449ms
+Requests considered: 4304:
+ * Avg: 131ms 50%: 124ms 90%: 300ms 99%: 495ms Fastest: 7ms Slowest: 700ms
+ * First Byte: Average: 6ms, Median: 3ms, Best: 0s, Worst: 185ms
 
 [...]
 ```
