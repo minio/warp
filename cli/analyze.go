@@ -130,6 +130,79 @@ func mainAnalyze(ctx *cli.Context) error {
 	return nil
 }
 
+func printMultiOpAnalysis(ctx *cli.Context, ops bench.Operations, wrSegs io.Writer) {
+	allOps := ops
+	console.SetColor("Print", color.New(color.FgWhite))
+	console.Println("Mixed operations.")
+
+	for _, typ := range ops.OpTypes() {
+		console.Println("")
+		console.SetColor("Print", color.New(color.FgHiWhite))
+		console.Println("Operation:", typ)
+		console.SetColor("Print", color.New(color.FgWhite))
+		ops := ops.FilterByOp(typ)
+		if d := ctx.Duration("analyze.skip"); d > 0 {
+			start, end := ops.TimeRange()
+			start = start.Add(d)
+			ops = ops.FilterInsideRange(start, end)
+		}
+		total := ops.Total(false)
+		if len(ops) <= 0 || total.EndsBefore.Sub(total.Start) < analysisDur(ctx) {
+			console.Println("Skipping", typ, "too few samples.")
+			continue
+		}
+		pct := 100.0 * float64(len(ops)) / float64(len(allOps))
+		console.Printf(" * %v (%.01f%% of operations)\n", total, pct)
+
+		if errs := ops.Errors(); len(errs) > 0 {
+			console.SetColor("Print", color.New(color.FgHiRed))
+			console.Println("Errors:", len(errs))
+			if ctx.Bool("analyze.errors") {
+				errs := ops.FilterErrors()
+				for _, err := range errs {
+					console.Println(err)
+				}
+			}
+			console.SetColor("Print", color.New(color.FgWhite))
+		}
+
+		if eps := ops.Endpoints(); len(eps) > 1 {
+			console.SetColor("Print", color.New(color.FgWhite))
+			console.Println("\nThroughput by host:")
+
+			for _, ep := range eps {
+				totals := ops.FilterByEndpoint(ep).Total(false)
+				console.SetColor("Print", color.New(color.FgWhite))
+				console.Print(" * ", ep, ": Avg: ", totals.ShortString(), "\n")
+				if errs := ops.Errors(); len(errs) > 0 {
+					console.SetColor("Print", color.New(color.FgHiRed))
+					console.Println("Errors:", len(errs))
+				}
+			}
+		}
+
+		if ctx.Bool("requests") {
+			printRequestAnalysis(ctx, ops)
+			console.SetColor("Print", color.New(color.FgWhite))
+		}
+
+		segs := ops.Segment(bench.SegmentOptions{
+			From:           time.Time{},
+			PerSegDuration: analysisDur(ctx),
+			AllThreads:     true,
+		})
+		writeSegs(ctx, wrSegs, segs, ops)
+	}
+	console.SetColor("Print", color.New(color.FgHiWhite))
+	console.Println("\nCluster Total: ", allOps.Total(true))
+	console.SetColor("Print", color.New(color.FgWhite))
+	if eps := ops.Endpoints(); len(eps) > 1 {
+		for _, ep := range eps {
+			console.Println(" * "+ep+": ", ops.FilterByEndpoint(ep).Total(false))
+		}
+	}
+}
+
 func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 	var wrSegs io.Writer
 	if fn := ctx.String("analyze.out"); fn != "" {
@@ -146,16 +219,20 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 	if onlyHost := ctx.String("analyze.host"); onlyHost != "" {
 		ops = ops.FilterByEndpoint(onlyHost)
 	}
-	hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
 
+	if wantOp := ctx.String("analyze.op"); wantOp != "" {
+		ops = ops.FilterByOp(wantOp)
+	}
+
+	if ops.IsMultiOp() {
+		printMultiOpAnalysis(ctx, ops, wrSegs)
+		return
+	}
+
+	hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
 	ops.SortByStartTime()
 	types := ops.OpTypes()
 	for _, typ := range types {
-		if wantOp := ctx.String("analyze.op"); wantOp != "" {
-			if wantOp != typ {
-				continue
-			}
-		}
 		ops := ops.FilterByOp(typ)
 		if d := ctx.Duration("analyze.skip"); d > 0 {
 			start, end := ops.TimeRange()
@@ -247,34 +324,39 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		console.Println(" * Fastest:", segs.Median(1))
 		console.Println(" * 50% Median:", segs.Median(0.5))
 		console.Println(" * Slowest:", segs.Median(0.0))
-		if wrSegs != nil {
-			segs.SortByTime()
-			err := segs.CSV(wrSegs)
-			errorIf(probe.NewError(err), "Error writing analysis")
+		writeSegs(ctx, wrSegs, segs, ops)
+	}
+}
 
-			// Write segments per endpoint
-			eps := ops.Endpoints()
-			if hostDetails && len(eps) > 1 {
-				for _, ep := range eps {
-					ops := ops.FilterByEndpoint(ep)
-					segs := ops.Segment(bench.SegmentOptions{
-						From:           time.Time{},
-						PerSegDuration: analysisDur(ctx),
-						AllThreads:     true,
-					})
-					if len(segs) <= 1 {
-						continue
-					}
-					totals := ops.Total(true)
-					if totals.TotalBytes > 0 {
-						segs.SortByThroughput()
-					} else {
-						segs.SortByObjsPerSec()
-					}
-					segs.SortByTime()
-					err := segs.CSV(wrSegs)
-					errorIf(probe.NewError(err), "Error writing analysis")
+func writeSegs(ctx *cli.Context, wrSegs io.Writer, segs bench.Segments, ops bench.Operations) {
+	if wrSegs != nil {
+		hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
+		segs.SortByTime()
+		err := segs.CSV(wrSegs)
+		errorIf(probe.NewError(err), "Error writing analysis")
+
+		// Write segments per endpoint
+		eps := ops.Endpoints()
+		if hostDetails && len(eps) > 1 {
+			for _, ep := range eps {
+				ops := ops.FilterByEndpoint(ep)
+				segs := ops.Segment(bench.SegmentOptions{
+					From:           time.Time{},
+					PerSegDuration: analysisDur(ctx),
+					AllThreads:     true,
+				})
+				if len(segs) <= 1 {
+					continue
 				}
+				totals := ops.Total(true)
+				if totals.TotalBytes > 0 {
+					segs.SortByThroughput()
+				} else {
+					segs.SortByObjsPerSec()
+				}
+				segs.SortByTime()
+				err := segs.CSV(wrSegs)
+				errorIf(probe.NewError(err), "Error writing analysis")
 			}
 		}
 	}

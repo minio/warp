@@ -408,6 +408,32 @@ func (o Operations) OpTypes() []string {
 	return dst
 }
 
+// IsMultiOp returns true if different operation types are overlapping.
+func (o Operations) IsMultiOp() bool {
+	types := o.OpTypes()
+	if len(types) <= 1 {
+		return false
+	}
+	for _, a := range types {
+		aStart, aEnd := o.FilterByOp(a).TimeRange()
+		for _, b := range types {
+			if a == b {
+				continue
+			}
+			bStart, bEnd := o.FilterByOp(a).TimeRange()
+			// If b starts after a, a should end before b starts
+			if bStart.After(aStart) && aEnd.After(bStart) {
+				return true
+			}
+			// a starts after b, meaning b should end before a starts
+			if bEnd.After(aStart) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ByOp separates the operations by endpoint.
 func (o Operations) ByEndpoint() map[string]Operations {
 	dst := make(map[string]Operations, 1)
