@@ -322,5 +322,6 @@ func (t TTFB) String() string {
 	if t.Average == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v", t.Average, t.Median, t.Best, t.Worst)
+	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v",
+		t.Average.Round(time.Millisecond), t.Median.Round(time.Millisecond), t.Best.Round(time.Millisecond), t.Worst.Round(time.Millisecond))
 }

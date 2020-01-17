@@ -375,12 +375,14 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 		}
 
 		active.SortByDuration()
+
 		console.Println(
-			" * 50%:", active.Median(0.5).Duration(),
-			"90%:", active.Median(0.9).Duration(),
-			"99%:", active.Median(0.99).Duration(),
-			"Fastest:", active.Median(0).Duration(),
-			"Slowest:", active.Median(1).Duration(),
+			" * Avg:", active.AvgDuration().Round(time.Millisecond),
+			"50%:", active.Median(0.5).Duration().Round(time.Millisecond),
+			"90%:", active.Median(0.9).Duration().Round(time.Millisecond),
+			"99%:", active.Median(0.99).Duration().Round(time.Millisecond),
+			"Fastest:", active.Median(0).Duration().Round(time.Millisecond),
+			"Slowest:", active.Median(1).Duration().Round(time.Millisecond),
 		)
 
 		ttfb := active.TTFB(start, end)
@@ -431,10 +433,11 @@ func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 			filtered.SortByDuration()
 			console.SetColor("Print", color.New(color.FgWhite))
 			console.Println(" *", ep, "-", len(filtered), "requests:",
-				"\n\t- Fastest:", filtered.Median(0).Duration(),
-				"Slowest:", filtered.Median(1).Duration(),
-				"50%:", filtered.Median(0.5).Duration(),
-				"90%:", filtered.Median(0.9).Duration())
+				"\n\t- Avg:", filtered.AvgDuration().Round(time.Millisecond),
+				"Fastest:", filtered.Median(0).Duration().Round(time.Millisecond),
+				"Slowest:", filtered.Median(1).Duration().Round(time.Millisecond),
+				"50%:", filtered.Median(0.5).Duration().Round(time.Millisecond),
+				"90%:", filtered.Median(0.9).Duration().Round(time.Millisecond))
 			ttfb := filtered.TTFB(filtered.TimeRange())
 			if ttfb.Average > 0 {
 				console.Println("\t- First Byte:", ttfb)
