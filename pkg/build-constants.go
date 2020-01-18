@@ -17,12 +17,14 @@
 package pkg
 
 var (
-	// Version - version time.RFC3339.
-	Version = "DEVELOPMENT.GOGET"
-	// ReleaseTag - release tag in TAG.%Y-%m-%dT%H-%M-%SZ.
-	ReleaseTag = "DEVELOPMENT.GOGET"
+	// Version - the version being released (v prefix stripped)
+	Version = "(dev)"
+	// ReleaseTag - the current git tag
+	ReleaseTag = "(no tag)"
+	// ReleaseTime - current UTC date in RFC3339 format.
+	ReleaseTime = "(no release)"
 	// CommitID - latest commit id.
-	CommitID = "DEVELOPMENT.GOGET"
+	CommitID = "(dev)"
 	// ShortCommitID - first 12 characters from CommitID.
-	ShortCommitID = CommitID[:12]
+	ShortCommitID = "(dev)"
 )

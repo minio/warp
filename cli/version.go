@@ -60,19 +60,18 @@ EXAMPLES:
 
 // Structured message depending on the type of console.
 type versionMessage struct {
-	Status  string `json:"status"`
-	Version struct {
-		Value  string `json:"value"`
-		Format string `json:"format"`
-	} `json:"version"`
-	ReleaseTag string `json:"releaseTag"`
-	CommitID   string `json:"commitID"`
+	Status      string `json:"status"`
+	Version     string `json:"version"`
+	ReleaseTime string `json:"release_time"`
+	ReleaseTag  string `json:"release_tag"`
+	CommitID    string `json:"commit_id"`
 }
 
 // Colorized message for console printing.
 func (v versionMessage) String() string {
-	return console.Colorize("Version", fmt.Sprintf("Version: %s\n", v.Version.Value)) +
-		console.Colorize("ReleaseTag", fmt.Sprintf("Release-tag: %s\n", v.ReleaseTag)) +
+	return console.Colorize("Version", fmt.Sprintf("Version: %s\n", v.Version)) +
+		console.Colorize("ReleaseTag", fmt.Sprintf("Release tag: %s\n", v.ReleaseTag)) +
+		console.Colorize("ReleaseTime", fmt.Sprintf("Release time: %s\n", v.ReleaseTime)) +
 		console.Colorize("CommitID", fmt.Sprintf("Commit-id: %s", v.CommitID))
 }
 
@@ -85,20 +84,24 @@ func (v versionMessage) JSON() string {
 }
 
 func mainVersion(ctx *cli.Context) error {
-
-	// Additional command speific theme customization.
+	// Additional command specific theme customization.
 	console.SetColor("Version", color.New(color.FgGreen, color.Bold))
 	console.SetColor("ReleaseTag", color.New(color.FgGreen))
+	console.SetColor("ReleaseTime", color.New(color.FgGreen))
 	console.SetColor("CommitID", color.New(color.FgGreen))
 
 	verMsg := versionMessage{}
 	verMsg.CommitID = pkg.CommitID
 	verMsg.ReleaseTag = pkg.ReleaseTag
-	verMsg.Version.Value = pkg.Version
-	verMsg.Version.Format = "RFC3339"
+	verMsg.ReleaseTime = pkg.ReleaseTime
+	verMsg.Version = pkg.Version
 
 	if !globalQuiet {
-		printMsg(verMsg)
+		if ctx.Bool("json") {
+			console.Println(verMsg.JSON())
+		} else {
+			console.Println(verMsg)
+		}
 	}
 	return nil
 }

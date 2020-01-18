@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cheggaaa/pb"
@@ -96,7 +95,6 @@ func init() {
 		cmpCmd,
 		mergeCmd,
 		clientCmd,
-		updateCmd,
 		versionCmd,
 	}
 	appCmds = append(a, b...)
@@ -138,11 +136,6 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app := cli.NewApp()
 	app.Name = name
 	app.Action = func(ctx *cli.Context) {
-		if strings.HasPrefix(pkg.ReleaseTag, "RELEASE.") {
-			// Check for new updates from dl.min.io.
-			checkUpdate(ctx)
-		}
-
 		if ctx.Bool("autocompletion") || ctx.GlobalBool("autocompletion") {
 			// Install shell completions
 			installAutoCompletion()
@@ -197,7 +190,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Usage = "MinIO Benchmark tool for S3 compatible systems."
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
-	app.Version = pkg.ReleaseTag
+	app.Version = pkg.Version + " - " + pkg.ShortCommitID
 	app.Flags = append(app.Flags, globalFlags...)
 	//app.CustomAppHelpTemplate = mcHelpTemplate
 	app.CommandNotFound = commandNotFound // handler function declared above.

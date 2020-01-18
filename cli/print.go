@@ -26,21 +26,6 @@ import (
 	"github.com/minio/mc/pkg/probe"
 )
 
-// message interface for all structured messages implementing JSON(), String() methods.
-type message interface {
-	JSON() string
-	String() string
-}
-
-// printMsg prints message string or JSON structure depending on the type of output console.
-func printMsg(msg message) {
-	if !globalJSON {
-		console.Infoln(msg.String())
-	} else {
-		console.Infoln(msg.JSON())
-	}
-}
-
 // causeMessage container for golang error messages
 type causeMessage struct {
 	Message string `json:"message"`
