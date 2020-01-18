@@ -23,26 +23,26 @@ import (
 )
 
 var (
-	getFlags = []cli.Flag{
+	statFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
-			Value: 2500,
-			Usage: "Number of objects to upload.",
+			Value: 10000,
+			Usage: "Number of objects to upload. Rounded to have equal concurrent objects.",
 		},
 		cli.StringFlag{
 			Name:  "obj.size",
-			Value: "10MB",
+			Value: "1KB",
 			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
 		},
 	}
 )
 
-var getCmd = cli.Command{
-	Name:   "get",
-	Usage:  "benchmark get objects",
-	Action: mainGet,
+var statCmd = cli.Command{
+	Name:   "stat",
+	Usage:  "benchmark stat objects (get fil einfo)",
+	Action: mainStat,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -58,12 +58,13 @@ EXAMPLES:
  `,
 }
 
-// mainGet is the entry point for get command.
-func mainGet(ctx *cli.Context) error {
-	checkGetSyntax(ctx)
+// mainDelete is the entry point for get command.
+func mainStat(ctx *cli.Context) error {
+	checkStatSyntax(ctx)
 	src := newGenSource(ctx)
 	sse := newSSE(ctx)
-	b := bench.Get{
+
+	b := bench.Stat{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -75,12 +76,14 @@ func mainGet(ctx *cli.Context) error {
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
-		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		StatOpts: minio.StatObjectOptions{
+			GetObjectOptions: minio.GetObjectOptions{ServerSideEncryption: sse},
+		},
 	}
 	return runBench(ctx, &b)
 }
 
-func checkGetSyntax(ctx *cli.Context) {
+func checkStatSyntax(ctx *cli.Context) {
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

@@ -30,6 +30,7 @@ type SegmentOptions struct {
 	From           time.Time
 	PerSegDuration time.Duration
 	AllThreads     bool
+	MultiOp        bool
 }
 
 // A Segment represents totals of operations in a specific time segment
@@ -69,6 +70,7 @@ func (o Operations) Total(allThreads bool) Segment {
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
 		AllThreads:     allThreads,
+		MultiOp:        o.IsMultiOp(),
 	})[0]
 }
 
@@ -146,6 +148,10 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 			Objects:    0,
 			Start:      segStart,
 			EndsBefore: segStart.Add(so.PerSegDuration),
+		}
+		if so.MultiOp {
+			s.OpType = ""
+			s.ObjsPerOp = 0
 		}
 		for _, op := range o {
 			op.Aggregate(&s)
@@ -316,5 +322,6 @@ func (t TTFB) String() string {
 	if t.Average == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v", t.Average, t.Median, t.Best, t.Worst)
+	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v",
+		t.Average.Round(time.Millisecond), t.Median.Round(time.Millisecond), t.Best.Round(time.Millisecond), t.Worst.Round(time.Millisecond))
 }
