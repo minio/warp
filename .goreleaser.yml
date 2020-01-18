@@ -19,7 +19,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-     - -s -w -X github.com/minio/warp/pkg.ReleaseTag={{.Tag}} -X github.com/minio/warp/pkg.CommitID={{.FullCommit}} -X github.com/minio/warp/pkg.Version={{.Version}} -X github.com/minio/warp/pkg.ShortCommit={{.ShortCommit}} -X github.com/minio/warp/pkg.ReleaseTime={{.Date}}
+     - -s -w -X github.com/minio/warp/pkg.ReleaseTag={{.Tag}} -X github.com/minio/warp/pkg.CommitID={{.FullCommit}} -X github.com/minio/warp/pkg.Version={{.Version}} -X github.com/minio/warp/pkg.ShortCommitID={{.ShortCommit}} -X github.com/minio/warp/pkg.ReleaseTime={{.Date}}
 archives:
   -
     replacements:
@@ -33,7 +33,7 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ .Tag }}-snapshot"
+  name_template: 'snapshot-{{ time "2006-01-02" }}'
 changelog:
   sort: asc
   filters:

@@ -190,7 +190,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Usage = "MinIO Benchmark tool for S3 compatible systems."
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
-	app.Version = pkg.Version
+	app.Version = pkg.Version + " - " + pkg.ShortCommitID
 	app.Flags = append(app.Flags, globalFlags...)
 	//app.CustomAppHelpTemplate = mcHelpTemplate
 	app.CommandNotFound = commandNotFound // handler function declared above.
