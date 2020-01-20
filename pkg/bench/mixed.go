@@ -43,6 +43,8 @@ type Mixed struct {
 	Common
 }
 
+// MixedDistribution keeps track of operation distribution
+// and currently available objects.
 type MixedDistribution struct {
 	// Operation -> distribution.
 	Distribution map[string]float64
@@ -97,12 +99,17 @@ func (m *MixedDistribution) normalize() error {
 	return nil
 }
 
-func (m *MixedDistribution) randomObj() generator.Object {
+func (m *MixedDistribution) randomObj() (obj generator.Object, done func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Use map randomness to select.
-	for _, o := range m.objects {
-		return o
+	for k, o := range m.objects {
+		delete(m.objects, k)
+		return o, func() {
+			m.mu.Lock()
+			m.objects[k] = obj
+			m.mu.Unlock()
+		}
 	}
 	panic("ran out of objects")
 }
@@ -135,6 +142,9 @@ func (m *MixedDistribution) getOp() string {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Mixed) Prepare(ctx context.Context) error {
+	if g.CreateObjects <= g.Concurrency {
+		return errors.New("initial number of objects should be at least matching concurrency")
+	}
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
@@ -164,7 +174,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				default:
 				}
 				obj := src.Object()
-				client, cldone := g.Client()
+				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
 				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
@@ -187,7 +197,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				cldone()
+				clDone()
 				obj.Reader = nil
 				g.Dist.addObj(*obj)
 				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
@@ -227,8 +237,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 				switch operation {
 				case "GET":
 					fbr := firstByteRecorder{}
-					obj := g.Dist.randomObj()
-					client, cldone := g.Client()
+					obj, objDone := g.Dist.randomObj()
+					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
 						Thread:   uint16(i),
@@ -245,7 +255,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						op.Err = err.Error()
 						op.End = time.Now()
 						rcv <- op
-						cldone()
+						clDone()
+						objDone()
 						continue
 					}
 					n, err := io.Copy(ioutil.Discard, &fbr)
@@ -260,11 +271,12 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						console.Errorln(op.Err)
 					}
 					rcv <- op
-					cldone()
+					objDone()
+					clDone()
 				case "PUT":
 					obj := src.Object()
 					putOpts.ContentType = obj.ContentType
-					client, cldone := g.Client()
+					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
 						Thread:   uint16(i),
@@ -287,13 +299,13 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						}
 						console.Errorln(err)
 					}
-					cldone()
+					clDone()
 					if op.Err == "" {
 						g.Dist.addObj(*obj)
 					}
 					rcv <- op
 				case "DELETE":
-					client, cldone := g.Client()
+					client, clDone := g.Client()
 					obj := g.Dist.deleteRandomObj()
 					op := Operation{
 						OpType:   operation,
@@ -306,15 +318,15 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.Start = time.Now()
 					err := client.RemoveObject(g.Bucket, obj.Name)
 					op.End = time.Now()
-					cldone()
+					clDone()
 					if err != nil {
 						console.Errorln("delete error:", err)
 						op.Err = err.Error()
 					}
 					rcv <- op
 				case "STAT":
-					obj := g.Dist.randomObj()
-					client, cldone := g.Client()
+					obj, objDone := g.Dist.randomObj()
+					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
 						Thread:   uint16(i),
@@ -336,7 +348,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						console.Errorln(op.Err)
 					}
 					rcv <- op
-					cldone()
+					objDone()
+					clDone()
 				default:
 					console.Errorln("unknown operation:", operation)
 				}
