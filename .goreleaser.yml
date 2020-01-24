@@ -50,7 +50,7 @@ nfpms:
     license: Apache License 2.0
     formats:
       - deb
-      - rpm    
+      - rpm
     replacements:
       darwin: Darwin
       linux: Linux
