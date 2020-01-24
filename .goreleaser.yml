@@ -27,6 +27,7 @@ archives:
       linux: Linux
       windows: Windows
       freebsd: FreeBSD
+      amd64: x86_64
     format_overrides:
       - goos: windows
         format: zip
@@ -40,3 +41,18 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
+nfpms:
+  -
+    vendor: MinIO Inc.
+    homepage: https://github.com/minio/warp
+    maintainer: MinIO <minio@minio.io>
+    description: MinIO S3 API Benchmark Tool
+    license: Apache License 2.0
+    formats:
+      - deb
+      - rpm    
+    replacements:
+      darwin: Darwin
+      linux: Linux
+      freebsd: FreeBSD
+      amd64: x86_64
