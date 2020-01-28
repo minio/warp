@@ -421,13 +421,14 @@ func (o Operations) IsMultiOp() bool {
 				continue
 			}
 			bStart, bEnd := o.FilterByOp(b).TimeRange()
+			firstEnd, secondStart := aEnd, bEnd
 
-			// Make a be the first.
+			// Make 'a' be the first.
 			if bStart.Before(aStart) {
-				aStart, aEnd, bStart, bEnd = bStart, bEnd, aStart, aEnd
+				firstEnd, secondStart = bEnd, aStart
 			}
 
-			if aEnd.After(bStart) {
+			if firstEnd.After(secondStart) {
 				return true
 			}
 		}
