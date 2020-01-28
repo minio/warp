@@ -420,13 +420,14 @@ func (o Operations) IsMultiOp() bool {
 			if a == b {
 				continue
 			}
-			bStart, bEnd := o.FilterByOp(a).TimeRange()
-			// If b starts after a, a should end before b starts
-			if bStart.After(aStart) && aEnd.After(bStart) {
-				return true
+			bStart, bEnd := o.FilterByOp(b).TimeRange()
+
+			// Make a be the first.
+			if bStart.Before(aStart) {
+				aStart, aEnd, bStart, bEnd = bStart, bEnd, aStart, aEnd
 			}
-			// a starts after b, meaning b should end before a starts
-			if bEnd.After(aStart) {
+
+			if aEnd.After(bStart) {
 				return true
 			}
 		}
