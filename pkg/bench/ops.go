@@ -423,7 +423,6 @@ func (o Operations) IsMultiOp() bool {
 			bStart, bEnd := o.FilterByOp(b).TimeRange()
 			firstEnd, secondStart := aEnd, bEnd
 
-			// Make 'a' be the first.
 			if bStart.Before(aStart) {
 				firstEnd, secondStart = bEnd, aStart
 			}
