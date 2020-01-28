@@ -18,6 +18,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
@@ -118,6 +119,10 @@ func mainMixed(ctx *cli.Context) error {
 }
 
 func checkMixedSyntax(ctx *cli.Context) {
+	if ctx.NArg() > 0 {
+		console.Fatal("Command takes no arguments")
+	}
+
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }
