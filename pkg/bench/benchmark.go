@@ -49,6 +49,9 @@ type Common struct {
 	Source      func() generator.Source
 	Bucket      string
 	Location    string
+
+	// Running in client mode.
+	ClientMode bool
 	// Clear bucket before benchmark
 	Clear           bool
 	PrepareProgress chan float64
@@ -85,7 +88,21 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		return cl.MakeBucket(c.Bucket, c.Location)
+		err := cl.MakeBucket(c.Bucket, c.Location)
+
+		// In client mode someone else may have created it first.
+		// Check if it exists now.
+		// We don't test against a specific error since we might run against many different servers.
+		if err != nil {
+			x, err2 := cl.BucketExists(c.Bucket)
+			if err2 != nil {
+				return err2
+			}
+			if !x {
+				// It still doesn't exits, return original error.
+				return err
+			}
+		}
 	}
 	if c.Clear {
 		console.Infof("Clearing Bucket %q...\n", c.Bucket)
