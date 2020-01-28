@@ -20,6 +20,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"runtime"
 )
 
 // Option provides options for data generation.
@@ -34,6 +35,9 @@ type Source interface {
 
 	// String returns a human readable description of the source.
 	String() string
+
+	// Prefix returns the prefix if any.
+	Prefix() string
 }
 
 type Object struct {
@@ -51,6 +55,37 @@ type Object struct {
 	Size int64
 
 	PreFix string
+}
+
+// Objects is a slice of objects.
+type Objects []Object
+
+// Prefixes returns all prefixes.
+func (o Objects) Prefixes() []string {
+	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
+	for _, p := range o {
+		prefixes[p.PreFix] = struct{}{}
+	}
+	res := make([]string, 0, len(prefixes))
+	for p := range prefixes {
+		res = append(res, p)
+	}
+	return res
+}
+
+// MergeObjectPrefixes merges prefixes from several slices of objects.
+func MergeObjectPrefixes(o []Objects) []string {
+	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
+	for _, objs := range o {
+		for _, p := range objs {
+			prefixes[p.PreFix] = struct{}{}
+		}
+	}
+	res := make([]string, 0, len(prefixes))
+	for p := range prefixes {
+		res = append(res, p)
+	}
+	return res
 }
 
 func (o *Object) setPrefix(opts Options) {

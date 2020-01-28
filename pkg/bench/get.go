@@ -34,7 +34,7 @@ import (
 type Get struct {
 	CreateObjects int
 	Collector     *Collector
-	objects       []generator.Object
+	objects       generator.Objects
 
 	// Default Get options.
 	GetOpts minio.GetObjectOptions
@@ -207,5 +207,5 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Get) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx)
+	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
 }
