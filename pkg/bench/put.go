@@ -28,6 +28,7 @@ import (
 // Put benchmarks upload speed.
 type Put struct {
 	Common
+	prefixes map[string]struct{}
 }
 
 // Prepare will create an empty bucket ot delete any content already there.
@@ -44,12 +45,13 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 	if u.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "PUT", u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
-
+	u.prefixes = make(map[string]struct{}, u.Concurrency)
 	for i := 0; i < u.Concurrency; i++ {
+		src := u.Source()
+		u.prefixes[src.Prefix()] = struct{}{}
 		go func(i int) {
 			rcv := c.Receiver()
 			defer wg.Done()
-			src := u.Source()
 			opts := u.PutOpts
 			done := ctx.Done()
 
@@ -96,5 +98,9 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 // Cleanup deletes everything uploaded to the bucket.
 func (u *Put) Cleanup(ctx context.Context) {
-	u.deleteAllInBucket(ctx)
+	var pf []string
+	for p := range u.prefixes {
+		pf = append(pf, p)
+	}
+	u.deleteAllInBucket(ctx, pf...)
 }

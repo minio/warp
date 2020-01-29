@@ -66,6 +66,9 @@ type Segments []Segment
 // Specify whether one operation for all threads should be skipped or just a single.
 func (o Operations) Total(allThreads bool) Segment {
 	start, end := o.ActiveTimeRange(allThreads)
+	if start.Equal(end) {
+		return Segment{}
+	}
 	return o.Segment(SegmentOptions{
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
@@ -125,6 +128,9 @@ func (o Operations) OpThroughput() Throughput {
 // Segment will segment the operations o.
 // Operations should be of the same type.
 func (o Operations) Segment(so SegmentOptions) Segments {
+	if so.PerSegDuration <= 0 {
+		panic("internal error: so.PerSegDuration <= 0")
+	}
 	start, end := o.ActiveTimeRange(so.AllThreads)
 	if start.After(so.From) {
 		so.From = start

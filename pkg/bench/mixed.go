@@ -82,6 +82,14 @@ func (m *MixedDistribution) Generate(allocObjs int) error {
 	return nil
 }
 
+func (m *MixedDistribution) Objects() generator.Objects {
+	res := make(generator.Objects, 0, len(m.objects))
+	for _, v := range m.objects {
+		res = append(res, v)
+	}
+	return res
+}
+
 func (m *MixedDistribution) normalize() error {
 	total := 0.0
 	for op, dist := range m.Distribution {
@@ -362,5 +370,5 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Mixed) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx)
+	g.deleteAllInBucket(ctx, g.Dist.Objects().Prefixes()...)
 }
