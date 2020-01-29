@@ -92,14 +92,15 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		}
 	}
 	_ = wrSegs
-	timeDur := func(ops bench.Operations) time.Duration {
-		start, end := ops.ActiveTimeRange(true)
-		return end.Sub(start).Round(time.Second)
-	}
 	isMultiOp := before.IsMultiOp()
 	if isMultiOp != after.IsMultiOp() {
 		console.Fatal("Cannot compare multi-operation to single operation.")
 	}
+	timeDur := func(ops bench.Operations) time.Duration {
+		start, end := ops.ActiveTimeRange(!isMultiOp)
+		return end.Sub(start).Round(time.Second)
+	}
+
 	for _, typ := range before.OpTypes() {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
 			if wantOp != typ {
@@ -113,7 +114,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		console.Println("Operation:", typ)
 		console.SetColor("Print", color.New(color.FgWhite))
 
-		cmp, err := bench.Compare(before, after, analysisDur(ctx))
+		cmp, err := bench.Compare(before, after, analysisDur(ctx), !isMultiOp)
 		if err != nil {
 			console.Println(err)
 			continue
