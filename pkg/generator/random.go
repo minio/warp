@@ -166,3 +166,7 @@ func (r *randomSrc) String() string {
 	}
 	return fmt.Sprintf("Random data; %d bytes total, %d byte buffer", r.buf.want, len(r.buf.data))
 }
+
+func (r *randomSrc) Prefix() string {
+	return r.obj.PreFix
+}

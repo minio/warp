@@ -33,7 +33,7 @@ type Delete struct {
 	CreateObjects int
 	BatchSize     int
 	Collector     *Collector
-	objects       []generator.Object
+	objects       generator.Objects
 
 	Common
 }
@@ -207,5 +207,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 // Cleanup deletes everything uploaded to the bucket.
 func (d *Delete) Cleanup(ctx context.Context) {
-	d.deleteAllInBucket(ctx)
+	if len(d.objects) > 0 {
+		d.deleteAllInBucket(ctx, d.objects.Prefixes()...)
+	}
 }

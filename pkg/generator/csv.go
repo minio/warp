@@ -157,3 +157,7 @@ func (c *csvSource) Object() *Object {
 func (c *csvSource) String() string {
 	return fmt.Sprintf("CSV data. %d columns, %d rows.", c.o.csv.cols, c.o.csv.rows)
 }
+
+func (c *csvSource) Prefix() string {
+	return c.obj.PreFix
+}
