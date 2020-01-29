@@ -28,7 +28,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       -
-        name: Artifacts
-        if: success()
         uses: actions/upload-artifact@v1
-        path: dist
+        if: success()
+        with:
+        name: Artifacts
+          path: dist
