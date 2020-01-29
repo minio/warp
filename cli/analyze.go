@@ -364,9 +364,13 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, segs bench.Segments, ops benc
 
 func printRequestAnalysis(ctx *cli.Context, ops bench.Operations) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	start, end := ops.ActiveTimeRange(true)
+	start, end := ops.ActiveTimeRange(false)
 	active := ops.FilterInsideRange(start, end)
 	if !active.MultipleSizes() {
+		// Single type, require one operation per thread.
+		start, end = ops.ActiveTimeRange(true)
+		active = ops.FilterInsideRange(start, end)
+
 		console.Print("\nRequests considered: ", len(active), ":\n")
 		console.SetColor("Print", color.New(color.FgWhite))
 

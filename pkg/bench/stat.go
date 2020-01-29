@@ -32,7 +32,7 @@ import (
 type Stat struct {
 	CreateObjects int
 	Collector     *Collector
-	objects       []generator.Object
+	objects       generator.Objects
 
 	// Default Stat options.
 	StatOpts minio.StatObjectOptions
@@ -180,5 +180,5 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Stat) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx)
+	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
 }

@@ -32,7 +32,7 @@ type List struct {
 	CreateObjects int
 	NoPrefix      bool
 	Collector     *Collector
-	objects       [][]generator.Object
+	objects       []generator.Objects
 
 	Common
 }
@@ -53,7 +53,7 @@ func (d *List) Prepare(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	d.Collector = NewCollector()
-	d.objects = make([][]generator.Object, d.Concurrency)
+	d.objects = make([]generator.Objects, d.Concurrency)
 	var mu sync.Mutex
 	var groupErr error
 	for i := 0; i < d.Concurrency; i++ {
@@ -211,5 +211,5 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 
 // Cleanup deletes everything uploaded to the bucket.
 func (d *List) Cleanup(ctx context.Context) {
-	d.deleteAllInBucket(ctx)
+	d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
 }

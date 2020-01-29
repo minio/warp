@@ -143,25 +143,28 @@ func plusPositiveD(d time.Duration) string {
 }
 
 // Compare compares operations of a single operation type.
-func Compare(before, after Operations, analysis time.Duration) (*Comparison, error) {
+func Compare(before, after Operations, analysis time.Duration, allThreads bool) (*Comparison, error) {
 	var res Comparison
 	if before.FirstOpType() != after.FirstOpType() {
 		return nil, fmt.Errorf("different operation types. before: %v, after %v", before.FirstOpType(), after.FirstOpType())
+	}
+	if analysis <= 0 {
+		return nil, fmt.Errorf("invalid analysis duration: %v", analysis)
 	}
 	if len(before.Errors()) > 0 || len(after.Errors()) > 0 {
 		return nil, fmt.Errorf("errors recorded in benchmark run. before: %v, after %d", len(before.Errors()), len(after.Errors()))
 	}
 	res.Op = before.FirstOpType()
-
 	segment := func(ops Operations) (Segments, error) {
 		segs := ops.Segment(SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysis,
+			AllThreads:     allThreads,
 		})
 		if len(segs) <= 1 {
 			return nil, errors.New("too few samples")
 		}
-		totals := ops.Total(true)
+		totals := ops.Total(allThreads)
 		if totals.TotalBytes > 0 {
 			segs.SortByThroughput()
 		} else {
@@ -182,8 +185,8 @@ func Compare(before, after Operations, analysis time.Duration) (*Comparison, err
 	res.Slowest.Compare(bs.Median(0.0), as.Median(0.0))
 	res.Fastest.Compare(bs.Median(1), as.Median(1))
 
-	beforeTotals, beforeTTFB := before.Total(true), before.TTFB(before.TimeRange())
-	afterTotals, afterTTFB := after.Total(true), after.TTFB(after.TimeRange())
+	beforeTotals, beforeTTFB := before.Total(allThreads), before.TTFB(before.TimeRange())
+	afterTotals, afterTTFB := after.Total(allThreads), after.TTFB(after.TimeRange())
 
 	res.Average.Compare(beforeTotals, afterTotals)
 	res.TTFB = beforeTTFB.Compare(afterTTFB)
