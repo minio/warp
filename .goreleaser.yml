@@ -40,3 +40,18 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
+dockers:
+  - image_templates:
+      - "minio/warp:{{ .Tag }}"
+      - "minio/warp:v{{ .Major }}"
+      - "minio/warp:v{{ .Major }}.{{ .Minor }}"
+      - "minio/warp:latest"
+  - build_flag_templates:
+      - "--label=org.label-schema.schema-version=1.0"
+      - "--label=org.label-schema.version={{.Version}}"
+      - "--label=org.label-schema.name={{.ProjectName}}"
+      - "--build-arg warp_version={{.Version}}"
+      - "--build-arg warp_tag={{.Tag}}"
+      - "--build-arg warp_full_commit={{.FullCommit}}"
+      - "--build-arg warp_short_commit={{.ShortCommit}}"
+      - "--build-arg warp_date={{.Date}}"
