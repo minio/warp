@@ -46,6 +46,7 @@ dockers:
     goos: linux
     # GOARCH of the built binary that should be used.
     goarch: amd64
+    dockerfile: Dockerfile.release
     image_templates:
       - "minio/warp:{{ .Tag }}"
       - "minio/warp:v{{ .Major }}"

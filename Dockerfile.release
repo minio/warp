@@ -1,0 +1,4 @@
+FROM scratch
+MAINTAINER MinIO Development "dev@min.io"
+COPY warp /
+CMD ["/warp"]
