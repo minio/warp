@@ -1,4 +1,5 @@
 FROM scratch
 MAINTAINER MinIO Development "dev@min.io"
+EXPOSE 7761
 COPY warp /
 CMD ["/warp"]
