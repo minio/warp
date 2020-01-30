@@ -15,6 +15,7 @@ RUN go build -ldflags "-w -s" -a -o warp .
 
 FROM scratch
 MAINTAINER MinIO Development "dev@min.io"
+EXPOSE 7761
 
 COPY --from=0 /go/src/github.com/minio/warp/warp .
 
