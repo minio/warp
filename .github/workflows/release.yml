@@ -28,8 +28,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       -
+        name: Upload Win64 Binaries
         uses: actions/upload-artifact@v1
         if: success()
         with:
-          name: Artifacts
-          path: dist
+          name: Build-Win64
+          path: dist/warp_windows_amd64
+      -
+        name: Upload Linux Binaries
+        uses: actions/upload-artifact@v1
+        if: success()
+        with:
+          name: Build-Linux-amd64
+          path: dist/warp_linux_amd64
+      -
+        name: Upload MacOS Binaries
+        uses: actions/upload-artifact@v1
+        if: success()
+        with:
+          name: Build-MacOSX-amd64
+          path: dist/warp_darwin_amd64
