@@ -189,9 +189,9 @@ func printMultiOpAnalysis(ctx *cli.Context, ops bench.Operations, wrSegs io.Writ
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysisDur(ctx),
-			AllThreads:     true,
+			AllThreads:     false,
 		})
-		writeSegs(ctx, wrSegs, segs, ops)
+		writeSegs(ctx, wrSegs, segs, ops, false)
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
 	console.Println("\nCluster Total: ", allOps.Total(true))
@@ -324,11 +324,11 @@ func printAnalysis(ctx *cli.Context, ops bench.Operations) {
 		console.Println(" * Fastest:", segs.Median(1))
 		console.Println(" * 50% Median:", segs.Median(0.5))
 		console.Println(" * Slowest:", segs.Median(0.0))
-		writeSegs(ctx, wrSegs, segs, ops)
+		writeSegs(ctx, wrSegs, segs, ops, true)
 	}
 }
 
-func writeSegs(ctx *cli.Context, wrSegs io.Writer, segs bench.Segments, ops bench.Operations) {
+func writeSegs(ctx *cli.Context, wrSegs io.Writer, segs bench.Segments, ops bench.Operations, allThreads bool) {
 	if wrSegs != nil {
 		hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
 		segs.SortByTime()
@@ -343,12 +343,12 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, segs bench.Segments, ops benc
 				segs := ops.Segment(bench.SegmentOptions{
 					From:           time.Time{},
 					PerSegDuration: analysisDur(ctx),
-					AllThreads:     true,
+					AllThreads:     allThreads,
 				})
 				if len(segs) <= 1 {
 					continue
 				}
-				totals := ops.Total(true)
+				totals := ops.Total(allThreads)
 				if totals.TotalBytes > 0 {
 					segs.SortByThroughput()
 				} else {
