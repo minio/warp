@@ -19,6 +19,7 @@ package bench
 import (
 	"context"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/minio/mc/pkg/console"
@@ -49,6 +50,9 @@ type Common struct {
 	Source      func() generator.Source
 	Bucket      string
 	Location    string
+
+	// Running in client mode.
+	ClientMode bool
 	// Clear bucket before benchmark
 	Clear           bool
 	PrepareProgress chan float64
@@ -85,7 +89,21 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		return cl.MakeBucket(c.Bucket, c.Location)
+		err := cl.MakeBucket(c.Bucket, c.Location)
+
+		// In client mode someone else may have created it first.
+		// Check if it exists now.
+		// We don't test against a specific error since we might run against many different servers.
+		if err != nil {
+			x, err2 := cl.BucketExists(c.Bucket)
+			if err2 != nil {
+				return err2
+			}
+			if !x {
+				// It still doesn't exits, return original error.
+				return err
+			}
+		}
 	}
 	if c.Clear {
 		console.Infof("Clearing Bucket %q...\n", c.Bucket)
@@ -95,34 +113,48 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 }
 
 // deleteAllInBucket will delete all content in a bucket.
-func (c *Common) deleteAllInBucket(ctx context.Context) {
+// If no prefixes are specified everything in bucket is deleted.
+func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	cl, done := c.Client()
 	defer done()
-	objects := cl.ListObjectsV2(c.Bucket, "", true, doneCh)
+	if len(prefixes) == 0 {
+		prefixes = []string{""}
+	}
+	var wg sync.WaitGroup
 	remove := make(chan string, 1)
 	errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
-	for {
-		select {
-		case obj, ok := <-objects:
-			if !ok {
-				close(remove)
-				// Wait for deletes to finish
-				err := <-errCh
-				if err.Err != nil {
-					console.Error(err.Err)
+	wg.Add(len(prefixes))
+	for _, prefix := range prefixes {
+		go func(prefix string) {
+			defer wg.Done()
+			objects := cl.ListObjectsV2(c.Bucket, prefix, true, doneCh)
+			for {
+				select {
+				case obj, ok := <-objects:
+					if !ok {
+						return
+					}
+					if obj.Err != nil {
+						console.Error(obj.Err)
+					}
+					remove <- obj.Key
+				case err := <-errCh:
+					console.Error(err)
 				}
-				return
 			}
-			if obj.Err != nil {
-				console.Error(obj.Err)
-			}
-			remove <- obj.Key
-		case err := <-errCh:
-			console.Error(err)
-		}
+		}(prefix)
 	}
+	wg.Wait()
+	// Signal we are done
+	close(remove)
+	// Wait for deletes to finish
+	err := <-errCh
+	if err.Err != nil {
+		console.Error(err.Err)
+	}
+
 }
 
 // prepareProgress updates preparation progess with the value 0->1.
