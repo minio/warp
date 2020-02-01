@@ -11,7 +11,7 @@ WORKDIR /go/src/github.com/minio/warp/
 
 ENV CGO_ENABLED=0
 
-RUN go build -ldflags "-w -s" -a -o warp .
+RUN go build -ldflags '-w -s' -a -o warp .
 
 FROM scratch
 MAINTAINER MinIO Development "dev@min.io"
