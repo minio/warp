@@ -85,15 +85,15 @@ func BenchmarkWithCSV(b *testing.B) {
 		args args
 	}{
 		{
-			name: "64KB-5x100",
+			name: "64KiB-5x100",
 			args: args{opts: []Option{WithSize(1 << 16), WithCSV().Size(5, 100).Apply()}},
 		},
 		{
-			name: "1MB-10x500",
+			name: "1MiB-10x500",
 			args: args{opts: []Option{WithSize(1 << 20), WithCSV().Size(10, 500).Apply()}},
 		},
 		{
-			name: "10MB-50x1000",
+			name: "10MiB-50x1000",
 			args: args{opts: []Option{WithSize(10 << 20), WithCSV().Size(50, 1000).Apply()}},
 		},
 	}

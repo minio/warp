@@ -18,11 +18,8 @@ package cli
 
 import (
 	"errors"
-	"fmt"
-	"strconv"
-	"strings"
-	"unicode"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/minio/mc/pkg/probe"
 
 	"github.com/minio/cli"
@@ -72,26 +69,5 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 
 // toSize converts a size indication to bytes.
 func toSize(size string) (uint64, error) {
-	size = strings.ToUpper(strings.TrimSpace(size))
-	firstLetter := strings.IndexFunc(size, unicode.IsLetter)
-	if firstLetter == -1 {
-		firstLetter = len(size)
-	}
-
-	bytesString, multiple := size[:firstLetter], size[firstLetter:]
-	bytes, err := strconv.ParseUint(bytesString, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("unable to parse size: %v", err)
-	}
-
-	switch multiple {
-	case "M", "MB", "MIB":
-		return bytes * 1 << 20, nil
-	case "K", "KB", "KIB":
-		return bytes * 1 << 10, nil
-	case "B", "":
-		return bytes, nil
-	default:
-		return 0, fmt.Errorf("unknown size suffix: %v", multiple)
-	}
+	return humanize.ParseBytes(size)
 }
