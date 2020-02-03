@@ -31,6 +31,8 @@ archives:
       - goos: windows
         format: zip
     files:
+      - README.md
+      - LICENSE
       - warp_logo.png
 checksum:
   name_template: 'checksums.txt'
