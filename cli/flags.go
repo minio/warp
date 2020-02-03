@@ -24,7 +24,7 @@ import (
 	"github.com/minio/mc/pkg/console"
 )
 
-// Collection of mc flags currently supported
+// Collection of warp flags currently supported
 var globalFlags = []cli.Flag{
 	// These flags mimmic the `go test` flags.
 	cli.StringFlag{

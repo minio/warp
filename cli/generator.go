@@ -38,6 +38,25 @@ var genFlags = []cli.Flag{
 	},
 }
 
+func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
+	prefixSize := 8
+	if ctx.Bool("noprefix") {
+		prefixSize = 0
+	}
+
+	g := generator.WithCSV().Size(25, 1000)
+
+	size, err := toSize(ctx.String("obj.size"))
+	fatalIf(probe.NewError(err), "Invalid obj.size specified")
+	src, err := generator.NewFn(g.Apply(),
+		generator.WithPrefixSize(prefixSize),
+		generator.WithSize(int64(size)),
+		generator.WithRandomSize(ctx.Bool("obj.randsize")),
+	)
+	fatalIf(probe.NewError(err), "Unable to create data generator")
+	return src
+}
+
 // newGenSource returns a new generator
 func newGenSource(ctx *cli.Context) func() generator.Source {
 	prefixSize := 8
