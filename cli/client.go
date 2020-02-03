@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"math"
 	"math/rand"
+	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -55,6 +59,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	case 1:
 		cl, err := minio.New(hosts[0], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
+		cl.SetCustomTransport(clientTransport(ctx))
 		cl.SetAppInfo(appName, pkg.Version)
 		return func() (*minio.Client, func()) {
 			return cl, func() {}
@@ -143,6 +148,61 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	return nil
 }
 
+func clientTransport(ctx *cli.Context) http.RoundTripper {
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 5 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          ctx.Int("concurrent"),
+		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		// Set this value so that the underlying transport round-tripper
+		// doesn't try to auto decode the body of objects with
+		// content-encoding set to `gzip`.
+		//
+		// Refer:
+		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
+		DisableCompression: true,
+	}
+	if ctx.Bool("tls") {
+		// Keep TLS config.
+		tlsConfig := &tls.Config{
+			RootCAs: mustGetSystemCertPool(),
+			// Can't use SSLv3 because of POODLE and BEAST
+			// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
+			// Can't use TLSv1.1 because of RC4 cipher usage
+			MinVersion: tls.VersionTLS12,
+		}
+		if ctx.Bool("insecure") {
+			tlsConfig.InsecureSkipVerify = true
+		}
+		tr.TLSClientConfig = tlsConfig
+
+		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
+		// See https://github.com/golang/go/issues/14275
+		//
+		// TODO: Enable http2.0 when upstream issues related to HTTP/2 are fixed.
+		//
+		// if e = http2.ConfigureTransport(tr); e != nil {
+		// 	return nil, probe.NewError(e)
+		// }
+	}
+	return tr
+}
+
+// mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)
+func mustGetSystemCertPool() *x509.CertPool {
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		return x509.NewCertPool()
+	}
+	return pool
+}
+
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	hosts := parseHosts(ctx.String("host"))
 	if len(hosts) == 0 {
@@ -150,6 +210,7 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	}
 	cl, err := madmin.New(hosts[0], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
+	cl.SetCustomTransport(clientTransport(ctx))
 	cl.SetAppInfo(appName, pkg.Version)
 	return cl
 }
