@@ -88,6 +88,9 @@ func mainDelete(ctx *cli.Context) error {
 }
 
 func checkDeleteSyntax(ctx *cli.Context) {
+	if ctx.NArg() > 0 {
+		console.Fatal("Command takes no arguments")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 	if ctx.Int("batch") < 1 {
