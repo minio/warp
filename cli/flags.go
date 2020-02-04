@@ -21,7 +21,7 @@ import (
 	"runtime"
 
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/console"
+	"github.com/minio/minio/pkg/console"
 )
 
 // Collection of warp flags currently supported
