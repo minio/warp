@@ -87,6 +87,12 @@ var benchFlags = []cli.Flag{
 		EnvVar: "",
 		Value:  "",
 	},
+	cli.StringFlag{
+		Name:   "warp-client-server",
+		Usage:  "When running benchmarks open a webserver on this ip:port and keep it running afterwards.",
+		Value:  "",
+		Hidden: true,
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.

@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -72,15 +74,62 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		return true, errors.New("no hosts")
 	}
 	defer conns.closeAll()
+	var updateStatus = console.Infoln
+	var serverStatus = struct {
+		LastStatus string `json:"last_status"`
+		Error      string `json:"error"`
+		DataReady  bool   `json:"data_ready"`
+	}{}
 
+	var allOps bench.Operations
+	if addr := ctx.String("warp-client-server"); addr != "" {
+		updateStatus = func(data ...interface{}) {
+			console.Infoln(data...)
+			serverStatus.LastStatus = fmt.Sprintln(data)
+		}
+		http.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {
+			if req.Method != http.MethodGet {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			b, err := json.Marshal(serverStatus)
+			if err != nil {
+				w.WriteHeader(500)
+				w.Write([]byte(err.Error()))
+				return
+			}
+			w.Write(b)
+		})
+		http.HandleFunc("/download_all", func(w http.ResponseWriter, req *http.Request) {
+			if req.Method != http.MethodGet {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			b, err := json.Marshal(struct {
+				Operations bench.Operations `json:"operations"`
+			}{Operations: allOps})
+			if err != nil {
+				w.WriteHeader(500)
+				w.Write([]byte(err.Error()))
+				return
+			}
+			w.Write(b)
+		})
+		go func() { http.ListenAndServe(addr, nil) }()
+		defer func() {
+			// Wait forever...
+			select {}
+		}()
+	}
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{
-		"warp-client":    {},
-		"serverprof":     {},
-		"autocompletion": {},
-		"help":           {},
-		"syncstart":      {},
-		"analyze.out":    {},
+		"warp-client":        {},
+		"warp-client-server": {},
+		"serverprof":         {},
+		"autocompletion":     {},
+		"help":               {},
+		"syncstart":          {},
+		"analyze.out":        {},
 	}
 	req := serverRequest{
 		Operation: serverReqBenchmark,
@@ -112,14 +161,14 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		console.Infof("Client %v connected...\n", conns.hostName(i))
 		// Assume ok.
 	}
-	console.Infoln("All clients connected...")
+	updateStatus("All clients connected...")
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
 	err := conns.waitForStage(stagePrepare, true)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
-	console.Infoln("All clients prepared...")
+	updateStatus("All clients prepared...")
 
 	const benchmarkWait = 3 * time.Second
 
@@ -142,9 +191,8 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	prof.stop(ctx, fileName+".profiles.zip")
 
-	console.Infoln("Done. Downloading operations...")
+	updateStatus("Done. Downloading operations...")
 	downloaded := conns.downloadOps()
-	var allOps bench.Operations
 	switch len(downloaded) {
 	case 0:
 	case 1:
@@ -183,7 +231,8 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		console.Errorln("Failed to keep connection to all clients", err)
 	}
-
+	serverStatus.DataReady = true
+	serverStatus.LastStatus = "Benchmark Done."
 	printAnalysis(ctx, allOps)
 
 	return true, nil
