@@ -108,25 +108,25 @@ Operation: GET. Concurrency: 12. Hosts: 1.
 
 Requests considered: 1970. Multiple sizes, average 18982515 bytes:
 
-Request size 100B -> 100KB. Requests - 274:
- * Throughput: Average: 9.5MB/s, 50%: 8.8MB/s, 90%: 1494.8KB/s, 99%: 167.3KB/s, Fastest: 95.8MB/s, Slowest: 154.8KB/s
+Request size 100B -> 100KiB. Requests - 274:
+ * Throughput: Average: 9.5MiB/s, 50%: 8.8MiB/s, 90%: 1494.8KB/s, 99%: 167.3KB/s, Fastest: 95.8MiB/s, Slowest: 154.8KB/s
  * First Byte: Average: 4.131413ms, Median: 3.9898ms, Best: 994.4µs, Worst: 80.7834ms
 
-Request size 100KB -> 10MB. Requests - 971:
- * Throughput: Average: 62.8MB/s, 50%: 49.7MB/s, 90%: 39.5MB/s, 99%: 33.3MB/s, Fastest: 1171.5MB/s, Slowest: 6.6MB/s
+Request size 100KiB -> 10MiB. Requests - 971:
+ * Throughput: Average: 62.8MiB/s, 50%: 49.7MiB/s, 90%: 39.5MiB/s, 99%: 33.3MiB/s, Fastest: 1171.5MiB/s, Slowest: 6.6MiB/s
  * First Byte: Average: 5.276378ms, Median: 4.9864ms, Best: 993.7µs, Worst: 148.6016ms
 
-Request size 10MB -> 100MB. Requests - 835:
- * Throughput: Average: 112.3MB/s, 50%: 98.3MB/s, 90%: 59.4MB/s, 99%: 47.5MB/s, Fastest: 1326.3MB/s, Slowest: 45.8MB/s
+Request size 10MiB -> 100MiB. Requests - 835:
+ * Throughput: Average: 112.3MiB/s, 50%: 98.3MiB/s, 90%: 59.4MiB/s, 99%: 47.5MiB/s, Fastest: 1326.3MiB/s, Slowest: 45.8MiB/s
  * First Byte: Average: 4.186514ms, Median: 4.9863ms, Best: 990.2µs, Worst: 16.9915ms
 
 Throughput:
-* Average: 1252.19 MB/s, 68.58 obj/s (28.885s, starting 02:42:27 PST)
+* Average: 1252.19 MiB/s, 68.58 obj/s (28.885s, starting 02:42:27 PST)
 
 Aggregated Throughput, split into 28 x 1s time segments:
- * Fastest: 1611.21 MB/s, 64.32 obj/s (1s, starting 02:42:40 PST)
- * 50% Median: 1240.15 MB/s, 74.85 obj/s (1s, starting 02:42:41 PST)
- * Slowest: 1061.56 MB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
+ * Fastest: 1611.21 MiB/s, 64.32 obj/s (1s, starting 02:42:40 PST)
+ * 50% Median: 1240.15 MiB/s, 74.85 obj/s (1s, starting 02:42:41 PST)
+ * Slowest: 1061.56 MiB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
 ```
 
 ## automatic termination
@@ -136,7 +136,7 @@ For a benchmark to be considered "stable", the last 7 of 25 data points must be 
 
 ![stable](https://user-images.githubusercontent.com/5663952/72053512-0df95900-327c-11ea-8bc5-9b4064fa595f.png)
 
-The red frame shows the window used to evaluate stability. The height of the box is determined by the threshold percentage of the current speed. This percentage is user configurable through `--autoterm.pct`, default 7.5%. The metric used for this is either MB/s or obj/s depending on the benchmark type.
+The red frame shows the window used to evaluate stability. The height of the box is determined by the threshold percentage of the current speed. This percentage is user configurable through `--autoterm.pct`, default 7.5%. The metric used for this is either MiB/s or obj/s depending on the benchmark type.
 
 To make sure there is a good sample data, a minimum duration of the 7 of 25 samples is set. This is configurable `--autoterm.dur`. This specifies the minimum time length the benchmark must have been stable.
 
@@ -172,13 +172,13 @@ Example:
 Mixed operations.
 
 Operation: GET
- * 632.28 MB/s, 354.78 obj/s (59.993s, starting 07:44:05 PST) (45.0% of operations)
+ * 632.28 MiB/s, 354.78 obj/s (59.993s, starting 07:44:05 PST) (45.0% of operations)
 
 Operation: STAT
  * 236.38 obj/s (59.966s, starting 07:44:05 PST) (30.0% of operations)
 
 Operation: PUT
- * 206.11 MB/s, 118.23 obj/s (59.994s, starting 07:44:05 PST) (15.0% of operations)
+ * 206.11 MiB/s, 118.23 obj/s (59.994s, starting 07:44:05 PST) (15.0% of operations)
 
 Operation: DELETE
  * 78.91 obj/s (59.927s, starting 07:44:05 PST) (10.0% of operations)
@@ -190,7 +190,7 @@ It is possible to get request statistics by adding the `--requests` parameter:
 Mixed operations.
 
 Operation: GET
- * 725.42 MB/s, 72.54 obj/s (59.961s, starting 07:07:34 PST) (45.0% of operations)
+ * 725.42 MiB/s, 72.54 obj/s (59.961s, starting 07:07:34 PST) (45.0% of operations)
 
 Requests considered: 4304:
  * Avg: 131ms 50%: 124ms 90%: 300ms 99%: 495ms Fastest: 7ms Slowest: 700ms
@@ -212,12 +212,12 @@ When downloading, the benchmark will attempt to run `--concurrent` concurrent do
 The analysis will include the upload stats as `PUT` operations and the `GET` operations.
 ```
 Operation: GET
-* Average: 2344.50 MB/s, 234.45 obj/s, 234.44 ops ended/s (59.119s)
+* Average: 2344.50 MiB/s, 234.45 obj/s, 234.44 ops ended/s (59.119s)
 
 Aggregated, split into 59 x 1s time segments:
-* Fastest: 2693.83 MB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
-* 50% Median: 2419.56 MB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
-* Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
+* Fastest: 2693.83 MiB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
+* 50% Median: 2419.56 MiB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
+* Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
 
 The `GET` operations will contain the time until the first byte was received.
@@ -231,12 +231,12 @@ Objects will be uploaded with `--concurrent` different prefixes, except if `--no
 
 ```
 Operation: PUT
-* Average: 971.75 MB/s, 97.18 obj/s, 97.16 ops ended/s (59.417s)
+* Average: 971.75 MiB/s, 97.18 obj/s, 97.16 ops ended/s (59.417s)
 
 Aggregated, split into 59 x 1s time segments:
-* Fastest: 1591.40 MB/s, 159.14 obj/s, 161.00 ops ended/s (1s)
-* 50% Median: 919.79 MB/s, 91.98 obj/s, 95.00 ops ended/s (1s)
-* Slowest: 347.95 MB/s, 34.80 obj/s, 32.00 ops ended/s (1s)
+* Fastest: 1591.40 MiB/s, 159.14 obj/s, 161.00 ops ended/s (1s)
+* 50% Median: 919.79 MiB/s, 91.98 obj/s, 95.00 ops ended/s (1s)
+* Slowest: 347.95 MiB/s, 34.80 obj/s, 32.00 ops ended/s (1s)
 ```
 
 ## delete
@@ -316,7 +316,7 @@ Therefore the analysis time will typically be slightly below the selected benchm
 In this run "only" 42.9 seconds are included in the aggregate data, due to big payload size and low throughput:
 ```
 Operation: PUT
-* Average: 37.19 MB/s, 0.37 obj/s, 0.33 ops ended/s (42.957s)
+* Average: 37.19 MiB/s, 0.37 obj/s, 0.33 ops ended/s (42.957s)
 ```
 
 The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`, default 1s. For each segment the throughput is calculated across all threads.
@@ -324,9 +324,9 @@ The benchmark run is then divided into fixed duration *segments* specified by `-
 The analysis output will display the fastest, slowest and 50% median segment.
 ```
 Aggregated, split into 59 x 1s time segments:
-* Fastest: 2693.83 MB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
-* 50% Median: 2419.56 MB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
-* Slowest: 1137.36 MB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
+* Fastest: 2693.83 MiB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
+* 50% Median: 2419.56 MiB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
+* Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
 
 ### analysis parameters
@@ -337,14 +337,14 @@ Specifying `--analyze.hostdetails` will output time aggregated data per host ins
 
 ```
 Throughput by host:
- * http://127.0.0.1:9001: Avg: 81.48 MB/s, 81.48 obj/s (4m59.976s)
-        - Fastest: 86.46 MB/s, 86.46 obj/s (1s)
-        - 50% Median: 82.23 MB/s, 82.23 obj/s (1s)
-        - Slowest: 68.14 MB/s, 68.14 obj/s (1s)
- * http://127.0.0.1:9002: Avg: 81.48 MB/s, 81.48 obj/s (4m59.968s)
-        - Fastest: 87.36 MB/s, 87.36 obj/s (1s)
-        - 50% Median: 82.28 MB/s, 82.28 obj/s (1s)
-        - Slowest: 68.40 MB/s, 68.40 obj/s (1s)
+ * http://127.0.0.1:9001: Avg: 81.48 MiB/s, 81.48 obj/s (4m59.976s)
+        - Fastest: 86.46 MiB/s, 86.46 obj/s (1s)
+        - 50% Median: 82.23 MiB/s, 82.23 obj/s (1s)
+        - Slowest: 68.14 MiB/s, 68.14 obj/s (1s)
+ * http://127.0.0.1:9002: Avg: 81.48 MiB/s, 81.48 obj/s (4m59.968s)
+        - Fastest: 87.36 MiB/s, 87.36 obj/s (1s)
+        - 50% Median: 82.28 MiB/s, 82.28 obj/s (1s)
+        - Slowest: 68.40 MiB/s, 68.40 obj/s (1s)
 ```
 
 
@@ -422,7 +422,7 @@ These are the data fields exported:
 | `ops_started`       | Operations started within segment                                                                 |
 | `ops_ended`         | Operations ended within the segment                                                               |
 | `errors`            | Errors logged on operations ending within the segment                                             |
-| `mb_per_sec`        | MB/s of operations within the segment (*distributed*)                                             |
+| `mb_per_sec`        | MiB/s of operations within the segment (*distributed*)                                             |
 | `ops_ended_per_sec` | Operations that ended within the segment per second                                               |
 | `objs_per_sec`      | Objects per second processed in the segment (*distributed*)                                       |
 | `start_time`        | Absolute start time of the segment                                                                |
@@ -445,18 +445,18 @@ An example:
 -------------------
 Operation: PUT
 Duration: 1m4s -> 1m2s
-* Average: +2.63% (+1.0 MB/s) throughput, +2.63% (+1.0) obj/s
+* Average: +2.63% (+1.0 MiB/s) throughput, +2.63% (+1.0) obj/s
 * Fastest: -4.51% (-4.1) obj/s
-* 50% Median: +3.11% (+1.1 MB/s) throughput, +3.11% (+1.1) obj/s
-* Slowest: +1.66% (+0.4 MB/s) throughput, +1.66% (+0.4) obj/s
+* 50% Median: +3.11% (+1.1 MiB/s) throughput, +3.11% (+1.1) obj/s
+* Slowest: +1.66% (+0.4 MiB/s) throughput, +1.66% (+0.4) obj/s
 -------------------
 Operation: GET
 Operations: 16768 -> 171105
 Duration: 30s -> 5m0s
-* Average: +2.10% (+11.7 MB/s) throughput, +2.10% (+11.7) obj/s
+* Average: +2.10% (+11.7 MiB/s) throughput, +2.10% (+11.7) obj/s
 * First Byte: Average: -405.876µs (-2%), Median: -2.1µs (-0%), Best: -998.1µs (-50%), Worst: +41.0014ms (+65%)
-* Fastest: +2.35% (+14.0 MB/s) throughput, +2.35% (+14.0) obj/s
-* 50% Median: +2.81% (+15.8 MB/s) throughput, +2.81% (+15.8) obj/s
+* Fastest: +2.35% (+14.0 MiB/s) throughput, +2.35% (+14.0) obj/s
+* 50% Median: +2.81% (+15.8 MiB/s) throughput, +2.81% (+15.8) obj/s
 * Slowest: -10.02% (-52.0) obj/s
 ```
 

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Stat benchmarks download speed.
+// Stat benchmarks HEAD speed.
 type Stat struct {
 	CreateObjects int
 	Collector     *Collector
@@ -74,7 +75,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "PUT",
+					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,

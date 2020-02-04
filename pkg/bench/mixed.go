@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -32,7 +33,7 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Mixed benchmarks download speed.
+// Mixed benchmarks mixed operations all inclusive.
 type Mixed struct {
 	CreateObjects int
 	Collector     *Collector
@@ -57,7 +58,7 @@ type MixedDistribution struct {
 }
 
 func (m *MixedDistribution) Generate(allocObjs int) error {
-	if m.Distribution["DELETE"] > m.Distribution["PUT"] {
+	if m.Distribution[http.MethodDelete] > m.Distribution[http.MethodPut] {
 		return errors.New("DELETE distribution cannot be bigger than PUT")
 	}
 	m.objects = make(map[string]generator.Object, allocObjs)
@@ -243,7 +244,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 				}
 				operation := g.Dist.getOp()
 				switch operation {
-				case "GET":
+				case http.MethodGet:
 					fbr := firstByteRecorder{}
 					obj, objDone := g.Dist.randomObj()
 					client, clDone := g.Client()
@@ -281,7 +282,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					rcv <- op
 					objDone()
 					clDone()
-				case "PUT":
+				case http.MethodPut:
 					obj := src.Object()
 					putOpts.ContentType = obj.ContentType
 					client, clDone := g.Client()
@@ -312,7 +313,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						g.Dist.addObj(*obj)
 					}
 					rcv <- op
-				case "DELETE":
+				case http.MethodDelete:
 					client, clDone := g.Client()
 					obj := g.Dist.deleteRandomObj()
 					op := Operation{
