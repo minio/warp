@@ -4,9 +4,9 @@ S3 benchmarking tool.
 
 # configuration
 
-Warp can be configured either using commandline parameters or environment variables. The S3 server to use can be specified on the commandline using `--host`, `--access-key`, `--secret-key` and optionally `--tls` to specify TLS.
+Warp can be configured either using commandline parameters or environment variables. The S3 server to use can be specified on the commandline using `--host`, `--access-key`, `--secret-key` and optionally `--tls` and `--region` to specify TLS and a custom region.
 
-It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY` and `WARP_TLS` environment variables.
+It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY`, `WARP_REGION` and `WARP_TLS` environment variables.
 
 The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
 
