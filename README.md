@@ -1,4 +1,4 @@
-![warp](https://user-images.githubusercontent.com/5663952/69431113-580f9500-0d37-11ea-8265-46142e7b15cc.png)
+![warp](warp_logo.png)
 
 S3 benchmarking tool.
 
