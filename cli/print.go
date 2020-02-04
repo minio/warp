@@ -22,8 +22,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
+	"github.com/minio/minio/pkg/console"
 )
 
 // causeMessage container for golang error messages
