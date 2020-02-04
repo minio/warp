@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2020 MinIO, Inc.
+ * Warp (C) 2020 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package bench
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -29,20 +31,20 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Stat benchmarks HEAD speed.
-type Stat struct {
+// Select benchmarks download speed.
+type Select struct {
 	CreateObjects int
 	Collector     *Collector
 	objects       generator.Objects
 
-	// Default Stat options.
-	StatOpts minio.StatObjectOptions
+	// Default Select options.
+	SelectOpts minio.SelectObjectOptions
 	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (g *Stat) Prepare(ctx context.Context) error {
+func (g *Select) Prepare(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
@@ -122,19 +124,19 @@ func (g *Stat) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "STAT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+		ctx = c.AutoTerm(ctx, "SELECT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
 			rcv := c.Receiver()
 			defer wg.Done()
-			opts := g.StatOpts
+			opts := g.SelectOpts
 			done := ctx.Done()
 
 			<-wait
@@ -144,32 +146,34 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					return
 				default:
 				}
+				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "STAT",
+					OpType:   "SELECT",
 					Thread:   uint16(i),
-					Size:     0,
+					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 				var err error
-				objI, err := client.StatObject(g.Bucket, obj.Name, opts)
+				fbr.r, err = client.SelectObjectContent(context.Background(), g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Errorln("StatObject error:", err)
+					console.Errorln("download error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
 					cldone()
 					continue
 				}
-				op.End = time.Now()
-				if objI.Size != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected file size. want:", obj.Size, ", got:", objI.Size)
-					console.Errorln(op.Err)
+				if _, err = io.Copy(ioutil.Discard, &fbr); err != nil {
+					console.Errorln("download error:", err)
+					op.Err = err.Error()
 				}
+				op.FirstByte = fbr.t
+				op.End = time.Now()
 				rcv <- op
 				cldone()
 			}
@@ -180,6 +184,6 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (g *Stat) Cleanup(ctx context.Context) {
+func (g *Select) Cleanup(ctx context.Context) {
 	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
 }

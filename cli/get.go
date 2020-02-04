@@ -18,6 +18,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -31,8 +32,8 @@ var (
 		},
 		cli.StringFlag{
 			Name:  "obj.size",
-			Value: "10MB",
-			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
+			Value: "10MiB",
+			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
 	}
 )
@@ -81,6 +82,10 @@ func mainGet(ctx *cli.Context) error {
 }
 
 func checkGetSyntax(ctx *cli.Context) {
+	if ctx.NArg() > 0 {
+		console.Fatal("Command takes no arguments")
+	}
+
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

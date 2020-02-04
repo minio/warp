@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/minio/mc/pkg/console"
 )
 
@@ -133,7 +134,7 @@ func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, 
 			}
 			// All checks passed.
 			if mb > 0 {
-				console.Printf("\rThroughput %0.01fMB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+				console.Printf("\rThroughput %0.01fMiB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
 					mb, threshold*100,
 					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
 			} else {
@@ -157,8 +158,7 @@ func (c *Collector) Close() Operations {
 	return c.ops
 }
 
-// SortByDuration will sort the operations by duration taken to complete.
-// Fastest operations first.
+// Duration returns the duration o.End-o.Start
 func (o Operation) Duration() time.Duration {
 	return o.End.Sub(o.Start)
 }
@@ -167,19 +167,7 @@ func (o Operation) Duration() time.Duration {
 type Throughput float64
 
 func (t Throughput) String() string {
-	if t < 2<<10 {
-		return fmt.Sprintf("%.01fB/s", float64(t))
-	}
-	if t < 2<<20 {
-		return fmt.Sprintf("%.01fKB/s", float64(t/1024))
-	}
-	if t < 2<<30 {
-		return fmt.Sprintf("%.01fMB/s", float64(t/1024/1024))
-	}
-	if t < 2<<40 {
-		return fmt.Sprintf("%.01fGB/s", float64(t/1024/1024/1024))
-	}
-	return fmt.Sprintf("%.01fTB/s", float64(t/1024/1024/1024))
+	return humanize.IBytes(uint64(t))
 }
 
 func (o Operation) BytesPerSec() Throughput {
@@ -535,16 +523,16 @@ var log10ToSize = map[int]string{
 	0:  "",
 	1:  "10B",
 	2:  "100B",
-	3:  "1KB",
-	4:  "10KB",
-	5:  "100KB",
-	6:  "1MB",
-	7:  "10MB",
-	8:  "100MB",
-	9:  "1GB",
-	10: "10GB",
-	11: "100GB",
-	12: "1TB",
+	3:  "1KiB",
+	4:  "10KiB",
+	5:  "100KiB",
+	6:  "1MiB",
+	7:  "10MiB",
+	8:  "100MiB",
+	9:  "1GiB",
+	10: "10GiB",
+	11: "100GiB",
+	12: "1TiB",
 }
 
 var log10ToLog2Size = map[int]int64{

@@ -24,7 +24,7 @@ import (
 	"github.com/minio/mc/pkg/console"
 )
 
-// Collection of mc flags currently supported
+// Collection of warp flags currently supported
 var globalFlags = []cli.Flag{
 	// These flags mimmic the `go test` flags.
 	cli.StringFlag{
@@ -137,6 +137,17 @@ var ioFlags = []cli.Flag{
 		Name:   "tls",
 		Usage:  "Use TLS (HTTPS) for transport",
 		EnvVar: appNameUC + "_TLS",
+	},
+	cli.StringFlag{
+		Name:   "region",
+		Usage:  "Specify a custom region",
+		EnvVar: appNameUC + "_REGION",
+	},
+	cli.StringFlag{
+		Name:   "signature",
+		Usage:  "Specify a signature method. Available values are S3V2, S3V4",
+		Value:  "S3V4",
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:  "encrypt",

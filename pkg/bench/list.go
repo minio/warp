@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
@@ -27,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Get benchmarks download speed.
+// List benchmarks listing speed.
 type List struct {
 	CreateObjects int
 	NoPrefix      bool
@@ -83,7 +84,7 @@ func (d *List) Prepare(ctx context.Context) error {
 				exists[obj.Name] = struct{}{}
 				client, cldone := d.Client()
 				op := Operation{
-					OpType:   "PUT",
+					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
