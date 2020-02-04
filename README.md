@@ -2,7 +2,11 @@
 
 S3 benchmarking tool.
 
-# configuration
+# Download
+
+[Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
+
+# Configuration
 
 Warp can be configured either using commandline parameters or environment variables. The S3 server to use can be specified on the commandline using `--host`, `--access-key`, `--secret-key` and optionally `--tls` and `--region` to specify TLS and a custom region.
 
@@ -14,11 +18,11 @@ By default operations are performed on a bucket called `warp-benchmark-bucket`. 
 
 If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) of objects using `--encrypt`. A random key will be generated and used for objects.
 
-# usage
+# Usage
 
 `warp command [options]`
 
-# benchmarks
+# Benchmarks
 
 All benchmarks operate concurrently. By default the processor determines the number of operations that will be running concurrently. This can however also be tweaked using the `--concurrent` parameter.
 
@@ -26,7 +30,7 @@ Tweaking concurrency can have an impact on performance, especially if latency to
 
 By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. A custom file name can be specified using the `--benchdata` parameter. The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
-# distributed benchmarking
+# Distributed Benchmarking
 
 It is possible to coordinate several warp instances automatically.
 This can be useful for testing performance of a cluster from several clients at once.
@@ -35,7 +39,7 @@ For reliable benchmarks, clients should have synchronized clocks.
 Warp checks whether clocks are within one second of the server,
 but ideally, clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
 
-## client setup
+## Client Setup
 
 WARNING: Never run warp clients on a publicly exposed port. Clients have the potential to DDOS any service.
 
@@ -54,7 +58,7 @@ However, when a benchmark is done, the client can immediately run another one wi
 There will be a version check to ensure that clients are compatible with the server,
 but it is always recommended to keep warp versions the same.
 
-## server setup
+## Server Setup
 
 Any benchmark can be run in server mode.
 When warp is invoked as a server no actual benchmarking will be done on the server.
@@ -78,7 +82,7 @@ Note that parameters apply to *each* client. So if `concurrent=8` is specified e
 
 If the warp server looses connection to a client during a benchmark run an error will be displayed and the server will attempt to reconnect. If the server is unable to reconnect, the benchmark will continue with the remaining clients.
 
-## benchmark data
+## Benchmark Data
 
 By default warp uploads random data.
 
@@ -129,7 +133,7 @@ Aggregated Throughput, split into 28 x 1s time segments:
  * Slowest: 1061.56 MiB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
 ```
 
-## automatic termination
+## Automatic Termination
 Adding `--autoterm` parameter will enable automatic termination when results are considered stable. To detect a stable setup, warp continuously downsample the current data to 25 data points stretched over the current timeframe.
 
 For a benchmark to be considered "stable", the last 7 of 25 data points must be within a specified percentage. Looking at the throughput over time, it could look like this:
@@ -146,7 +150,7 @@ A permanent 'drift' in throughput will prevent automatic termination, if the dri
 
 When using automatic termination be aware that you should not compare average speeds, since the length of the benchmark runs will likely be different. Instead 50% medians are a much better metrics.
 
-## multiple hosts
+## Multiple Hosts
 
 Multiple hosts can be specified as comma-separated values, for instance `10.0.0.1:9000,10.0.0.2:9000` will switch between the specified servers.
 
@@ -159,7 +163,7 @@ When running benchmarks on several clients, it is possible to synchronize their 
 
 When benchmarks are done per host averages will be printed out. For further details, the `--analyze.hostdetails` parameter can also be used.
 
-## mixed
+## Mixed
 
 Mixed mode benchmark will test several operation types at once.  The benchmark will upload `--objects` objects of size `--obj.size`  and use these objects as a pool for the benchmark. As new objects are uploaded/deleted they are added/removed from the pool.
 
@@ -201,7 +205,7 @@ Requests considered: 4304:
 
 If multiple hosts were used statistics for each host will also be displayed.
 
-## get
+## GET
 
 Benchmarking get operations will upload `--objects` objects of size `--obj.size` and attempt to download as many it can within `--duration`.
 
@@ -223,7 +227,7 @@ Aggregated, split into 59 x 1s time segments:
 The `GET` operations will contain the time until the first byte was received.
 This can be accessed using the `-requests` parameter.
 
-## put
+## PUT
 
 Benchmarking put operations will upload objects of size `--obj.size` until `--duration` time has elapsed.
 
@@ -239,7 +243,7 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 347.95 MiB/s, 34.80 obj/s, 32.00 ops ended/s (1s)
 ```
 
-## delete
+## DELETE
 
 Benchmarking delete operations will upload `--objects` objects of size `--obj.size` and attempt to
 delete as many it can within `--duration`.
@@ -260,7 +264,7 @@ Aggregated, split into 38 x 1s time segments:
 * Slowest: 1919.86 obj/s, 23.00 ops ended/s (1s)
 ```
 
-## list
+## LIST
 
 Benchmarking list operations will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes. The list operations are done per prefix.
 
@@ -276,7 +280,7 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
 ```
 
-## stat
+## STAT
 
 Benchmarking [stat object](https://docs.min.io/docs/golang-client-api-reference#StatObject) operations will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes.
 
@@ -298,7 +302,7 @@ Aggregated Throughput, split into 36 x 1s time segments:
  * Slowest: 8897.26 obj/s (1s, starting 04:47:06 PST)
 ```
 
-# analysis
+# Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
 
@@ -306,7 +310,7 @@ The saved data can be re-evaluated by running `warp analyze (filename)`.
 
 It is possible to merge analyses from concurrent runs using the `warp merge file1 file2 ...`. This will combine the data as if it was run on the same client. Only the time segments that was actually overlapping will be considered. This is based on the absolute time of each recording, so be sure that clocks are reasonably synchronized or use the `--syncstart` parameter.
 
-## analysis data
+## Analysis Data
 
 All analysis will be done on a reduced part of the full data. The data aggregation will *start* when all threads have completed one request and the time segment will *stop* when the last request of a thread is initiated.
 
@@ -329,7 +333,7 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
 ```
 
-### analysis parameters
+### Analysis Parameters
 
 Beside the important `--analysis.dur` which specifies the time segment size for aggregated data there are some additional parameters that can be used.
 
@@ -359,7 +363,7 @@ this is possible. For instance `analyze.skip=10s` will skip the first 10 seconds
 Note that skipping data will not always result in the exact reduction in time for the aggregated data
 since the start time will still be aligned with requests starting.
 
-### per request statistics
+### Per Request Statistics
 
 By adding the `--requests` parameter it is possible to display per request statistics.
 
@@ -403,7 +407,7 @@ The fastest and slowest request times are shown, as well as selected percentiles
 
 Note that different metrics are used to select the number of requests per host and for the combined, so there will likely be differences.
 
-### csv output
+### CSV Output
 
 It is possible to output the CSV data of analysis using `--analyze.out=filename.csv` which will write the CSV data to the specified file.
 
@@ -432,7 +436,7 @@ Some of these fields are *distributed*. This means that the data of partial oper
 
 This is why there can be a partial object attributed to a segment, because only a part of the operation took place in the segment.
 
-## comparing benchmarks
+## Comparing Benchmarks
 
 It is possible to compare two recorded runs using the `warp cmp (file-before) (file-after)` to
 see the differences between before and after.
@@ -465,7 +469,7 @@ Differences in parameters will be shown.
 
 The usual analysis parameters can be applied to define segment lengths.
 
-## merging benchmarks
+## Merging Benchmarks
 
 It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
 
@@ -478,7 +482,7 @@ It is important to note that only data that strictly overlaps in absolute time w
 
 When running benchmarks on several clients it is likely a good idea to specify the `--noclear` parameter so clients don't accidentally delete each others data on startup or shutdown.
 
-# server profiling
+# Server Profiling
 
 When running against a MinIO server it is possible to enable profiling while the benchmark is running.
 

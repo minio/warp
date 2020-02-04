@@ -53,6 +53,4 @@ dockers:
     dockerfile: Dockerfile.release
     image_templates:
       - "minio/warp:{{ .Tag }}"
-      - "minio/warp:v{{ .Major }}"
-      - "minio/warp:v{{ .Major }}.{{ .Minor }}"
       - "minio/warp:latest"
