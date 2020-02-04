@@ -169,9 +169,9 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 }
 
 // SpeedPerSec returns mb/s for the segment and the ops ended per second.
-func (s Segment) SpeedPerSec() (mb, ops, objs float64) {
+func (s Segment) SpeedPerSec() (mib, ops, objs float64) {
 	scale := float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)
-	mb = float64(s.TotalBytes) / (1024 * 1024) / scale
+	mib = float64(s.TotalBytes) / (1024 * 1024) / scale
 	ops = float64(s.OpsEnded) / scale
 	objs = s.Objects / scale
 	return
@@ -225,7 +225,7 @@ func (s Segments) CSV(w io.Writer) error {
 
 // CSV writes a CSV representation of the segment to the supplied writer.
 func (s Segment) CSV(w *csv.Writer, idx int) error {
-	mb, ops, objs := s.SpeedPerSec()
+	mib, ops, objs := s.SpeedPerSec()
 	return w.Write([]string{
 		fmt.Sprint(idx),
 		s.OpType,
@@ -238,7 +238,7 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 		fmt.Sprint(s.OpsStarted),
 		fmt.Sprint(s.OpsEnded),
 		fmt.Sprint(s.Errors),
-		fmt.Sprint(mb),
+		fmt.Sprint(mib),
 		fmt.Sprint(ops),
 		fmt.Sprint(objs),
 		fmt.Sprint(s.Start),
@@ -253,10 +253,10 @@ func (s Segment) Duration() time.Duration {
 
 // String returns a string representation of the segment
 func (s Segment) String() string {
-	mb, _, objs := s.SpeedPerSec()
+	mib, _, objs := s.SpeedPerSec()
 	speed := ""
-	if mb > 0 {
-		speed = fmt.Sprintf("%.02f MB/s, ", mb)
+	if mib > 0 {
+		speed = fmt.Sprintf("%.02f MiB/s, ", mib)
 	}
 	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
 		speed, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond), s.Start.Format("15:04:05 MST"))
@@ -264,10 +264,10 @@ func (s Segment) String() string {
 
 // ShortString returns a string representation of the segment without ops ended/s.
 func (s Segment) ShortString() string {
-	mb, _, objs := s.SpeedPerSec()
+	mib, _, objs := s.SpeedPerSec()
 	speed := ""
-	if mb > 0 {
-		speed = fmt.Sprintf("%.02f MB/s, ", mb)
+	if mib > 0 {
+		speed = fmt.Sprintf("%.02f MiB/s, ", mib)
 	}
 	return fmt.Sprintf("%s%.02f obj/s (%v)",
 		speed, objs, s.EndsBefore.Sub(s.Start).Round(time.Millisecond))

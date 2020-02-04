@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
@@ -76,7 +77,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "PUT",
+					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
@@ -146,7 +147,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 	wg.Add(g.Concurrency)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "GET", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+		ctx = c.AutoTerm(ctx, http.MethodGet, g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
@@ -167,7 +168,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "GET",
+					OpType:   http.MethodGet,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,

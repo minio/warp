@@ -61,13 +61,13 @@ func (c *CmpSegment) Compare(before, after Segment) {
 // String returns a string representation of the segment comparison.
 func (c CmpSegment) String() string {
 	speed := ""
-	mbB, _, objsB := c.Before.SpeedPerSec()
-	mbA, _, objsA := c.After.SpeedPerSec()
+	mibB, _, objsB := c.Before.SpeedPerSec()
+	mibA, _, objsA := c.After.SpeedPerSec()
 
 	if c.ThroughputPerSec != 0 {
-		speed = fmt.Sprintf("%s%.02f%% (%s%.1f MB/s) throughput, ",
+		speed = fmt.Sprintf("%s%.02f%% (%s%.1f MiB/s) throughput, ",
 			plusPositiveF(c.ThroughputPerSec), c.ThroughputPerSec,
-			plusPositiveF(c.ThroughputPerSec), mbA-mbB,
+			plusPositiveF(c.ThroughputPerSec), mibA-mibB,
 		)
 	}
 	return fmt.Sprintf("%s%s%.02f%% (%s%.1f) obj/s",

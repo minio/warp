@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Get benchmarks download speed.
+// Delete benchmarks delete speed.
 type Delete struct {
 	CreateObjects int
 	BatchSize     int
@@ -73,7 +74,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, cldone := d.Client()
 				op := Operation{
-					OpType:   "PUT",
+					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
@@ -133,7 +134,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 	wg.Add(d.Concurrency)
 	c := d.Collector
 	if d.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "DELETE", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
+		ctx = c.AutoTerm(ctx, http.MethodDelete, d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
 	}
 
 	var mu sync.Mutex
@@ -173,7 +174,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 				client, cldone := d.Client()
 				op := Operation{
-					OpType:   "DELETE",
+					OpType:   http.MethodDelete,
 					Thread:   uint16(i),
 					Size:     0,
 					File:     "",

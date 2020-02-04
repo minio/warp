@@ -138,6 +138,17 @@ var ioFlags = []cli.Flag{
 		Usage:  "Use TLS (HTTPS) for transport",
 		EnvVar: appNameUC + "_TLS",
 	},
+	cli.StringFlag{
+		Name:   "region",
+		Usage:  "Specify a custom region",
+		EnvVar: appNameUC + "_REGION",
+	},
+	cli.StringFlag{
+		Name:   "signature",
+		Usage:  "Specify a signature method. Available values are S3V2, S3V4",
+		Value:  "S3V4",
+		Hidden: true,
+	},
 	cli.BoolFlag{
 		Name:  "encrypt",
 		Usage: "encrypt/decrypt objects (using server-side encryption with random keys)",

@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/cheggaaa/pb v1.0.28
+	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0
 	github.com/gorilla/websocket v1.4.1
 	github.com/klauspost/compress v1.9.1
