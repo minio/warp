@@ -43,7 +43,7 @@ func mainComplete() error {
 	return nil
 }
 
-// The list of all commands supported by mc with their mapping
+// The list of all commands supported by warp with their mapping
 // with their bash completer function
 var completeCmds = map[string]complete.Predictor{
 	"/version": nil,

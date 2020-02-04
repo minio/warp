@@ -73,7 +73,7 @@ func Main(args []string) {
 		globalTermWidth = w
 	}
 
-	// Set the mc app name.
+	// Set the warp app name.
 	appName := filepath.Base(args[0])
 
 	// Run the app - exit on error.
@@ -89,6 +89,7 @@ func init() {
 		deleteCmd,
 		listCmd,
 		statCmd,
+		selectCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,
@@ -111,10 +112,10 @@ func combineFlags(flags ...[]cli.Flag) []cli.Flag {
 	return dst
 }
 
-// Collection of mc commands currently supported
+// Collection of warp commands currently supported
 var commands = []cli.Command{}
 
-// Collection of mc commands currently supported in a trie tree
+// Collection of warp commands currently supported in a trie tree
 var commandsTree = trie.NewTrie()
 
 // registerCmd registers a cli command
@@ -192,7 +193,6 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
 	app.Flags = append(app.Flags, globalFlags...)
-	//app.CustomAppHelpTemplate = mcHelpTemplate
 	app.CommandNotFound = commandNotFound // handler function declared above.
 	app.EnableBashCompletion = true
 
