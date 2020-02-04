@@ -19,6 +19,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 	wg.Add(u.Concurrency)
 	c := NewCollector()
 	if u.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "PUT", u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
+		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
 	for i := 0; i < u.Concurrency; i++ {
@@ -66,7 +67,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				opts.ContentType = obj.ContentType
 				client, cldone := u.Client()
 				op := Operation{
-					OpType:   "PUT",
+					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,

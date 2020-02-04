@@ -17,32 +17,11 @@ import (
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v6/pkg/credentials"
 	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
 	"github.com/minio/warp/pkg"
 )
-
-// parseHosts will parse the host parameter given.
-func parseHosts(h string) []string {
-	hosts := strings.Split(h, ",")
-	dst := make([]string, 0, len(hosts))
-	for _, host := range hosts {
-		if !ellipses.HasEllipses(host) {
-			dst = append(dst, host)
-			continue
-		}
-		patterns, perr := ellipses.FindEllipsesPatterns(host)
-		if perr != nil {
-			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
-
-			log.Fatal(perr.Error())
-		}
-		for _, p := range patterns {
-			dst = append(dst, p.Expand()...)
-		}
-	}
-	return dst
-}
 
 type hostSelectType string
 
@@ -57,10 +36,9 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
 	case 1:
-		cl, err := minio.New(hosts[0], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
+		cl, err := getClient(ctx, hosts[0])
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
-		cl.SetCustomTransport(clientTransport(ctx))
-		cl.SetAppInfo(appName, pkg.Version)
+
 		return func() (*minio.Client, func()) {
 			return cl, func() {}
 		}
@@ -73,9 +51,8 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		var mu sync.Mutex
 		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
-			cl, err := minio.New(hosts[i], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
+			cl, err := getClient(ctx, hosts[i])
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
-			cl.SetAppInfo(appName, pkg.Version)
 			clients[i] = cl
 		}
 		return func() (*minio.Client, func()) {
@@ -91,9 +68,8 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		var mu sync.Mutex
 		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
-			cl, err := minio.New(hosts[i], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
+			cl, err := getClient(ctx, hosts[i])
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
-			cl.SetAppInfo(appName, pkg.Version)
 			clients[i] = cl
 		}
 		running := make([]int, len(hosts))
@@ -148,6 +124,34 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	return nil
 }
 
+// getClient creates a client with the specified host and the options set in the context.
+func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
+	var creds *credentials.Credentials
+	switch strings.ToUpper(ctx.String("signature")) {
+	case "S3V4":
+		// if Signature version '4' use NewV4 directly.
+		creds = credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), "")
+	case "S3V2":
+		// if Signature version '2' use NewV2 directly.
+		creds = credentials.NewStaticV2(ctx.String("access-key"), ctx.String("secret-key"), "")
+	default:
+		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
+	}
+
+	cl, err := minio.NewWithOptions(host, &minio.Options{
+		Creds:        creds,
+		Secure:       ctx.Bool("tls"),
+		Region:       ctx.String("region"),
+		BucketLookup: 0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	cl.SetCustomTransport(clientTransport(ctx))
+	cl.SetAppInfo(appName, pkg.Version)
+	return cl, nil
+}
+
 func clientTransport(ctx *cli.Context) http.RoundTripper {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -192,6 +196,28 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		// }
 	}
 	return tr
+}
+
+// parseHosts will parse the host parameter given.
+func parseHosts(h string) []string {
+	hosts := strings.Split(h, ",")
+	dst := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		if !ellipses.HasEllipses(host) {
+			dst = append(dst, host)
+			continue
+		}
+		patterns, perr := ellipses.FindEllipsesPatterns(host)
+		if perr != nil {
+			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
+
+			log.Fatal(perr.Error())
+		}
+		for _, p := range patterns {
+			dst = append(dst, p.Expand()...)
+		}
+	}
+	return dst
 }
 
 // mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)

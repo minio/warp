@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2020 MinIO, Inc.
+ * Warp (C) 2020 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,41 +18,39 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/warp/pkg/bench"
 )
 
 var (
-	deleteFlags = []cli.Flag{
+	selectFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
-			Value: 25000,
+			Value: 2500,
 			Usage: "Number of objects to upload.",
 		},
 		cli.StringFlag{
 			Name:  "obj.size",
-			Value: "1KiB",
+			Value: "10MiB",
 			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
-		cli.IntFlag{
-			Name:  "batch",
-			Value: 100,
-			Usage: "Number of DELETE operations per batch.",
+		cli.StringFlag{
+			Name:  "query",
+			Value: "select * from s3object",
+			Usage: "select query expression",
 		},
 	}
 )
 
-var deleteCmd = cli.Command{
-	Name:   "delete",
-	Usage:  "benchmark delete objects",
-	Action: mainDelete,
+var selectCmd = cli.Command{
+	Name:   "select",
+	Usage:  "benchmark select objects",
+	Action: mainSelect,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, deleteFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, selectFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
-  The benchmark will end when either all objects have been deleted or the durations specified with -duration has been reached. 
 USAGE:
   {{.HelpName}} [FLAGS]
 
@@ -65,12 +63,12 @@ EXAMPLES:
  `,
 }
 
-// mainDelete is the entry point for get command.
-func mainDelete(ctx *cli.Context) error {
-	checkDeleteSyntax(ctx)
-	src := newGenSource(ctx)
-
-	b := bench.Delete{
+// mainSelect is the entry point for select command.
+func mainSelect(ctx *cli.Context) error {
+	checkSelectSyntax(ctx)
+	src := newGenSourceCSV(ctx)
+	sse := newSSE(ctx)
+	b := bench.Select{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -78,22 +76,35 @@ func mainDelete(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: newSSE(ctx),
+				ServerSideEncryption: sse,
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
-		BatchSize:     ctx.Int("batch"),
+		SelectOpts: minio.SelectObjectOptions{
+			Expression:     ctx.String("query"),
+			ExpressionType: minio.QueryExpressionTypeSQL,
+			// Set any encryption headers
+			ServerSideEncryption: sse,
+			// TODO: support all variations including, json/parquet
+			InputSerialization: minio.SelectObjectInputSerialization{
+				CSV: &minio.CSVInputOptions{
+					RecordDelimiter: "\n",
+					FieldDelimiter:  ",",
+					FileHeaderInfo:  minio.CSVFileHeaderInfoUse,
+				},
+			},
+			OutputSerialization: minio.SelectObjectOutputSerialization{
+				CSV: &minio.CSVOutputOptions{
+					RecordDelimiter: "\n",
+					FieldDelimiter:  ",",
+				},
+			},
+		},
 	}
 	return runBench(ctx, &b)
 }
 
-func checkDeleteSyntax(ctx *cli.Context) {
-	if ctx.NArg() > 0 {
-		console.Fatal("Command takes no arguments")
-	}
+func checkSelectSyntax(ctx *cli.Context) {
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
-	if ctx.Int("batch") < 1 {
-		console.Fatal("batch size much be 1 or bigger")
-	}
 }

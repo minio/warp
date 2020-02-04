@@ -17,6 +17,8 @@
 package cli
 
 import (
+	"net/http"
+
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
@@ -33,8 +35,8 @@ var (
 		},
 		cli.StringFlag{
 			Name:  "obj.size",
-			Value: "10MB",
-			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
+			Value: "10MiB",
+			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
 		cli.Float64Flag{
 			Name:  "get-distrib",
@@ -87,10 +89,10 @@ func mainMixed(ctx *cli.Context) error {
 	sse := newSSE(ctx)
 	dist := bench.MixedDistribution{
 		Distribution: map[string]float64{
-			"GET":    ctx.Float64("get-distrib"),
-			"STAT":   ctx.Float64("stat-distrib"),
-			"PUT":    ctx.Float64("put-distrib"),
-			"DELETE": ctx.Float64("delete-distrib"),
+			http.MethodGet:    ctx.Float64("get-distrib"),
+			"STAT":            ctx.Float64("stat-distrib"),
+			http.MethodPut:    ctx.Float64("put-distrib"),
+			http.MethodDelete: ctx.Float64("delete-distrib"),
 		},
 	}
 	err := dist.Generate(ctx.Int("objects") * 2)
