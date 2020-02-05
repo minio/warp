@@ -170,6 +170,11 @@ func (t Throughput) String() string {
 	return humanize.IBytes(uint64(t))
 }
 
+// Float returns a rounded (to 0.1) float value of the throughput.
+func (t Throughput) Float() float64 {
+	return math.Round(float64(t)*10) / 10
+}
+
 func (o Operation) BytesPerSec() Throughput {
 	if o.Size == 0 {
 		return 0
@@ -524,7 +529,16 @@ type SizeSegment struct {
 
 // SizeString returns the size as a string.
 func (s SizeSegment) SizeString() string {
-	return fmt.Sprint(log10ToSize[s.SmallestLog10], " -> ", log10ToSize[s.BiggestLog10])
+	a, b := s.SizesString()
+	return fmt.Sprint(a, " -> ", b)
+}
+
+// SizesString returns the lower and upper limit as strings.
+func (s SizeSegment) SizesString() (lo, hi string) {
+	if s.SmallestLog10 <= 0 || s.BiggestLog10 <= 0 {
+		return humanize.IBytes(uint64(s.Smallest)), humanize.IBytes(uint64(s.Biggest))
+	}
+	return log10ToSize[s.SmallestLog10], log10ToSize[s.BiggestLog10]
 }
 
 var log10ToSize = map[int]string{
@@ -559,16 +573,29 @@ var log10ToLog2Size = map[int]int64{
 	12: 1 << 40,
 }
 
+func (o Operations) SingleSizeSegment() SizeSegment {
+	min, max := o.MinMaxSize()
+	var minL10, maxL10 int
+	for min > log10ToLog2Size[minL10+1] {
+		minL10++
+	}
+	for max >= log10ToLog2Size[maxL10] {
+		maxL10++
+	}
+	return SizeSegment{
+		Smallest:      min,
+		SmallestLog10: minL10,
+		Biggest:       max,
+		BiggestLog10:  maxL10,
+		Ops:           o,
+	}
+}
+
 // SplitSizes will return log10 separated data.
 // Specify the share of requests that must be in a segment to return it.
 func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	if !o.MultipleSizes() {
-		min, max := o.MinMaxSize()
-		return []SizeSegment{{
-			Smallest: min,
-			Biggest:  max,
-			Ops:      o,
-		}}
+		return []SizeSegment{o.SingleSizeSegment()}
 	}
 	var res []SizeSegment
 	minSz, maxSz := o.MinMaxSize()

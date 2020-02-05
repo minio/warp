@@ -1,6 +1,7 @@
 package aggregate
 
 import (
+	"math"
 	"time"
 
 	"github.com/minio/warp/pkg/bench"
@@ -12,14 +13,20 @@ type Operation struct {
 	Type string `json:"type"`
 	// Skipped if too little data
 	Skipped bool `json:"skipped"`
+	// Unfiltered start time of this operation segment.
+	StartTime time.Time `json:"start_time"`
+	// Unfiltered end time of this operation segment.
+	EndTime time.Time `json:"end_time"`
 	// Objects per operation.
 	ObjectsPerOperation int `json:"objects_per_operation"`
 	// Concurrency - total number of threads running.
 	Concurrency int `json:"concurrency"`
 	// Numbers of hosts
 	Hosts int `json:"hosts"`
-	// Populated if requests are all of similar object size.
-	SingleSizedRequests *SingleSizeRequests `json:"single_sized_requests,omitempty"`
+	// Populated if requests are all of same object size.
+	SingleSizedRequests *SingleSizedRequests `json:"single_sized_requests,omitempty"`
+	// Populated if requests are of difference object sizes.
+	MultiSizedRequests *MultiSizedRequests `json:"multi_sized_requests,omitempty"`
 	// Total errors recorded.
 	Errors int `json:"errors"`
 	// Subset of errors.
@@ -30,8 +37,8 @@ type Operation struct {
 	ThroughputByHost map[string]Throughput `json:"throughput_by_host"`
 }
 
-// SingleSizeRequests contains statistics when all objects have the same size.
-type SingleSizeRequests struct {
+// SingleSizedRequests contains statistics when all objects have the same size.
+type SingleSizedRequests struct {
 	// Skipped if too little data.
 	Skipped bool `json:"skipped"`
 	// Object size per operation. Can be 0.
@@ -53,10 +60,10 @@ type SingleSizeRequests struct {
 	// Time to first byte if applicable.
 	FirstByte *TTFB `json:"first_byte,omitempty"`
 	// Request times by host.
-	ByHost map[string]SingleSizeRequests `json:"by_host,omitempty"`
+	ByHost map[string]SingleSizedRequests `json:"by_host,omitempty"`
 }
 
-func (a *SingleSizeRequests) fill(ops bench.Operations) {
+func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	start, end := ops.TimeRange()
 	ops.SortByDuration()
 	a.ObjSize = ops.FirstObjSize()
@@ -67,6 +74,80 @@ func (a *SingleSizeRequests) fill(ops bench.Operations) {
 	a.SlowestMillis = durToMillis(ops.Median(1).Duration())
 	a.FastestMillis = durToMillis(ops.Median(0).Duration())
 	a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
+}
+
+type RequestSizeRange struct {
+	// Number of requests in this range.
+	Requests int `json:"requests"`
+	// Minimum size in request size range.
+	MinSize       int    `json:"min_size"`
+	MinSizeString string `json:"min_size_string"`
+	// Maximum size in request size range (not included).
+	MaxSize       int    `json:"max_size"`
+	MaxSizeString string `json:"max_size_string"`
+	// Average payload size of requests in bytes.
+	AvgObjSize        int `json:"avg_obj_size"`
+	AvgDurationMillis int `json:"avg_duration_millis"`
+
+	// Stats:
+	BpsAverage float64 `json:"bps_average"`
+	BpsMedian  float64 `json:"bps_median"`
+	Bps90      float64 `json:"bps_90"`
+	Bps99      float64 `json:"bps_99"`
+	BpsFastest float64 `json:"bps_fastest"`
+	BpsSlowest float64 `json:"bps_slowest"`
+
+	// Time to first byte if applicable.
+	FirstByte *TTFB `json:"first_byte,omitempty"`
+}
+
+func (r *RequestSizeRange) fill(s bench.SizeSegment) {
+	r.Requests = len(s.Ops)
+	r.MinSize = int(s.Smallest)
+	r.MaxSize = int(s.Biggest)
+	r.MinSizeString, r.MaxSizeString = s.SizesString()
+	r.AvgObjSize = int(s.Ops.AvgSize())
+	r.AvgDurationMillis = durToMillis(s.Ops.AvgDuration())
+	s.Ops.SortByThroughput()
+	r.BpsAverage = s.Ops.OpThroughput().Float()
+	r.BpsMedian = s.Ops.Median(0.5).BytesPerSec().Float()
+	r.Bps90 = s.Ops.Median(0.9).BytesPerSec().Float()
+	r.Bps99 = s.Ops.Median(0.99).BytesPerSec().Float()
+	r.BpsFastest = s.Ops.Median(0.0).BytesPerSec().Float()
+	r.BpsSlowest = s.Ops.Median(1).BytesPerSec().Float()
+}
+
+// MultiSizedRequests contains statistics when objects have the same different size.
+type MultiSizedRequests struct {
+	// Skipped if too little data.
+	Skipped bool `json:"skipped"`
+	// Total number of requests.
+	Requests int `json:"requests"`
+	// Average object size
+	AvgObjSize int64 `json:"avg_obj_size"`
+
+	BySize []RequestSizeRange `json:"by_size"`
+
+	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
+}
+
+func (a *MultiSizedRequests) fill(ops bench.Operations) {
+	start, end := ops.TimeRange()
+	a.Requests = len(ops)
+	if len(ops) == 0 {
+		a.Skipped = true
+		return
+	}
+	a.AvgObjSize = ops.AvgSize()
+	sizes := ops.SplitSizes(0.05)
+	a.BySize = make([]RequestSizeRange, 0, len(sizes))
+	for _, s := range sizes {
+		var r RequestSizeRange
+		r.fill(s)
+		r.FirstByte = TtfbFromBench(s.Ops.TTFB(start, end))
+		// Store
+		a.BySize = append(a.BySize, r)
+	}
 }
 
 // TTFB contains times to first byte if applicable.
@@ -143,7 +224,7 @@ func CloneBenchSegments(s bench.Segments) []SegmentSmall {
 	for i, seg := range s {
 		res[i] = SegmentSmall{
 			TotalBytes: seg.TotalBytes,
-			Objects:    seg.Objects,
+			Objects:    math.Round(seg.Objects*100) / 100,
 			Errors:     seg.Errors,
 			Start:      seg.Start,
 		}
@@ -172,11 +253,12 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 
 	bps := func(s bench.Segment) float64 {
 		mib, _, _ := s.SpeedPerSec()
-		return mib * (1 << 20)
+		mib = mib * (1 << 20) * 10
+		return math.Round(mib) / 10
 	}
 	ops := func(s bench.Segment) float64 {
 		_, _, objs := s.SpeedPerSec()
-		return objs
+		return math.Round(objs*100) / 100
 	}
 
 	*a = ThroughputSegmented{
@@ -220,6 +302,7 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 			continue
 		}
 		total := ops.Total(true)
+		a.StartTime, a.EndTime = ops.TimeRange()
 		a.Throughput.fill(total)
 		a.Throughput.Segmented = &ThroughputSegmented{
 			MeasureDurationMillis: durToMillis(segmentDur),
@@ -240,10 +323,9 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 			}
 		}
 		if !ops.MultipleSizes() {
-			reqs := RequestAnalysisSingleOp(ops)
-			a.SingleSizedRequests = &reqs
+			a.SingleSizedRequests = RequestAnalysisSingleSized(ops)
 		} else {
-			// TODO:
+			a.MultiSizedRequests = RequestAnalysisMultiSized(ops)
 		}
 
 		eps := ops.Endpoints()
@@ -274,6 +356,7 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 	return res
 }
 
+// TtfbFromBench converts from bench.TTFB
 func TtfbFromBench(t bench.TTFB) *TTFB {
 	if t.Average <= 0 {
 		return nil
@@ -290,36 +373,68 @@ func durToMillis(d time.Duration) int {
 	return int(d.Round(time.Millisecond) / time.Millisecond)
 }
 
-func RequestAnalysisSingleOp(o bench.Operations) SingleSizeRequests {
-	var res SingleSizeRequests
-	start, end := o.ActiveTimeRange(false)
-	active := o.FilterInsideRange(start, end)
+func RequestAnalysisSingleSized(o bench.Operations) *SingleSizedRequests {
+	var res SingleSizedRequests
+
 	// Single type, require one operation per thread.
-	start, end = o.ActiveTimeRange(true)
-	active = o.FilterInsideRange(start, end)
+	start, end := o.ActiveTimeRange(true)
+	active := o.FilterInsideRange(start, end)
 
 	res.Requests = len(active)
 	if len(active) == 0 {
 		res.Skipped = true
-		return res
+		return &res
 	}
 	res.fill(active)
-	res.ByHost = RequestAnalysisHostsSingleOp(o)
+	res.ByHost = RequestAnalysisHostsSingleSized(o)
 
-	return res
+	return &res
 }
 
-func RequestAnalysisHostsSingleOp(o bench.Operations) map[string]SingleSizeRequests {
+func RequestAnalysisMultiSized(o bench.Operations) *MultiSizedRequests {
+	var res MultiSizedRequests
+	// Single type, require one operation per thread.
+	start, end := o.ActiveTimeRange(true)
+	active := o.FilterInsideRange(start, end)
+
+	res.Requests = len(active)
+	if len(active) == 0 {
+		res.Skipped = true
+		return &res
+	}
+	res.fill(active)
+	res.ByHost = RequestAnalysisHostsMultiSized(active)
+	return &res
+}
+
+func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedRequests {
 	eps := o.Endpoints()
-	res := make(map[string]SingleSizeRequests, len(eps))
+	res := make(map[string]SingleSizedRequests, len(eps))
 	for _, ep := range eps {
 		filtered := o.FilterByEndpoint(ep)
 		if len(filtered) <= 1 {
 			continue
 		}
 		filtered.SortByDuration()
-		a := SingleSizeRequests{}
+		a := SingleSizedRequests{}
 		a.fill(filtered)
+		res[ep] = a
+	}
+	return res
+}
+
+func RequestAnalysisHostsMultiSized(o bench.Operations) map[string]RequestSizeRange {
+	eps := o.Endpoints()
+	res := make(map[string]RequestSizeRange, len(eps))
+	start, end := o.TimeRange()
+	for _, ep := range eps {
+		filtered := o.FilterByEndpoint(ep)
+		if len(filtered) <= 1 {
+			continue
+		}
+		a := RequestSizeRange{}
+		a.fill(filtered.SingleSizeSegment())
+		a.FirstByte = TtfbFromBench(filtered.TTFB(start, end))
 		res[ep] = a
 	}
 	return res

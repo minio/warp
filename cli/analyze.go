@@ -26,7 +26,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/minio/warp/api/aggregate"
+	"github.com/minio/warp/pkg/aggregate"
 
 	"github.com/fatih/color"
 
