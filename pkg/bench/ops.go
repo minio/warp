@@ -440,6 +440,14 @@ func (o Operations) FirstOpType() string {
 	return o[0].OpType
 }
 
+// FirstObjSizeType returns the size of the first entry, 0 if there are no ops.
+func (o Operations) FirstObjSize() int64 {
+	if len(o) == 0 {
+		return 0
+	}
+	return o[0].Size
+}
+
 // FirstObjPerOp returns the number of objects per operation of the first entry, or 0 if there are no ops.
 func (o Operations) FirstObjPerOp() int {
 	if len(o) == 0 {

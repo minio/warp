@@ -18,11 +18,15 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"time"
+
+	"github.com/minio/warp/api/aggregate"
 
 	"github.com/fatih/color"
 
@@ -125,7 +129,10 @@ func mainAnalyze(ctx *cli.Context) error {
 		fatalIf(probe.NewError(err), "Unable to read input")
 		ops, err := bench.OperationsFromCSV(bytes.NewBuffer(b))
 		fatalIf(probe.NewError(err), "Unable to parse input")
-		printAnalysis(ctx, ops)
+		//printAnalysis(ctx, ops)
+		b, err = json.MarshalIndent(aggregate.SingleOp(ops, analysisDur(ctx), 0), "", "  ")
+		fatalIf(probe.NewError(err), "Unable to parse input")
+		fmt.Print(string(b))
 	}
 	return nil
 }
