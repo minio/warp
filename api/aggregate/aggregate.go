@@ -89,7 +89,7 @@ type Throughput struct {
 	AverageBPS float64 `json:"average_bps"`
 	// Average operations per second.
 	AverageOPS float64 `json:"average_ops"`
-	// Time segmented Throughput.
+	// Time segmented throughput summary.
 	Segmented *ThroughputSegmented `json:"segmented,omitempty"`
 }
 
@@ -108,6 +108,13 @@ func (t *Throughput) fill(total bench.Segment) {
 type ThroughputSegmented struct {
 	// Time of each segment.
 	MeasureDurationMillis int `json:"measure_duration_millis"`
+	// Will contain how segments are sorted.
+	// Will be 'bps' (bytes per second) or 'ops' (objects per second).
+	SortedBy string `json:"sorted_by"`
+
+	// All segments, sorted
+	Segments []SegmentSmall `json:"segments"`
+
 	// Start time of fastest time segment.
 	FastestStart time.Time `json:"fastest_start"`
 	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by operations per second.
@@ -124,7 +131,41 @@ type ThroughputSegmented struct {
 	SlowestOPS   float64   `json:"slowest_ops"`
 }
 
-func (a *ThroughputSegmented) fill(segs bench.Segments) {
+type SegmentSmall struct {
+	TotalBytes int64     `json:"bytes"`
+	Objects    float64   `json:"objects"`
+	Errors     int       `json:"errors,omitempty"`
+	Start      time.Time `json:"start"`
+}
+
+func CloneBenchSegments(s bench.Segments) []SegmentSmall {
+	res := make([]SegmentSmall, len(s))
+	for i, seg := range s {
+		res[i] = SegmentSmall{
+			TotalBytes: seg.TotalBytes,
+			Objects:    seg.Objects,
+			Errors:     seg.Errors,
+			Start:      seg.Start,
+		}
+	}
+
+	return res
+}
+
+func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
+	// Copy by time.
+	segs.SortByTime()
+	smallSegs := CloneBenchSegments(segs)
+
+	// Sort to get correct medians.
+	if total.TotalBytes > 0 {
+		segs.SortByThroughput()
+		a.SortedBy = "bps"
+	} else {
+		segs.SortByObjsPerSec()
+		a.SortedBy = "ops"
+	}
+
 	fast := segs.Median(1)
 	med := segs.Median(0.5)
 	slow := segs.Median(0)
@@ -139,6 +180,8 @@ func (a *ThroughputSegmented) fill(segs bench.Segments) {
 	}
 
 	*a = ThroughputSegmented{
+		Segments:              smallSegs,
+		SortedBy:              a.SortedBy,
 		MeasureDurationMillis: a.MeasureDurationMillis,
 		FastestStart:          fast.Start,
 		FastestBPS:            bps(fast),
@@ -177,16 +220,11 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 			continue
 		}
 		total := ops.Total(true)
-		if total.TotalBytes > 0 {
-			segs.SortByThroughput()
-		} else {
-			segs.SortByObjsPerSec()
-		}
 		a.Throughput.fill(total)
 		a.Throughput.Segmented = &ThroughputSegmented{
 			MeasureDurationMillis: durToMillis(segmentDur),
 		}
-		a.Throughput.Segmented.fill(segs)
+		a.Throughput.Segmented.fill(segs, total)
 
 		a.ObjectsPerOperation = ops.FirstObjPerOp()
 		a.Concurrency = ops.Threads()
@@ -223,16 +261,10 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 			})
 
 			if len(segs) > 1 {
-				if total.TotalBytes > 0 {
-					segs.SortByThroughput()
-				} else {
-					segs.SortByObjsPerSec()
-				}
-
 				host.Segmented = &ThroughputSegmented{
 					MeasureDurationMillis: durToMillis(segmentDur),
 				}
-				host.Segmented.fill(segs)
+				host.Segmented.fill(segs, total)
 			}
 			a.ThroughputByHost[ep] = host
 		}

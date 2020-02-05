@@ -90,6 +90,7 @@ func (s *Server) handleDowloadAll(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Write(b)
 }
+
 func newBenchmarkMonitor(listenAddr string) *Server {
 	s := &Server{}
 	if listenAddr == "" {
@@ -99,4 +100,5 @@ func newBenchmarkMonitor(listenAddr string) *Server {
 	http.HandleFunc("/status", s.handleStatusfunc)
 	http.HandleFunc("/download_all", s.handleDowloadAll)
 	go func() { http.ListenAndServe(listenAddr, nil) }()
+	return s
 }

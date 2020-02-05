@@ -61,6 +61,15 @@ type TTFB struct {
 // Segments is a slice of segment elements.
 type Segments []Segment
 
+func (s Segments) Clone() Segments {
+	res := make(Segments, len(s))
+	for i, seg := range s {
+		res[i] = seg
+	}
+
+	return res
+}
+
 // Total will return the total of active operations.
 // See ActiveTimeRange how this is determined.
 // Specify whether one operation for all threads should be skipped or just a single.
