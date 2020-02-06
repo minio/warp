@@ -413,8 +413,8 @@ func (o Operations) OpTypes() []string {
 	return dst
 }
 
-// IsMultiOp returns true if different operation types are overlapping.
-func (o Operations) IsMultiOp() bool {
+// IsMixed returns true if different operation types are overlapping.
+func (o Operations) IsMixed() bool {
 	types := o.OpTypes()
 	if len(types) <= 1 {
 		return false

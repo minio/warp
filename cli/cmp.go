@@ -92,8 +92,8 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		}
 	}
 	_ = wrSegs
-	isMultiOp := before.IsMultiOp()
-	if isMultiOp != after.IsMultiOp() {
+	isMultiOp := before.IsMixed()
+	if isMultiOp != after.IsMixed() {
 		console.Fatal("Cannot compare multi-operation to single operation.")
 	}
 	timeDur := func(ops bench.Operations) time.Duration {

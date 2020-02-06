@@ -82,7 +82,7 @@ func (o Operations) Total(allThreads bool) Segment {
 		From:           start,
 		PerSegDuration: end.Sub(start) - 1,
 		AllThreads:     allThreads,
-		MultiOp:        o.IsMultiOp(),
+		MultiOp:        o.IsMixed(),
 	})[0]
 }
 

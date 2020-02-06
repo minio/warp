@@ -346,7 +346,7 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		segmentDur:            segmentDur,
 	}
 	res := make([]Operation, 0, len(types))
-	isMixed := o.IsMultiOp()
+	isMixed := o.IsMixed()
 	// Fill mixed only parts...
 	if isMixed {
 		a.Mixed = true

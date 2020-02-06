@@ -18,6 +18,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -144,9 +145,7 @@ func mainAnalyze(ctx *cli.Context) error {
 	return nil
 }
 
-func printMultiOpAnalysis(ctx *cli.Context, o bench.Operations, wrSegs io.Writer) {
-	//allOps := ops
-	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
+func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 	console.SetColor("Print", color.New(color.FgWhite))
 	console.Println("Mixed operations.")
 
@@ -195,8 +194,6 @@ func printMultiOpAnalysis(ctx *cli.Context, o bench.Operations, wrSegs io.Writer
 			printRequestAnalysis(ctx, ops)
 			console.SetColor("Print", color.New(color.FgWhite))
 		}
-
-		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), false)
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
 	console.Println("\nCluster Total: ", aggr.MixedServerStats.String())
@@ -229,13 +226,27 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		o = o.FilterByOp(wantOp)
 	}
 
-	if o.IsMultiOp() {
-		printMultiOpAnalysis(ctx, o, wrSegs)
+	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
+	isMixed := o.IsMixed()
+	for _, ops := range aggr.Operations {
+		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), isMixed)
+	}
+
+	if globalJSON {
+		b, err := json.MarshalIndent(aggr, "", "  ")
+		fatalIf(probe.NewError(err), "Unable to marshal data.")
+		if err != nil {
+			console.Errorln(err)
+		}
+		os.Stdout.Write(b)
 		return
 	}
 
+	if isMixed {
+		printMixedOpAnalysis(ctx, aggr)
+		return
+	}
 	hostDetails := ctx.Bool("analyze.hostdetails") && o.Hosts() > 1
-	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
 
 	for _, ops := range aggr.Operations {
 		typ := ops.Type
@@ -302,8 +313,6 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		console.Println(" * Fastest:", aggregate.SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLong(dur))
 		console.Println(" * 50% Median:", aggregate.SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLong(dur))
 		console.Println(" * Slowest:", aggregate.SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLong(dur))
-
-		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), true)
 	}
 }
 
