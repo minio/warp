@@ -167,7 +167,19 @@ func (o Operation) Duration() time.Duration {
 type Throughput float64
 
 func (t Throughput) String() string {
-	return humanize.IBytes(uint64(t))
+	if t < 2<<10 {
+		return fmt.Sprintf("%.1fB/s", float64(t))
+	}
+	if t < 2<<20 {
+		return fmt.Sprintf("%.1fKiB/s", float64(t/1024))
+	}
+	if t < 10<<30 {
+		return fmt.Sprintf("%.1fMiB/s", float64(t/1024/1024))
+	}
+	if t < 10<<40 {
+		return fmt.Sprintf("%.2fGiB/s", float64(t/1024/1024/1024))
+	}
+	return fmt.Sprintf("%.2fTiB/s", float64(t/1024/1024/1024))
 }
 
 // Float returns a rounded (to 0.1) float value of the throughput.

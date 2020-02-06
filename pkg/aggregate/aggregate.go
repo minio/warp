@@ -1,6 +1,7 @@
 package aggregate
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -79,6 +80,7 @@ type SingleSizedRequests struct {
 func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	start, end := ops.TimeRange()
 	ops.SortByDuration()
+	a.Requests = len(ops)
 	a.ObjSize = ops.FirstObjSize()
 	a.DurAvgMillis = durToMillis(ops.AvgDuration())
 	a.DurMedianMillis = durToMillis(ops.Median(0.5).Duration())
@@ -171,6 +173,18 @@ type TTFB struct {
 	SlowestMillis int `json:"slowest_millis"`
 }
 
+// String returns a human printable version of the time to first byte.
+func (t TTFB) String() string {
+	if t.AverageMillis == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v",
+		time.Duration(t.AverageMillis)*time.Millisecond,
+		time.Duration(t.MedianMillis)*time.Millisecond,
+		time.Duration(t.FastestMillis)*time.Millisecond,
+		time.Duration(t.SlowestMillis)*time.Millisecond)
+}
+
 // Throughput contains throughput.
 type Throughput struct {
 	// Errors recorded.
@@ -183,13 +197,26 @@ type Throughput struct {
 	AverageBPS float64 `json:"average_bps"`
 	// Average operations per second.
 	AverageOPS float64 `json:"average_ops"`
+	// Number of full operations
+	Operations int `json:"operations"`
 	// Time segmented throughput summary.
 	Segmented *ThroughputSegmented `json:"segmented,omitempty"`
+}
+
+// String returns a string representation of the segment
+func (t Throughput) String() string {
+	speed := ""
+	if t.AverageBPS > 0 {
+		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
+	}
+	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
+		speed, t.AverageOPS, time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
 }
 
 func (t *Throughput) fill(total bench.Segment) {
 	mib, _, objs := total.SpeedPerSec()
 	*t = Throughput{
+		Operations:            total.FullOps,
 		MeasureDurationMillis: durToMillis(total.EndsBefore.Sub(total.Start)),
 		StartTime:             total.Start,
 		AverageBPS:            math.Round(mib*(1<<20)*10) / 10,
@@ -225,6 +252,13 @@ type ThroughputSegmented struct {
 	SlowestOPS   float64   `json:"slowest_ops"`
 }
 
+func BPSorOPS(bps, ops float64) string {
+	if bps > 0 {
+		return bench.Throughput(bps).String()
+	}
+	return fmt.Sprintf("%0.2f obj/s", ops)
+}
+
 type SegmentSmall struct {
 	BPS    float64   `json:"bytes_per_sec"`
 	OPS    float64   `json:"obj_per_sec"`
@@ -243,8 +277,17 @@ func CloneBenchSegments(s bench.Segments) []SegmentSmall {
 			Start:  seg.Start,
 		}
 	}
-
 	return res
+}
+
+// String returns a string representation of the segment
+func (s SegmentSmall) StringLong(d time.Duration) string {
+	speed := ""
+	if s.BPS > 0 {
+		speed = bench.Throughput(s.BPS).String() + ", "
+	}
+	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
+		speed, s.OPS, d, s.Start.Format("15:04:05 MST"))
 }
 
 func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
@@ -376,9 +419,9 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 			}
 		}
 		if !ops.MultipleSizes() {
-			a.SingleSizedRequests = RequestAnalysisSingleSized(ops)
+			a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed)
 		} else {
-			a.MultiSizedRequests = RequestAnalysisMultiSized(ops)
+			a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed)
 		}
 
 		eps := ops.Endpoints()
@@ -427,14 +470,13 @@ func durToMillis(d time.Duration) int {
 	return int(d.Round(time.Millisecond) / time.Millisecond)
 }
 
-func RequestAnalysisSingleSized(o bench.Operations) *SingleSizedRequests {
+func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSizedRequests {
 	var res SingleSizedRequests
 
 	// Single type, require one operation per thread.
-	start, end := o.ActiveTimeRange(true)
+	start, end := o.ActiveTimeRange(allThreads)
 	active := o.FilterInsideRange(start, end)
 
-	res.Requests = len(active)
 	if len(active) == 0 {
 		res.Skipped = true
 		return &res
@@ -445,10 +487,10 @@ func RequestAnalysisSingleSized(o bench.Operations) *SingleSizedRequests {
 	return &res
 }
 
-func RequestAnalysisMultiSized(o bench.Operations) *MultiSizedRequests {
+func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedRequests {
 	var res MultiSizedRequests
 	// Single type, require one operation per thread.
-	start, end := o.ActiveTimeRange(true)
+	start, end := o.ActiveTimeRange(false)
 	active := o.FilterInsideRange(start, end)
 
 	res.Requests = len(active)

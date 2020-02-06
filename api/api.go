@@ -123,6 +123,11 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 	}
 
 	s.mu.Lock()
+	if s.ops == nil {
+		s.mu.Unlock()
+		w.WriteHeader(404)
+		return
+	}
 	if s.agrr == nil || !s.agrr.HasDuration(segmentDur) {
 		aggr := aggregate.Aggregate(s.ops, segmentDur, 0)
 		s.agrr = &aggr
