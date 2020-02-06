@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,22 +73,27 @@ func (s *Server) Done() {
 	<-s.ctx.Done()
 }
 
-func (s *Server) InfoLn(data ...interface{}) {
+func (s *Server) Infoln(data ...interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.infoln != nil {
 		s.infoln(data...)
 	}
-	s.status.LastStatus = fmt.Sprintln(data...)
+	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
+}
+func (s *Server) InfoQuietln(data ...interface{}) {
+	s.mu.Lock()
+	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
+	s.mu.Unlock()
 }
 
-func (s *Server) ErrorLn(data ...interface{}) {
+func (s *Server) Errorln(data ...interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.errorln != nil {
 		s.errorln(data...)
 	}
-	s.status.Error = fmt.Sprintln(data...)
+	s.status.Error = strings.TrimSpace(fmt.Sprintln(data...))
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, req *http.Request) {
@@ -169,14 +175,14 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 
 	enc, err := zstd.NewWriter(w)
 	if err != nil {
-		s.ErrorLn(err)
+		s.Errorln(err)
 		return
 	}
 	defer enc.Close()
 
 	err = ops.CSV(enc)
 	if err != nil {
-		s.ErrorLn(err)
+		s.Errorln(err)
 		return
 	}
 }
@@ -243,7 +249,7 @@ func NewBenchmarkMonitor(listenAddr string) *Server {
 	go func() {
 		defer s.cancel()
 		console.Infoln("opening server on", listenAddr)
-		s.ErrorLn(s.server.ListenAndServe())
+		s.Errorln(s.server.ListenAndServe())
 	}()
 	return s
 }

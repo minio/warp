@@ -104,9 +104,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor.SetLnLoggers(console.Infoln, console.Errorln)
 	defer monitor.Done()
 
-	console.Infoln("Preparing server.")
+	monitor.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -138,6 +139,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 						pg.Set64(newVal)
 						pg.Update()
 					}
+					monitor.InfoQuietln(fmt.Sprintf("Preparation: %0.0f%% done...", float64(newVal)/float64(100)))
 				case pct, ok := <-c.PrepareProgress:
 					if !ok {
 						pg.Set64(pgScale)
@@ -162,24 +164,25 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 
 	// Start after waiting a second or until we reached the start time.
-	tStart := time.Now().Add(time.Second)
+	tStart := time.Now().Add(time.Second * 3)
 	if st := ctx.String("syncstart"); st != "" {
 		startTime := parseLocalTime(st)
 		now := time.Now()
 		if startTime.Before(now) {
-			console.Errorln("Did not manage to prepare before syncstart")
+			monitor.Errorln("Did not manage to prepare before syncstart")
 			tStart = time.Now()
 		} else {
 			tStart = startTime
 		}
 	}
 
-	bechDur := ctx.Duration("duration")
-	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
+	benchDur := ctx.Duration("duration")
+	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(benchDur))
 	defer cancel()
 	start := make(chan struct{})
 	go func() {
 		<-time.After(time.Until(tStart))
+		monitor.Infoln("Benchmark starting...")
 		close(start)
 	}()
 
@@ -191,10 +194,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof, err := startProfiling(ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	console.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
+	monitor.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
-		pg := newProgressBar(int64(bechDur), pb.U_DURATION)
+		pg := newProgressBar(int64(benchDur), pb.U_DURATION)
 		go func() {
 			defer close(pgDone)
 			defer pg.FinishPrint("\n")
@@ -209,8 +212,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 					}
 					pg.Set64(int64(elapsed))
 					pg.Update()
+					monitor.InfoQuietln(fmt.Sprintf("Running benchmark: %0.0f%%...", 100*float64(elapsed)/float64(benchDur)))
 				case <-done:
-					pg.Set64(int64(bechDur))
+					pg.Set64(int64(benchDur))
 					pg.Update()
 					return
 				}
@@ -228,7 +232,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	f, err := os.Create(fileName + ".csv.zst")
 	if err != nil {
-		console.Error("Unable to write benchmark data:", err)
+		monitor.Errorln("Unable to write benchmark data:", err)
 	} else {
 		func() {
 			defer f.Close()
@@ -239,15 +243,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			err = ops.CSV(enc)
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			monitor.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
 	monitor.OperationsReady(ops, fileName)
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		console.Infoln("Starting cleanup...")
+		monitor.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
+	monitor.Infoln("Cleanup Done.")
 	return nil
 }
 
