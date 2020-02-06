@@ -19,6 +19,7 @@ type BenchmarkStatus = struct {
 	LastStatus string `json:"last_status"`
 	Error      string `json:"error"`
 	DataReady  bool   `json:"data_ready"`
+	Filename   string `json:"filename,omitempty"`
 }
 
 type Operations struct {
@@ -33,11 +34,10 @@ type Aggregated struct {
 }
 
 type Server struct {
-	status   BenchmarkStatus
-	ops      bench.Operations
-	filename string
-	agrr     *Aggregated
-	server   *http.Server
+	status BenchmarkStatus
+	ops    bench.Operations
+	agrr   *Aggregated
+	server *http.Server
 
 	// Shutting down
 	ctx    context.Context
@@ -54,7 +54,7 @@ func (s *Server) OperationsReady(ops bench.Operations, filename string) {
 	s.mu.Lock()
 	s.status.DataReady = ops != nil
 	s.ops = ops
-	s.filename = filename
+	s.status.Filename = filename
 	s.mu.Unlock()
 }
 
@@ -162,7 +162,7 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	}
 	s.mu.Lock()
 	ops := s.ops
-	fn := s.filename
+	fn := s.status.Filename
 	s.mu.Unlock()
 	if len(ops) == 0 {
 		w.WriteHeader(http.StatusNoContent)
