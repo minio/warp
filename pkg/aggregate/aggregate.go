@@ -7,6 +7,19 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+type Aggregated struct {
+	Type                  string                `json:"type"`
+	Mixed                 bool                  `json:"mixed"`
+	Operations            []Operation           `json:"operations,omitempty"`
+	MixedServerStats      *Throughput           `json:"mixed_server_stats,omitempty"`
+	MixedThroughputByHost map[string]Throughput `json:"mixed_throughput_by_host,omitempty"`
+	segmentDur            time.Duration
+}
+
+func (a Aggregated) HasDuration(d time.Duration) bool {
+	return a.segmentDur == d
+}
+
 // Operation returns statistics for a single operation type.
 type Operation struct {
 	// Operation type
@@ -213,20 +226,21 @@ type ThroughputSegmented struct {
 }
 
 type SegmentSmall struct {
-	TotalBytes int64     `json:"bytes"`
-	Objects    float64   `json:"objects"`
-	Errors     int       `json:"errors,omitempty"`
-	Start      time.Time `json:"start"`
+	BPS    float64   `json:"bytes_per_sec"`
+	OPS    float64   `json:"obj_per_sec"`
+	Errors int       `json:"errors,omitempty"`
+	Start  time.Time `json:"start"`
 }
 
 func CloneBenchSegments(s bench.Segments) []SegmentSmall {
 	res := make([]SegmentSmall, len(s))
 	for i, seg := range s {
+		mbps, _, ops := seg.SpeedPerSec()
 		res[i] = SegmentSmall{
-			TotalBytes: seg.TotalBytes,
-			Objects:    math.Round(seg.Objects*100) / 100,
-			Errors:     seg.Errors,
-			Start:      seg.Start,
+			BPS:    math.Round(mbps * (1 << 20)),
+			OPS:    math.Round(ops*100) / 100,
+			Errors: seg.Errors,
+			Start:  seg.Start,
 		}
 	}
 
@@ -253,8 +267,7 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 
 	bps := func(s bench.Segment) float64 {
 		mib, _, _ := s.SpeedPerSec()
-		mib = mib * (1 << 20) * 10
-		return math.Round(mib) / 10
+		return math.Round(mib * (1 << 20))
 	}
 	ops := func(s bench.Segment) float64 {
 		_, _, objs := s.SpeedPerSec()
@@ -277,11 +290,51 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 	}
 }
 
-// SingleOp returns statistics when only a single operation was running concurrently.
-func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation {
+// Aggregate returns statistics when only a single operation was running concurrently.
+func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated {
 	o.SortByStartTime()
 	types := o.OpTypes()
+	a := Aggregated{
+		Type:                  "single",
+		Mixed:                 false,
+		Operations:            nil,
+		MixedServerStats:      nil,
+		MixedThroughputByHost: nil,
+		segmentDur:            segmentDur,
+	}
 	res := make([]Operation, 0, len(types))
+	isMixed := o.IsMultiOp()
+	// Fill mixed only parts...
+	if isMixed {
+		a.Mixed = true
+		a.Type = "mixed"
+		ops := o.FilterInsideRange(o.ActiveTimeRange(true))
+		total := ops.Total(false)
+		a.MixedServerStats = &Throughput{}
+		a.MixedServerStats.fill(total)
+		segs := o.Segment(bench.SegmentOptions{
+			From:           time.Time{},
+			PerSegDuration: segmentDur,
+			AllThreads:     true,
+			MultiOp:        true,
+		})
+		if len(segs) > 1 {
+			a.MixedServerStats.Segmented = &ThroughputSegmented{
+				SegmentDurationMillis: durToMillis(segmentDur),
+			}
+			a.MixedServerStats.Segmented.fill(segs, total)
+		}
+
+		eps := o.Endpoints()
+		a.MixedThroughputByHost = make(map[string]Throughput, len(eps))
+		for _, ep := range eps {
+			ops := o.FilterByEndpoint(ep)
+			t := Throughput{}
+			t.fill(ops.Total(false))
+			a.MixedThroughputByHost[ep] = t
+		}
+	}
+
 	for _, typ := range types {
 		a := Operation{}
 		a.Type = typ
@@ -295,13 +348,13 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: segmentDur,
-			AllThreads:     true,
+			AllThreads:     !isMixed,
 		})
 		if len(segs) <= 1 {
 			a.Skipped = true
 			continue
 		}
-		total := ops.Total(true)
+		total := ops.Total(!isMixed)
 		a.StartTime, a.EndTime = ops.TimeRange()
 		a.Throughput.fill(total)
 		a.Throughput.Segmented = &ThroughputSegmented{
@@ -353,7 +406,8 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 
 		res = append(res, a)
 	}
-	return res
+	a.Operations = res
+	return a
 }
 
 // TtfbFromBench converts from bench.TTFB
@@ -438,38 +492,4 @@ func RequestAnalysisHostsMultiSized(o bench.Operations) map[string]RequestSizeRa
 		res[ep] = a
 	}
 	return res
-}
-
-func RequestAnalysisMultiOp(o bench.Operations) {
-	/*
-		console.Print("\nRequests considered: ", len(active), ". Multiple sizes, average ", active.AvgSize(), " bytes:\n")
-		console.SetColor("Print", color.New(color.FgWhite))
-
-		if len(active) == 0 {
-			console.Println("Not enough requests")
-		}
-
-		sizes := active.SplitSizes(0.05)
-		for _, s := range sizes {
-			active := s.Ops
-
-			console.SetColor("Print", color.New(color.FgHiWhite))
-			console.Print("\nRequest size ", s.SizeString(), ". Requests - ", len(active), ":\n")
-			console.SetColor("Print", color.New(color.FgWhite))
-
-			active.SortByThroughput()
-			console.Print(""+
-				" * Throughput: Average: ", active.OpThroughput(),
-				", 50%: ", active.Median(0.5).BytesPerSec(),
-				", 90%: ", active.Median(0.9).BytesPerSec(),
-				", 99%: ", active.Median(0.99).BytesPerSec(),
-				", Fastest: ", active.Median(0).BytesPerSec(),
-				", Slowest: ", active.Median(1).BytesPerSec(),
-				"\n")
-			ttfb := active.TTFB(start, end)
-			if ttfb.Average > 0 {
-				console.Println(" * First Byte:", ttfb)
-			}
-		}
-	*/
 }

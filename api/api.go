@@ -26,17 +26,10 @@ type Operations struct {
 	Operations bench.Operations `json:"operations"`
 }
 
-type Aggregated struct {
-	Type       string                `json:"type"`
-	Single     []aggregate.Operation `json:"single,omitempty"`
-	Mixed      []aggregate.Operation `json:"mixed,omitempty"`
-	segmentDur time.Duration
-}
-
 type Server struct {
 	status BenchmarkStatus
 	ops    bench.Operations
-	agrr   *Aggregated
+	agrr   *aggregate.Aggregated
 	server *http.Server
 
 	// Shutting down
@@ -130,19 +123,12 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 	}
 
 	s.mu.Lock()
-	if s.agrr == nil || s.agrr.segmentDur != segmentDur {
-		if len(s.ops) > 0 {
-			aggr := Aggregated{}
-			if s.ops.IsMultiOp() {
-				aggr.Type = "mixed"
-			} else {
-				aggr.Type = "single"
-				aggr.Single = aggregate.SingleOp(s.ops, segmentDur, 0)
-			}
-			s.agrr = &aggr
-		}
+	if s.agrr == nil || !s.agrr.HasDuration(segmentDur) {
+		aggr := aggregate.Aggregate(s.ops, segmentDur, 0)
+		s.agrr = &aggr
 	}
-	aggregated := s.agrr
+	// Copy
+	aggregated := *s.agrr
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
