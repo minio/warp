@@ -201,7 +201,7 @@ func (s *Server) handleDownloadJSON(w http.ResponseWriter, req *http.Request) {
 	enc.Encode(ops)
 }
 
-func (s *Server) handleRootApi(w http.ResponseWriter, req *http.Request) {
+func (s *Server) handleRootAPI(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodDelete {
 		w.WriteHeader(200)
 		w.Write([]byte(`bye...`))
@@ -226,7 +226,7 @@ func NewBenchmarkMonitor(listenAddr string) *Server {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/status", s.handleStatus)
-	mux.HandleFunc("/v1", s.handleRootApi)
+	mux.HandleFunc("/v1", s.handleRootAPI)
 	mux.HandleFunc("/v1/aggregated", s.handleAggregated)
 	mux.HandleFunc("/v1/operations/json", s.handleDownloadJSON)
 	mux.HandleFunc("/v1/operations", s.handleDownloadZst)
