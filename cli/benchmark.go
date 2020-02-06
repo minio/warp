@@ -34,6 +34,7 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/madmin"
+	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -87,12 +88,6 @@ var benchFlags = []cli.Flag{
 		EnvVar: "",
 		Value:  "",
 	},
-	cli.StringFlag{
-		Name:   "warp-client-server",
-		Usage:  "When running benchmarks open a webserver on this ip:port and keep it running afterwards.",
-		Value:  "",
-		Hidden: true,
-	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -107,6 +102,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
+
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	defer monitor.Done()
 
 	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
@@ -244,6 +242,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
+	monitor.OperationsReady(ops, fileName)
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		console.Infoln("Starting cleanup...")

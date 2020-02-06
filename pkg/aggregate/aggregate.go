@@ -179,8 +179,8 @@ func (t *Throughput) fill(total bench.Segment) {
 	*t = Throughput{
 		MeasureDurationMillis: durToMillis(total.EndsBefore.Sub(total.Start)),
 		StartTime:             total.Start,
-		AverageBPS:            mib * (1 << 20),
-		AverageOPS:            objs,
+		AverageBPS:            math.Round(mib*(1<<20)*10) / 10,
+		AverageOPS:            math.Round(objs*100) / 100,
 		Errors:                total.Errors,
 	}
 }
@@ -188,7 +188,7 @@ func (t *Throughput) fill(total bench.Segment) {
 // ThroughputSegmented contains time segmented throughput statics.
 type ThroughputSegmented struct {
 	// Time of each segment.
-	MeasureDurationMillis int `json:"measure_duration_millis"`
+	SegmentDurationMillis int `json:"segment_duration_millis"`
 	// Will contain how segments are sorted.
 	// Will be 'bps' (bytes per second) or 'ops' (objects per second).
 	SortedBy string `json:"sorted_by"`
@@ -264,7 +264,7 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 	*a = ThroughputSegmented{
 		Segments:              smallSegs,
 		SortedBy:              a.SortedBy,
-		MeasureDurationMillis: a.MeasureDurationMillis,
+		SegmentDurationMillis: a.SegmentDurationMillis,
 		FastestStart:          fast.Start,
 		FastestBPS:            bps(fast),
 		FastestOPS:            ops(fast),
@@ -305,7 +305,7 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 		a.StartTime, a.EndTime = ops.TimeRange()
 		a.Throughput.fill(total)
 		a.Throughput.Segmented = &ThroughputSegmented{
-			MeasureDurationMillis: durToMillis(segmentDur),
+			SegmentDurationMillis: durToMillis(segmentDur),
 		}
 		a.Throughput.Segmented.fill(segs, total)
 
@@ -344,7 +344,7 @@ func SingleOp(o bench.Operations, segmentDur, skipDur time.Duration) []Operation
 
 			if len(segs) > 1 {
 				host.Segmented = &ThroughputSegmented{
-					MeasureDurationMillis: durToMillis(segmentDur),
+					SegmentDurationMillis: durToMillis(segmentDur),
 				}
 				host.Segmented.fill(segs, total)
 			}

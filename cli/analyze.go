@@ -18,15 +18,15 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/minio/warp/pkg/aggregate"
+	"github.com/minio/warp/api"
 
 	"github.com/fatih/color"
 
@@ -76,6 +76,12 @@ var analyzeFlags = []cli.Flag{
 		Name:  "requests",
 		Usage: "Display individual request stats.",
 	},
+	cli.StringFlag{
+		Name:   serverFlagName,
+		Usage:  "When running benchmarks open a webserver on this ip:port and keep it running afterwards.",
+		Value:  "",
+		Hidden: true,
+	},
 }
 
 var analyzeCmd = cli.Command{
@@ -113,6 +119,8 @@ func mainAnalyze(ctx *cli.Context) error {
 	}
 	var zstdDec, _ = zstd.NewReader(nil)
 	defer zstdDec.Close()
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	defer monitor.Done()
 	for _, arg := range args {
 		var input io.Reader
 		if arg == "-" {
@@ -129,10 +137,9 @@ func mainAnalyze(ctx *cli.Context) error {
 		fatalIf(probe.NewError(err), "Unable to read input")
 		ops, err := bench.OperationsFromCSV(bytes.NewBuffer(b))
 		fatalIf(probe.NewError(err), "Unable to parse input")
-		//printAnalysis(ctx, ops)
-		b, err = json.MarshalIndent(aggregate.SingleOp(ops, analysisDur(ctx), 0), "", "  ")
-		fatalIf(probe.NewError(err), "Unable to parse input")
-		fmt.Print(string(b))
+
+		printAnalysis(ctx, ops)
+		monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"))
 	}
 	return nil
 }
