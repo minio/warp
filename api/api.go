@@ -15,17 +15,29 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+// BenchmarkStatus contains information when a benchmark is running.
 type BenchmarkStatus = struct {
+	// Text string describing the state of the benchmark run.
+	// Updated continuously.
 	LastStatus string `json:"last_status"`
-	Error      string `json:"error"`
-	DataReady  bool   `json:"data_ready"`
-	Filename   string `json:"filename,omitempty"`
+
+	// Any non-fatal error during the run.
+	Error string `json:"error"`
+
+	// Will be true when benchmark has finished and data is ready.
+	DataReady bool `json:"data_ready"`
+
+	// Base filename of the
+	Filename string `json:"filename,omitempty"`
 }
 
+// Operations contains raw benchmark operations.
+// Usually very verbose.
 type Operations struct {
 	Operations bench.Operations `json:"operations"`
 }
 
+// Server contains the state of the running server.
 type Server struct {
 	status BenchmarkStatus
 	ops    bench.Operations
@@ -43,6 +55,7 @@ type Server struct {
 	errorln func(data ...interface{})
 }
 
+// OperationsReady can be used to send benchmark data to the server.
 func (s *Server) OperationsReady(ops bench.Operations, filename string) {
 	s.mu.Lock()
 	s.status.DataReady = ops != nil
@@ -51,6 +64,8 @@ func (s *Server) OperationsReady(ops bench.Operations, filename string) {
 	s.mu.Unlock()
 }
 
+// SetLnLoggers can be used to set upstream loggers.
+// When logging to the servers these will be called.
 func (s *Server) SetLnLoggers(info, err func(data ...interface{})) {
 	s.mu.Lock()
 	s.infoln = info
@@ -58,6 +73,8 @@ func (s *Server) SetLnLoggers(info, err func(data ...interface{})) {
 	s.mu.Unlock()
 }
 
+// Done can be called to block until a server is closed.
+// If no server is started it will return at once.
 func (s *Server) Done() {
 	if s.server == nil {
 		return
@@ -66,6 +83,8 @@ func (s *Server) Done() {
 	<-s.ctx.Done()
 }
 
+// Infoln allows to log data to the server.
+// The server will update its status and send message upstream if set.
 func (s *Server) Infoln(data ...interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -74,12 +93,16 @@ func (s *Server) Infoln(data ...interface{}) {
 	}
 	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
 }
+
+// InfoQuietln can be used to log data to the internal status only
+// and not forward it to the upstream logger.
 func (s *Server) InfoQuietln(data ...interface{}) {
 	s.mu.Lock()
 	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
 	s.mu.Unlock()
 }
 
+// Errorln allows to store a non-fatal error.
 func (s *Server) Errorln(data ...interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -89,6 +112,7 @@ func (s *Server) Errorln(data ...interface{}) {
 	s.status.Error = strings.TrimSpace(fmt.Sprintln(data...))
 }
 
+// handleStatus handles GET `/v1/status` requests.
 func (s *Server) handleStatus(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
@@ -106,6 +130,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, req *http.Request) {
 	w.Write(b)
 }
 
+// handleAggregated handles GET `/v1/aggregated` requests with optional "segment" parameter.
 func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
@@ -146,6 +171,9 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 	w.Write(b)
 }
 
+// handleDownloadZst handles GET `/v1/operations` requests and returns the operations
+// as an archive that can be used by warp.
+// If no data is present "No Content" status will be returned.
 func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
@@ -178,6 +206,7 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// handleDownloadJSON handles GET `/v1/operations` requests and returns the operations as JSON.
 func (s *Server) handleDownloadJSON(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusBadRequest)
@@ -192,6 +221,7 @@ func (s *Server) handleDownloadJSON(w http.ResponseWriter, req *http.Request) {
 	enc.Encode(ops)
 }
 
+// handleRootAPI handles requests to `/v1`.
 func (s *Server) handleRootAPI(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodDelete {
 		w.WriteHeader(200)
@@ -208,6 +238,7 @@ func (s *Server) handleRootAPI(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
 }
 
+// NewBenchmarkMonitor creates a new Server.
 func NewBenchmarkMonitor(listenAddr string) *Server {
 	s := &Server{}
 	if listenAddr == "" {
