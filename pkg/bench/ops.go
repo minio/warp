@@ -29,7 +29,7 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
-	"github.com/minio/mc/pkg/console"
+	"github.com/minio/minio/pkg/console"
 )
 
 type Operations []Operation

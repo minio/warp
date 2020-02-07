@@ -11,7 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/console"
+	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 

@@ -18,8 +18,8 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/console"
 	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -88,6 +88,9 @@ func mainDelete(ctx *cli.Context) error {
 }
 
 func checkDeleteSyntax(ctx *cli.Context) {
+	if ctx.NArg() > 0 {
+		console.Fatal("Command takes no arguments")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 	if ctx.Int("batch") < 1 {

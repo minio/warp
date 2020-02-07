@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2020 MinIO, Inc.
+ * Warp (C) 2020 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@ package cli
 import (
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v6"
-	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
 var (
-	getFlags = []cli.Flag{
+	selectFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
 			Value: 2500,
@@ -35,15 +34,20 @@ var (
 			Value: "10MiB",
 			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
+		cli.StringFlag{
+			Name:  "query",
+			Value: "select * from s3object",
+			Usage: "select query expression",
+		},
 	}
 )
 
-var getCmd = cli.Command{
-	Name:   "get",
-	Usage:  "benchmark get objects",
-	Action: mainGet,
+var selectCmd = cli.Command{
+	Name:   "select",
+	Usage:  "benchmark select objects",
+	Action: mainSelect,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, selectFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -59,12 +63,12 @@ EXAMPLES:
  `,
 }
 
-// mainGet is the entry point for get command.
-func mainGet(ctx *cli.Context) error {
-	checkGetSyntax(ctx)
-	src := newGenSource(ctx)
+// mainSelect is the entry point for select command.
+func mainSelect(ctx *cli.Context) error {
+	checkSelectSyntax(ctx)
+	src := newGenSourceCSV(ctx)
 	sse := newSSE(ctx)
-	b := bench.Get{
+	b := bench.Select{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -76,16 +80,31 @@ func mainGet(ctx *cli.Context) error {
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
-		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		SelectOpts: minio.SelectObjectOptions{
+			Expression:     ctx.String("query"),
+			ExpressionType: minio.QueryExpressionTypeSQL,
+			// Set any encryption headers
+			ServerSideEncryption: sse,
+			// TODO: support all variations including, json/parquet
+			InputSerialization: minio.SelectObjectInputSerialization{
+				CSV: &minio.CSVInputOptions{
+					RecordDelimiter: "\n",
+					FieldDelimiter:  ",",
+					FileHeaderInfo:  minio.CSVFileHeaderInfoUse,
+				},
+			},
+			OutputSerialization: minio.SelectObjectOutputSerialization{
+				CSV: &minio.CSVOutputOptions{
+					RecordDelimiter: "\n",
+					FieldDelimiter:  ",",
+				},
+			},
+		},
 	}
 	return runBench(ctx, &b)
 }
 
-func checkGetSyntax(ctx *cli.Context) {
-	if ctx.NArg() > 0 {
-		console.Fatal("Command takes no arguments")
-	}
-
+func checkSelectSyntax(ctx *cli.Context) {
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

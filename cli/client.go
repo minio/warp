@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/minio/cli"
-	"github.com/minio/mc/pkg/console"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/minio-go/v6/pkg/credentials"
+	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
 	"github.com/minio/warp/pkg"
