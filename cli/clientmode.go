@@ -48,7 +48,8 @@ FLAGS:
   {{end}}
 
 EXAMPLES:
-   warp client 127.0.0.1:6001
+  1. Listen on port '6001' with ip 192.168.1.101:
+     {{.Prompt}} {{.HelpName}} 192.168.1.101:6001
  `,
 }
 
@@ -57,7 +58,7 @@ const warpServerDefaultPort = 7761
 // mainPut is the entry point for cp command.
 func mainClient(ctx *cli.Context) error {
 	checkClientSyntax(ctx)
-	addr := "127.0.0.1:" + strconv.Itoa(warpServerDefaultPort)
+	addr := ":" + strconv.Itoa(warpServerDefaultPort)
 	switch ctx.NArg() {
 	case 1:
 		addr = ctx.Args()[0]
