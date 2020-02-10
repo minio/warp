@@ -15,6 +15,7 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
+	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -29,6 +30,8 @@ const (
 	serverReqStageStatus                 = "stage_status"
 	serverReqSendOps                     = "send_ops"
 )
+
+const serverFlagName = "serve"
 
 type serverInfo struct {
 	ID        string `json:"id"`
@@ -72,15 +75,23 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		return true, errors.New("no hosts")
 	}
 	defer conns.closeAll()
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	defer monitor.Done()
+	monitor.SetLnLoggers(console.Infoln, console.Errorln)
+	var infoLn = monitor.Infoln
+	var errorLn = monitor.Errorln
+
+	var allOps bench.Operations
 
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{
-		"warp-client":    {},
-		"serverprof":     {},
-		"autocompletion": {},
-		"help":           {},
-		"syncstart":      {},
-		"analyze.out":    {},
+		"warp-client":        {},
+		"warp-client-server": {},
+		"serverprof":         {},
+		"autocompletion":     {},
+		"help":               {},
+		"syncstart":          {},
+		"analyze.out":        {},
 	}
 	req := serverRequest{
 		Operation: serverReqBenchmark,
@@ -112,14 +123,14 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		console.Infof("Client %v connected...\n", conns.hostName(i))
 		// Assume ok.
 	}
-	console.Infoln("All clients connected...")
+	infoLn("All clients connected...")
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
 	err := conns.waitForStage(stagePrepare, true)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
-	console.Infoln("All clients prepared...")
+	infoLn("All clients prepared...")
 
 	const benchmarkWait = 3 * time.Second
 
@@ -129,11 +140,11 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	err = conns.startStageAll(stageBenchmark, time.Now().Add(benchmarkWait), false)
 	if err != nil {
-		console.Errorln("Failed to start all clients", err)
+		errorLn("Failed to start all clients", err)
 	}
 	err = conns.waitForStage(stageBenchmark, false)
 	if err != nil {
-		console.Errorln("Failed to keep connection to all clients", err)
+		errorLn("Failed to keep connection to all clients", err)
 	}
 
 	fileName := ctx.String("benchdata")
@@ -142,9 +153,8 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	prof.stop(ctx, fileName+".profiles.zip")
 
-	console.Infoln("Done. Downloading operations...")
+	infoLn("Done. Downloading operations...")
 	downloaded := conns.downloadOps()
-	var allOps bench.Operations
 	switch len(downloaded) {
 	case 0:
 	case 1:
@@ -160,7 +170,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	allOps.SortByStartTime()
 	f, err := os.Create(fileName + ".csv.zst")
 	if err != nil {
-		console.Error("Unable to write benchmark data:", err)
+		errorLn("Unable to write benchmark data:", err)
 	} else {
 		func() {
 			defer f.Close()
@@ -174,16 +184,15 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
-
+	monitor.OperationsReady(allOps, fileName)
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
-		console.Errorln("Failed to clean up all clients", err)
+		errorLn("Failed to clean up all clients", err)
 	}
 	err = conns.waitForStage(stageCleanup, false)
 	if err != nil {
-		console.Errorln("Failed to keep connection to all clients", err)
+		errorLn("Failed to keep connection to all clients", err)
 	}
-
 	printAnalysis(ctx, allOps)
 
 	return true, nil

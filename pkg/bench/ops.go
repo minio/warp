@@ -167,7 +167,24 @@ func (o Operation) Duration() time.Duration {
 type Throughput float64
 
 func (t Throughput) String() string {
-	return humanize.IBytes(uint64(t))
+	if t < 2<<10 {
+		return fmt.Sprintf("%.1fB/s", float64(t))
+	}
+	if t < 2<<20 {
+		return fmt.Sprintf("%.1fKiB/s", float64(t/1024))
+	}
+	if t < 10<<30 {
+		return fmt.Sprintf("%.1fMiB/s", float64(t/1024/1024))
+	}
+	if t < 10<<40 {
+		return fmt.Sprintf("%.2fGiB/s", float64(t/1024/1024/1024))
+	}
+	return fmt.Sprintf("%.2fTiB/s", float64(t/1024/1024/1024))
+}
+
+// Float returns a rounded (to 0.1) float value of the throughput.
+func (t Throughput) Float() float64 {
+	return math.Round(float64(t)*10) / 10
 }
 
 func (o Operation) BytesPerSec() Throughput {
@@ -396,8 +413,8 @@ func (o Operations) OpTypes() []string {
 	return dst
 }
 
-// IsMultiOp returns true if different operation types are overlapping.
-func (o Operations) IsMultiOp() bool {
+// IsMixed returns true if different operation types are overlapping.
+func (o Operations) IsMixed() bool {
 	types := o.OpTypes()
 	if len(types) <= 1 {
 		return false
@@ -438,6 +455,14 @@ func (o Operations) FirstOpType() string {
 		return ""
 	}
 	return o[0].OpType
+}
+
+// FirstObjSizeType returns the size of the first entry, 0 if there are no ops.
+func (o Operations) FirstObjSize() int64 {
+	if len(o) == 0 {
+		return 0
+	}
+	return o[0].Size
 }
 
 // FirstObjPerOp returns the number of objects per operation of the first entry, or 0 if there are no ops.
@@ -516,7 +541,16 @@ type SizeSegment struct {
 
 // SizeString returns the size as a string.
 func (s SizeSegment) SizeString() string {
-	return fmt.Sprint(log10ToSize[s.SmallestLog10], " -> ", log10ToSize[s.BiggestLog10])
+	a, b := s.SizesString()
+	return fmt.Sprint(a, " -> ", b)
+}
+
+// SizesString returns the lower and upper limit as strings.
+func (s SizeSegment) SizesString() (lo, hi string) {
+	if s.SmallestLog10 <= 0 || s.BiggestLog10 <= 0 {
+		return humanize.IBytes(uint64(s.Smallest)), humanize.IBytes(uint64(s.Biggest))
+	}
+	return log10ToSize[s.SmallestLog10], log10ToSize[s.BiggestLog10]
 }
 
 var log10ToSize = map[int]string{
@@ -551,16 +585,29 @@ var log10ToLog2Size = map[int]int64{
 	12: 1 << 40,
 }
 
+func (o Operations) SingleSizeSegment() SizeSegment {
+	min, max := o.MinMaxSize()
+	var minL10, maxL10 int
+	for min > log10ToLog2Size[minL10+1] {
+		minL10++
+	}
+	for max >= log10ToLog2Size[maxL10] {
+		maxL10++
+	}
+	return SizeSegment{
+		Smallest:      min,
+		SmallestLog10: minL10,
+		Biggest:       max,
+		BiggestLog10:  maxL10,
+		Ops:           o,
+	}
+}
+
 // SplitSizes will return log10 separated data.
 // Specify the share of requests that must be in a segment to return it.
 func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	if !o.MultipleSizes() {
-		min, max := o.MinMaxSize()
-		return []SizeSegment{{
-			Smallest: min,
-			Biggest:  max,
-			Ops:      o,
-		}}
+		return []SizeSegment{o.SingleSizeSegment()}
 	}
 	var res []SizeSegment
 	minSz, maxSz := o.MinMaxSize()
