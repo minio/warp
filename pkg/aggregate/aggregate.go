@@ -27,10 +27,11 @@ type Aggregated struct {
 	Type       string      `json:"type"`
 	Mixed      bool        `json:"mixed"`
 	Operations []Operation `json:"operations,omitempty"`
-	//
+	// MixedServerStats and MixedThroughputByHost is populated only when data is mixed.
 	MixedServerStats      *Throughput           `json:"mixed_server_stats,omitempty"`
 	MixedThroughputByHost map[string]Throughput `json:"mixed_throughput_by_host,omitempty"`
-	segmentDur            time.Duration
+	// segmentDur records the duration used for segmenting the data.
+	segmentDur time.Duration
 }
 
 // Operation returns statistics for a single operation type.
