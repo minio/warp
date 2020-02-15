@@ -1,17 +1,18 @@
 /*
  * Warp (C) 2019-2020 MinIO, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package cli
@@ -34,6 +35,7 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/madmin"
+	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -102,7 +104,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		return nil
 	}
 
-	console.Infoln("Preparing server.")
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor.SetLnLoggers(console.Infoln, console.Errorln)
+	defer monitor.Done()
+
+	monitor.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -134,6 +140,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 						pg.Set64(newVal)
 						pg.Update()
 					}
+					monitor.InfoQuietln(fmt.Sprintf("Preparation: %0.0f%% done...", float64(newVal)/float64(100)))
 				case pct, ok := <-c.PrepareProgress:
 					if !ok {
 						pg.Set64(pgScale)
@@ -158,24 +165,25 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 
 	// Start after waiting a second or until we reached the start time.
-	tStart := time.Now().Add(time.Second)
+	tStart := time.Now().Add(time.Second * 3)
 	if st := ctx.String("syncstart"); st != "" {
 		startTime := parseLocalTime(st)
 		now := time.Now()
 		if startTime.Before(now) {
-			console.Errorln("Did not manage to prepare before syncstart")
+			monitor.Errorln("Did not manage to prepare before syncstart")
 			tStart = time.Now()
 		} else {
 			tStart = startTime
 		}
 	}
 
-	bechDur := ctx.Duration("duration")
-	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(bechDur))
+	benchDur := ctx.Duration("duration")
+	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(benchDur))
 	defer cancel()
 	start := make(chan struct{})
 	go func() {
 		<-time.After(time.Until(tStart))
+		monitor.Infoln("Benchmark starting...")
 		close(start)
 	}()
 
@@ -187,10 +195,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof, err := startProfiling(ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	console.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
+	monitor.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
-		pg := newProgressBar(int64(bechDur), pb.U_DURATION)
+		pg := newProgressBar(int64(benchDur), pb.U_DURATION)
 		go func() {
 			defer close(pgDone)
 			defer pg.FinishPrint("\n")
@@ -205,8 +213,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 					}
 					pg.Set64(int64(elapsed))
 					pg.Update()
+					monitor.InfoQuietln(fmt.Sprintf("Running benchmark: %0.0f%%...", 100*float64(elapsed)/float64(benchDur)))
 				case <-done:
-					pg.Set64(int64(bechDur))
+					pg.Set64(int64(benchDur))
 					pg.Update()
 					return
 				}
@@ -224,7 +233,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	f, err := os.Create(fileName + ".csv.zst")
 	if err != nil {
-		console.Error("Unable to write benchmark data:", err)
+		monitor.Errorln("Unable to write benchmark data:", err)
 	} else {
 		func() {
 			defer f.Close()
@@ -235,14 +244,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			err = ops.CSV(enc)
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			monitor.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
+	monitor.OperationsReady(ops, fileName)
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		console.Infoln("Starting cleanup...")
+		monitor.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
+	monitor.Infoln("Cleanup Done.")
 	return nil
 }
 

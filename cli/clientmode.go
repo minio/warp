@@ -1,17 +1,18 @@
 /*
  * Warp (C) 2019-2020 MinIO, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package cli
@@ -48,7 +49,8 @@ FLAGS:
   {{end}}
 
 EXAMPLES:
-   warp client 127.0.0.1:6001
+  1. Listen on port '6001' with ip 192.168.1.101:
+     {{.Prompt}} {{.HelpName}} 192.168.1.101:6001
  `,
 }
 
@@ -57,7 +59,7 @@ const warpServerDefaultPort = 7761
 // mainPut is the entry point for cp command.
 func mainClient(ctx *cli.Context) error {
 	checkClientSyntax(ctx)
-	addr := "127.0.0.1:" + strconv.Itoa(warpServerDefaultPort)
+	addr := ":" + strconv.Itoa(warpServerDefaultPort)
 	switch ctx.NArg() {
 	case 1:
 		addr = ctx.Args()[0]
