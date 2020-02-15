@@ -50,8 +50,8 @@ nfpms:
     vendor: MinIO Inc.
     homepage: https://github.com/minio/warp
     maintainer: MinIO <minio@minio.io>
-    description: MinIO S3 API Benchmark Tool
-    license: Apache License 2.0
+    description: S3 API Benchmark Tool
+    license: GNU Affero General Public License v3.0
     formats:
       - deb
       - rpm
