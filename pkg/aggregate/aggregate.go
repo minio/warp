@@ -127,6 +127,7 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		})
 		if len(segs) <= 1 {
 			a.Skipped = true
+			res = append(res, a)
 			continue
 		}
 		total := ops.Total(!isMixed)
