@@ -53,6 +53,9 @@ const (
 )
 
 func Main(args []string) {
+	// Set system max resources as needed.
+	setMaxResources()
+
 	if len(args) > 1 {
 		switch args[1] {
 		case appName, filepath.Base(args[0]):
