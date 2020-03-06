@@ -24,9 +24,7 @@ jobs:
         uses: goreleaser/goreleaser-action@53acad1befee355d46f71cccf6ab4d885eb4f77f
         with:
           version: latest
-          args: release --rm-dist
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          args: release --skip-publish --rm-dist --snapshot
       -
         name: Upload Win64 Binaries
         uses: actions/upload-artifact@v1
