@@ -15,4 +15,6 @@ require (
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
 	github.com/secure-io/sio-go v0.3.0
+	github.com/shirou/gopsutil v2.20.2+incompatible // indirect
+	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527 // indirect
 )

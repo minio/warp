@@ -176,7 +176,6 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 			Timeout:   5 * time.Second,
 			KeepAlive: 5 * time.Second,
 		}).DialContext,
-		MaxIdleConns:          ctx.Int("concurrent"),
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
