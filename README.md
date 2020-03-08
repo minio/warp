@@ -220,8 +220,6 @@ When using automatic termination be aware that you should not compare average sp
 since the length of the benchmark runs will likely be different. 
 Instead 50% medians are a much better metrics.
 
-
-
 ## Mixed
 
 Mixed mode benchmark will test several operation types at once. 
