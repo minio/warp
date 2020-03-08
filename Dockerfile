@@ -17,6 +17,6 @@ FROM scratch
 MAINTAINER MinIO Development "dev@min.io"
 EXPOSE 7761
 
-COPY --from=0 /go/src/github.com/minio/warp/warp .
+COPY --from=0 /go/src/github.com/minio/warp/warp /warp
 
-CMD ["/warp"]
+ENTRYPOINT ["/warp"]
