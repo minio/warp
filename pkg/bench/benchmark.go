@@ -79,25 +79,9 @@ func (c *Common) GetCommon() *Common {
 	return c
 }
 
-// createEmptyBucket will create an empty bucket
+// doEmptyPrefix will create an empty bucket
 // or delete all content if it already exists.
-func (c *Common) createEmptyBucket(ctx context.Context) error {
-	cl, done := c.Client()
-	defer done()
-
-	console.Infof("Creating Bucket %q...\n", c.Bucket)
-	// In client mode someone else may have created it
-	// first. Check if it exists now. We don't test
-	// against a specific error since we might run
-	// against many different servers.
-	if err := cl.MakeBucket(c.Bucket, c.Location); err != nil {
-		switch minio.ToErrorResponse(err).Code {
-		case "BucketAlreadyOwnedByYou":
-		case "BucketAlreadyExists":
-		default:
-			return err
-		}
-	}
+func (c *Common) doEmptyPrefix(ctx context.Context) error {
 	if c.Clear {
 		console.Infof("Clearing Bucket %q...\n", c.Bucket)
 		c.deleteAllInBucket(ctx)

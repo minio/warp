@@ -246,7 +246,7 @@ func getSystemData() map[string]string {
 
 // Function invoked when invalid command is passed.
 func commandNotFound(ctx *cli.Context, command string) {
-	msg := fmt.Sprintf("`%s` is not a %s command. See `m3 --help`.", command, appName)
+	msg := fmt.Sprintf("`%s` is not a %s command. See `%s --help`.", command, appName, appName)
 	closestCommands := findClosestCommands(command)
 	if len(closestCommands) > 0 {
 		msg += fmt.Sprintf("\n\nDid you mean one of these?\n")

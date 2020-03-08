@@ -156,8 +156,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "bucket",
-		Value: appName + "-benchmark-bucket",
-		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
+		Usage: "Bucket to use for benchmark data",
 	},
 	cli.StringFlag{
 		Name:  "host-select",

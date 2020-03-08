@@ -43,7 +43,7 @@ type Delete struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *Delete) Prepare(ctx context.Context) error {
-	if err := d.createEmptyBucket(ctx); err != nil {
+	if err := d.doEmptyPrefix(ctx); err != nil {
 		return err
 	}
 	src := d.Source()

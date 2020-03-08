@@ -46,7 +46,7 @@ type Select struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Select) Prepare(ctx context.Context) error {
-	if err := g.createEmptyBucket(ctx); err != nil {
+	if err := g.doEmptyPrefix(ctx); err != nil {
 		return err
 	}
 	src := g.Source()

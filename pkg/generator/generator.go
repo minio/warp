@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"path"
 	"runtime"
 )
 
@@ -89,15 +90,19 @@ func MergeObjectPrefixes(o []Objects) []string {
 	return res
 }
 
+const (
+	defaultPrefix = "warp-benchmark-prefix"
+)
+
 func (o *Object) setPrefix(opts Options) {
 	if opts.randomPrefix <= 0 {
-		o.PreFix = ""
+		o.PreFix = defaultPrefix
 		return
 	}
 	b := make([]byte, opts.randomPrefix)
 	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
 	randASCIIBytes(b, rng)
-	o.PreFix = string(b)
+	o.PreFix = path.Join(defaultPrefix, string(b))
 }
 
 func (o *Object) setName(s string) {
@@ -105,7 +110,7 @@ func (o *Object) setName(s string) {
 		o.Name = s
 		return
 	}
-	o.Name = o.PreFix + "/" + s
+	o.Name = path.Join(o.PreFix, s)
 }
 
 // New return data source.

@@ -155,7 +155,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 	if g.CreateObjects <= g.Concurrency {
 		return errors.New("initial number of objects should be at least matching concurrency")
 	}
-	if err := g.createEmptyBucket(ctx); err != nil {
+	if err := g.doEmptyPrefix(ctx); err != nil {
 		return err
 	}
 	src := g.Source()
