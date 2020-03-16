@@ -78,7 +78,7 @@ var globalFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:  "insecure",
-		Usage: "disable SSL certificate verification",
+		Usage: "disable TLS certificate verification",
 	},
 	cli.BoolFlag{
 		Name:  "autocompletion",
