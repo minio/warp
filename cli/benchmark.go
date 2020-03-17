@@ -350,7 +350,12 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
-	err = b.Prepare(context.Background())
+	cb.Lock()
+	start := cb.info[stageBenchmark].start
+	ctx2, cancel := context.WithCancel(cb.ctx)
+	defer cancel()
+	cb.Unlock()
+	err = b.Prepare(ctx2)
 	cb.stageDone(stagePrepare, err)
 	if err != nil {
 		return err
@@ -358,11 +363,6 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 
 	// Start after waiting a second or until we reached the start time.
 	benchDur := ctx.Duration("duration")
-	cb.Lock()
-	ctx2, cancel := context.WithCancel(cb.ctx)
-	start := cb.info[stageBenchmark].start
-	cb.Unlock()
-	defer cancel()
 	go func() {
 		console.Infoln("Waiting")
 		// Wait for start signal
