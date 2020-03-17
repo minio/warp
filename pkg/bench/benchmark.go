@@ -84,18 +84,26 @@ func (c *Common) GetCommon() *Common {
 func (c *Common) createEmptyBucket(ctx context.Context) error {
 	cl, done := c.Client()
 	defer done()
+	x, err := cl.BucketExists(c.Bucket)
+	if err != nil {
+		return err
+	}
+	if !x {
+		console.Infof("Creating Bucket %q...\n", c.Bucket)
+		err := cl.MakeBucket(c.Bucket, c.Location)
 
-	console.Infof("Creating Bucket %q...\n", c.Bucket)
-	// In client mode someone else may have created it
-	// first. Check if it exists now. We don't test
-	// against a specific error since we might run
-	// against many different servers.
-	if err := cl.MakeBucket(c.Bucket, c.Location); err != nil {
-		switch minio.ToErrorResponse(err).Code {
-		case "BucketAlreadyOwnedByYou":
-		case "BucketAlreadyExists":
-		default:
-			return err
+		// In client mode someone else may have created it first.
+		// Check if it exists now.
+		// We don't test against a specific error since we might run against many different servers.
+		if err != nil {
+			x, err2 := cl.BucketExists(c.Bucket)
+			if err2 != nil {
+				return err2
+			}
+			if !x {
+				// It still doesn't exits, return original error.
+				return err
+			}
 		}
 	}
 	if c.Clear {
