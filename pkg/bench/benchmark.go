@@ -116,20 +116,31 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 // deleteAllInBucket will delete all content in a bucket.
 // If no prefixes are specified everything in bucket is deleted.
 func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-	cl, done := c.Client()
-	defer done()
 	if len(prefixes) == 0 {
 		prefixes = []string{""}
 	}
 	var wg sync.WaitGroup
-	remove := make(chan string, 1)
-	errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
 	wg.Add(len(prefixes))
 	for _, prefix := range prefixes {
 		go func(prefix string) {
 			defer wg.Done()
+
+			doneCh := make(chan struct{})
+			defer close(doneCh)
+			cl, done := c.Client()
+			defer done()
+			remove := make(chan string, 10)
+			errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
+			defer func() {
+				// Signal we are done
+				close(remove)
+				// Wait for deletes to finish
+				err := <-errCh
+				if err.Err != nil {
+					console.Error(err.Err)
+				}
+			}()
+
 			objects := cl.ListObjectsV2(c.Bucket, prefix, true, doneCh)
 			for {
 				select {
@@ -148,13 +159,6 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 		}(prefix)
 	}
 	wg.Wait()
-	// Signal we are done
-	close(remove)
-	// Wait for deletes to finish
-	err := <-errCh
-	if err.Err != nil {
-		console.Error(err.Err)
-	}
 
 }
 
