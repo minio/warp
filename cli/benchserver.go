@@ -511,6 +511,10 @@ func flagToJSON(ctx *cli.Context, flag cli.Flag) (string, error) {
 		if ctx.IsSet(flag.GetName()) {
 			return fmt.Sprint(ctx.Uint64(flag.GetName())), nil
 		}
+	case cli.Float64Flag:
+		if ctx.IsSet(flag.GetName()) {
+			return fmt.Sprint(ctx.Float64(flag.GetName())), nil
+		}
 	default:
 		if ctx.IsSet(flag.GetName()) {
 			return "", fmt.Errorf("unhandled flag type: %T", flag)
