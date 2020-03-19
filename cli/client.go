@@ -180,6 +180,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: time.Minute,
 		// Set this value so that the underlying transport round-tripper
 		// doesn't try to auto decode the body of objects with
 		// content-encoding set to `gzip`.
