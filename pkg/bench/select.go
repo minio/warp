@@ -172,6 +172,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				if _, err = io.Copy(ioutil.Discard, &fbr); err != nil {
 					console.Errorln("download error:", err)
 					op.Err = err.Error()
+					op.Size = 0
 				}
 				op.FirstByte = fbr.t
 				op.End = time.Now()
