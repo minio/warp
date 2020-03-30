@@ -95,7 +95,6 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					}
 					mu.Unlock()
 					return
-
 				}
 				if n != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)

@@ -82,13 +82,14 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					console.Errorln("upload error:", err)
 					op.Err = err.Error()
 				}
-				if n != obj.Size {
+				if n != obj.Size && op.Err == "" {
 					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", n)
 					if op.Err == "" {
 						op.Err = err
 					}
 					console.Errorln(err)
 				}
+				op.Size = n
 				cldone()
 				rcv <- op
 			}
