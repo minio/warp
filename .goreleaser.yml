@@ -18,8 +18,10 @@ builds:
       - arm64
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
     ldflags:
-     - -s -w -X github.com/minio/warp/pkg.ReleaseTag={{.Tag}} -X github.com/minio/warp/pkg.CommitID={{.FullCommit}} -X github.com/minio/warp/pkg.Version={{.Version}} -X github.com/minio/warp/pkg.ShortCommitID={{.ShortCommit}} -X github.com/minio/warp/pkg.ReleaseTime={{.Date}}
+      - -s -w -X github.com/minio/warp/pkg.ReleaseTag={{.Tag}} -X github.com/minio/warp/pkg.CommitID={{.FullCommit}} -X github.com/minio/warp/pkg.Version={{.Version}} -X github.com/minio/warp/pkg.ShortCommitID={{.ShortCommit}} -X github.com/minio/warp/pkg.ReleaseTime={{.Date}}
 archives:
   -
     replacements:
