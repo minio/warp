@@ -193,7 +193,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
-	prof, err := startProfiling(ctx)
+	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
 	monitor.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
@@ -229,7 +229,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	<-pgDone
 	ops.SortByStartTime()
 	ops.SetClientID(cID)
-	prof.stop(ctx, fileName+".profiles.zip")
+	prof.stop(ctx2, ctx, fileName+".profiles.zip")
 
 	f, err := os.Create(fileName + ".csv.zst")
 	if err != nil {
@@ -436,7 +436,7 @@ type runningProfiles struct {
 	client *madmin.AdminClient
 }
 
-func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
+func startProfiling(ctx2 context.Context, ctx *cli.Context) (*runningProfiles, error) {
 	prof := ctx.String("serverprof")
 	if len(prof) == 0 {
 		return nil, nil
@@ -445,7 +445,7 @@ func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
 	r.client = newAdminClient(ctx)
 
 	// Start profile
-	_, cmdErr := r.client.StartProfiling(madmin.ProfilerType(prof))
+	_, cmdErr := r.client.StartProfiling(ctx2, madmin.ProfilerType(prof))
 	if cmdErr != nil {
 		return nil, cmdErr
 	}
@@ -453,13 +453,13 @@ func startProfiling(ctx *cli.Context) (*runningProfiles, error) {
 	return &r, nil
 }
 
-func (rp *runningProfiles) stop(ctx *cli.Context, fileName string) {
+func (rp *runningProfiles) stop(ctx2 context.Context, ctx *cli.Context, fileName string) {
 	if rp == nil || rp.client == nil {
 		return
 	}
 
 	// Ask for profile data, which will come compressed with zip format
-	zippedData, adminErr := rp.client.DownloadProfilingData()
+	zippedData, adminErr := rp.client.DownloadProfilingData(ctx2)
 	fatalIf(probe.NewError(adminErr), "Unable to download profile data.")
 	defer zippedData.Close()
 

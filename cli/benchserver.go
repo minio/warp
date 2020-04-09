@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -151,7 +152,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 
 	const benchmarkWait = 3 * time.Second
 
-	prof, err := startProfiling(ctx)
+	prof, err := startProfiling(context.Background(), ctx)
 	if err != nil {
 		return true, err
 	}
@@ -168,7 +169,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandASCII(4))
 	}
-	prof.stop(ctx, fileName+".profiles.zip")
+	prof.stop(context.Background(), ctx, fileName+".profiles.zip")
 
 	infoLn("Done. Downloading operations...")
 	downloaded := conns.downloadOps()
