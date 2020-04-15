@@ -62,6 +62,8 @@ For further details, the `--analyze.hostdetails` parameter can also be used.
 
 # Distributed Benchmarking
 
+![distributed](arch_warp.png)
+
 It is possible to coordinate several warp instances automatically.
 This can be useful for testing performance of a cluster from several clients at once.
 
