@@ -237,7 +237,7 @@ func (o Operation) Aggregate(s *Segment) {
 	if startedInSegment {
 		s.OpsStarted++
 		if len(o.Err) != 0 {
-			// Errors are only counted in segments they started in.
+			// Errors are only counted in segments they ends in.
 			return
 		}
 
@@ -481,7 +481,7 @@ func (o Operations) MultipleSizes() bool {
 	}
 	sz := o[0].Size
 	for _, op := range o {
-		if op.Size != sz {
+		if len(op.Err) != 0 && op.Size != sz {
 			return true
 		}
 	}
@@ -612,6 +612,9 @@ func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	}
 	var res []SizeSegment
 	minSz, maxSz := o.MinMaxSize()
+	if minSz == 0 {
+		minSz = 1
+	}
 	minLog := int(math.Log10(float64(minSz)))
 	maxLog := int(math.Log10(float64(maxSz)))
 	cLog := minLog
@@ -804,6 +807,20 @@ func (o Operations) Errors() []string {
 		}
 	}
 	return errs
+}
+
+// FilterSuccessful returns the errors found.
+func (o Operations) FilterSuccessful() Operations {
+	if len(o) == 0 {
+		return nil
+	}
+	ok := make(Operations, 0, len(o))
+	for _, op := range o {
+		if len(op.Err) == 0 {
+			ok = append(ok, op)
+		}
+	}
+	return ok
 }
 
 // Errors returns the errors found.
