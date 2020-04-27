@@ -18,6 +18,7 @@
 package aggregate
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/minio/warp/pkg/bench"
@@ -120,6 +121,24 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 			ops = ops.FilterInsideRange(start, end)
 		}
 
+		if errs := ops.FilterErrors(); len(errs) > 0 {
+			a.Errors = len(errs)
+			for _, err := range errs {
+				if len(a.FirstErrors) >= 10 {
+					break
+				}
+				a.FirstErrors = append(a.FirstErrors, fmt.Sprintf("%s, %s: %v", err.Endpoint, err.End.Round(time.Second), err.Err))
+			}
+		}
+
+		// Remove errored request from further analysis
+		allOps := ops
+		ops = ops.FilterSuccessful()
+		if len(ops) == 0 {
+			a.Skipped = true
+			continue
+		}
+
 		segs := ops.Segment(bench.SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: segmentDur,
@@ -142,15 +161,6 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		a.Concurrency = ops.Threads()
 		a.Hosts = ops.Hosts()
 
-		if errs := ops.Errors(); len(errs) > 0 {
-			a.Errors = len(errs)
-			for _, err := range errs {
-				if len(a.FirstErrors) >= 10 {
-					break
-				}
-				a.FirstErrors = append(a.FirstErrors, err)
-			}
-		}
 		if !ops.MultipleSizes() {
 			a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed)
 		} else {
@@ -160,7 +170,8 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		eps := ops.Endpoints()
 		a.ThroughputByHost = make(map[string]Throughput, len(eps))
 		for _, ep := range eps {
-			ops := ops.FilterByEndpoint(ep)
+			// Use all ops to include errors.
+			ops := allOps.FilterByEndpoint(ep)
 			total := ops.Total(false)
 			var host Throughput
 			host.fill(total)
