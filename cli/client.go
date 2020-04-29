@@ -173,14 +173,14 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 5 * time.Second,
+			Timeout:   10 * time.Second,
+			KeepAlive: 10 * time.Second,
 		}).DialContext,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ResponseHeaderTimeout: time.Minute,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+		ResponseHeaderTimeout: 2 * time.Minute,
 		// Set this value so that the underlying transport round-tripper
 		// doesn't try to auto decode the body of objects with
 		// content-encoding set to `gzip`.
