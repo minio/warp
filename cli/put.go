@@ -31,6 +31,10 @@ var (
 			Value: "10MiB",
 			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
+		cli.BoolFlag{
+			Name:  "disable-multipart",
+			Usage: "disable multipart uploads",
+		},
 	}
 )
 
@@ -60,7 +64,7 @@ EXAMPLES:
 func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
 	src := newGenSource(ctx)
-
+	sse := newSSE(ctx)
 	b := bench.Put{
 		Common: bench.Common{
 			Client:      newClient(ctx),
@@ -68,7 +72,10 @@ func mainPut(ctx *cli.Context) error {
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
-			PutOpts:     minio.PutObjectOptions{},
+			PutOpts: minio.PutObjectOptions{
+				ServerSideEncryption: sse,
+				DisableMultipart:     ctx.Bool("disable-multipart"),
+			},
 		},
 	}
 	return runBench(ctx, &b)

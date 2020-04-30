@@ -41,6 +41,10 @@ var (
 			Value: 100,
 			Usage: "Number of DELETE operations per batch.",
 		},
+		cli.BoolFlag{
+			Name:  "disable-multipart",
+			Usage: "disable multipart uploads",
+		},
 	}
 )
 
@@ -80,6 +84,7 @@ func mainDelete(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts: minio.PutObjectOptions{
 				ServerSideEncryption: newSSE(ctx),
+				DisableMultipart:     ctx.Bool("disable-multipart"),
 			},
 		},
 		CreateObjects: ctx.Int("objects"),

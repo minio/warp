@@ -40,6 +40,10 @@ var (
 			Value: "select * from s3object",
 			Usage: "select query expression",
 		},
+		cli.BoolFlag{
+			Name:  "disable-multipart",
+			Usage: "disable multipart uploads",
+		},
 	}
 )
 
@@ -78,6 +82,7 @@ func mainSelect(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts: minio.PutObjectOptions{
 				ServerSideEncryption: sse,
+				DisableMultipart:     ctx.Bool("disable-multipart"),
 			},
 		},
 		CreateObjects: ctx.Int("objects"),
