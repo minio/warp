@@ -176,8 +176,12 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 			}
 			console.SetColor("Print", color.New(color.FgWhite))
 		}
+		eps := ops.ThroughputByHost
+		if len(eps) == 1 {
+			console.Println(" * Throughput:", ops.Throughput)
+		}
 
-		if eps := ops.ThroughputByHost; len(eps) > 1 {
+		if len(eps) > 1 {
 			console.SetColor("Print", color.New(color.FgWhite))
 			console.Println("\nThroughput by host:")
 
