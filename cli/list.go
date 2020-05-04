@@ -19,7 +19,6 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/minio-go/v6"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -35,10 +34,6 @@ var (
 			Name:  "obj.size",
 			Value: "1KB",
 			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
-		},
-		cli.BoolFlag{
-			Name:  "disable-multipart",
-			Usage: "disable multipart uploads",
 		},
 	}
 )
@@ -76,10 +71,7 @@ func mainList(ctx *cli.Context) error {
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
-			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: newSSE(ctx),
-				DisableMultipart:     ctx.Bool("disable-multipart"),
-			},
+			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),

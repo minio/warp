@@ -159,7 +159,9 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		Creds:        creds,
 		Secure:       ctx.Bool("tls"),
 		Region:       ctx.String("region"),
-		BucketLookup: 0,
+		BucketLookup: minio.BucketLookupAuto,
+		// TODO(klauspost): Enable when https://github.com/minio/minio-go/pull/1283 is available
+		// CustomMD5:    md5simd.NewServer().NewHash,
 	})
 	if err != nil {
 		return nil, err
