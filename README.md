@@ -30,6 +30,13 @@ of objects using `--encrypt`. A random key will be generated and used for object
 
 `warp command [options]`
 
+Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8` 
+on port 9000 with the provided keys: 
+
+`warp mixed --host=s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
+
+This will run the benchmark for up to 5 minutes and print the results.
+
 # Benchmarks
 
 All benchmarks operate concurrently. 
