@@ -228,7 +228,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	cancel()
 	<-pgDone
 
-	// Previous context is cancelled, create a new...
+	// Previous context is canceled, create a new...
 	ctx2 = context.Background()
 	ops.SortByStartTime()
 	ops.SetClientID(cID)
