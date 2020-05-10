@@ -227,6 +227,9 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	ops, _ := b.Start(ctx2, start)
 	cancel()
 	<-pgDone
+
+	// Previous context is canceled, create a new...
+	ctx2 = context.Background()
 	ops.SortByStartTime()
 	ops.SetClientID(cID)
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
