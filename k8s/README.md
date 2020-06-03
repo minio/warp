@@ -1,5 +1,7 @@
 # Running *warp* on kubernetes
-This document describes with simple examples on how to automate running *warp* on kubernetes.
+
+This document describes with simple examples on how to automate running *warp* on Kubernetes with `yaml` files. You can also use [Warp Helm Chart](./helm-chart) to 
+deploy Warp. For details on Helm chart based deployment, refer the [document here](./helm-chart/README.md).
 
 ## Create *warp* client listeners
 
