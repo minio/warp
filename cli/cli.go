@@ -100,7 +100,6 @@ func init() {
 		cmpCmd,
 		mergeCmd,
 		clientCmd,
-		versionCmd,
 	}
 	appCmds = append(a, b...)
 	benchCmds = a
