@@ -52,6 +52,7 @@ const (
 	appNameUC = "WARP"
 )
 
+// Main starts warp
 func Main(args []string) {
 	// Set system max resources as needed.
 	setMaxResources()
@@ -195,6 +196,8 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
+	app.Copyright = "(c) 2020 MinIO, Inc."
+	app.Compiled, _ = time.Parse(time.RFC3339, pkg.ReleaseTime)
 	app.Flags = append(app.Flags, globalFlags...)
 	app.CommandNotFound = commandNotFound // handler function declared above.
 	app.EnableBashCompletion = true
@@ -248,7 +251,7 @@ func commandNotFound(ctx *cli.Context, command string) {
 	msg := fmt.Sprintf("`%s` is not a %s command. See `m3 --help`.", command, appName)
 	closestCommands := findClosestCommands(command)
 	if len(closestCommands) > 0 {
-		msg += fmt.Sprintf("\n\nDid you mean one of these?\n")
+		msg += "\n\nDid you mean one of these?\n"
 		if len(closestCommands) == 1 {
 			cmd := closestCommands[0]
 			msg += fmt.Sprintf("        `%s`", cmd)

@@ -30,6 +30,6 @@ jobs:
         env:
           GO111MODULE: on
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.21.0
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
           $(go env GOPATH)/bin/golangci-lint run --timeout=5m --config ./.golangci.yml
           go test -v -race ./...
