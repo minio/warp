@@ -23,10 +23,12 @@ import (
 	"math/rand"
 )
 
+// WithCSV returns default CSV Opts
 func WithCSV() CsvOpts {
 	return csvOptsDefaults()
 }
 
+// Apply applies all the opts for CSVOpts
 func (o CsvOpts) Apply() Option {
 	return func(opts *Options) error {
 		if err := o.validate(); err != nil {

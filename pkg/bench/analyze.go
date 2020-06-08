@@ -62,12 +62,10 @@ type TTFB struct {
 // Segments is a slice of segment elements.
 type Segments []Segment
 
+// Clone returns a copy of the segment elements.
 func (s Segments) Clone() Segments {
 	res := make(Segments, len(s))
-	for i, seg := range s {
-		res[i] = seg
-	}
-
+	copy(res, s)
 	return res
 }
 
