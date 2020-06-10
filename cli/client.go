@@ -30,10 +30,9 @@ import (
 	"sync"
 	"time"
 
-	md5simd "github.com/minio/md5-simd"
-
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
+	md5simd "github.com/minio/md5-simd"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/minio-go/v6/pkg/credentials"
 	"github.com/minio/minio/pkg/console"
