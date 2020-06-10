@@ -311,6 +311,8 @@ Aggregated, split into 59 x 1s time segments:
 * Slowest: 347.95 MiB/s, 34.80 obj/s, 32.00 ops ended/s (1s)
 ```
 
+It is possible by forcing md5 checksums on data by using the `--md5` option. 
+
 ## DELETE
 
 Benchmarking delete operations will upload `--objects` objects of size `--obj.size` and attempt to

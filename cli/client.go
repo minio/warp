@@ -30,6 +30,8 @@ import (
 	"sync"
 	"time"
 
+	md5simd "github.com/minio/md5-simd"
+
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v6"
@@ -160,8 +162,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		Secure:       ctx.Bool("tls"),
 		Region:       ctx.String("region"),
 		BucketLookup: minio.BucketLookupAuto,
-		// TODO(klauspost): Enable when https://github.com/minio/minio-go/pull/1283 is available
-		// CustomMD5:    md5simd.NewServer().NewHash,
+		CustomMD5:    md5simd.NewServer().NewHash,
 	})
 	if err != nil {
 		return nil, err

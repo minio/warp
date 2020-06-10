@@ -10,11 +10,10 @@ require (
 	github.com/klauspost/compress v1.10.5
 	github.com/minio/cli v1.22.0
 	github.com/minio/mc v0.0.0-20200201185513-ac9b9423973b
+	github.com/minio/md5-simd v1.1.0
 	github.com/minio/minio v0.0.0-20200430053134-c7470e6e6eed
-	github.com/minio/minio-go/v6 v6.0.55
+	github.com/minio/minio-go/v6 v6.0.57
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
 	github.com/secure-io/sio-go v0.3.0
 )
-
-replace github.com/minio/minio-go/v6 v6.0.55 => ../minio-go
