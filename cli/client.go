@@ -32,6 +32,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
+	md5simd "github.com/minio/md5-simd"
 	"github.com/minio/minio-go/v6"
 	"github.com/minio/minio-go/v6/pkg/credentials"
 	"github.com/minio/minio/pkg/console"
@@ -159,7 +160,8 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		Creds:        creds,
 		Secure:       ctx.Bool("tls"),
 		Region:       ctx.String("region"),
-		BucketLookup: 0,
+		BucketLookup: minio.BucketLookupAuto,
+		CustomMD5:    md5simd.NewServer().NewHash,
 	})
 	if err != nil {
 		return nil, err

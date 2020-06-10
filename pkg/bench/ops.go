@@ -863,6 +863,7 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
 	cr.ReuseRecord = true
+	cr.Comment = '#'
 	header, err := cr.Read()
 	if err != nil {
 		return nil, err

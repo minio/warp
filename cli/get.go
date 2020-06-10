@@ -36,10 +36,6 @@ var (
 			Value: "10MiB",
 			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
-		cli.BoolFlag{
-			Name:  "disable-multipart",
-			Usage: "disable multipart uploads",
-		},
 	}
 )
 
@@ -76,10 +72,7 @@ func mainGet(ctx *cli.Context) error {
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
-			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: sse,
-				DisableMultipart:     ctx.Bool("disable-multipart"),
-			},
+			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},

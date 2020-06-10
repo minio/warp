@@ -240,7 +240,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	} else {
 		func() {
 			defer f.Close()
-			enc, err := zstd.NewWriter(f)
+			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()
@@ -411,7 +411,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	} else {
 		func() {
 			defer f.Close()
-			enc, err := zstd.NewWriter(f)
+			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()

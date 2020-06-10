@@ -173,4 +173,12 @@ var ioFlags = []cli.Flag{
 		Name:  "noprefix",
 		Usage: "Do not use separate prefix for each thread",
 	},
+	cli.BoolFlag{
+		Name:  "disable-multipart",
+		Usage: "disable multipart uploads",
+	},
+	cli.BoolFlag{
+		Name:  "md5",
+		Usage: "Add MD5 sum to uploads",
+	},
 }

@@ -59,10 +59,6 @@ var (
 			Usage: "The amount of DELETE operations. Must be at least the same as PUT.",
 			Value: 10,
 		},
-		cli.BoolFlag{
-			Name:  "disable-multipart",
-			Usage: "disable multipart uploads",
-		},
 	}
 )
 
@@ -109,10 +105,7 @@ func mainMixed(ctx *cli.Context) error {
 			Source:      src,
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
-			PutOpts: minio.PutObjectOptions{
-				ServerSideEncryption: sse,
-				DisableMultipart:     ctx.Bool("disable-multipart"),
-			},
+			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
