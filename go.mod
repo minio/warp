@@ -17,3 +17,5 @@ require (
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
 	github.com/secure-io/sio-go v0.3.0
 )
+
+replace github.com/minio/minio-go/v6 v6.0.57 => ../minio-go

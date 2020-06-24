@@ -55,7 +55,9 @@ type Object struct {
 	// Size of the object to expect.
 	Size int64
 
-	PreFix string
+	Prefix string
+
+	VersionID string
 }
 
 // Objects is a slice of objects.
@@ -65,7 +67,7 @@ type Objects []Object
 func (o Objects) Prefixes() []string {
 	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
 	for _, p := range o {
-		prefixes[p.PreFix] = struct{}{}
+		prefixes[p.Prefix] = struct{}{}
 	}
 	res := make([]string, 0, len(prefixes))
 	for p := range prefixes {
@@ -79,7 +81,7 @@ func MergeObjectPrefixes(o []Objects) []string {
 	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
 	for _, objs := range o {
 		for _, p := range objs {
-			prefixes[p.PreFix] = struct{}{}
+			prefixes[p.Prefix] = struct{}{}
 		}
 	}
 	res := make([]string, 0, len(prefixes))
@@ -91,21 +93,21 @@ func MergeObjectPrefixes(o []Objects) []string {
 
 func (o *Object) setPrefix(opts Options) {
 	if opts.randomPrefix <= 0 {
-		o.PreFix = ""
+		o.Prefix = ""
 		return
 	}
 	b := make([]byte, opts.randomPrefix)
 	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
 	randASCIIBytes(b, rng)
-	o.PreFix = string(b)
+	o.Prefix = string(b)
 }
 
 func (o *Object) setName(s string) {
-	if len(o.PreFix) == 0 {
+	if len(o.Prefix) == 0 {
 		o.Name = s
 		return
 	}
-	o.Name = o.PreFix + "/" + s
+	o.Name = o.Prefix + "/" + s
 }
 
 // New return data source.

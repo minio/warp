@@ -166,7 +166,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				default:
 				}
 
-				prefix := objs[0].PreFix
+				prefix := objs[0].Prefix
 				client, cldone := d.Client()
 				op := Operation{
 					File:     prefix,
@@ -178,7 +178,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjectsV2(d.Bucket, objs[0].PreFix, true, nil)
+				listCh := client.ListObjectsV2(d.Bucket, objs[0].Prefix, true, nil)
 
 				// Wait for errCh to close.
 				for {
