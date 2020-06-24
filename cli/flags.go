@@ -27,6 +27,35 @@ import (
 
 // Collection of warp flags currently supported
 var globalFlags = []cli.Flag{
+	cli.BoolFlag{
+		Name:   "quiet, q",
+		Usage:  "disable progress bar display",
+		Hidden: true,
+	},
+	cli.BoolFlag{
+		Name:  "no-color",
+		Usage: "disable color theme",
+	},
+	cli.BoolFlag{
+		Name:   "json",
+		Usage:  "enable JSON formatted output",
+		Hidden: true,
+	},
+	cli.BoolFlag{
+		Name:  "debug",
+		Usage: "enable debug output",
+	},
+	cli.BoolFlag{
+		Name:  "insecure",
+		Usage: "disable TLS certificate verification",
+	},
+	cli.BoolFlag{
+		Name:  "autocompletion",
+		Usage: "install auto-completion for your shell",
+	},
+}
+
+var profileFlags = []cli.Flag{
 	// These flags mimmic the `go test` flags.
 	cli.StringFlag{
 		Name:   "cpuprofile",
@@ -57,32 +86,6 @@ var globalFlags = []cli.Flag{
 		Value:  "",
 		Usage:  "Write an local execution trace to the specified file before exiting.",
 		Hidden: true,
-	},
-	cli.BoolFlag{
-		Name:   "quiet, q",
-		Usage:  "disable progress bar display",
-		Hidden: true,
-	},
-	cli.BoolFlag{
-		Name:  "no-color",
-		Usage: "disable color theme",
-	},
-	cli.BoolFlag{
-		Name:   "json",
-		Usage:  "enable JSON formatted output",
-		Hidden: true,
-	},
-	cli.BoolFlag{
-		Name:  "debug",
-		Usage: "enable debug output",
-	},
-	cli.BoolFlag{
-		Name:  "insecure",
-		Usage: "disable TLS certificate verification",
-	},
-	cli.BoolFlag{
-		Name:  "autocompletion",
-		Usage: "install auto-completion for your shell",
 	},
 }
 
