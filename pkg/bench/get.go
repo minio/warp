@@ -178,7 +178,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				op.Start = time.Now()
 				var err error
-				fbr.r, err = client.GetObject(g.Bucket, obj.Name, opts)
+				o, err := client.GetObject(g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Errorln("download error:", err)
 					op.Err = err.Error()
@@ -187,6 +187,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					cldone()
 					continue
 				}
+				fbr.r = o
 				n, err := io.Copy(ioutil.Discard, &fbr)
 				if err != nil {
 					console.Errorln("download error:", err)
@@ -200,6 +201,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				rcv <- op
 				cldone()
+				o.Close()
 			}
 		}(i)
 	}
