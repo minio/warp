@@ -150,6 +150,13 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 
 		cli.ShowAppHelp(ctx)
 	}
+	var afterExec func(ctx *cli.Context) error
+	app.After = func(ctx *cli.Context) error {
+		if afterExec != nil {
+			return afterExec(ctx)
+		}
+		return nil
+	}
 
 	app.Before = func(ctx *cli.Context) error {
 		var after []func()
@@ -171,12 +178,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 		if len(after) == 0 {
 			return nil
 		}
-		x := app.After
-		app.After = func(ctx *cli.Context) error {
-			err := x(ctx)
-			if err != nil {
-				return err
-			}
+		afterExec = func(ctx *cli.Context) error {
 			for _, fn := range after {
 				fn()
 			}
@@ -199,6 +201,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
 	app.Copyright = "(c) 2020 MinIO, Inc."
 	app.Compiled, _ = time.Parse(time.RFC3339, pkg.ReleaseTime)
+	app.Flags = append(app.Flags, profileFlags...)
 	app.Flags = append(app.Flags, globalFlags...)
 	app.CommandNotFound = commandNotFound // handler function declared above.
 	app.EnableBashCompletion = true

@@ -160,7 +160,8 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				var err error
-				fbr.r, err = client.SelectObjectContent(context.Background(), g.Bucket, obj.Name, opts)
+				o, err := client.SelectObjectContent(context.Background(), g.Bucket, obj.Name, opts)
+				fbr.r = o
 				if err != nil {
 					console.Errorln("download error:", err)
 					op.Err = err.Error()
@@ -178,6 +179,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				op.End = time.Now()
 				rcv <- op
 				cldone()
+				o.Close()
 			}
 		}(i)
 	}
