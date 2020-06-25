@@ -259,7 +259,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					fbr.r, err = client.GetObject(g.Bucket, obj.Name, g.GetOpts)
+					o, err := client.GetObject(g.Bucket, obj.Name, g.GetOpts)
+					fbr.r = o
 					if err != nil {
 						console.Errorln("download error:", err)
 						op.Err = err.Error()
@@ -283,6 +284,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					rcv <- op
 					objDone()
 					clDone()
+					o.Close()
+
 				case http.MethodPut:
 					obj := src.Object()
 					putOpts.ContentType = obj.ContentType
