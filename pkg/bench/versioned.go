@@ -152,7 +152,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 				switch operation {
 				case http.MethodGet:
 					fbr := firstByteRecorder{}
-					obj, objDone := g.Dist.randomObj()
+					obj, objDone := g.Dist.randomObjRead()
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
@@ -240,7 +240,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					rcv <- op
 				case "STAT":
-					obj, objDone := g.Dist.randomObj()
+					obj, objDone := g.Dist.randomObjRead()
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
@@ -281,8 +281,7 @@ func (g *Versioned) Cleanup(ctx context.Context) {
 }
 
 type versionedObj struct {
-	obj      generator.Object
-	versions []string
+	objs generator.Objects
 }
 
 // VersionedDistribution keeps track of operation distribution
@@ -298,6 +297,7 @@ type VersionedDistribution struct {
 	mu      sync.Mutex
 }
 
+// Generate versioned objects.
 func (m *VersionedDistribution) Generate(allocObjs int) error {
 	m.objects = make(map[string]versionedObj, allocObjs)
 
@@ -324,7 +324,7 @@ func (m *VersionedDistribution) Generate(allocObjs int) error {
 func (m *VersionedDistribution) Objects() generator.Objects {
 	res := make(generator.Objects, 0, len(m.objects))
 	for _, v := range m.objects {
-		res = append(res, v.obj)
+		res = append(res, v.objs...)
 	}
 	return res
 }
@@ -346,15 +346,12 @@ func (m *VersionedDistribution) normalize() error {
 	return nil
 }
 
-func (m *VersionedDistribution) randomObj() (obj generator.Object, done func()) {
+func (m *VersionedDistribution) randomObjRead() (obj generator.Object, done func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Use map randomness to select.
-	for k, o := range m.objects {
-		return o.obj, func() {
-			m.mu.Lock()
-			m.objects[k] = obj
-			m.mu.Unlock()
+	for _, o := range m.objects {
+		return o.objs[m.rng.Intn(len(o.objs))], func() {
 		}
 	}
 	panic("ran out of objects")
