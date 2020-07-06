@@ -20,6 +20,8 @@ package bench
 import (
 	"context"
 	"math"
+	"os"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -121,6 +123,16 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	if len(prefixes) == 0 {
 		prefixes = []string{""}
 	}
+	finished := make(chan struct{})
+	defer close(finished)
+	go func() {
+		select {
+		case <-time.After(time.Minute):
+			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		case <-finished:
+			return
+		}
+	}()
 	var wg sync.WaitGroup
 	wg.Add(len(prefixes))
 	for _, prefix := range prefixes {
@@ -131,8 +143,8 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			defer close(doneCh)
 			cl, done := c.Client()
 			defer done()
-			remove := make(chan string, 10)
-			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
+			remove := make(chan minio.ObjectVersion, 100)
+			errCh := cl.RemoveObjectsWithVersions(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
 				close(remove)
@@ -143,7 +155,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 			}()
 
-			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true})
+			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: true})
 			for {
 				select {
 				case obj, ok := <-objects:
@@ -152,8 +164,20 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 					}
 					if obj.Err != nil {
 						console.Error(obj.Err)
+						continue
 					}
-					remove <- obj.Key
+				sendNext:
+					for {
+						select {
+						case remove <- minio.ObjectVersion{
+							Key:       obj.Key,
+							VersionID: obj.VersionID,
+						}:
+							break sendNext
+						case err := <-errCh:
+							console.Error(err)
+						}
+					}
 				case err := <-errCh:
 					console.Error(err)
 				}
