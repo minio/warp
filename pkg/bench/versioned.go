@@ -132,6 +132,8 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 	if g.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()
@@ -166,7 +168,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
-					fbr.r, err = client.GetObject(ctx, g.Bucket, obj.Name, getOpts)
+					fbr.r, err = client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
 					if err != nil {
 						console.Errorln("download error:", err)
 						op.Err = err.Error()
@@ -191,7 +193,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					objDone()
 					clDone()
 				case http.MethodPut:
-					obj := src.Object()
+					obj, objDone := g.Dist.newVersion(src.Object())
 					putOpts.ContentType = obj.ContentType
 					client, clDone := g.Client()
 					op := Operation{
@@ -203,7 +205,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						console.Errorln("upload error:", err)
@@ -220,9 +222,11 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					op.Size = res.Size
 					clDone()
-					if op.Err == "" {
-						g.Dist.addObj(*obj)
+					if op.Err != "" {
+						// Don't add if error.
+						res.VersionID = ""
 					}
+					objDone(res.VersionID)
 					rcv <- op
 				case http.MethodDelete:
 					client, clDone := g.Client()
@@ -236,7 +240,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					err := client.RemoveObject(ctx, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
+					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -257,7 +261,8 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(ctx, g.Bucket, obj.Name, statOpts)
+					statOpts.VersionID = obj.VersionID
+					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
 						op.Err = err.Error()
@@ -391,6 +396,24 @@ func (m *VersionedDistribution) deleteRandomObj() generator.Object {
 		return obj
 	}
 	panic("ran out of objects")
+}
+
+// newVersion will modify the object to be a version of an existing object.
+func (m *VersionedDistribution) newVersion(o *generator.Object) (obj generator.Object, done func(ver string)) {
+	o2 := *o
+	// We keep 'r' until we have finished adding a new version.
+	// Otherwise we risk it being deleted.
+	r, rdone := m.randomObjRead()
+	o2.VersionID = ""
+	o2.Name = r.Name
+	o2.Prefix = r.Prefix
+	return o2, func(versionID string) {
+		if versionID != "" {
+			o2.VersionID = versionID
+			m.addObj(o2)
+		}
+		rdone()
+	}
 }
 
 func (m *VersionedDistribution) addObj(o generator.Object) {

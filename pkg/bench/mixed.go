@@ -228,6 +228,9 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 	if g.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()
@@ -262,7 +265,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
-					o, err := client.GetObject(ctx, g.Bucket, obj.Name, getOpts)
+					o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
 					fbr.r = o
 					if err != nil {
 						console.Errorln("download error:", err)
@@ -302,7 +305,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						console.Errorln("upload error:", err)
@@ -334,7 +337,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					err := client.RemoveObject(ctx, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
+					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -355,7 +358,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(ctx, g.Bucket, obj.Name, statOpts)
+					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
 						op.Err = err.Error()
