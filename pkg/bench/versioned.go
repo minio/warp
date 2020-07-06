@@ -29,10 +29,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/warp/pkg/generator"
-
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
+	"github.com/minio/warp/pkg/generator"
 )
 
 // Versioned benchmarks mixed operations all inclusive.
@@ -57,7 +56,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	}
 	{
 		cl, done := g.Client()
-		err := cl.EnableVersioningWithContext(ctx, g.Bucket)
+		err := cl.EnableVersioning(ctx, g.Bucket)
 		done()
 		if err != nil {
 			return err
@@ -91,7 +90,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
-				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					console.Error(err)
@@ -102,8 +101,9 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+				obj.VersionID = res.VersionID
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -140,6 +140,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 			src := g.Source()
 			putOpts := g.PutOpts
 			statOpts := g.StatOpts
+			getOpts := g.GetOpts
 
 			<-wait
 			for {
@@ -164,7 +165,8 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					op.Start = time.Now()
 					var err error
-					fbr.r, err = client.GetObject(g.Bucket, obj.Name, g.GetOpts)
+					getOpts.VersionID = obj.VersionID
+					fbr.r, err = client.GetObject(ctx, g.Bucket, obj.Name, getOpts)
 					if err != nil {
 						console.Errorln("download error:", err)
 						op.Err = err.Error()
@@ -201,19 +203,22 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						console.Errorln("upload error:", err)
 						op.Err = err.Error()
 					}
-					if n != obj.Size {
-						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", n)
+
+					obj.VersionID = res.VersionID
+					if res.Size != obj.Size {
+						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
 						if op.Err == "" {
 							op.Err = err
 						}
 						console.Errorln(err)
 					}
+					op.Size = res.Size
 					clDone()
 					if op.Err == "" {
 						g.Dist.addObj(*obj)
@@ -231,7 +236,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					err := client.RemoveObject(g.Bucket, obj.Name)
+					err := client.RemoveObject(ctx, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -252,7 +257,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(g.Bucket, obj.Name, statOpts)
+					objI, err := client.StatObject(ctx, g.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
 						op.Err = err.Error()
@@ -350,8 +355,22 @@ func (m *VersionedDistribution) randomObjRead() (obj generator.Object, done func
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Use map randomness to select.
-	for _, o := range m.objects {
-		return o.objs[m.rng.Intn(len(o.objs))], func() {
+	for k, o := range m.objects {
+		if len(o.objs) == 0 {
+			continue
+		}
+		// Remove it until we have read it so it isn't deleted.
+		n := m.rng.Intn(len(o.objs))
+		obj := o.objs[n]
+		o.objs = append(o.objs[:n], o.objs[n+1:]...)
+		m.objects[k] = o
+
+		return obj, func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			o := m.objects[k]
+			o.objs = append(o.objs, obj)
+			m.objects[k] = o
 		}
 	}
 	panic("ran out of objects")
@@ -362,15 +381,23 @@ func (m *VersionedDistribution) deleteRandomObj() generator.Object {
 	defer m.mu.Unlock()
 	// Use map randomness to select.
 	for k, o := range m.objects {
-		delete(m.objects, k)
-		return o
+		if len(o.objs) == 0 {
+			continue
+		}
+		n := m.rng.Intn(len(o.objs))
+		obj := o.objs[n]
+		o.objs = append(o.objs[:n], o.objs[n+1:]...)
+		m.objects[k] = o
+		return obj
 	}
 	panic("ran out of objects")
 }
 
 func (m *VersionedDistribution) addObj(o generator.Object) {
 	m.mu.Lock()
-	m.objects[o.Name] = o
+	objs := m.objects[o.Name]
+	objs.objs = append(objs.objs, o)
+	m.objects[o.Name] = objs
 	m.mu.Unlock()
 }
 

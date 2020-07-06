@@ -76,20 +76,22 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
-				n, err := client.PutObject(u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Errorln("upload error:", err)
 					op.Err = err.Error()
 				}
-				if n != obj.Size && op.Err == "" {
-					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", n)
+				obj.VersionID = res.VersionID
+
+				if res.Size != obj.Size && op.Err == "" {
+					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
 					if op.Err == "" {
 						op.Err = err
 					}
 					console.Errorln(err)
 				}
-				op.Size = n
+				op.Size = res.Size
 				cldone()
 				rcv <- op
 			}

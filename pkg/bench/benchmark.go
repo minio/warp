@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -84,19 +84,21 @@ func (c *Common) GetCommon() *Common {
 func (c *Common) createEmptyBucket(ctx context.Context) error {
 	cl, done := c.Client()
 	defer done()
-	x, err := cl.BucketExists(c.Bucket)
+	x, err := cl.BucketExists(ctx, c.Bucket)
 	if err != nil {
 		return err
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		err := cl.MakeBucket(c.Bucket, c.Location)
+		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
+			Region: c.Location,
+		})
 
 		// In client mode someone else may have created it first.
 		// Check if it exists now.
 		// We don't test against a specific error since we might run against many different servers.
 		if err != nil {
-			x, err2 := cl.BucketExists(c.Bucket)
+			x, err2 := cl.BucketExists(ctx, c.Bucket)
 			if err2 != nil {
 				return err2
 			}
@@ -130,7 +132,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			cl, done := c.Client()
 			defer done()
 			remove := make(chan string, 10)
-			errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
+			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
 				close(remove)
@@ -141,7 +143,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 			}()
 
-			objects := cl.ListObjectsV2(c.Bucket, prefix, true, doneCh)
+			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true})
 			for {
 				select {
 				case obj, ok := <-objects:

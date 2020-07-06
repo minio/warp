@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -186,7 +186,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
-				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					console.Error(err)
@@ -197,8 +197,9 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+				obj.VersionID = res.VersionID
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -235,6 +236,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 			src := g.Source()
 			putOpts := g.PutOpts
 			statOpts := g.StatOpts
+			getOpts := g.GetOpts
 
 			<-wait
 			for {
@@ -259,7 +261,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					o, err := client.GetObject(g.Bucket, obj.Name, g.GetOpts)
+					getOpts.VersionID = obj.VersionID
+					o, err := client.GetObject(ctx, g.Bucket, obj.Name, getOpts)
 					fbr.r = o
 					if err != nil {
 						console.Errorln("download error:", err)
@@ -299,14 +302,16 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						console.Errorln("upload error:", err)
 						op.Err = err.Error()
 					}
-					if n != obj.Size {
-						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", n)
+					obj.VersionID = res.VersionID
+
+					if res.Size != obj.Size {
+						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
 						if op.Err == "" {
 							op.Err = err
 						}
@@ -329,7 +334,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					err := client.RemoveObject(g.Bucket, obj.Name)
+					err := client.RemoveObject(ctx, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -350,7 +355,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(g.Bucket, obj.Name, statOpts)
+					objI, err := client.StatObject(ctx, g.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
 						op.Err = err.Error()

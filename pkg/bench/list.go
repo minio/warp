@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/minio/minio-go/v7"
+
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -94,7 +96,7 @@ func (d *List) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -106,8 +108,9 @@ func (d *List) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+				obj.VersionID = res.VersionID
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -178,7 +181,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjectsV2(d.Bucket, objs[0].Prefix, true, nil)
+				listCh := client.ListObjects(ctx, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix})
 
 				// Wait for errCh to close.
 				for {

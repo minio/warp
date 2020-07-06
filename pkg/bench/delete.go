@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
-
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -84,7 +84,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := client.PutObject(d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -96,8 +96,10 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+				obj.VersionID = res.VersionID
+
+				if obj.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, obj.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -166,9 +168,9 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				mu.Unlock()
 
 				// Queue all in batch.
-				objects := make(chan string, len(objs))
+				objects := make(chan minio.ObjectVersion, len(objs))
 				for _, obj := range objs {
-					objects <- obj.Name
+					objects <- minio.ObjectVersion{Key: obj.Name, VersionID: obj.VersionID}
 				}
 				close(objects)
 
@@ -183,7 +185,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjectsWithContext(context.Background(), d.Bucket, objects)
+				errCh := client.RemoveObjectsWithVersions(ctx, d.Bucket, objects, minio.RemoveObjectsOptions{})
 
 				// Wait for errCh to close.
 				for {
