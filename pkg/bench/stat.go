@@ -132,6 +132,9 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 	if g.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "STAT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
@@ -160,7 +163,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 				var err error
 				opts.VersionID = obj.VersionID
-				objI, err := client.StatObject(ctx, g.Bucket, obj.Name, opts)
+				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Errorln("StatObject error:", err)
 					op.Err = err.Error()

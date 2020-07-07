@@ -61,6 +61,10 @@ func (g *Get) Prepare(ctx context.Context) error {
 	close(obj)
 	var groupErr error
 	var mu sync.Mutex
+
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -87,7 +91,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)

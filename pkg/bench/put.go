@@ -48,6 +48,10 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
+
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < u.Concurrency; i++ {
 		src := u.Source()
 		u.prefixes[src.Prefix()] = struct{}{}
@@ -76,7 +80,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Errorln("upload error:", err)

@@ -133,6 +133,10 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 	if g.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "SELECT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
@@ -161,7 +165,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				var err error
-				o, err := client.SelectObjectContent(context.Background(), g.Bucket, obj.Name, opts)
+				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)
 				fbr.r = o
 				if err != nil {
 					console.Errorln("download error:", err)

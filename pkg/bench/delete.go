@@ -138,6 +138,8 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 	if d.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodDelete, d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
 
 	var mu sync.Mutex
 	for i := 0; i < d.Concurrency; i++ {
@@ -185,7 +187,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjectsWithVersions(ctx, d.Bucket, objects, minio.RemoveObjectsOptions{})
+				errCh := client.RemoveObjectsWithVersions(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
 
 				// Wait for errCh to close.
 				for {

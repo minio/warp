@@ -149,6 +149,8 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 	if d.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "LIST", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
 
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
@@ -181,7 +183,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjects(ctx, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix})
+				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix})
 
 				// Wait for errCh to close.
 				for {
