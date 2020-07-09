@@ -401,7 +401,8 @@ func (o Operations) ByOp() map[string]Operations {
 	return dst
 }
 
-// OpTypes returns a list of the operation types in the order they appear.
+// OpTypes returns a list of the operation types in the order they appear
+// if not overlapping or in alphabetical order if mixed.
 func (o Operations) OpTypes() []string {
 	tmp := make(map[string]struct{}, 5)
 	dst := make([]string, 0, 5)
@@ -411,12 +412,19 @@ func (o Operations) OpTypes() []string {
 		}
 		tmp[o.OpType] = struct{}{}
 	}
+	if o.isMixed(dst) {
+		sort.Strings(dst)
+	}
 	return dst
 }
 
 // IsMixed returns true if different operation types are overlapping.
 func (o Operations) IsMixed() bool {
-	types := o.OpTypes()
+	return o.isMixed(o.OpTypes())
+}
+
+// isMixed returns true if operation types are overlapping.
+func (o Operations) isMixed(types []string) bool {
 	if len(types) <= 1 {
 		return false
 	}
