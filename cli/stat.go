@@ -19,7 +19,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -77,7 +77,7 @@ func mainStat(ctx *cli.Context) error {
 		},
 		CreateObjects: ctx.Int("objects"),
 		StatOpts: minio.StatObjectOptions{
-			GetObjectOptions: minio.GetObjectOptions{ServerSideEncryption: sse},
+			ServerSideEncryption: sse,
 		},
 	}
 	return runBench(ctx, &b)

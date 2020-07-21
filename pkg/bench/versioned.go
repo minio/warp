@@ -34,129 +34,33 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Mixed benchmarks mixed operations all inclusive.
-type Mixed struct {
+// Versioned benchmarks mixed operations all inclusive.
+type Versioned struct {
 	CreateObjects int
 	Collector     *Collector
-	Dist          *MixedDistribution
+	Dist          *VersionedDistribution
 
 	GetOpts  minio.GetObjectOptions
 	StatOpts minio.StatObjectOptions
 	Common
 }
 
-// MixedDistribution keeps track of operation distribution
-// and currently available objects.
-type MixedDistribution struct {
-	// Operation -> distribution.
-	Distribution map[string]float64
-	ops          []string
-	objects      map[string]generator.Object
-	rng          *rand.Rand
-
-	current int
-	mu      sync.Mutex
-}
-
-func (m *MixedDistribution) Generate(allocObjs int) error {
-	if m.Distribution[http.MethodDelete] > m.Distribution[http.MethodPut] {
-		return errors.New("DELETE distribution cannot be bigger than PUT")
-	}
-	m.objects = make(map[string]generator.Object, allocObjs)
-
-	err := m.normalize()
-	if err != nil {
-		return err
-	}
-
-	const genOps = 1000
-	m.ops = make([]string, 0, genOps)
-	for op, dist := range m.Distribution {
-		add := int(0.5 + dist*genOps)
-		for i := 0; i < add; i++ {
-			m.ops = append(m.ops, op)
-		}
-	}
-	m.rng = rand.New(rand.NewSource(0xabad1dea))
-	sort.Slice(m.ops, func(i, j int) bool {
-		return m.rng.Int63()&1 == 0
-	})
-	return nil
-}
-
-func (m *MixedDistribution) Objects() generator.Objects {
-	res := make(generator.Objects, 0, len(m.objects))
-	for _, v := range m.objects {
-		res = append(res, v)
-	}
-	return res
-}
-
-func (m *MixedDistribution) normalize() error {
-	total := 0.0
-	for op, dist := range m.Distribution {
-		if dist < 0 {
-			return fmt.Errorf("negative distribution requested for op %q", op)
-		}
-		total += dist
-	}
-	if total == 0 {
-		return fmt.Errorf("no distribution set, total is 0")
-	}
-	for op, dist := range m.Distribution {
-		m.Distribution[op] = dist / total
-	}
-	return nil
-}
-
-func (m *MixedDistribution) randomObj() (obj generator.Object, done func()) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Use map randomness to select.
-	for k, o := range m.objects {
-		delete(m.objects, k)
-		return o, func() {
-			m.mu.Lock()
-			m.objects[k] = obj
-			m.mu.Unlock()
-		}
-	}
-	panic("ran out of objects")
-}
-
-func (m *MixedDistribution) deleteRandomObj() generator.Object {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Use map randomness to select.
-	for k, o := range m.objects {
-		delete(m.objects, k)
-		return o
-	}
-	panic("ran out of objects")
-}
-
-func (m *MixedDistribution) addObj(o generator.Object) {
-	m.mu.Lock()
-	m.objects[o.Name] = o
-	m.mu.Unlock()
-}
-
-func (m *MixedDistribution) getOp() string {
-	m.mu.Lock()
-	op := m.ops[m.current]
-	m.current = (m.current + 1) % len(m.ops)
-	m.mu.Unlock()
-	return op
-}
-
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (g *Mixed) Prepare(ctx context.Context) error {
+func (g *Versioned) Prepare(ctx context.Context) error {
 	if g.CreateObjects <= g.Concurrency {
 		return errors.New("initial number of objects should be at least matching concurrency")
 	}
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
+	}
+	{
+		cl, done := g.Client()
+		err := cl.EnableVersioning(ctx, g.Bucket)
+		done()
+		if err != nil {
+			return err
+		}
 	}
 	src := g.Source()
 	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
@@ -221,7 +125,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
@@ -230,7 +134,6 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 	}
 	// Non-terminating context.
 	nonTerm := context.Background()
-
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rcv := c.Receiver()
@@ -252,7 +155,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 				switch operation {
 				case http.MethodGet:
 					fbr := firstByteRecorder{}
-					obj, objDone := g.Dist.randomObj()
+					obj, objDone := g.Dist.randomObjRead()
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
@@ -265,8 +168,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
-					o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
-					fbr.r = o
+					fbr.r, err = client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
 					if err != nil {
 						console.Errorln("download error:", err)
 						op.Err = err.Error()
@@ -290,10 +192,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					rcv <- op
 					objDone()
 					clDone()
-					o.Close()
-
 				case http.MethodPut:
-					obj := src.Object()
+					obj, objDone := g.Dist.newVersion(src.Object())
 					putOpts.ContentType = obj.ContentType
 					client, clDone := g.Client()
 					op := Operation{
@@ -311,8 +211,8 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						console.Errorln("upload error:", err)
 						op.Err = err.Error()
 					}
-					obj.VersionID = res.VersionID
 
+					obj.VersionID = res.VersionID
 					if res.Size != obj.Size {
 						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
 						if op.Err == "" {
@@ -320,10 +220,13 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						}
 						console.Errorln(err)
 					}
+					op.Size = res.Size
 					clDone()
-					if op.Err == "" {
-						g.Dist.addObj(*obj)
+					if op.Err != "" {
+						// Don't add if error.
+						res.VersionID = ""
 					}
+					objDone(res.VersionID)
 					rcv <- op
 				case http.MethodDelete:
 					client, clDone := g.Client()
@@ -346,7 +249,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					rcv <- op
 				case "STAT":
-					obj, objDone := g.Dist.randomObj()
+					obj, objDone := g.Dist.randomObjRead()
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
@@ -358,6 +261,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
+					statOpts.VersionID = obj.VersionID
 					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
@@ -382,6 +286,148 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (g *Mixed) Cleanup(ctx context.Context) {
+func (g *Versioned) Cleanup(ctx context.Context) {
 	g.deleteAllInBucket(ctx, g.Dist.Objects().Prefixes()...)
+}
+
+type versionedObj struct {
+	objs generator.Objects
+}
+
+// VersionedDistribution keeps track of operation distribution
+// and currently available objects.
+type VersionedDistribution struct {
+	// Operation -> distribution.
+	Distribution map[string]float64
+	ops          []string
+	objects      map[string]versionedObj
+	rng          *rand.Rand
+
+	current int
+	mu      sync.Mutex
+}
+
+// Generate versioned objects.
+func (m *VersionedDistribution) Generate(allocObjs int) error {
+	m.objects = make(map[string]versionedObj, allocObjs)
+
+	err := m.normalize()
+	if err != nil {
+		return err
+	}
+
+	const genOps = 1000
+	m.ops = make([]string, 0, genOps)
+	for op, dist := range m.Distribution {
+		add := int(0.5 + dist*genOps)
+		for i := 0; i < add; i++ {
+			m.ops = append(m.ops, op)
+		}
+	}
+	m.rng = rand.New(rand.NewSource(0xabad1dea))
+	sort.Slice(m.ops, func(i, j int) bool {
+		return m.rng.Int63()&1 == 0
+	})
+	return nil
+}
+
+func (m *VersionedDistribution) Objects() generator.Objects {
+	res := make(generator.Objects, 0, len(m.objects))
+	for _, v := range m.objects {
+		res = append(res, v.objs...)
+	}
+	return res
+}
+
+func (m *VersionedDistribution) normalize() error {
+	total := 0.0
+	for op, dist := range m.Distribution {
+		if dist < 0 {
+			return fmt.Errorf("negative distribution requested for op %q", op)
+		}
+		total += dist
+	}
+	if total == 0 {
+		return fmt.Errorf("no distribution set, total is 0")
+	}
+	for op, dist := range m.Distribution {
+		m.Distribution[op] = dist / total
+	}
+	return nil
+}
+
+func (m *VersionedDistribution) randomObjRead() (obj generator.Object, done func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Use map randomness to select.
+	for k, o := range m.objects {
+		if len(o.objs) == 0 {
+			continue
+		}
+		// Remove it until we have read it so it isn't deleted.
+		n := m.rng.Intn(len(o.objs))
+		obj := o.objs[n]
+		o.objs = append(o.objs[:n], o.objs[n+1:]...)
+		m.objects[k] = o
+
+		return obj, func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			o := m.objects[k]
+			o.objs = append(o.objs, obj)
+			m.objects[k] = o
+		}
+	}
+	panic("ran out of objects")
+}
+
+func (m *VersionedDistribution) deleteRandomObj() generator.Object {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Use map randomness to select.
+	for k, o := range m.objects {
+		if len(o.objs) == 0 {
+			continue
+		}
+		n := m.rng.Intn(len(o.objs))
+		obj := o.objs[n]
+		o.objs = append(o.objs[:n], o.objs[n+1:]...)
+		m.objects[k] = o
+		return obj
+	}
+	panic("ran out of objects")
+}
+
+// newVersion will modify the object to be a version of an existing object.
+func (m *VersionedDistribution) newVersion(o *generator.Object) (obj generator.Object, done func(ver string)) {
+	o2 := *o
+	// We keep 'r' until we have finished adding a new version.
+	// Otherwise we risk it being deleted.
+	r, rdone := m.randomObjRead()
+	o2.VersionID = ""
+	o2.Name = r.Name
+	o2.Prefix = r.Prefix
+	return o2, func(versionID string) {
+		if versionID != "" {
+			o2.VersionID = versionID
+			m.addObj(o2)
+		}
+		rdone()
+	}
+}
+
+func (m *VersionedDistribution) addObj(o generator.Object) {
+	m.mu.Lock()
+	objs := m.objects[o.Name]
+	objs.objs = append(objs.objs, o)
+	m.objects[o.Name] = objs
+	m.mu.Unlock()
+}
+
+func (m *VersionedDistribution) getOp() string {
+	m.mu.Lock()
+	op := m.ops[m.current]
+	m.current = (m.current + 1) % len(m.ops)
+	m.mu.Unlock()
+	return op
 }

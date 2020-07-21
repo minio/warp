@@ -18,17 +18,20 @@
 package cli
 
 import (
+	"net/http"
+
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
 var (
-	getFlags = []cli.Flag{
+	versionedFlags = []cli.Flag{
 		cli.IntFlag{
 			Name:  "objects",
-			Value: 2500,
+			Value: 250,
 			Usage: "Number of objects to upload.",
 		},
 		cli.StringFlag{
@@ -36,15 +39,35 @@ var (
 			Value: "10MiB",
 			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
+		cli.Float64Flag{
+			Name:  "get-distrib",
+			Usage: "The amount of GET operations.",
+			Value: 45,
+		},
+		cli.Float64Flag{
+			Name:  "stat-distrib",
+			Usage: "The amount of STAT operations.",
+			Value: 30,
+		},
+		cli.Float64Flag{
+			Name:  "put-distrib",
+			Usage: "The amount of PUT operations.",
+			Value: 15,
+		},
+		cli.Float64Flag{
+			Name:  "delete-distrib",
+			Usage: "The amount of DELETE operations. Must be at least the same as PUT.",
+			Value: 10,
+		},
 	}
 )
 
-var getCmd = cli.Command{
-	Name:   "get",
-	Usage:  "benchmark get objects",
-	Action: mainGet,
+var versionedCmd = cli.Command{
+	Name:   "versioned",
+	Usage:  "benchmark mixed versioned objects",
+	Action: mainVersioned,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, versionedFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -60,12 +83,22 @@ EXAMPLES:
  `,
 }
 
-// mainGet is the entry point for get command.
-func mainGet(ctx *cli.Context) error {
-	checkGetSyntax(ctx)
+// mainVersioned is the entry point for mixed command.
+func mainVersioned(ctx *cli.Context) error {
+	checkVersionedSyntax(ctx)
 	src := newGenSource(ctx)
 	sse := newSSE(ctx)
-	b := bench.Get{
+	dist := bench.VersionedDistribution{
+		Distribution: map[string]float64{
+			http.MethodGet:    ctx.Float64("get-distrib"),
+			"STAT":            ctx.Float64("stat-distrib"),
+			http.MethodPut:    ctx.Float64("put-distrib"),
+			http.MethodDelete: ctx.Float64("delete-distrib"),
+		},
+	}
+	err := dist.Generate(ctx.Int("objects") * 2)
+	fatalIf(probe.NewError(err), "Invalid distribution")
+	b := bench.Versioned{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -76,11 +109,15 @@ func mainGet(ctx *cli.Context) error {
 		},
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		StatOpts: minio.StatObjectOptions{
+			ServerSideEncryption: sse,
+		},
+		Dist: &dist,
 	}
 	return runBench(ctx, &b)
 }
 
-func checkGetSyntax(ctx *cli.Context) {
+func checkVersionedSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}

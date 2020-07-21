@@ -21,7 +21,7 @@ import (
 	"crypto/rand"
 
 	"github.com/minio/cli"
-	"github.com/minio/minio-go/v6/pkg/encrypt"
+	"github.com/minio/minio-go/v7/pkg/encrypt"
 )
 
 var sseKey encrypt.ServerSide

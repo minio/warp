@@ -275,6 +275,8 @@ Requests considered: 4304:
 
 If multiple hosts were used statistics for each host will also be displayed.
 
+A similar benchmark is called `versioned` which operates on versioned objects.
+
 ## GET
 
 Benchmarking get operations will upload `--objects` objects of size `--obj.size` 

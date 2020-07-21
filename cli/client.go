@@ -33,8 +33,8 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	md5simd "github.com/minio/md5-simd"
-	"github.com/minio/minio-go/v6"
-	"github.com/minio/minio-go/v6/pkg/credentials"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
@@ -156,17 +156,17 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
 	}
 
-	cl, err := minio.NewWithOptions(host, &minio.Options{
+	cl, err := minio.New(host, &minio.Options{
 		Creds:        creds,
 		Secure:       ctx.Bool("tls"),
 		Region:       ctx.String("region"),
 		BucketLookup: minio.BucketLookupAuto,
 		CustomMD5:    md5simd.NewServer().NewHash,
+		Transport:    clientTransport(ctx),
 	})
 	if err != nil {
 		return nil, err
 	}
-	cl.SetCustomTransport(clientTransport(ctx))
 	cl.SetAppInfo(appName, pkg.Version)
 	return cl, nil
 }

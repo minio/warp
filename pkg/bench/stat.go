@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -85,7 +85,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -97,8 +97,10 @@ func (g *Stat) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+
+				obj.VersionID = res.VersionID
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -130,6 +132,9 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 	if g.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, "STAT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			rng := rand.New(rand.NewSource(int64(i)))
@@ -157,7 +162,8 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				}
 				op.Start = time.Now()
 				var err error
-				objI, err := client.StatObject(g.Bucket, obj.Name, opts)
+				opts.VersionID = obj.VersionID
+				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Errorln("StatObject error:", err)
 					op.Err = err.Error()

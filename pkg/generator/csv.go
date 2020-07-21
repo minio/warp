@@ -162,5 +162,5 @@ func (c *csvSource) String() string {
 }
 
 func (c *csvSource) Prefix() string {
-	return c.obj.PreFix
+	return c.obj.Prefix
 }

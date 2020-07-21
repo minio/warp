@@ -169,5 +169,5 @@ func (r *randomSrc) String() string {
 }
 
 func (r *randomSrc) Prefix() string {
-	return r.obj.PreFix
+	return r.obj.Prefix
 }

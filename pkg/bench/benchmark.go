@@ -20,10 +20,12 @@ package bench
 import (
 	"context"
 	"math"
+	"os"
+	"runtime/pprof"
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -84,19 +86,21 @@ func (c *Common) GetCommon() *Common {
 func (c *Common) createEmptyBucket(ctx context.Context) error {
 	cl, done := c.Client()
 	defer done()
-	x, err := cl.BucketExists(c.Bucket)
+	x, err := cl.BucketExists(ctx, c.Bucket)
 	if err != nil {
 		return err
 	}
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		err := cl.MakeBucket(c.Bucket, c.Location)
+		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
+			Region: c.Location,
+		})
 
 		// In client mode someone else may have created it first.
 		// Check if it exists now.
 		// We don't test against a specific error since we might run against many different servers.
 		if err != nil {
-			x, err2 := cl.BucketExists(c.Bucket)
+			x, err2 := cl.BucketExists(ctx, c.Bucket)
 			if err2 != nil {
 				return err2
 			}
@@ -119,6 +123,16 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	if len(prefixes) == 0 {
 		prefixes = []string{""}
 	}
+	finished := make(chan struct{})
+	defer close(finished)
+	go func() {
+		select {
+		case <-time.After(time.Minute):
+			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		case <-finished:
+			return
+		}
+	}()
 	var wg sync.WaitGroup
 	wg.Add(len(prefixes))
 	for _, prefix := range prefixes {
@@ -129,8 +143,8 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			defer close(doneCh)
 			cl, done := c.Client()
 			defer done()
-			remove := make(chan string, 10)
-			errCh := cl.RemoveObjectsWithContext(ctx, c.Bucket, remove)
+			remove := make(chan minio.ObjectInfo, 100)
+			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
 				close(remove)
@@ -141,7 +155,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 			}()
 
-			objects := cl.ListObjectsV2(c.Bucket, prefix, true, doneCh)
+			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: true})
 			for {
 				select {
 				case obj, ok := <-objects:
@@ -150,8 +164,20 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 					}
 					if obj.Err != nil {
 						console.Error(obj.Err)
+						continue
 					}
-					remove <- obj.Key
+				sendNext:
+					for {
+						select {
+						case remove <- minio.ObjectInfo{
+							Key:       obj.Key,
+							VersionID: obj.VersionID,
+						}:
+							break sendNext
+						case err := <-errCh:
+							console.Error(err)
+						}
+					}
 				case err := <-errCh:
 					console.Error(err)
 				}

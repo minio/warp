@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -61,6 +61,10 @@ func (g *Get) Prepare(ctx context.Context) error {
 	close(obj)
 	var groupErr error
 	var mu sync.Mutex
+
+	// Non-terminating context.
+	nonTerm := context.Background()
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -87,7 +91,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				n, err := client.PutObject(g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -99,8 +103,9 @@ func (g *Get) Prepare(ctx context.Context) error {
 					mu.Unlock()
 					return
 				}
-				if n != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, n)
+				obj.VersionID = res.VersionID
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					console.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -178,7 +183,8 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				op.Start = time.Now()
 				var err error
-				o, err := client.GetObject(g.Bucket, obj.Name, opts)
+				opts.VersionID = obj.VersionID
+				o, err := client.GetObject(ctx, g.Bucket, obj.Name, opts)
 				if err != nil {
 					console.Errorln("download error:", err)
 					op.Err = err.Error()
