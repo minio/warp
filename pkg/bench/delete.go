@@ -170,9 +170,9 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				mu.Unlock()
 
 				// Queue all in batch.
-				objects := make(chan minio.ObjectVersion, len(objs))
+				objects := make(chan minio.ObjectInfo, len(objs))
 				for _, obj := range objs {
-					objects <- minio.ObjectVersion{Key: obj.Name, VersionID: obj.VersionID}
+					objects <- minio.ObjectInfo{Key: obj.Name, VersionID: obj.VersionID}
 				}
 				close(objects)
 
@@ -187,7 +187,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjectsWithVersions(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
+				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
 
 				// Wait for errCh to close.
 				for {

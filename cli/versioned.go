@@ -110,9 +110,7 @@ func mainVersioned(ctx *cli.Context) error {
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 		StatOpts: minio.StatObjectOptions{
-			GetObjectOptions: minio.GetObjectOptions{
-				ServerSideEncryption: sse,
-			},
+			ServerSideEncryption: sse,
 		},
 		Dist: &dist,
 	}

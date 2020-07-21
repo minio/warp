@@ -143,8 +143,8 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			defer close(doneCh)
 			cl, done := c.Client()
 			defer done()
-			remove := make(chan minio.ObjectVersion, 100)
-			errCh := cl.RemoveObjectsWithVersions(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
+			remove := make(chan minio.ObjectInfo, 100)
+			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
 				close(remove)
@@ -169,7 +169,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				sendNext:
 					for {
 						select {
-						case remove <- minio.ObjectVersion{
+						case remove <- minio.ObjectInfo{
 							Key:       obj.Key,
 							VersionID: obj.VersionID,
 						}:

@@ -77,7 +77,7 @@ func mainStat(ctx *cli.Context) error {
 		},
 		CreateObjects: ctx.Int("objects"),
 		StatOpts: minio.StatObjectOptions{
-			GetObjectOptions: minio.GetObjectOptions{ServerSideEncryption: sse},
+			ServerSideEncryption: sse,
 		},
 	}
 	return runBench(ctx, &b)
