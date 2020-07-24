@@ -211,8 +211,6 @@ github.com/minio/minio-go/v6 v6.0.45-0.20200122224049-9d882c9f270a/go.mod h1:qD0
 github.com/minio/minio-go/v6 v6.0.53/go.mod h1:DIvC/IApeHX8q1BAMVCXSXwpmrmM+I+iBvhvztQorfI=
 github.com/minio/minio-go/v6 v6.0.55-0.20200424204115-7506d2996b22 h1:nZEve4vdUhwHBoV18zRvPDgjL6NYyDJE5QJvz3l9bRs=
 github.com/minio/minio-go/v6 v6.0.55-0.20200424204115-7506d2996b22/go.mod h1:KQMM+/44DSlSGSQWSfRrAZ12FVMmpWNuX37i2AX0jfI=
-github.com/minio/minio-go/v6 v6.0.57 h1:ixPkbKkyD7IhnluRgQpGSpHdpvNVaW6OD5R9IAO/9Tw=
-github.com/minio/minio-go/v6 v6.0.57/go.mod h1:5+R/nM9Pwrh0vqF+HbYYDQ84wdUFPyXHkrdT4AIkifM=
 github.com/minio/minio-go/v7 v7.0.1 h1:sL2y4uuNUEi7AjvWjoGyDFQKFX2zA0DU2tGM9m3s5f8=
 github.com/minio/minio-go/v7 v7.0.1/go.mod h1:dJ80Mv2HeGkYLH1sqS/ksz07ON6csH3S6JUMSQ2zAns=
 github.com/minio/parquet-go v0.0.0-20191231003236-20b3c07bcd2c/go.mod h1:sl82d+TnCE7qeaNJazHdNoG9Gpyl9SZYfleDAQWrsls=
@@ -309,7 +307,6 @@ github.com/smartystreets/assertions v0.0.0-20190401211740-f487f9de1cd3/go.mod h1
 github.com/smartystreets/go-aws-auth v0.0.0-20180515143844-0c1422d1fdb9/go.mod h1:SnhjPscd9TpLiy1LpzGSKh3bXCfxxXuqd9xmQJy3slM=
 github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a h1:pa8hGb/2YqsZKovtsgrwcDH1RZhVbTKCjLp47XpqCDs=
 github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
-github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/soheilhy/cmux v0.1.4/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/streadway/amqp v0.0.0-20190404075320-75d898a42a94/go.mod h1:AZpEONHx3DKn8O/DFsRAY58/XVQiIPMTMB1SddzLXVw=
