@@ -9,140 +9,91 @@ S3 benchmarking tool.
 # Configuration
 
 Warp can be configured either using commandline parameters or environment variables. 
-The S3 server to use can be specified on the commandline using `--host`, `--access-key`, 
+The S3 server to use can be specified on the commandline using `--endpoints`, `--access-key`, 
 `--secret-key` and optionally `--tls` and `--region` to specify TLS and a custom region.
 
-It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, 
-`WARP_SECRET_KEY`, `WARP_REGION` and `WARP_TLS` environment variables.
+It is also possible to set the same parameters using the `SERVER_ENDPOINTS`, `ACCESS_KEY`, `SECRET_KEY`, `REGION`
 
-The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
+The credentials must be able to read, write and delete objects, buckets are not created by `warp` you need to provide
+a pre-existing bucket with a prefix using `--prefix`
 
-By default operations are performed on a bucket called `warp-benchmark-bucket`. 
-This can be changed using the `--bucket` parameter. 
-Do however note that the bucket will be completely cleaned before and after each run, 
-so it should *not* contain any data.
+Do however note that the `prefix` will be completely cleaned before and after each run, so it should *not* contain any data.
 
-If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), 
-you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) 
-of objects using `--encrypt`. A random key will be generated and used for objects.
+If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html),  you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html)  of objects using `--encrypt`. A random key will be generated and used for objects.
 
 # Usage
 
 `warp command [options]`
 
-Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8` 
-on port 9000 with the provided keys: 
+Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8`  on port 9000 with the provided keys: 
 
-`warp mixed --host=s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
+`warp mixed --endpoints=https://s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
 
 This will run the benchmark for up to 5 minutes and print the results.
 
 # Benchmarks
 
-All benchmarks operate concurrently. 
-By default the processor determines the number of operations that will be running concurrently. 
+All benchmarks operate concurrently.  By default the processor determines the number of operations that will be running concurrently. 
 This can however also be tweaked using the `--concurrent` parameter.
 
 Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
 Most benchmarks will also use different prefixes for each "thread" running.
 
-By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. 
-A custom file name can be specified using the `--benchdata` parameter. 
-The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
+By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`.  A custom file name can be specified using the `--benchdata` parameter.  The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
 ## Multiple Hosts
 
-Multiple S3 hosts can be specified as comma-separated values, for instance 
-`--host=10.0.0.1:9000,10.0.0.2:9000` will switch between the specified servers.
+Multiple S3 hosts can be specified as comma-separated values, for instance  `--endpoints=http://10.0.0.1:9000,http://10.0.0.2:9000` will switch between the specified servers.
 
-Alternatively numerical ranges can be specified using `--host=10.0.0.{1...10}:9000` which will add 
-`10.0.0.1` through `10.0.0.10`. This syntax can be used for any part of the host name and port.
+Alternatively numerical ranges can be specified using `--endpoints=http://10.0.0.{1...10}:9000` which will add  `10.0.0.1` through `10.0.0.10`. This syntax can be used for any part of the host name and port.
 
-By default a host is chosen between the hosts that have the least number of requests running 
-and with the longest time since the last request finished. This will ensure that in cases where 
-hosts operate at different speeds that the fastest servers will get the most requests. 
-It is possible to choose a simple round-robin algorithm by using the `--host-select=roundrobin` parameter. 
-If there is only one host this parameter has no effect.
+By default a endpoint is chosen from the endpoints that have the least number of requests running  and with the longest time since the last request finished. This will ensure that in cases where endpoints operate at different speeds that the fastest servers will get the most requests.  It is possible to choose a simple round-robin algorithm by using the `--endpoint-select=roundrobin` parameter.  If there is only one host this parameter has no effect.
 
-When benchmarks are done per host averages will be printed out. 
-For further details, the `--analyze.hostdetails` parameter can also be used.
+When benchmarks are done per host averages will be printed out.  For further details, the `--analyze.hostdetails` parameter can also be used.
 
 # Distributed Benchmarking
 
 ![distributed](arch_warp.png)
 
-It is possible to coordinate several warp instances automatically.
-This can be useful for testing performance of a cluster from several clients at once.
+It is possible to coordinate several warp instances automatically. This can be useful for testing performance of a cluster from several clients at once.
 
-For reliable benchmarks, clients should have synchronized clocks.
-Warp checks whether clocks are within one second of the server,
-but ideally, clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
+For reliable benchmarks, clients should have synchronized clocks. Warp checks whether clocks are within one second of the server, but ideally, clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
 
-## Client Setup
+## Agent Setup
 
-WARNING: Never run warp clients on a publicly exposed port. Clients have the potential to DDOS any service.
+WARNING: Never run warp agents on a publicly exposed port. Agents have the potential to DDOS any service.
 
-Clients are started with
+Agents are started with
 
 ```
-warp client [listenaddress:port]
+warp agent [listenaddress:port]
 ```
 
-`warp client` Only accepts an optional host/ip to listen on, but otherwise no specific parameters.
-By default warp will listen on `127.0.0.1:7761`.
+`warp agent` Only accepts an optional host/ip to listen on, but otherwise no specific parameters. By default warp will listen on `127.0.0.1:7761`.
 
-Only one server can be connected at the time.
-However, when a benchmark is done, the client can immediately run another one with different parameters.
+Only one server can be connected at the time. However, when a benchmark is done, the agent can immediately run another one with different parameters.
 
-There will be a version check to ensure that clients are compatible with the server,
-but it is always recommended to keep warp versions the same.
+There will be a version check to ensure that agents are compatible with the server, but it is always recommended to keep warp versions the same.
 
-## Server Setup
+## Submit a Benchmark to Agents
 
-Any benchmark can be run in server mode.
-When warp is invoked as a server no actual benchmarking will be done on the server.
-Each client will execute the benchmark.
+Any benchmark can be submitted to agents, when warp is invoked as a submitter benchmarking will be done on the agents. Each agent executes the benchmark.
 
-The server will coordinate the benchmark runs and make sure they are run correctly.
+The submitter will coordinate the benchmark runs and make sure they are run correctly.
 
-When the benchmark has finished, the combined benchmark info will be collected, merged and saved/displayed.
-Each client will also save its own data locally.
+When the benchmark has finished, the combined benchmark info will be collected, merged and saved/displayed. Each client will also save its own data locally.
 
-Enabling server mode is done by adding `--warp-client=client-{1...10}:7761` 
-or a comma separated list of warp client hosts.
-If no host port is specified the default is added.
+Submitting benchmark remotely to agents is done by adding `--agents=http://agent-{1...10}`. If no host port is specified the default is added.
 
 Example:
 
 ```
-warp get --duration=3m --warp-client=client-{1...10} --host=minio-server-{1...16} --access-key=minio --secret-key=minio123
+warp get --duration=3m --agents=http://client-{1...10} --endpoints=https://server-{1...16} --access-key=minio --secret-key=minio123
 ```
 
-Note that parameters apply to *each* client. 
-So if `--concurrent=8` is specified each client will run with 8 concurrent operations. 
-If a warp server is unable to connect to a client the entire benchmark is aborted.
+Note that parameters apply to *each* client. So if `--concurrent=8` is specified each agent will run with 8 concurrent operations.  If a warp is unable to connect to an agent the entire benchmark is aborted.
 
-If the warp server looses connection to a client during a benchmark run an error will 
-be displayed and the server will attempt to reconnect. 
-If the server is unable to reconnect, the benchmark will continue with the remaining clients.
-
-### Manually Distributed Benchmarking
-
-While it is highly recommended to use the automatic distributed benchmarking warp can also
-be run manually on several machines at once. 
-
-When running benchmarks on several clients, it is possible to synchronize 
-their start time using the `--syncstart` parameter. 
-The time format is 'hh:mm' where hours are specified in 24h format, 
-and parsed as local computer time. 
-
-Using this will make it more reliable to [merge benchmarks](https://github.com/minio/warp#merging-benchmarks)
-from the clients for total result.
-This will combine the data as if it was run on the same client. 
-Only the time segments that was actually overlapping will be considered. 
-
-When running benchmarks on several clients it is likely a good idea to specify the `--noclear` parameter 
-so clients don't accidentally delete each others data on startup.
+If the warp looses connection to an agent during a benchmark run an error will  be displayed and the `warp` will attempt to reconnect.  If the `warp` is unable to reconnect, the benchmark will continue with the remaining agents.
 
 ## Benchmark Data
 
@@ -156,12 +107,9 @@ Different benchmark types will have different default values.
 
 #### Random File Sizes
 
-It is possible to randomize object sizes by specifying  `--obj.randsize` 
-and files will have a "random" size up to `--obj.size`.
-However, there are some things to consider "under the hood".
+It is possible to randomize object sizes by specifying  `--obj.randsize`  and files will have a "random" size up to `--obj.size`. However, there are some things to consider "under the hood".
 
-We use log2 to distribute objects sizes.
-This means that objects will be distributed in equal number for each doubling of the size.
+We use log2 to distribute objects sizes. This means that objects will be distributed in equal number for each doubling of the size.
 This means that `obj.size/64` -> `obj.size/32` will have the same number of objects as `obj.size/2` -> `obj.size`.
 
 Example of objects (horizontally) and their sizes, 100MB max:
@@ -382,211 +330,3 @@ Aggregated Throughput, split into 36 x 1s time segments:
  * Slowest: 8897.26 obj/s (1s, starting 04:47:06 PST)
 ```
 
-# Analysis
-
-When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
-
-The saved data can be re-evaluated by running `warp analyze (filename)`.
-
-## Analysis Data
-
-All analysis will be done on a reduced part of the full data. 
-The data aggregation will *start* when all threads have completed one request
- and the time segment will *stop* when the last request of a thread is initiated.
-
-This is to exclude variations due to warm-up and threads finishing at different times.
-Therefore the analysis time will typically be slightly below the selected benchmark duration.
-
-In this run "only" 42.9 seconds are included in the aggregate data, due to big payload size and low throughput:
-```
-Operation: PUT
-* Average: 37.19 MiB/s, 0.37 obj/s, 0.33 ops ended/s (42.957s)
-```
-
-The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`, default 1s. 
-For each segment the throughput is calculated across all threads.
-
-The analysis output will display the fastest, slowest and 50% median segment.
-```
-Aggregated, split into 59 x 1s time segments:
-* Fastest: 2693.83 MiB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
-* 50% Median: 2419.56 MiB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
-* Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
-```
-
-### Analysis Parameters
-
-Beside the important `--analysis.dur` which specifies the time segment size for 
-aggregated data there are some additional parameters that can be used.
-
-Specifying `--analyze.hostdetails` will output time aggregated data per host instead of just averages. 
-For instance:
-
-```
-Throughput by host:
- * http://127.0.0.1:9001: Avg: 81.48 MiB/s, 81.48 obj/s (4m59.976s)
-        - Fastest: 86.46 MiB/s, 86.46 obj/s (1s)
-        - 50% Median: 82.23 MiB/s, 82.23 obj/s (1s)
-        - Slowest: 68.14 MiB/s, 68.14 obj/s (1s)
- * http://127.0.0.1:9002: Avg: 81.48 MiB/s, 81.48 obj/s (4m59.968s)
-        - Fastest: 87.36 MiB/s, 87.36 obj/s (1s)
-        - 50% Median: 82.28 MiB/s, 82.28 obj/s (1s)
-        - Slowest: 68.40 MiB/s, 68.40 obj/s (1s)
-```
-
-
-`--analyze.op=GET` will only analyze GET operations.
-
-Specifying `--analyze.host=http://127.0.0.1:9001` will only consider data from this specific host.
-
-Warp will automatically discard the time taking the first and last request of all threads to finish.
-However, if you would like to discard additional time from the aggregated data,
-this is possible. For instance `analyze.skip=10s` will skip the first 10 seconds of data for each operation type.
-
-Note that skipping data will not always result in the exact reduction in time for the aggregated data
-since the start time will still be aligned with requests starting.
-
-### Per Request Statistics
-
-By adding the `--requests` parameter it is possible to display per request statistics.
-
-This is not enabled by default, since it is assumed the benchmarks are throughput limited,
-but in certain scenarios it can be useful to determine problems with individual hosts for instance.
-
-Example:
-
-```
-Operation: GET. Concurrency: 12. Hosts: 7.
-
-Requests - 16720:
- * Fastest: 2.9965ms Slowest: 62.9993ms 50%: 21.0006ms 90%: 31.0021ms 99%: 41.0016ms
- * First Byte: Average: 20.575134ms, Median: 20.0007ms, Best: 1.9985ms, Worst: 62.9993ms
-
-Requests by host:
- * http://127.0.0.1:9001 - 2395 requests:
-        - Fastest: 2.9965ms Slowest: 55.0015ms 50%: 18.0002ms 90%: 28.001ms
-        - First Byte: Average: 17.139147ms, Median: 16.9998ms, Best: 1.9985ms, Worst: 53.0026ms
- * http://127.0.0.1:9002 - 2395 requests:
-        - Fastest: 4.999ms Slowest: 60.9925ms 50%: 20.9993ms 90%: 31.001ms
-        - First Byte: Average: 20.174683ms, Median: 19.9996ms, Best: 3.999ms, Worst: 59.9912ms
- * http://127.0.0.1:9003 - 2395 requests:
-        - Fastest: 6.9988ms Slowest: 56.0005ms 50%: 20.9978ms 90%: 31.001ms
-        - First Byte: Average: 20.272876ms, Median: 19.9983ms, Best: 5.0012ms, Worst: 55.0012ms
- * http://127.0.0.1:9004 - 2395 requests:
-        - Fastest: 5.0002ms Slowest: 62.9993ms 50%: 22.0009ms 90%: 33.001ms
-        - First Byte: Average: 22.039164ms, Median: 21.0015ms, Best: 4.0003ms, Worst: 62.9993ms
- * http://127.0.0.1:9005 - 2396 requests:
-        - Fastest: 6.9934ms Slowest: 54.002ms 50%: 21.0008ms 90%: 30.9998ms
-        - First Byte: Average: 20.871833ms, Median: 20.0006ms, Best: 4.9998ms, Worst: 52.0019ms
- * http://127.0.0.1:9006 - 2396 requests:
-        - Fastest: 6.0019ms Slowest: 54.9972ms 50%: 22.9985ms 90%: 33.0007ms
-        - First Byte: Average: 22.430863ms, Median: 21.9986ms, Best: 5.0008ms, Worst: 53.9981ms
- * http://127.0.0.1:9007 - 2396 requests:
-        - Fastest: 7.9968ms Slowest: 55.0899ms 50%: 21.998ms 90%: 30.9998ms
-        - First Byte: Average: 21.049681ms, Median: 20.9989ms, Best: 6.9958ms, Worst: 54.0884ms
-```
-
-The fastest and slowest request times are shown, as well as selected 
-percentiles and the total amount is requests considered.
-
-Note that different metrics are used to select the number of requests per host and for the combined, 
-so there will likely be differences.
-
-### Time Series CSV Output
-
-It is possible to output the CSV data of analysis using `--analyze.out=filename.csv` 
-which will write the CSV data to the specified file.
-
-These are the data fields exported:
-
-| Header              | Description                                                                                       |
-|---------------------|---------------------------------------------------------------------------------------------------|
-| `index`             | Index of the segment                                                                              |
-| `op`                | Operation executed                                                                                |
-| `host`              | If only one host, host name, otherwise empty                                                      |
-| `duration_s`        | Duration of the segment in seconds                                                                |
-| `objects_per_op`    | Objects per operation                                                                             |
-| `bytes`             | Total bytes of operations (*distributed*)                                                         |
-| `full_ops`          | Operations completely contained within segment                                                    |
-| `partial_ops`       | Operations that either started or ended outside the segment, but was also executed during segment |
-| `ops_started`       | Operations started within segment                                                                 |
-| `ops_ended`         | Operations ended within the segment                                                               |
-| `errors`            | Errors logged on operations ending within the segment                                             |
-| `mb_per_sec`        | MiB/s of operations within the segment (*distributed*)                                             |
-| `ops_ended_per_sec` | Operations that ended within the segment per second                                               |
-| `objs_per_sec`      | Objects per second processed in the segment (*distributed*)                                       |
-| `start_time`        | Absolute start time of the segment                                                                |
-| `end_time`          | Absolute end time of the segment                                                                  |
-
-Some of these fields are *distributed*. 
-This means that the data of partial operations have been distributed across the segments they occur in. 
-The bigger a percentage of the operation is within a segment the larger part of it has been attributed there.
-
-This is why there can be a partial object attributed to a segment, 
-because only a part of the operation took place in the segment.
-
-## Comparing Benchmarks
-
-It is possible to compare two recorded runs using the `warp cmp (file-before) (file-after)` to
-see the differences between before and after.
-There is no need for 'before' to be chronologically before 'after', but the differences will be shown
-as change from 'before' to 'after'.
-
-An example:
-```
-λ warp cmp warp-get-2019-11-29[125341]-7ylR.csv.zst warp-get-2019-202011-29[124533]-HOhm.csv.zst
--------------------
-Operation: PUT
-Duration: 1m4s -> 1m2s
-* Average: +2.63% (+1.0 MiB/s) throughput, +2.63% (+1.0) obj/s
-* Fastest: -4.51% (-4.1) obj/s
-* 50% Median: +3.11% (+1.1 MiB/s) throughput, +3.11% (+1.1) obj/s
-* Slowest: +1.66% (+0.4 MiB/s) throughput, +1.66% (+0.4) obj/s
--------------------
-Operation: GET
-Operations: 16768 -> 171105
-Duration: 30s -> 5m0s
-* Average: +2.10% (+11.7 MiB/s) throughput, +2.10% (+11.7) obj/s
-* First Byte: Average: -405.876µs (-2%), Median: -2.1µs (-0%), Best: -998.1µs (-50%), Worst: +41.0014ms (+65%)
-* Fastest: +2.35% (+14.0 MiB/s) throughput, +2.35% (+14.0) obj/s
-* 50% Median: +2.81% (+15.8 MiB/s) throughput, +2.81% (+15.8) obj/s
-* Slowest: -10.02% (-52.0) obj/s
-```
-
-All relevant differences are listed. This is two `warp get` runs.
-Differences in parameters will be shown.
-
-The usual analysis parameters can be applied to define segment lengths.
-
-## Merging Benchmarks
-
-It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
-
-The command will output a combined data file with all data that overlap in time.
-
-The combined output will effectively be the same as having run a single benchmark with a higher concurrency setting.
-The main reason for running the benchmark on several clients would be to help eliminate client bottlenecks.
-
-It is important to note that only data that strictly overlaps in absolute time will be considered for analysis.
-
-# Server Profiling
-
-When running against a MinIO server it is possible to enable profiling while the benchmark is running.
-
-This is done by adding `--serverprof=type` parameter with the type of profile you would like. 
-This requires that the credentials allows admin access for the first host.
-
-| Type  | Description                                                                                                                                |
-|-------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| cpu   | CPU profile determines where a program spends its time while actively consuming CPU cycles (as opposed while sleeping or waiting for I/O). |
-| mem   | Heap profile reports the currently live allocations; used to monitor current memory usage or check for memory leaks.                       |
-| block | Block profile show where goroutines block waiting on synchronization primitives (including timer channels).                                |
-| mutex | Mutex profile reports the lock contentions. When you think your CPU is not fully utilized due to a mutex contention, use this profile.     |
-| trace | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.     |
-
-Profiles for all cluster members will be downloaded as a zip file. 
-
-Analyzing the profiles requires the Go tools to be installed. 
-See [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) for basic usage of the profile tools 
-and an introduction to the [Go execution tracer](https://blog.gopheracademy.com/advent-2017/go-execution-tracer/) 
-for more information.

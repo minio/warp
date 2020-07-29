@@ -43,7 +43,7 @@ var listCmd = cli.Command{
 	Usage:  "benchmark list objects",
 	Action: mainList,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -53,7 +53,6 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-
 EXAMPLES:
 ...
  `,
@@ -69,12 +68,10 @@ func mainList(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
+			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
-		NoPrefix:      ctx.Bool("noprefix"),
 	}
 	return runBench(ctx, &b)
 }
@@ -83,7 +80,5 @@ func checkListSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
-	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

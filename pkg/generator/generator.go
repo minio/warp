@@ -21,8 +21,28 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"path"
 	"runtime"
+	"strings"
+
+	"github.com/minio/minio-go/v7/pkg/set"
 )
+
+// path2BucketPrefixWithBasePath returns bucket and prefix, if any,
+// of a 'path'. basePath is trimmed from the front of the 'path'.
+func path2BucketPrefixWithBasePath(basePath, path string) (bucket, prefix string) {
+	path = strings.TrimPrefix(path, basePath)
+	path = strings.TrimPrefix(path, "/")
+	m := strings.Index(path, "/")
+	if m < 0 {
+		return path, ""
+	}
+	return path[:m], path[m+len("/"):]
+}
+
+func path2BucketPrefix(s string) (bucket, prefix string) {
+	return path2BucketPrefixWithBasePath("", s)
+}
 
 // Option provides options for data generation.
 // Use WithXXXX().Apply() to select data types and set options.
@@ -36,15 +56,19 @@ type Source interface {
 
 	// String returns a human readable description of the source.
 	String() string
-
-	// Prefix returns the prefix if any.
-	Prefix() string
 }
 
 type Object struct {
 	// Reader will return a reader that will return the number of requested bytes
 	// and EOF on all subsequent calls.
 	Reader io.Reader
+
+	// Bucket where this object to be uploaded
+	Bucket string
+
+	// Pre-defined prefix with in the bucket where the object
+	// is uploaded to, obj.Name already has the prefix set
+	Prefix string
 
 	// A random generated name.
 	Name string
@@ -55,59 +79,60 @@ type Object struct {
 	// Size of the object to expect.
 	Size int64
 
-	Prefix string
-
 	VersionID string
 }
 
 // Objects is a slice of objects.
 type Objects []Object
 
+func (o Objects) Prefix() string {
+	var p Object
+	for _, p = range o {
+		break
+	}
+	return p.Prefix
+}
+
+// Bucket return the first bucket name from the first object.
+func (o Objects) Bucket() string {
+	var p Object
+	for _, p = range o {
+		break
+	}
+	return p.Bucket
+}
+
 // Prefixes returns all prefixes.
 func (o Objects) Prefixes() []string {
-	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
+	prefixes := make(set.StringSet, runtime.GOMAXPROCS(0))
 	for _, p := range o {
-		prefixes[p.Prefix] = struct{}{}
+		prefixes.Add(p.Prefix)
 	}
-	res := make([]string, 0, len(prefixes))
-	for p := range prefixes {
-		res = append(res, p)
-	}
-	return res
+	return prefixes.ToSlice()
 }
 
 // MergeObjectPrefixes merges prefixes from several slices of objects.
 func MergeObjectPrefixes(o []Objects) []string {
-	prefixes := make(map[string]struct{}, runtime.GOMAXPROCS(0))
+	prefixes := make(set.StringSet, runtime.GOMAXPROCS(0))
 	for _, objs := range o {
 		for _, p := range objs {
-			prefixes[p.Prefix] = struct{}{}
+			prefixes.Add(p.Prefix)
 		}
 	}
-	res := make([]string, 0, len(prefixes))
-	for p := range prefixes {
-		res = append(res, p)
-	}
-	return res
+	return prefixes.ToSlice()
 }
 
-func (o *Object) setPrefix(opts Options) {
-	if opts.randomPrefix <= 0 {
-		o.Prefix = ""
-		return
+func (o *Object) setRandomSubPrefix(opts Options) {
+	if opts.randomSubPrefix > 0 {
+		b := make([]byte, opts.randomSubPrefix)
+		rng := rand.New(rand.NewSource(int64(rand.Uint64())))
+		randASCIIBytes(b, rng)
+		o.Prefix = path.Join(o.Prefix, string(b))
 	}
-	b := make([]byte, opts.randomPrefix)
-	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
-	randASCIIBytes(b, rng)
-	o.Prefix = string(b)
 }
 
 func (o *Object) setName(s string) {
-	if len(o.Prefix) == 0 {
-		o.Name = s
-		return
-	}
-	o.Name = o.Prefix + "/" + s
+	o.Name = path.Clean(o.Prefix + "/" + s)
 }
 
 // New return data source.

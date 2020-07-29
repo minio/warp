@@ -44,7 +44,7 @@ var statCmd = cli.Command{
 	Usage:  "benchmark stat objects (get file info)",
 	Action: mainStat,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -54,7 +54,6 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-
 EXAMPLES:
 ...
  `,
@@ -71,8 +70,7 @@ func mainStat(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
+			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
@@ -87,7 +85,5 @@ func checkStatSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
-	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

@@ -29,28 +29,25 @@ import (
 
 var genFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:  "obj.generator",
-		Value: "random",
-		Usage: "Use specific data generator",
+		Name:   "obj.generator",
+		Value:  "random",
+		Usage:  "Use specific data generator",
+		Hidden: true,
 	},
 	cli.BoolFlag{
-		Name:  "obj.randsize",
-		Usage: "Randomize size of objects so they will be up to the specified size",
+		Name:   "obj.randsize",
+		Usage:  "Randomize size of objects so they will be up to the specified size",
+		Hidden: true,
 	},
 }
 
 func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
-	prefixSize := 8
-	if ctx.Bool("noprefix") {
-		prefixSize = 0
-	}
-
 	g := generator.WithCSV().Size(25, 1000)
 
 	size, err := toSize(ctx.String("obj.size"))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
 	src, err := generator.NewFn(g.Apply(),
-		generator.WithPrefixSize(prefixSize),
+		generator.WithPrefix(ctx.String("prefix")),
 		generator.WithSize(int64(size)),
 		generator.WithRandomSize(ctx.Bool("obj.randsize")),
 	)
@@ -60,11 +57,6 @@ func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
 
 // newGenSource returns a new generator
 func newGenSource(ctx *cli.Context) func() generator.Source {
-	prefixSize := 8
-	if ctx.Bool("noprefix") {
-		prefixSize = 0
-	}
-
 	var g generator.OptionApplier
 	switch ctx.String("obj.generator") {
 	case "random":
@@ -79,7 +71,7 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 	size, err := toSize(ctx.String("obj.size"))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
 	src, err := generator.NewFn(g.Apply(),
-		generator.WithPrefixSize(prefixSize),
+		generator.WithPrefix(ctx.String("prefix")),
 		generator.WithSize(int64(size)),
 		generator.WithRandomSize(ctx.Bool("obj.randsize")),
 	)

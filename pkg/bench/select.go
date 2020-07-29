@@ -46,9 +46,6 @@ type Select struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Select) Prepare(ctx context.Context) error {
-	if err := g.createEmptyBucket(ctx); err != nil {
-		return err
-	}
 	src := g.Source()
 	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
 	var wg sync.WaitGroup
@@ -87,7 +84,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, obj.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -165,7 +162,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				var err error
-				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)
+				o, err := client.SelectObjectContent(nonTerm, obj.Bucket, obj.Name, opts)
 				fbr.r = o
 				if err != nil {
 					console.Errorln("download error:", err)
@@ -194,5 +191,5 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Select) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
+	g.deleteAllInBucket(ctx, g.objects.Bucket(), g.objects.Prefixes()...)
 }

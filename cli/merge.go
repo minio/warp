@@ -44,6 +44,7 @@ var mergeCmd = cli.Command{
 	Name:   "merge",
 	Usage:  "merge existing benchmark data",
 	Action: mainMerge,
+	Hidden: true,
 	Before: setGlobalsFromContext,
 	Flags:  combineFlags(globalFlags, mergeFlags),
 	CustomHelpTemplate: `NAME:
@@ -61,7 +62,7 @@ EXAMPLES:
  `,
 }
 
-// mainAnalyze is the entry point for analyze command.
+// mainAnalyze is the entry point for inspect command.
 func mainMerge(ctx *cli.Context) error {
 	checkMerge(ctx)
 	args := ctx.Args()

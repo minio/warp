@@ -21,10 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -33,11 +32,10 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
-	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
 
-const warpServerVersion = 1
+const warpSubmitterVersion = 1
 
 type serverRequestOp string
 
@@ -63,13 +61,13 @@ func (s serverInfo) validate() error {
 	if s.ID == "" {
 		return errors.New("no server id sent")
 	}
-	if s.Version != warpServerVersion {
-		return errors.New("warp server and client version mismatch")
+	if s.Version != warpSubmitterVersion {
+		return errors.New("warp server and agent version mismatch")
 	}
 	return nil
 }
 
-// serverRequest requests an operation from the client and expects a response.
+// serverRequest requests an operation from the agent and expects a response.
 type serverRequest struct {
 	Operation serverRequestOp `json:"op"`
 	Benchmark struct {
@@ -82,34 +80,31 @@ type serverRequest struct {
 }
 
 // runServerBenchmark will run a benchmark server if requested.
-// Returns a bool whether clients were specified.
+// Returns a bool whether agents were specified.
 func runServerBenchmark(ctx *cli.Context) (bool, error) {
-	if ctx.String("warp-client") == "" {
+	if ctx.String("agents") == "" {
 		return false, nil
 	}
 
-	conns := newConnections(parseHosts(ctx.String("warp-client")))
-	if len(conns.hosts) == 0 {
-		return true, errors.New("no hosts")
+	conns := newConnections(parseEndpoints(ctx.String("agents")))
+	if len(conns.endpoints) == 0 {
+		return true, errors.New("no warp agents specified")
 	}
 	defer conns.closeAll()
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
-	defer monitor.Done()
-	monitor.SetLnLoggers(console.Infoln, console.Errorln)
-	var infoLn = monitor.Infoln
-	var errorLn = monitor.Errorln
+
+	var infoLn = console.Infoln
+	var errorLn = console.Errorln
 
 	var allOps bench.Operations
 
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{
-		"warp-client":        {},
-		"warp-client-server": {},
-		"serverprof":         {},
-		"autocompletion":     {},
-		"help":               {},
-		"syncstart":          {},
-		"analyze.out":        {},
+		"agents":         {},
+		"serverprof":     {},
+		"autocompletion": {},
+		"help":           {},
+		"syncstart":      {},
+		"inspect.out":    {},
 	}
 	req := serverRequest{
 		Operation: serverReqBenchmark,
@@ -132,23 +127,23 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 
 	// Connect to hosts, send benchmark requests.
-	for i := range conns.hosts {
+	for i := range conns.ws {
 		resp, err := conns.roundTrip(i, req)
-		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
+		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp agent")
 		if resp.Err != "" {
-			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
+			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp agent")
 		}
-		console.Infof("Client %v connected...\n", conns.hostName(i))
+		console.Infof("Agent %v connected...\n", conns.hostName(i))
 		// Assume ok.
 	}
-	infoLn("All clients connected...")
+	infoLn("All agents connected...")
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
 	err := conns.waitForStage(stagePrepare, true)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
-	infoLn("All clients prepared...")
+	infoLn("All agents prepared...")
 
 	const benchmarkWait = 3 * time.Second
 
@@ -158,11 +153,11 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	err = conns.startStageAll(stageBenchmark, time.Now().Add(benchmarkWait), false)
 	if err != nil {
-		errorLn("Failed to start all clients", err)
+		errorLn("Failed to start all agents", err)
 	}
 	err = conns.waitForStage(stageBenchmark, false)
 	if err != nil {
-		errorLn("Failed to keep connection to all clients", err)
+		errorLn("Failed to keep connection to all agents", err)
 	}
 
 	fileName := ctx.String("benchdata")
@@ -202,37 +197,36 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
-	monitor.OperationsReady(allOps, fileName)
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
-		errorLn("Failed to clean up all clients", err)
+		errorLn("Failed to clean up all agents", err)
 	}
 	err = conns.waitForStage(stageCleanup, false)
 	if err != nil {
-		errorLn("Failed to keep connection to all clients", err)
+		errorLn("Failed to keep connection to all agents", err)
 	}
 	printAnalysis(ctx, allOps)
 
 	return true, nil
 }
 
-// connections keeps track of connections to clients.
+// connections keeps track of connections to agents.
 type connections struct {
-	hosts []string
-	ws    []*websocket.Conn
-	si    serverInfo
+	endpoints []*url.URL
+	ws        []*websocket.Conn
+	si        serverInfo
 }
 
-// newConnections creates connections (but does not connect) to clients.
-func newConnections(hosts []string) *connections {
+// newConnections creates connections (but does not connect) to agents.
+func newConnections(endpoints []*url.URL) *connections {
 	var c connections
 	c.si = serverInfo{
 		ID:      pRandASCII(20),
 		Secret:  "",
-		Version: warpServerVersion,
+		Version: warpSubmitterVersion,
 	}
-	c.hosts = hosts
-	c.ws = make([]*websocket.Conn, len(hosts))
+	c.endpoints = endpoints
+	c.ws = make([]*websocket.Conn, len(endpoints))
 	return &c
 }
 
@@ -252,13 +246,13 @@ func (c *connections) hostName(i int) string {
 	if c.ws != nil && c.ws[i] != nil {
 		return c.ws[i].RemoteAddr().String()
 	}
-	return c.hosts[i]
+	return c.endpoints[i].Host
 }
 
 // hostName returns the remote host name of a connection.
 func (c *connections) disconnect(i int) {
 	if c.ws[i] != nil {
-		console.Infoln("Disconnecting client", c.hostName(i))
+		console.Infoln("Disconnecting agent", c.hostName(i))
 		c.ws[i].WriteJSON(serverRequest{Operation: serverReqDisconnect})
 		c.ws[i].Close()
 		c.ws[i] = nil
@@ -266,7 +260,7 @@ func (c *connections) disconnect(i int) {
 }
 
 // roundTrip performs a roundtrip.
-func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) {
+func (c *connections) roundTrip(i int, req serverRequest) (*agentReply, error) {
 	conn := c.ws[i]
 	if conn == nil {
 		err := c.connect(i)
@@ -284,7 +278,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 			}
 			return nil, err
 		}
-		var resp clientReply
+		var resp agentReply
 		err = conn.ReadJSON(&resp)
 		if err != nil {
 			console.Error(err)
@@ -297,19 +291,26 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 	}
 }
 
-// connect to a client.
+// connect to a agent.
 func (c *connections) connect(i int) error {
 	tries := 0
 	for {
 		err := func() error {
-			host := c.hosts[i]
-			if !strings.Contains(host, ":") {
-				host += ":" + strconv.Itoa(warpServerDefaultPort)
+			endpoint := c.endpoints[i]
+			if endpoint.Port() == "" {
+				endpoint.Host = net.JoinHostPort(endpoint.Host, warpAgentDefaultPort)
 			}
-			u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-			console.Infoln("Connecting to", u.String())
+			// refer https://github.com/gorilla/websocket/blob/master/agent.go#L164
+			switch endpoint.Scheme {
+			case "http":
+				endpoint.Scheme = "ws"
+			case "https":
+				endpoint.Scheme = "wss"
+			}
+			endpoint.Path = "/ws"
+			console.Infoln("Connecting to", endpoint.Host)
 			var err error
-			c.ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+			c.ws[i], _, err = websocket.DefaultDialer.Dial(endpoint.String(), nil)
 			if err != nil {
 				return err
 			}
@@ -318,7 +319,7 @@ func (c *connections) connect(i int) error {
 			if err != nil {
 				return err
 			}
-			var resp clientReply
+			var resp agentReply
 			err = c.ws[i].ReadJSON(&resp)
 			if err != nil {
 				return err
@@ -331,7 +332,7 @@ func (c *connections) connect(i int) error {
 				delta = -delta
 			}
 			if delta > time.Second {
-				return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
+				return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on agent and retry", endpoint.Host, delta)
 			}
 			return nil
 		}()
@@ -342,13 +343,13 @@ func (c *connections) connect(i int) error {
 			c.ws[i] = nil
 			return err
 		}
-		console.Errorf("Connection failed:%v, retrying...\n", err)
+		console.Errorf("Connection failed: %v, retrying...\n", err)
 		tries++
 		time.Sleep(time.Second)
 	}
 }
 
-// startStage will start a stage at a specific time on a client.
+// startStage will start a stage at a specific time on a agent.
 func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error {
 	req := serverRequest{
 		Operation: serverReqStartStage,
@@ -360,14 +361,14 @@ func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error
 		return err
 	}
 	if resp.Err != "" {
-		console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+		console.Errorf("Agent %v returned error: %v\n", c.hostName(i), resp.Err)
 		return errors.New(resp.Err)
 	}
-	console.Infof("Client %v: Requested stage %v start..\n", c.hostName(i), stage)
+	console.Infof("Agent %v: Requested stage %v start..\n", c.hostName(i), stage)
 	return nil
 }
 
-// startStageAll will start a stage at a specific time on all connected clients.
+// startStageAll will start a stage at a specific time on all connected agents.
 func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, failOnErr bool) error {
 	var wg sync.WaitGroup
 	var gerr error
@@ -400,7 +401,7 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 	return gerr
 }
 
-// downloadOps will download operations from all connected clients.
+// downloadOps will download operations from all connected agents.
 // If an error is encountered the result will be ignored.
 func (c *connections) downloadOps() []bench.Operations {
 	var wg sync.WaitGroup
@@ -420,10 +421,10 @@ func (c *connections) downloadOps() []bench.Operations {
 					return
 				}
 				if resp.Err != "" {
-					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+					console.Errorf("Agent %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
-				console.Infof("Client %v: Operations downloaded.\n", c.hostName(i))
+				console.Infof("Agent %v: Operations downloaded.\n", c.hostName(i))
 
 				mu.Lock()
 				res = append(res, resp.Ops)
@@ -436,7 +437,7 @@ func (c *connections) downloadOps() []bench.Operations {
 	return res
 }
 
-// waitForStage will wait for stage completion on all clients.
+// waitForStage will wait for stage completion on all agents.
 func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 	var wg sync.WaitGroup
 	for i, conn := range c.ws {
@@ -464,13 +465,13 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 				if resp.Err != "" {
 					c.disconnect(i)
 					if failOnErr {
-						fatalIf(probe.NewError(errors.New(resp.Err)), "Stage failed. Client %v returned error.", c.hostName(i))
+						fatalIf(probe.NewError(errors.New(resp.Err)), "Stage failed. Agent %v returned error.", c.hostName(i))
 					}
-					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+					console.Errorf("Agent %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
 				if resp.StageInfo.Finished {
-					console.Infof("Client %v: Finished stage %v...\n", c.hostName(i), stage)
+					console.Infof("Agent %v: Finished stage %v...\n", c.hostName(i), stage)
 					return
 				}
 				time.Sleep(time.Second)

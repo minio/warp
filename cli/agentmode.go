@@ -19,7 +19,6 @@ package cli
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/minio/cli"
@@ -28,16 +27,16 @@ import (
 )
 
 var (
-	clientFlags = []cli.Flag{}
+	agentFlags = []cli.Flag{}
 )
 
-// Put command.
-var clientCmd = cli.Command{
-	Name:   "client",
-	Usage:  "run warp in client mode, accepting connections to run benchmarks",
-	Action: mainClient,
+// Agent command.
+var agentCmd = cli.Command{
+	Name:   "agent",
+	Usage:  "run warp in agent mode, accepting connections to run benchmarks",
+	Action: mainAgent,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, clientFlags),
+	Flags:  combineFlags(globalFlags, agentFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -54,17 +53,17 @@ EXAMPLES:
  `,
 }
 
-const warpServerDefaultPort = 7761
+const warpAgentDefaultPort = "7761"
 
 // mainPut is the entry point for cp command.
-func mainClient(ctx *cli.Context) error {
-	checkClientSyntax(ctx)
-	addr := ":" + strconv.Itoa(warpServerDefaultPort)
+func mainAgent(ctx *cli.Context) error {
+	checkAgentSyntax(ctx)
+	addr := ":" + warpAgentDefaultPort
 	switch ctx.NArg() {
 	case 1:
 		addr = ctx.Args()[0]
 		if !strings.Contains(addr, ":") {
-			addr += ":" + strconv.Itoa(warpServerDefaultPort)
+			addr += ":" + warpAgentDefaultPort
 		}
 	case 0:
 	default:
@@ -76,5 +75,5 @@ func mainClient(ctx *cli.Context) error {
 	return nil
 }
 
-func checkClientSyntax(ctx *cli.Context) {
+func checkAgentSyntax(ctx *cli.Context) {
 }

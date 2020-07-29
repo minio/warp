@@ -33,8 +33,9 @@ var globalFlags = []cli.Flag{
 		Hidden: true,
 	},
 	cli.BoolFlag{
-		Name:  "no-color",
-		Usage: "disable color theme",
+		Name:   "no-color",
+		Usage:  "disable color theme",
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:   "json",
@@ -42,16 +43,14 @@ var globalFlags = []cli.Flag{
 		Hidden: true,
 	},
 	cli.BoolFlag{
-		Name:  "debug",
-		Usage: "enable debug output",
+		Name:   "debug",
+		Usage:  "enable debug output",
+		Hidden: true,
 	},
 	cli.BoolFlag{
-		Name:  "insecure",
-		Usage: "disable TLS certificate verification",
-	},
-	cli.BoolFlag{
-		Name:  "autocompletion",
-		Usage: "install auto-completion for your shell",
+		Name:   "autocompletion",
+		Usage:  "install auto-completion for your shell",
+		Hidden: true,
 	},
 }
 
@@ -120,52 +119,52 @@ func setGlobals(quiet, debug, json, noColor bool) {
 // Flags common across all I/O commands such as cp, mirror, stat, pipe etc.
 var ioFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:   "host",
-		Usage:  "host. Multiple hosts can be specified as a comma separated list.",
-		EnvVar: appNameUC + "_HOST",
-		Value:  "127.0.0.1:9000",
+		Name:   "endpoints",
+		Usage:  "S3 endpoint(s), a list of endpoints can be specified using ellipses `...` expansion or a comma separated list",
+		EnvVar: "SERVER_ENDPOINTS",
+		Value:  "http://127.0.0.1:9000",
 	},
 	cli.StringFlag{
 		Name:   "access-key",
 		Usage:  "Specify access key",
-		EnvVar: appNameUC + "_ACCESS_KEY",
-		Value:  "",
+		EnvVar: "ACCESS_KEY,MINIO_ACCESS_KEY,AWS_ACCESS_KEY_ID",
 	},
 	cli.StringFlag{
 		Name:   "secret-key",
 		Usage:  "Specify secret key",
-		EnvVar: appNameUC + "_SECRET_KEY",
-		Value:  "",
+		EnvVar: "SECRET_KEY,MINIO_SECRET_KEY,AWS_SECRET_ACCESS_KEY",
 	},
-	cli.BoolFlag{
-		Name:   "tls",
-		Usage:  "Use TLS (HTTPS) for transport",
-		EnvVar: appNameUC + "_TLS",
+	cli.StringFlag{
+		Name:   "session-token",
+		Usage:  "Specify the temporary session token",
+		EnvVar: "SESSION_TOKEN,MINIO_SESSION_TOKEN,AWS_SESSION_TOKEN",
 	},
 	cli.StringFlag{
 		Name:   "region",
-		Usage:  "Specify a custom region",
-		EnvVar: appNameUC + "_REGION",
+		Usage:  "Specify a custom region, default auto-probes the bucket region",
+		EnvVar: "REGION,MINIO_REGION,AWS_REGION",
+		Hidden: true,
 	},
 	cli.StringFlag{
-		Name:   "signature",
-		Usage:  "Specify a signature method. Available values are S3V2, S3V4",
-		Value:  "S3V4",
+		Name:   "path",
+		Usage:  `bucket path lookup supported by the server. Valid options are '[auto, on, off]' (default: "auto")`,
+		Value:  "auto",
 		Hidden: true,
 	},
 	cli.BoolFlag{
-		Name:  "encrypt",
-		Usage: "encrypt/decrypt objects (using server-side encryption with random keys)",
+		Name:   "encrypt",
+		Usage:  "encrypt/decrypt objects (using server-side encryption with random keys)",
+		Hidden: true,
 	},
 	cli.StringFlag{
-		Name:  "bucket",
-		Value: appName + "-benchmark-bucket",
-		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
+		Name:  "prefix",
+		Usage: "bucket/prefix to use for benchmark data, all contents inside the `prefix` shall be deleted",
 	},
 	cli.StringFlag{
-		Name:  "host-select",
-		Value: string(hostSelectTypeWeighed),
-		Usage: fmt.Sprintf("Host selection algorithm. Can be %q or %q", hostSelectTypeWeighed, hostSelectTypeRoundrobin),
+		Name:   "server-select",
+		Value:  string(hostSelectTypeWeighed),
+		Usage:  fmt.Sprintf("Server selection algorithm. Can be %q or %q", hostSelectTypeWeighed, hostSelectTypeRoundrobin),
+		Hidden: true,
 	},
 	cli.IntFlag{
 		Name:  "concurrent",
@@ -173,15 +172,12 @@ var ioFlags = []cli.Flag{
 		Usage: "Run this many concurrent operations",
 	},
 	cli.BoolFlag{
-		Name:  "noprefix",
-		Usage: "Do not use separate prefix for each thread",
-	},
-	cli.BoolFlag{
 		Name:  "disable-multipart",
 		Usage: "disable multipart uploads",
 	},
 	cli.BoolFlag{
-		Name:  "md5",
-		Usage: "Add MD5 sum to uploads",
+		Name:   "md5",
+		Usage:  "Add MD5 sum to uploads",
+		Hidden: true,
 	},
 }

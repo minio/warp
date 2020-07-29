@@ -155,9 +155,6 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 	if g.CreateObjects <= g.Concurrency {
 		return errors.New("initial number of objects should be at least matching concurrency")
 	}
-	if err := g.createEmptyBucket(ctx); err != nil {
-		return err
-	}
 	src := g.Source()
 	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
 	var wg sync.WaitGroup
@@ -186,7 +183,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, obj.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					console.Error(err)
@@ -265,7 +262,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
-					o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
+					o, err := client.GetObject(nonTerm, obj.Bucket, obj.Name, getOpts)
 					fbr.r = o
 					if err != nil {
 						console.Errorln("download error:", err)
@@ -305,7 +302,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(nonTerm, obj.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						console.Errorln("upload error:", err)
@@ -337,7 +334,9 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
+					err := client.RemoveObject(nonTerm, obj.Bucket, obj.Name, minio.RemoveObjectOptions{
+						VersionID: obj.VersionID,
+					})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -358,7 +357,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
+					objI, err := client.StatObject(nonTerm, obj.Bucket, obj.Name, statOpts)
 					if err != nil {
 						console.Errorln("stat error:", err)
 						op.Err = err.Error()
@@ -383,5 +382,5 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Mixed) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx, g.Dist.Objects().Prefixes()...)
+	g.deleteAllInBucket(ctx, g.Dist.Objects().Bucket(), g.Dist.Objects().Prefixes()...)
 }

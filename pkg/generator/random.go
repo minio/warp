@@ -107,6 +107,9 @@ func newRandom(o Options) (Source, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bucket, prefix := path2BucketPrefix(o.prefix)
+
 	r := randomSrc{
 		o:       o,
 		databuf: bytes.NewReader(data),
@@ -114,12 +117,14 @@ func newRandom(o Options) (Source, error) {
 		buf:     newCircularBuffer(data, o.totalSize),
 		obj: Object{
 			Reader:      nil,
+			Bucket:      bucket,
+			Prefix:      prefix,
 			Name:        "",
 			ContentType: "application/octet-stream",
 			Size:        0,
 		},
 	}
-	r.obj.setPrefix(o)
+	r.obj.setRandomSubPrefix(o)
 	return &r, nil
 }
 
@@ -166,8 +171,4 @@ func (r *randomSrc) String() string {
 		return fmt.Sprintf("Random data; random size up to %d bytes, %d byte buffer", r.o.totalSize, len(r.buf.data))
 	}
 	return fmt.Sprintf("Random data; %d bytes total, %d byte buffer", r.buf.want, len(r.buf.data))
-}
-
-func (r *randomSrc) Prefix() string {
-	return r.obj.Prefix
 }

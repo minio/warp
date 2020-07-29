@@ -121,10 +121,15 @@ func newCsv(o Options) (Source, error) {
 	if o.csv.seed != nil {
 		rndSrc = rand.NewSource(*o.csv.seed)
 	}
+
+	bucket, prefix := path2BucketPrefix(o.prefix)
+
 	c.rng = rand.New(rndSrc)
 	c.obj.ContentType = "text/csv"
 	c.obj.Size = 0
-	c.obj.setPrefix(o)
+	c.obj.Bucket = bucket
+	c.obj.Prefix = prefix
+	c.obj.setRandomSubPrefix(o)
 
 	return &c, nil
 }
@@ -159,8 +164,4 @@ func (c *csvSource) Object() *Object {
 
 func (c *csvSource) String() string {
 	return fmt.Sprintf("CSV data. %d columns, %d rows.", c.o.csv.cols, c.o.csv.rows)
-}
-
-func (c *csvSource) Prefix() string {
-	return c.obj.Prefix
 }

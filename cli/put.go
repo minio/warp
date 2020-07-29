@@ -40,7 +40,7 @@ var putCmd = cli.Command{
 	Usage:  "benchmark put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -50,7 +50,6 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-
 EXAMPLES:
 ...
  `,
@@ -65,8 +64,6 @@ func mainPut(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
 	}
@@ -83,10 +80,8 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 }
 
 func checkPutSyntax(ctx *cli.Context) {
-	if ctx.NArg() > 0 {
+	if ctx.Args().Present() {
 		console.Fatal("Command takes no arguments")
 	}
-
-	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

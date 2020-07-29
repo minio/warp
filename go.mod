@@ -11,7 +11,7 @@ require (
 	github.com/minio/cli v1.22.0
 	github.com/minio/mc v0.0.0-20200201185513-ac9b9423973b
 	github.com/minio/md5-simd v1.1.0
-	github.com/minio/minio v0.0.0-20200430053134-c7470e6e6eed
+	github.com/minio/minio v0.0.0-20200728185047-b46ab7e9210f
 	github.com/minio/minio-go/v7 v7.0.3-0.20200727214430-0971bb129977
 	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953

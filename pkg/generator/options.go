@@ -26,12 +26,13 @@ import (
 // Options provides options.
 // Use WithXXX functions to set them.
 type Options struct {
-	src          func(o Options) (Source, error)
-	totalSize    int64
-	randSize     bool
-	csv          CsvOpts
-	random       RandomOpts
-	randomPrefix int
+	src             func(o Options) (Source, error)
+	totalSize       int64
+	randSize        bool
+	csv             CsvOpts
+	random          RandomOpts
+	prefix          string
+	randomSubPrefix int
 }
 
 // OptionApplier allows to abstract generator options.
@@ -59,13 +60,30 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 
 func defaultOptions() Options {
 	o := Options{
-		src:          newRandom,
-		totalSize:    1 << 20,
-		csv:          csvOptsDefaults(),
-		random:       randomOptsDefaults(),
-		randomPrefix: 0,
+		src:             newRandom,
+		totalSize:       1 << 20,
+		csv:             csvOptsDefaults(),
+		random:          randomOptsDefaults(),
+		randomSubPrefix: 8,
 	}
 	return o
+}
+
+func WithPrefix(prefix string) Option {
+	return func(o *Options) error {
+		if prefix == "" {
+			return errors.New("WithPrefix: prefix must not be empty")
+		}
+		o.prefix = prefix
+		bucket, prefix := path2BucketPrefix(prefix)
+		if bucket == "" {
+			return errors.New("WithPrefix: bucket must not be empty")
+		}
+		if prefix == "" {
+			return errors.New("WithPrefix: prefix must not be empty with bucket")
+		}
+		return nil
+	}
 }
 
 // WithSize sets the size of the generated data.
@@ -90,20 +108,6 @@ func WithRandomSize(b bool) Option {
 			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
 		}
 		o.randSize = b
-		return nil
-	}
-}
-
-// WithPrefixSize sets prefix size.
-func WithPrefixSize(n int) Option {
-	return func(o *Options) error {
-		if n < 0 {
-			return errors.New("WithPrefixSize: size must be >= 0 and <= 16")
-		}
-		if n > 16 {
-			return errors.New("WithPrefixSize: size must be >= 0 and <= 16")
-		}
-		o.randomPrefix = n
 		return nil
 	}
 }

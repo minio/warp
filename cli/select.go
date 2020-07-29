@@ -48,7 +48,7 @@ var selectCmd = cli.Command{
 	Usage:  "benchmark select objects",
 	Action: mainSelect,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, selectFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, selectFlags, genFlags, benchFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -58,7 +58,6 @@ USAGE:
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-
 EXAMPLES:
 ...
  `,
@@ -74,8 +73,7 @@ func mainSelect(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
+			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
@@ -104,6 +102,5 @@ func mainSelect(ctx *cli.Context) error {
 }
 
 func checkSelectSyntax(ctx *cli.Context) {
-	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

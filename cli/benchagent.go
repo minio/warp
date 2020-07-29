@@ -32,18 +32,18 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-// clientReplyType indicates the client reply type.
-type clientReplyType string
+// agentReplyType indicates the agent reply type.
+type agentReplyType string
 
 const (
-	clientRespBenchmarkStarted clientReplyType = "benchmark_started"
-	clientRespStatus           clientReplyType = "benchmark_status"
-	clientRespOps              clientReplyType = "ops"
+	agentRespBenchmarkStarted agentReplyType = "benchmark_started"
+	agentRespStatus           agentReplyType = "benchmark_status"
+	agentRespOps              agentReplyType = "ops"
 )
 
-// clientReply contains the response to a server request.
-type clientReply struct {
-	Type      clientReplyType  `json:"type"`
+// agentReply contains the response to a server request.
+type agentReply struct {
+	Type      agentReplyType   `json:"type"`
 	Time      time.Time        `json:"time"`
 	Err       string           `json:"err,omitempty"`
 	Ops       bench.Operations `json:"ops,omitempty"`
@@ -55,7 +55,7 @@ type clientReply struct {
 }
 
 // executeBenchmark will execute the benchmark and return any error.
-func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, error) {
+func (s serverRequest) executeBenchmark(ctx context.Context) (*benchmarkOpts, error) {
 	// Reconstruct
 	app := registerApp("warp", benchCmds)
 	cmd := app.Command(s.Benchmark.Command)
@@ -75,7 +75,7 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 			return nil, err
 		}
 	}
-	var cb clientBenchmark
+	var cb benchmarkOpts
 	cb.init(ctx)
 	activeBenchmarkMu.Lock()
 	activeBenchmark = &cb
@@ -128,7 +128,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = s.validate(); err != nil {
-		ws.WriteJSON(clientReply{Err: err.Error()})
+		ws.WriteJSON(agentReply{Err: err.Error()})
 		return
 	}
 
@@ -142,7 +142,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 	connectedMu.Unlock()
 	if err != nil {
-		ws.WriteJSON(clientReply{Err: err.Error()})
+		ws.WriteJSON(agentReply{Err: err.Error()})
 		return
 	}
 
@@ -156,7 +156,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Confirm the connection
-	err = ws.WriteJSON(clientReply{Time: time.Now()})
+	err = ws.WriteJSON(agentReply{Time: time.Now()})
 	if err != nil {
 		console.Error("Writing response:", err)
 		return
@@ -171,7 +171,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		if globalDebug {
 			console.Infof("Request: %v\n", req.Operation)
 		}
-		var resp clientReply
+		var resp agentReply
 		switch req.Operation {
 		case serverReqDisconnect:
 			console.Infoln("Received Disconnect")
@@ -193,7 +193,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				ab.cancel()
 			}
 			_, err := req.executeBenchmark(context.Background())
-			resp.Type = clientRespBenchmarkStarted
+			resp.Type = agentRespBenchmarkStarted
 			if err != nil {
 				console.Errorln("Starting benchmark:", err)
 				resp.Err = err.Error()
@@ -215,7 +215,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			if info.startRequested {
-				resp.Type = clientRespStatus
+				resp.Type = agentRespStatus
 				break
 			}
 			info.startRequested = true
@@ -232,7 +232,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(wait)
 				close(info.start)
 			}()
-			resp.Type = clientRespStatus
+			resp.Type = agentRespStatus
 		case serverReqStageStatus:
 			activeBenchmarkMu.Lock()
 			ab := activeBenchmark
@@ -241,7 +241,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.Err = "no benchmark running"
 				break
 			}
-			resp.Type = clientRespStatus
+			resp.Type = agentRespStatus
 			ab.Lock()
 			err := ab.err
 			stageInfo := ab.info
@@ -273,7 +273,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.Err = "no benchmark running"
 				break
 			}
-			resp.Type = clientRespOps
+			resp.Type = agentRespOps
 			ab.Lock()
 			resp.Ops = ab.results
 			ab.Unlock()

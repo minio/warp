@@ -51,12 +51,11 @@ type Common struct {
 
 	Concurrency int
 	Source      func() generator.Source
-	Bucket      string
-	Location    string
+	Prefix      string
 
 	// Running in client mode.
 	ClientMode bool
-	// Clear bucket before benchmark
+	// Clear prefix after benchmark
 	Clear           bool
 	PrepareProgress chan float64
 
@@ -81,45 +80,9 @@ func (c *Common) GetCommon() *Common {
 	return c
 }
 
-// createEmptyBucket will create an empty bucket
-// or delete all content if it already exists.
-func (c *Common) createEmptyBucket(ctx context.Context) error {
-	cl, done := c.Client()
-	defer done()
-	x, err := cl.BucketExists(ctx, c.Bucket)
-	if err != nil {
-		return err
-	}
-	if !x {
-		console.Infof("Creating Bucket %q...\n", c.Bucket)
-		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
-			Region: c.Location,
-		})
-
-		// In client mode someone else may have created it first.
-		// Check if it exists now.
-		// We don't test against a specific error since we might run against many different servers.
-		if err != nil {
-			x, err2 := cl.BucketExists(ctx, c.Bucket)
-			if err2 != nil {
-				return err2
-			}
-			if !x {
-				// It still doesn't exits, return original error.
-				return err
-			}
-		}
-	}
-	if c.Clear {
-		console.Infof("Clearing Bucket %q...\n", c.Bucket)
-		c.deleteAllInBucket(ctx)
-	}
-	return nil
-}
-
 // deleteAllInBucket will delete all content in a bucket.
 // If no prefixes are specified everything in bucket is deleted.
-func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
+func (c *Common) deleteAllInBucket(ctx context.Context, bucket string, prefixes ...string) {
 	if len(prefixes) == 0 {
 		prefixes = []string{""}
 	}
@@ -144,7 +107,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			cl, done := c.Client()
 			defer done()
 			remove := make(chan minio.ObjectInfo, 100)
-			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
+			errCh := cl.RemoveObjects(ctx, bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
 				close(remove)
@@ -155,7 +118,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 			}()
 
-			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: true})
+			objects := cl.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: true})
 			for {
 				select {
 				case obj, ok := <-objects:

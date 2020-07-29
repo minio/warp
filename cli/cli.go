@@ -88,6 +88,7 @@ func Main(args []string) {
 }
 func init() {
 	a := []cli.Command{
+		agentCmd,
 		mixedCmd,
 		getCmd,
 		putCmd,
@@ -98,10 +99,9 @@ func init() {
 		versionedCmd,
 	}
 	b := []cli.Command{
-		analyzeCmd,
+		inspectCmd,
 		cmpCmd,
 		mergeCmd,
-		clientCmd,
 	}
 	appCmds = append(a, b...)
 	benchCmds = a
@@ -140,7 +140,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	}
 
 	app := cli.NewApp()
-	app.Name = name
+	app.Name = os.Args[0]
 	app.Action = func(ctx *cli.Context) {
 		if ctx.Bool("autocompletion") || ctx.GlobalBool("autocompletion") {
 			// Install shell completions

@@ -35,7 +35,6 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/madmin"
-	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -48,7 +47,6 @@ var benchFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "serverprof",
 		Usage: "Run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'.",
-		Value: "",
 	},
 	cli.DurationFlag{
 		Name:  "duration",
@@ -60,18 +58,16 @@ var benchFlags = []cli.Flag{
 		Usage: "Auto terminate when benchmark is considered stable.",
 	},
 	cli.DurationFlag{
-		Name:  "autoterm.dur",
-		Usage: "Minimum duration where output must have been stable to allow automatic termination.",
-		Value: 10 * time.Second,
+		Name:   "autoterm.dur",
+		Usage:  "Minimum duration where output must have been stable to allow automatic termination.",
+		Value:  10 * time.Second,
+		Hidden: true,
 	},
 	cli.Float64Flag{
-		Name:  "autoterm.pct",
-		Usage: "The percentage the last 6/25 time blocks must be within current speed to auto terminate.",
-		Value: 7.5,
-	},
-	cli.BoolFlag{
-		Name:  "noclear",
-		Usage: "Do not clear bucket before or after running benchmarks. Use when running multiple clients.",
+		Name:   "autoterm.pct",
+		Usage:  "The percentage the last 6/25 time blocks must be within current speed to auto terminate.",
+		Value:  7.5,
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:   "keep-data",
@@ -81,13 +77,10 @@ var benchFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "syncstart",
 		Usage: "Specify a benchmark start time. Time format is 'hh:mm' where hours are specified in 24h format, server TZ.",
-		Value: "",
 	},
 	cli.StringFlag{
-		Name:   "warp-client",
-		Usage:  "Connect to warp clients and run benchmarks there.",
-		EnvVar: "",
-		Value:  "",
+		Name:  "agents",
+		Usage: "Connect to warp agent(s) to run distributed benchmark",
 	},
 }
 
@@ -97,18 +90,14 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	ab := activeBenchmark
 	activeBenchmarkMu.Unlock()
 	if ab != nil {
-		return runClientBenchmark(ctx, b, ab)
+		return submitBenchmarkToAgent(ctx, b, ab)
 	}
 	if done, err := runServerBenchmark(ctx); done || err != nil {
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
 
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
-	monitor.SetLnLoggers(console.Infoln, console.Errorln)
-	defer monitor.Done()
-
-	monitor.Infoln("Preparing server.")
+	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -140,7 +129,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 						pg.Set64(newVal)
 						pg.Update()
 					}
-					monitor.InfoQuietln(fmt.Sprintf("Preparation: %0.0f%% done...", float64(newVal)/float64(100)))
+					console.Infoln(fmt.Sprintf("Preparation: %0.0f%% done...", float64(newVal)/float64(100)))
 				case pct, ok := <-c.PrepareProgress:
 					if !ok {
 						pg.Set64(pgScale)
@@ -170,7 +159,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		startTime := parseLocalTime(st)
 		now := time.Now()
 		if startTime.Before(now) {
-			monitor.Errorln("Did not manage to prepare before syncstart")
+			console.Errorln("Did not manage to prepare before syncstart")
 			tStart = time.Now()
 		} else {
 			tStart = startTime
@@ -183,7 +172,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	start := make(chan struct{})
 	go func() {
 		<-time.After(time.Until(tStart))
-		monitor.Infoln("Benchmark starting...")
+		console.Infoln("Benchmark starting...")
 		close(start)
 	}()
 
@@ -195,7 +184,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	monitor.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
+	console.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
 		pg := newProgressBar(int64(benchDur), pb.U_DURATION)
@@ -213,7 +202,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 					}
 					pg.Set64(int64(elapsed))
 					pg.Update()
-					monitor.InfoQuietln(fmt.Sprintf("Running benchmark: %0.0f%%...", 100*float64(elapsed)/float64(benchDur)))
+					console.Infoln(fmt.Sprintf("Running benchmark: %0.0f%%...", 100*float64(elapsed)/float64(benchDur)))
 				case <-done:
 					pg.Set64(int64(benchDur))
 					pg.Update()
@@ -236,7 +225,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	f, err := os.Create(fileName + ".csv.zst")
 	if err != nil {
-		monitor.Errorln("Unable to write benchmark data:", err)
+		console.Errorln("Unable to write benchmark data:", err)
 	} else {
 		func() {
 			defer f.Close()
@@ -247,23 +236,22 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			err = ops.CSV(enc)
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			monitor.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+			console.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
-	monitor.OperationsReady(ops, fileName)
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		monitor.Infoln("Starting cleanup...")
+		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
-	monitor.Infoln("Cleanup Done.")
+	console.Infoln("Cleanup Done.")
 	return nil
 }
 
 var activeBenchmarkMu sync.Mutex
-var activeBenchmark *clientBenchmark
+var activeBenchmark *benchmarkOpts
 
-type clientBenchmark struct {
+type benchmarkOpts struct {
 	sync.Mutex
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -279,7 +267,7 @@ type stageInfo struct {
 	done           chan struct{}
 }
 
-func (c *clientBenchmark) init(ctx context.Context) {
+func (c *benchmarkOpts) init(ctx context.Context) {
 	c.results = nil
 	c.err = nil
 	c.stage = stageNotStarted
@@ -294,7 +282,7 @@ func (c *clientBenchmark) init(ctx context.Context) {
 }
 
 // waitForStage waits for the stage to be ready and updates the stage when it is
-func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
+func (c *benchmarkOpts) waitForStage(s benchmarkStage) error {
 	c.Lock()
 	info, ok := c.info[s]
 	ctx := c.ctx
@@ -312,7 +300,7 @@ func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
 }
 
 // waitForStage waits for the stage to be ready and updates the stage when it is
-func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
+func (c *benchmarkOpts) stageDone(s benchmarkStage, err error) {
 	console.Infoln(s, "done...")
 	if err != nil {
 		console.Errorln(err.Error())
@@ -328,7 +316,7 @@ func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
 	c.Unlock()
 }
 
-func (c *clientBenchmark) setStage(s benchmarkStage) {
+func (c *benchmarkOpts) setStage(s benchmarkStage) {
 	c.Lock()
 	c.stage = s
 	c.Unlock()
@@ -348,7 +336,7 @@ var benchmarkStages = []benchmarkStage{
 	stagePrepare, stageBenchmark, stageCleanup,
 }
 
-func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark) error {
+func submitBenchmarkToAgent(ctx *cli.Context, b bench.Benchmark, cb *benchmarkOpts) error {
 	err := cb.waitForStage(stagePrepare)
 	if err != nil {
 		return err

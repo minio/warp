@@ -25,17 +25,18 @@ import (
 	"time"
 
 	"github.com/minio/minio/pkg/console"
+	"github.com/minio/warp/pkg/generator"
 )
 
 // Put benchmarks upload speed.
 type Put struct {
 	Common
-	prefixes map[string]struct{}
+	objects generator.Objects
 }
 
 // Prepare will create an empty bucket ot delete any content already there.
 func (u *Put) Prepare(ctx context.Context) error {
-	return u.createEmptyBucket(ctx)
+	return nil
 }
 
 // Start will execute the main benchmark.
@@ -47,14 +48,13 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 	if u.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
-	u.prefixes = make(map[string]struct{}, u.Concurrency)
 
 	// Non-terminating context.
 	nonTerm := context.Background()
 
+	var mu sync.Mutex
 	for i := 0; i < u.Concurrency; i++ {
 		src := u.Source()
-		u.prefixes[src.Prefix()] = struct{}{}
 		go func(i int) {
 			rcv := c.Receiver()
 			defer wg.Done()
@@ -80,7 +80,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
-				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(nonTerm, obj.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					console.Errorln("upload error:", err)
@@ -95,6 +95,11 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					}
 					console.Errorln(err)
 				}
+
+				mu.Lock()
+				u.objects = append(u.objects, *obj)
+				mu.Unlock()
+
 				op.Size = res.Size
 				cldone()
 				rcv <- op
@@ -107,9 +112,5 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 // Cleanup deletes everything uploaded to the bucket.
 func (u *Put) Cleanup(ctx context.Context) {
-	var pf []string
-	for p := range u.prefixes {
-		pf = append(pf, p)
-	}
-	u.deleteAllInBucket(ctx, pf...)
+	u.deleteAllInBucket(ctx, u.objects.Bucket(), u.objects.Prefixes()...)
 }

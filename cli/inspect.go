@@ -25,8 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -34,44 +32,43 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
-	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
 
-var analyzeFlags = []cli.Flag{
+var inspectFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:  "analyze.dur",
+		Name:  "inspect.dur",
 		Value: "1s",
 		Usage: "Split analysis into durations of this length",
 	},
 	cli.StringFlag{
-		Name:  "analyze.out",
+		Name:  "inspect.out",
 		Value: "",
 		Usage: "Output aggregated data as to file",
 	},
 	cli.StringFlag{
-		Name:  "analyze.op",
+		Name:  "inspect.op",
 		Value: "",
 		Usage: "Only output for this op. Can be GET/PUT/DELETE, etc.",
 	},
 	cli.BoolFlag{
-		Name:  "analyze.errors",
+		Name:  "inspect.errors",
 		Usage: "Print out errors",
 	},
 	cli.StringFlag{
-		Name:  "analyze.host",
+		Name:  "inspect.host",
 		Value: "",
 		Usage: "Only output for this host.",
 	},
 	cli.DurationFlag{
-		Name:   "analyze.skip",
+		Name:   "inspect.skip",
 		Usage:  "Additional duration to skip when analyzing data.",
 		Hidden: false,
 		Value:  0,
 	},
 	cli.BoolFlag{
-		Name:  "analyze.hostdetails",
+		Name:  "inspect.hostdetails",
 		Usage: "Do detailed time segmentation per host",
 	},
 	cli.BoolFlag{
@@ -86,12 +83,13 @@ var analyzeFlags = []cli.Flag{
 	},
 }
 
-var analyzeCmd = cli.Command{
-	Name:   "analyze",
-	Usage:  "analyze existing benchmark data",
+var inspectCmd = cli.Command{
+	Name:   "inspect",
+	Usage:  "inspect existing benchmark data",
 	Action: mainAnalyze,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, analyzeFlags),
+	Hidden: true,
+	Flags:  combineFlags(globalFlags, inspectFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -109,7 +107,7 @@ EXAMPLES:
  `,
 }
 
-// mainAnalyze is the entry point for analyze command.
+// mainAnalyze is the entry point for inspect command.
 func mainAnalyze(ctx *cli.Context) error {
 	checkAnalyze(ctx)
 	args := ctx.Args()
@@ -121,8 +119,6 @@ func mainAnalyze(ctx *cli.Context) error {
 	}
 	var zstdDec, _ = zstd.NewReader(nil)
 	defer zstdDec.Close()
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
-	defer monitor.Done()
 	for _, arg := range args {
 		var input io.Reader
 		if arg == "-" {
@@ -141,7 +137,6 @@ func mainAnalyze(ctx *cli.Context) error {
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		printAnalysis(ctx, ops)
-		monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"))
 	}
 	return nil
 }
@@ -169,7 +164,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", ops.Errors)
-			if ctx.Bool("analyze.errors") {
+			if ctx.Bool("inspect.errors") {
 				for _, err := range ops.FirstErrors {
 					console.Println(err)
 				}
@@ -212,7 +207,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 
 func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	var wrSegs io.Writer
-	if fn := ctx.String("analyze.out"); fn != "" {
+	if fn := ctx.String("inspect.out"); fn != "" {
 		if fn == "-" {
 			wrSegs = os.Stdout
 		} else {
@@ -223,15 +218,15 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			wrSegs = f
 		}
 	}
-	if onlyHost := ctx.String("analyze.host"); onlyHost != "" {
+	if onlyHost := ctx.String("inspect.host"); onlyHost != "" {
 		o = o.FilterByEndpoint(onlyHost)
 	}
 
-	if wantOp := ctx.String("analyze.op"); wantOp != "" {
+	if wantOp := ctx.String("inspect.op"); wantOp != "" {
 		o = o.FilterByOp(wantOp)
 	}
 
-	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
+	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("inspect.skip"))
 	isMixed := o.IsMixed()
 	for _, ops := range aggr.Operations {
 		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), isMixed)
@@ -251,7 +246,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		printMixedOpAnalysis(ctx, aggr)
 		return
 	}
-	hostDetails := ctx.Bool("analyze.hostdetails") && o.Hosts() > 1
+	hostDetails := ctx.Bool("inspect.hostdetails") && o.Hosts() > 1
 
 	for _, ops := range aggr.Operations {
 		typ := ops.Type
@@ -271,7 +266,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", ops.Errors)
-			if ctx.Bool("analyze.errors") {
+			if ctx.Bool("inspect.errors") {
 				for _, err := range ops.FirstErrors {
 					console.Println(err)
 				}
@@ -331,7 +326,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 		AllThreads:     allThreads,
 	})
 
-	hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
+	hostDetails := ctx.Bool("inspect.hostdetails") && ops.Hosts() > 1
 	segs.SortByTime()
 	err := segs.CSV(wrSegs)
 	errorIf(probe.NewError(err), "Error writing analysis")
@@ -364,7 +359,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 
 func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	hostDetails := ctx.Bool("analyze.hostdetails")
+	hostDetails := ctx.Bool("inspect.hostdetails")
 
 	if ops.SingleSizedRequests != nil {
 		reqs := *ops.SingleSizedRequests
@@ -469,14 +464,14 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
 
 // analysisDur returns the analysis duration or 0 if un-parsable.
 func analysisDur(ctx *cli.Context) time.Duration {
-	d, err := time.ParseDuration(ctx.String("analyze.dur"))
-	fatalIf(probe.NewError(err), "Invalid -analyze.dur value")
+	d, err := time.ParseDuration(ctx.String("inspect.dur"))
+	fatalIf(probe.NewError(err), "Invalid --inspect.dur value")
 	return d
 }
 
 func checkAnalyze(ctx *cli.Context) {
 	if analysisDur(ctx) == 0 {
-		err := errors.New("-analyze.dur cannot be 0")
-		fatal(probe.NewError(err), "Invalid -analyze.dur value")
+		err := errors.New("--inspect.dur cannot be 0")
+		fatal(probe.NewError(err), "Invalid --inspect.dur value")
 	}
 }

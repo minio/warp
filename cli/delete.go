@@ -48,18 +48,16 @@ var deleteCmd = cli.Command{
 	Usage:  "benchmark delete objects",
 	Action: mainDelete,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, deleteFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, deleteFlags, genFlags, benchFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
-  The benchmark will end when either all objects have been deleted or the durations specified with -duration has been reached. 
 USAGE:
   {{.HelpName}} [FLAGS]
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
-
 EXAMPLES:
 ...
  `,
@@ -75,8 +73,7 @@ func mainDelete(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
+			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
 		CreateObjects: ctx.Int("objects"),
@@ -89,7 +86,6 @@ func checkDeleteSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 	if ctx.Int("batch") < 1 {
 		console.Fatal("batch size much be 1 or bigger")

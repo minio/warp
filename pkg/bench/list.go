@@ -34,7 +34,6 @@ import (
 // List benchmarks listing speed.
 type List struct {
 	CreateObjects int
-	NoPrefix      bool
 	Collector     *Collector
 	objects       []generator.Objects
 
@@ -44,16 +43,9 @@ type List struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *List) Prepare(ctx context.Context) error {
-	if err := d.createEmptyBucket(ctx); err != nil {
-		return err
-	}
 	src := d.Source()
 	objPerPrefix := d.CreateObjects / d.Concurrency
-	if d.NoPrefix {
-		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with no prefixes")
-	} else {
-		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with", d.Concurrency, "prefixes")
-	}
+	console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with", d.Concurrency, "prefixes")
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	d.Collector = NewCollector()
@@ -96,7 +88,7 @@ func (d *List) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, obj.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -159,9 +151,6 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 			done := ctx.Done()
 			objs := d.objects[i]
 			wantN := len(objs)
-			if d.NoPrefix {
-				wantN *= d.Concurrency
-			}
 
 			<-wait
 			for {
@@ -171,10 +160,9 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				default:
 				}
 
-				prefix := objs[0].Prefix
 				client, cldone := d.Client()
 				op := Operation{
-					File:     prefix,
+					File:     objs.Prefix(),
 					OpType:   "LIST",
 					Thread:   uint16(i),
 					Size:     0,
@@ -183,7 +171,10 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix})
+				listCh := client.ListObjects(nonTerm, objs.Bucket(), minio.ListObjectsOptions{
+					WithMetadata: true,
+					Prefix:       objs.Prefix(),
+				})
 
 				// Wait for errCh to close.
 				for {
@@ -218,5 +209,5 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 
 // Cleanup deletes everything uploaded to the bucket.
 func (d *List) Cleanup(ctx context.Context) {
-	d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
+	d.deleteAllInBucket(ctx, d.objects[0].Bucket(), generator.MergeObjectPrefixes(d.objects)...)
 }

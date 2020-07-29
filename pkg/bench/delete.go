@@ -43,9 +43,6 @@ type Delete struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *Delete) Prepare(ctx context.Context) error {
-	if err := d.createEmptyBucket(ctx); err != nil {
-		return err
-	}
 	src := d.Source()
 	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())
 	var wg sync.WaitGroup
@@ -84,7 +81,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				}
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, obj.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -187,7 +184,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				}
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
+				errCh := client.RemoveObjects(nonTerm, d.objects.Bucket(), objects, minio.RemoveObjectsOptions{})
 
 				// Wait for errCh to close.
 				for {
@@ -212,7 +209,5 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 // Cleanup deletes everything uploaded to the bucket.
 func (d *Delete) Cleanup(ctx context.Context) {
-	if len(d.objects) > 0 {
-		d.deleteAllInBucket(ctx, d.objects.Prefixes()...)
-	}
+	d.deleteAllInBucket(ctx, d.objects.Bucket(), d.objects.Prefixes()...)
 }

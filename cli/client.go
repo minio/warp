@@ -21,11 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"log"
 	"math"
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -48,31 +48,51 @@ const (
 	hostSelectTypeWeighed    hostSelectType = "weighed"
 )
 
+func getClientOpts(ctx *cli.Context, endpoint *url.URL) *minio.Options {
+	creds := credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ctx.String("session-token"))
+
+	bucketLookupType := minio.BucketLookupAuto
+	switch ctx.String("path") {
+	case "off":
+		bucketLookupType = minio.BucketLookupDNS
+	case "on":
+		bucketLookupType = minio.BucketLookupPath
+	}
+
+	return &minio.Options{
+		Creds:        creds,
+		Secure:       endpoint.Scheme == "https",
+		Region:       ctx.String("region"),
+		BucketLookup: bucketLookupType,
+		CustomMD5:    md5simd.NewServer().NewHash,
+		Transport:    clientTransport(ctx),
+	}
+}
+
 func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
-	hosts := parseHosts(ctx.String("host"))
-	switch len(hosts) {
+	endpoints := parseEndpoints(ctx.String("endpoints"))
+
+	switch len(endpoints) {
 	case 0:
-		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
+		fatalIf(probe.NewError(errors.New("no endpoint defined")), "Unable to create MinIO client")
 	case 1:
-		cl, err := getClient(ctx, hosts[0])
+		clnts, err := getClient(ctx, endpoints...)
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
 
 		return func() (*minio.Client, func()) {
-			return cl, func() {}
+			return clnts[0], func() {}
 		}
 	}
+
+	clients, err := getClient(ctx, endpoints...)
+	fatalIf(probe.NewError(err), "Unable to create MinIO client")
+
 	hostSelect := hostSelectType(ctx.String("host-select"))
 	switch hostSelect {
 	case hostSelectTypeRoundrobin:
 		// Do round-robin.
 		var current int
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
-		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
-			fatalIf(probe.NewError(err), "Unable to create MinIO client")
-			clients[i] = cl
-		}
 		return func() (*minio.Client, func()) {
 			mu.Lock()
 			now := current % len(clients)
@@ -84,21 +104,15 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		// Keep track of handed out clients.
 		// Select random between the clients that have the fewest handed out.
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
-		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
-			fatalIf(probe.NewError(err), "Unable to create MinIO client")
-			clients[i] = cl
-		}
-		running := make([]int, len(hosts))
-		lastFinished := make([]time.Time, len(hosts))
+		running := make([]int, len(endpoints))
+		lastFinished := make([]time.Time, len(endpoints))
 		{
 			// Start with a random host
 			now := time.Now()
-			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(hosts))
+			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(endpoints))
 			for i := range lastFinished {
 				t := now
-				t.Add(time.Duration(i + off%len(hosts)))
+				t.Add(time.Duration(i + off%len(endpoints)))
 				lastFinished[i] = t
 			}
 		}
@@ -143,32 +157,17 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 }
 
 // getClient creates a client with the specified host and the options set in the context.
-func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
-	var creds *credentials.Credentials
-	switch strings.ToUpper(ctx.String("signature")) {
-	case "S3V4":
-		// if Signature version '4' use NewV4 directly.
-		creds = credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), "")
-	case "S3V2":
-		// if Signature version '2' use NewV2 directly.
-		creds = credentials.NewStaticV2(ctx.String("access-key"), ctx.String("secret-key"), "")
-	default:
-		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
+func getClient(ctx *cli.Context, endpoints ...*url.URL) (clnts []*minio.Client, err error) {
+	for _, endpoint := range endpoints {
+		var cl *minio.Client
+		cl, err = minio.New(endpoint.Host, getClientOpts(ctx, endpoint))
+		if err != nil {
+			return nil, err
+		}
+		cl.SetAppInfo(appName, pkg.Version)
+		clnts = append(clnts, cl)
 	}
-
-	cl, err := minio.New(host, &minio.Options{
-		Creds:        creds,
-		Secure:       ctx.Bool("tls"),
-		Region:       ctx.String("region"),
-		BucketLookup: minio.BucketLookupAuto,
-		CustomMD5:    md5simd.NewServer().NewHash,
-		Transport:    clientTransport(ctx),
-	})
-	if err != nil {
-		return nil, err
-	}
-	cl.SetAppInfo(appName, pkg.Version)
-	return cl, nil
+	return clnts, nil
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
@@ -198,10 +197,8 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 			// Can't use SSLv3 because of POODLE and BEAST
 			// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
 			// Can't use TLSv1.1 because of RC4 cipher usage
-			MinVersion: tls.VersionTLS12,
-		}
-		if ctx.Bool("insecure") {
-			tlsConfig.InsecureSkipVerify = true
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,
 		}
 		tr.TLSClientConfig = tlsConfig
 
@@ -217,23 +214,31 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 	return tr
 }
 
-// parseHosts will parse the host parameter given.
-func parseHosts(h string) []string {
-	hosts := strings.Split(h, ",")
-	dst := make([]string, 0, len(hosts))
-	for _, host := range hosts {
-		if !ellipses.HasEllipses(host) {
-			dst = append(dst, host)
+// parseEndpoints will parse the endpoints parameter given.
+func parseEndpoints(eps string) []*url.URL {
+	endpoints := strings.Split(eps, ",")
+	dst := make([]*url.URL, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		if !ellipses.HasEllipses(endpoint) {
+			u, err := url.Parse(endpoint)
+			if err != nil {
+				fatalIf(probe.NewError(err).Trace(endpoint), "Unable to parse endpoint")
+			}
+			dst = append(dst, u)
 			continue
 		}
-		patterns, perr := ellipses.FindEllipsesPatterns(host)
+		patterns, perr := ellipses.FindEllipsesPatterns(endpoint)
 		if perr != nil {
-			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
-
-			log.Fatal(perr.Error())
+			fatalIf(probe.NewError(perr), "Unable to parse ellipses in endpoint parameter")
 		}
 		for _, p := range patterns {
-			dst = append(dst, p.Expand()...)
+			for _, ep := range p.Expand() {
+				u, err := url.Parse(ep)
+				if err != nil {
+					fatalIf(probe.NewError(err).Trace(ep), "Unable to parse endpoint after ellipses expansion")
+				}
+				dst = append(dst, u)
+			}
 		}
 	}
 	return dst
@@ -249,13 +254,17 @@ func mustGetSystemCertPool() *x509.CertPool {
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
-	hosts := parseHosts(ctx.String("host"))
-	if len(hosts) == 0 {
-		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO admin client")
+	endpoints := parseEndpoints(ctx.String("endpoints"))
+	if len(endpoints) == 0 {
+		fatalIf(probe.NewError(errors.New("no endpoint defined")), "Unable to create MinIO admin client")
 	}
-	cl, err := madmin.New(hosts[0], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
+	mopts := getClientOpts(ctx, endpoints[0])
+	admin, err := madmin.NewWithOptions(endpoints[0].Host, &madmin.Options{
+		Creds:  mopts.Creds,
+		Secure: mopts.Secure,
+	})
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
-	cl.SetCustomTransport(clientTransport(ctx))
-	cl.SetAppInfo(appName, pkg.Version)
-	return cl
+	admin.SetCustomTransport(clientTransport(ctx))
+	admin.SetAppInfo(appName, pkg.Version)
+	return admin
 }

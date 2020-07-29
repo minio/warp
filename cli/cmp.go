@@ -38,8 +38,9 @@ var cmpCmd = cli.Command{
 	Name:   "cmp",
 	Usage:  "compare existing benchmark data",
 	Action: mainCmp,
+	Hidden: true,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, analyzeFlags, cmpFlags),
+	Flags:  combineFlags(globalFlags, inspectFlags, cmpFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -55,7 +56,7 @@ EXAMPLES:
  `,
 }
 
-// mainAnalyze is the entry point for analyze command.
+// mainAnalyze is the entry point for inspect command.
 func mainCmp(ctx *cli.Context) error {
 	checkAnalyze(ctx)
 	checkCmp(ctx)
@@ -103,7 +104,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 	}
 
 	for _, typ := range before.OpTypes() {
-		if wantOp := ctx.String("analyze.op"); wantOp != "" {
+		if wantOp := ctx.String("inspect.op"); wantOp != "" {
 			if wantOp != typ {
 				continue
 			}
