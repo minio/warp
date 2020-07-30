@@ -119,12 +119,6 @@ func setGlobals(quiet, debug, json, noColor bool) {
 // Flags common across all I/O commands such as cp, mirror, stat, pipe etc.
 var ioFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:   "endpoints",
-		Usage:  "S3 endpoint(s), a list of endpoints can be specified using ellipses `...` expansion or a comma separated list",
-		EnvVar: "SERVER_ENDPOINTS",
-		Value:  "http://127.0.0.1:9000",
-	},
-	cli.StringFlag{
 		Name:   "access-key",
 		Usage:  "Specify access key",
 		EnvVar: "ACCESS_KEY,MINIO_ACCESS_KEY,AWS_ACCESS_KEY_ID",
@@ -145,20 +139,10 @@ var ioFlags = []cli.Flag{
 		EnvVar: "REGION,MINIO_REGION,AWS_REGION",
 		Hidden: true,
 	},
-	cli.StringFlag{
-		Name:   "path",
-		Usage:  `bucket path lookup supported by the server. Valid options are '[auto, on, off]' (default: "auto")`,
-		Value:  "auto",
-		Hidden: true,
-	},
 	cli.BoolFlag{
 		Name:   "encrypt",
 		Usage:  "encrypt/decrypt objects (using server-side encryption with random keys)",
 		Hidden: true,
-	},
-	cli.StringFlag{
-		Name:  "prefix",
-		Usage: "bucket/prefix to use for benchmark data, all contents inside the `prefix` shall be deleted",
 	},
 	cli.StringFlag{
 		Name:   "server-select",

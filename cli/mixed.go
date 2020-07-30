@@ -102,11 +102,9 @@ func mainMixed(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
-		CreateObjects: ctx.Int("objects"),
-		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		GetOpts: minio.GetObjectOptions{ServerSideEncryption: sse},
 		StatOpts: minio.StatObjectOptions{
 			ServerSideEncryption: sse,
 		},

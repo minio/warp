@@ -70,10 +70,8 @@ func mainStat(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
-		CreateObjects: ctx.Int("objects"),
 		StatOpts: minio.StatObjectOptions{
 			ServerSideEncryption: sse,
 		},

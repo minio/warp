@@ -73,11 +73,9 @@ func mainDelete(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
-		CreateObjects: ctx.Int("objects"),
-		BatchSize:     ctx.Int("batch"),
+		BatchSize: ctx.Int("batch"),
 	}
 	return runBench(ctx, &b)
 }

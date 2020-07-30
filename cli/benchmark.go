@@ -40,22 +40,20 @@ import (
 
 var benchFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:  "benchdata",
-		Value: "",
-		Usage: "Output benchmark+profile data to this file. By default unique filename is generated.",
+		Name:   "benchdata",
+		Value:  "",
+		Usage:  "Output benchmark+profile data to this file. By default unique filename is generated.",
+		Hidden: true,
 	},
 	cli.StringFlag{
-		Name:  "serverprof",
-		Usage: "Run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'.",
+		Name:   "serverprof",
+		Usage:  "Run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'.",
+		Hidden: true,
 	},
 	cli.DurationFlag{
 		Name:  "duration",
 		Usage: "Duration to run the benchmark. Use 's' and 'm' to specify seconds and minutes.",
 		Value: 5 * time.Minute,
-	},
-	cli.BoolFlag{
-		Name:  "autoterm",
-		Usage: "Auto terminate when benchmark is considered stable.",
 	},
 	cli.DurationFlag{
 		Name:   "autoterm.dur",
@@ -68,19 +66,6 @@ var benchFlags = []cli.Flag{
 		Usage:  "The percentage the last 6/25 time blocks must be within current speed to auto terminate.",
 		Value:  7.5,
 		Hidden: true,
-	},
-	cli.BoolFlag{
-		Name:   "keep-data",
-		Usage:  "Leave benchmark data. Do not run cleanup after benchmark. Bucket will still be cleaned prior to benchmark",
-		Hidden: true,
-	},
-	cli.StringFlag{
-		Name:  "syncstart",
-		Usage: "Specify a benchmark start time. Time format is 'hh:mm' where hours are specified in 24h format, server TZ.",
-	},
-	cli.StringFlag{
-		Name:  "agents",
-		Usage: "Connect to warp agent(s) to run distributed benchmark",
 	},
 }
 
@@ -100,12 +85,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
-	c.Clear = !ctx.Bool("noclear")
-	if ctx.Bool("autoterm") {
-		// TODO: autoterm cannot be used when in client/server mode
-		c.AutoTermDur = ctx.Duration("autoterm.dur")
-		c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
-	}
+	c.AutoTermDur = ctx.Duration("autoterm.dur")
+	c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
 	if !globalQuiet && !globalJSON {
 		c.PrepareProgress = make(chan float64, 1)
 		const pgScale = 10000
@@ -153,18 +134,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		<-pgDone
 	}
 
-	// Start after waiting a second or until we reached the start time.
 	tStart := time.Now().Add(time.Second * 3)
-	if st := ctx.String("syncstart"); st != "" {
-		startTime := parseLocalTime(st)
-		now := time.Now()
-		if startTime.Before(now) {
-			console.Errorln("Did not manage to prepare before syncstart")
-			tStart = time.Now()
-		} else {
-			tStart = startTime
-		}
-	}
 
 	benchDur := ctx.Duration("duration")
 	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(benchDur))
@@ -176,11 +146,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(start)
 	}()
 
-	fileName := ctx.String("benchdata")
 	cID := pRandASCII(4)
-	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
-	}
+	fileName := fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
@@ -240,10 +207,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		}()
 	}
 	printAnalysis(ctx, ops)
-	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		console.Infoln("Starting cleanup...")
-		b.Cleanup(context.Background())
-	}
+	console.Infoln("Starting cleanup...")
+	b.Cleanup(context.Background())
 	console.Infoln("Cleanup Done.")
 	return nil
 }
@@ -414,10 +379,8 @@ func submitBenchmarkToAgent(ctx *cli.Context, b bench.Benchmark, cb *benchmarkOp
 	if err != nil {
 		return err
 	}
-	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		console.Infoln("Starting cleanup...")
-		b.Cleanup(context.Background())
-	}
+	console.Infoln("Starting cleanup...")
+	b.Cleanup(context.Background())
 	cb.stageDone(stageCleanup, nil)
 
 	return nil
@@ -503,14 +466,11 @@ func checkBenchmark(ctx *cli.Context) {
 			fatalIf(errDummy(), "syncstart is in the past: %v", t)
 		}
 	}
-	if ctx.Bool("autoterm") {
-		// TODO: autoterm cannot be used when in client/server mode
-		if ctx.Duration("autoterm.dur") <= 0 {
-			fatalIf(errDummy(), "autoterm.dur cannot be zero or negative")
-		}
-		if ctx.Float64("autoterm.pct") <= 0 {
-			fatalIf(errDummy(), "autoterm.pct cannot be zero or negative")
-		}
+	if ctx.Duration("autoterm.dur") <= 0 {
+		fatalIf(errDummy(), "autoterm.dur cannot be zero or negative")
+	}
+	if ctx.Float64("autoterm.pct") <= 0 {
+		fatalIf(errDummy(), "autoterm.pct cannot be zero or negative")
 	}
 }
 

@@ -1,0 +1,96 @@
+NAME:
+  warp - Benchmark tool for S3 compatible object storage systems.
+
+USAGE:
+  warp [global options] command [command options] [arguments...]
+
+VERSION:
+  (dev) - (dev)
+
+AUTHOR:
+  MinIO, Inc.
+
+COMMANDS:
+  get        benchmark get objects
+  put        benchmark put objects
+  delete     benchmark delete objects
+  list       benchmark list objects
+  stat       benchmark stat objects (get file info)
+  select     benchmark select objects
+  mixed      benchmark mixed objects
+
+GLOBAL FLAGS:
+  --help, -h        show help
+  --version, -v     print the version
+
+## Standalone
+
+```
+./warp full http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp get http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp put http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp delete http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp list http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp stat http://server{n...m}:9000/your-bucket/your-prefix
+
+./warp mixed http://server{n...m}:9000/your-bucket/your-prefix
+```
+
+## Good to have
+
+```
+./warp stress http://server{n...m}:9000/your-bucket/your-prefix
+```
+
+## Distributed
+
+./warp get --distribute=10 http://server{n...m}:9000/your-bucket/your-prefix --> `http://<ip_address_first_node>/console`
+
+./warp join <ip_address_first_node>
+
+./warp join <ip_address_first_node>
+
+./warp join <ip_address_first_node>
+
+
+```
+FLAGS:
+  --access-key value     specify access key [$ACCESS_KEY, $MINIO_ACCESS_KEY, $AWS_ACCESS_KEY_ID]
+  --secret-key value     specify secret key [$SECRET_KEY, $MINIO_SECRET_KEY, $AWS_SECRET_ACCESS_KEY]
+  --session-token value  specify the temporary session token [$SESSION_TOKEN, $MINIO_SESSION_TOKEN, $AWS_SESSION_TOKEN]
+  --concurrent value     run this many concurrent operations (default: 4)
+  --object-size value    size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary. (default: "10MiB")
+  --duration value       duration to run the benchmark. Use 's' and 'm' to specify seconds and minutes. (default: 5m0s)
+  --disable-multipart    disable multipart uploads
+  --help, -h             show help
+```
+
+  --profile value        run MinIO server profiling during benchmark; possible values are 'cpu', 'mem', 'block', 'mutex' and 'trace'. - hidden
+  --autoterm             auto terminate when benchmark is considered stable. - default/hidden
+
+```
+./warp get --access-key minio --secret-key minio123 http://server{1...10}:9000/mybucket/myprefix
+```
+
+```
+./warp stat --access-key minio --secret-key minio123 http://server{1...10}:9000/mybucket/myprefix
+```
+
+```
+./warp put --access-key minio --secret-key minio123 http://server{1...10}:9000/mybucket/myprefix
+```
+
+```
+./warp mixed --ratio="GET:45,STAT:30,PUT:15,DELETE:10" --access-key minio --secret-key minio123 http://server{1...10}:9000/mybucket/myprefix/
+```
+
+```
+./warp mixed --ratio="GET:45,STAT:30,PUT:15,DELETE:10" --access-key minio --secret-key minio123 http://mybucket.server{1...10}:9000/myprefix/
+```
+
+auto-add `warp-2020-07-27T18-37-02Z`

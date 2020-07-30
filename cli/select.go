@@ -73,10 +73,8 @@ func mainSelect(ctx *cli.Context) error {
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
 			Source:      src,
-			Prefix:      ctx.String("prefix"),
 			PutOpts:     putOpts(ctx),
 		},
-		CreateObjects: ctx.Int("objects"),
 		SelectOpts: minio.SelectObjectOptions{
 			Expression:     ctx.String("query"),
 			ExpressionType: minio.QueryExpressionTypeSQL,

@@ -26,15 +26,10 @@ import (
 
 var (
 	getFlags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "objects",
-			Value: 2500,
-			Usage: "Number of objects to upload.",
-		},
 		cli.StringFlag{
-			Name:  "obj.size",
+			Name:  "object-size",
 			Value: "10MiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+			Usage: "size of each generated object, can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		},
 	}
 )
@@ -71,8 +66,7 @@ func mainGet(ctx *cli.Context) error {
 			Source:      src,
 			PutOpts:     putOpts(ctx),
 		},
-		CreateObjects: ctx.Int("objects"),
-		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		GetOpts: minio.GetObjectOptions{ServerSideEncryption: sse},
 	}
 	return runBench(ctx, &b)
 }

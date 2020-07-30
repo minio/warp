@@ -88,15 +88,13 @@ func Main(args []string) {
 }
 func init() {
 	a := []cli.Command{
-		agentCmd,
-		mixedCmd,
 		getCmd,
 		putCmd,
 		deleteCmd,
 		listCmd,
 		statCmd,
 		selectCmd,
-		versionedCmd,
+		mixedCmd,
 	}
 	b := []cli.Command{
 		inspectCmd,
@@ -195,11 +193,10 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	}
 
 	app.HideHelpCommand = true
-	app.Usage = "Benchmark tool for S3 compatible object storage systems."
+	app.Usage = "benchmark tool for S3 compatible object storage systems"
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
-	app.Copyright = "(c) 2020 MinIO, Inc."
 	app.Compiled, _ = time.Parse(time.RFC3339, pkg.ReleaseTime)
 	app.Flags = append(app.Flags, profileFlags...)
 	app.Flags = append(app.Flags, globalFlags...)
