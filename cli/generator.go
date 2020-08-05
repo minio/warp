@@ -34,11 +34,6 @@ var genFlags = []cli.Flag{
 		Usage:  "Use specific data generator",
 		Hidden: true,
 	},
-	cli.BoolFlag{
-		Name:   "obj.randsize",
-		Usage:  "Randomize size of objects so they will be up to the specified size",
-		Hidden: true,
-	},
 }
 
 func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
@@ -49,7 +44,6 @@ func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
 	src, err := generator.NewFn(g.Apply(),
 		generator.WithPrefix(ctx.String("prefix")),
 		generator.WithSize(int64(size)),
-		generator.WithRandomSize(ctx.Bool("obj.randsize")),
 	)
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src
@@ -73,7 +67,6 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 	src, err := generator.NewFn(g.Apply(),
 		generator.WithPrefix(ctx.String("prefix")),
 		generator.WithSize(int64(size)),
-		generator.WithRandomSize(ctx.Bool("obj.randsize")),
 	)
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src

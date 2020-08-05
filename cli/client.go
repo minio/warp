@@ -48,7 +48,7 @@ const (
 	hostSelectTypeWeighed    hostSelectType = "weighed"
 )
 
-func getClientOpts(ctx *cli.Context, endpoint *url.URL) *minio.Options {
+func getClientOpts(ctx *cli.Context, endpoint warpEndpoint) *minio.Options {
 	creds := credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ctx.String("session-token"))
 
 	bucketLookupType := minio.BucketLookupAuto
@@ -70,7 +70,7 @@ func getClientOpts(ctx *cli.Context, endpoint *url.URL) *minio.Options {
 }
 
 func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
-	endpoints := parseEndpoints(ctx.String("endpoints"))
+	endpoints := parseEndpoints(ctx.Args().First())
 
 	switch len(endpoints) {
 	case 0:
@@ -157,7 +157,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 }
 
 // getClient creates a client with the specified host and the options set in the context.
-func getClient(ctx *cli.Context, endpoints ...*url.URL) (clnts []*minio.Client, err error) {
+func getClient(ctx *cli.Context, endpoints ...warpEndpoint) (clnts []*minio.Client, err error) {
 	for _, endpoint := range endpoints {
 		var cl *minio.Client
 		cl, err = minio.New(endpoint.Host, getClientOpts(ctx, endpoint))
@@ -214,17 +214,42 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 	return tr
 }
 
+type warpEndpoint struct {
+	*url.URL
+	Bucket string
+	Prefix string
+}
+
+const slashSeparator = "/"
+
+// path2BucketObjectWithBasePath returns bucket and prefix, if any,
+// of a 'path'. basePath is trimmed from the front of the 'path'.
+func path2BucketObjectWithBasePath(basePath, path string) (bucket, prefix string) {
+	path = strings.TrimPrefix(path, basePath)
+	path = strings.TrimPrefix(path, slashSeparator)
+	m := strings.Index(path, slashSeparator)
+	if m < 0 {
+		return path, ""
+	}
+	return path[:m], path[m+len(slashSeparator):]
+}
+
+func path2BucketObject(s string) (bucket, prefix string) {
+	return path2BucketObjectWithBasePath("", s)
+}
+
 // parseEndpoints will parse the endpoints parameter given.
-func parseEndpoints(eps string) []*url.URL {
+func parseEndpoints(eps string) []warpEndpoint {
 	endpoints := strings.Split(eps, ",")
-	dst := make([]*url.URL, 0, len(endpoints))
+	dst := make([]warpEndpoint, 0, len(endpoints))
 	for _, endpoint := range endpoints {
 		if !ellipses.HasEllipses(endpoint) {
 			u, err := url.Parse(endpoint)
 			if err != nil {
 				fatalIf(probe.NewError(err).Trace(endpoint), "Unable to parse endpoint")
 			}
-			dst = append(dst, u)
+			bucket, prefix := path2BucketObject(u.Path)
+			dst = append(dst, warpEndpoint{URL: u, Bucket: bucket, Prefix: prefix})
 			continue
 		}
 		patterns, perr := ellipses.FindEllipsesPatterns(endpoint)
@@ -237,7 +262,8 @@ func parseEndpoints(eps string) []*url.URL {
 				if err != nil {
 					fatalIf(probe.NewError(err).Trace(ep), "Unable to parse endpoint after ellipses expansion")
 				}
-				dst = append(dst, u)
+				bucket, prefix := path2BucketObject(u.Path)
+				dst = append(dst, warpEndpoint{URL: u, Bucket: bucket, Prefix: prefix})
 			}
 		}
 	}
@@ -254,7 +280,7 @@ func mustGetSystemCertPool() *x509.CertPool {
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
-	endpoints := parseEndpoints(ctx.String("endpoints"))
+	endpoints := parseEndpoints(ctx.Args().First())
 	if len(endpoints) == 0 {
 		fatalIf(probe.NewError(errors.New("no endpoint defined")), "Unable to create MinIO admin client")
 	}

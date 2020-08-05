@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"sync"
@@ -82,9 +83,13 @@ type serverRequest struct {
 // runServerBenchmark will run a benchmark server if requested.
 // Returns a bool whether agents were specified.
 func runServerBenchmark(ctx *cli.Context) (bool, error) {
-	if ctx.String("agents") == "" {
+	if ctx.Int("distributed") <= 0 {
 		return false, nil
 	}
+
+	http.HandleFunc("/ws", serveWs)
+	console.Infoln("Listening on", addr)
+	fatalIf(probe.NewError(http.ListenAndServe(addr, nil)), "Unable to start client")
 
 	conns := newConnections(parseEndpoints(ctx.String("agents")))
 	if len(conns.endpoints) == 0 {

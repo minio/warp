@@ -146,7 +146,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	console.Infoln("Accepting connection from server:", s.ID)
+	console.Infoln(":", s.ID)
 	defer func() {
 		// When we return, reset connection info.
 		connectedMu.Lock()

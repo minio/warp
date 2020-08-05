@@ -55,18 +55,6 @@ var benchFlags = []cli.Flag{
 		Usage: "Duration to run the benchmark. Use 's' and 'm' to specify seconds and minutes.",
 		Value: 5 * time.Minute,
 	},
-	cli.DurationFlag{
-		Name:   "autoterm.dur",
-		Usage:  "Minimum duration where output must have been stable to allow automatic termination.",
-		Value:  10 * time.Second,
-		Hidden: true,
-	},
-	cli.Float64Flag{
-		Name:   "autoterm.pct",
-		Usage:  "The percentage the last 6/25 time blocks must be within current speed to auto terminate.",
-		Value:  7.5,
-		Hidden: true,
-	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -85,8 +73,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	console.Infoln("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
-	c.AutoTermDur = ctx.Duration("autoterm.dur")
-	c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
+	c.AutoTermDur = 10 * time.Second
+	c.AutoTermScale = 7.5 / 100
 	if !globalQuiet && !globalJSON {
 		c.PrepareProgress = make(chan float64, 1)
 		const pgScale = 10000
