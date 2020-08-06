@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -80,6 +80,207 @@ type serverRequest struct {
 	StartTime time.Time      `json:"start_time"`
 }
 
+// Information on currently or last connected server.
+var connectedMu sync.Mutex
+var connected serverInfo
+
+// wsUpgrader performs websocket upgrades.
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type websocket struct {
+	ctx *cli.Context
+}
+
+// serveWs handles incoming requests.
+func (s websocket) serveWs(w http.ResponseWriter, r *http.Request) {
+	ws, err := wsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		console.Error("upgrade:", err.Error())
+		return
+	}
+
+	defer func() {
+		ws.Close()
+		console.Infoln("Closing connection")
+	}()
+
+	var si serverInfo
+	err = ws.ReadJSON(&si)
+	if err != nil {
+		console.Error("Error reading server info:", err.Error())
+		return
+	}
+	if err = s.validate(); err != nil {
+		ws.WriteJSON(agentReply{Err: err.Error()})
+		return
+	}
+
+	s.connected = true
+	connectedMu.Lock()
+	if connected.ID == "" || !connected.connected {
+		// First connection or server disconnected.
+		connected = si
+	} else if connected.ID != si.ID {
+		err = errors.New("another server already connected")
+	}
+	connectedMu.Unlock()
+	if err != nil {
+		ws.WriteJSON(agentReply{Err: err.Error()})
+		return
+	}
+
+	console.Infoln(":", si.ID)
+	defer func() {
+		// When we return, reset connection info.
+		connectedMu.Lock()
+		connected.connected = false
+		connectedMu.Unlock()
+		ws.Close()
+	}()
+
+	// Confirm the connection
+	err = ws.WriteJSON(agentReply{Time: time.Now()})
+	if err != nil {
+		console.Error("Writing response:", err)
+		return
+	}
+	for {
+		var req serverRequest
+		err := ws.ReadJSON(&req)
+		if err != nil {
+			console.Error("Reading server message:", err.Error())
+			return
+		}
+		if globalDebug {
+			console.Infof("Request: %v\n", req.Operation)
+		}
+		var resp agentReply
+		switch req.Operation {
+		case serverReqDisconnect:
+			console.Infoln("Received Disconnect")
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab != nil {
+				ab.cancel()
+			}
+			connectedMu.Lock()
+			connected = serverInfo{}
+			connectedMu.Unlock()
+			return
+		case serverReqBenchmark:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab != nil {
+				ab.cancel()
+			}
+			_, err := req.executeBenchmark(context.Background())
+			resp.Type = agentRespBenchmarkStarted
+			if err != nil {
+				console.Errorln("Starting benchmark:", err)
+				resp.Err = err.Error()
+			}
+		case serverReqStartStage:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
+				resp.Err = "no benchmark running"
+				break
+			}
+			ab.Lock()
+			stageInfo := ab.info
+			ab.Unlock()
+			info, ok := stageInfo[req.Stage]
+			if !ok {
+				resp.Err = "stage not found"
+				break
+			}
+			if info.startRequested {
+				resp.Type = agentRespStatus
+				break
+			}
+			info.startRequested = true
+			ab.Lock()
+			ab.info[req.Stage] = info
+			ab.Unlock()
+
+			wait := time.Until(req.StartTime)
+			if wait < 0 {
+				wait = 0
+			}
+			console.Infoln("Starting stage", req.Stage, "in", wait)
+			go func() {
+				time.Sleep(wait)
+				close(info.start)
+			}()
+			resp.Type = agentRespStatus
+		case serverReqStageStatus:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
+				resp.Err = "no benchmark running"
+				break
+			}
+			resp.Type = agentRespStatus
+			ab.Lock()
+			err := ab.err
+			stageInfo := ab.info
+			ab.Unlock()
+			if err != nil {
+				resp.Err = err.Error()
+				break
+			}
+			info, ok := stageInfo[req.Stage]
+			if !ok {
+				resp.Err = "stage not found"
+				break
+			}
+			select {
+			case <-info.start:
+				resp.StageInfo.Started = true
+			default:
+			}
+			select {
+			case <-info.done:
+				resp.StageInfo.Finished = true
+			default:
+			}
+		case serverReqSendOps:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			if ab == nil {
+				resp.Err = "no benchmark running"
+				break
+			}
+			resp.Type = agentRespOps
+			ab.Lock()
+			resp.Ops = ab.results
+			ab.Unlock()
+		default:
+			resp.Err = "unknown command"
+		}
+		resp.Time = time.Now()
+		if globalDebug {
+			console.Infof("Sending %v\n", resp.Type)
+		}
+		err = ws.WriteJSON(resp)
+		if err != nil {
+			console.Error("Writing response:", err)
+			return
+		}
+	}
+}
+
+const warpAgentDefaultPort = "7761"
+
 // runServerBenchmark will run a benchmark server if requested.
 // Returns a bool whether agents were specified.
 func runServerBenchmark(ctx *cli.Context) (bool, error) {
@@ -87,15 +288,22 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		return false, nil
 	}
 
-	http.HandleFunc("/ws", serveWs)
+	addr := ":" + warpAgentDefaultPort
+	switch ctx.NArg() {
+	case 1:
+		addr = ctx.Args()[0]
+		if !strings.Contains(addr, ":") {
+			addr += ":" + warpAgentDefaultPort
+		}
+	case 0:
+	default:
+		fatal(errInvalidArgument(), "Too many parameters")
+	}
+
+	ws := websocket{ctx: ctx}
+	http.HandleFunc("/ws", ws.serveWs)
 	console.Infoln("Listening on", addr)
 	fatalIf(probe.NewError(http.ListenAndServe(addr, nil)), "Unable to start client")
-
-	conns := newConnections(parseEndpoints(ctx.String("agents")))
-	if len(conns.endpoints) == 0 {
-		return true, errors.New("no warp agents specified")
-	}
-	defer conns.closeAll()
 
 	var infoLn = console.Infoln
 	var errorLn = console.Errorln
