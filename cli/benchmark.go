@@ -244,13 +244,13 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()
-			err = ops.CSV(enc)
+			err = ops.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
 			monitor.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
-	monitor.OperationsReady(ops, fileName)
+	monitor.OperationsReady(ops, fileName, commandLine(ctx))
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		monitor.Infoln("Starting cleanup...")
@@ -415,7 +415,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()
-			err = ops.CSV(enc)
+			err = ops.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")

@@ -26,6 +26,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -846,7 +847,8 @@ func (o Operations) FilterErrors() Operations {
 }
 
 // CSV will write the operations to w as CSV.
-func (o Operations) CSV(w io.Writer) error {
+// The comment, if any, is written at the end of the file, each line prefixed with '# '.
+func (o Operations) CSV(w io.Writer, comment string) error {
 	bw := bufio.NewWriter(w)
 	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
 	if err != nil {
@@ -862,6 +864,16 @@ func (o Operations) CSV(w io.Writer) error {
 			return err
 		}
 	}
+	if len(comment) > 0 {
+		lines := strings.Split(comment, "\n")
+		for _, txt := range lines {
+			_, err := bw.WriteString("# " + txt + "\n")
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return bw.Flush()
 }
 

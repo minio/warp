@@ -104,7 +104,7 @@ func mainMerge(ctx *cli.Context) error {
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()
-			err = allOps.CSV(enc)
+			err = allOps.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")

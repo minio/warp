@@ -141,7 +141,7 @@ func mainAnalyze(ctx *cli.Context) error {
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		printAnalysis(ctx, ops)
-		monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"))
+		monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"), commandLine(ctx))
 	}
 	return nil
 }
