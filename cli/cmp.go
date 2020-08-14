@@ -115,7 +115,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		console.Println("Operation:", typ)
 		console.SetColor("Print", color.New(color.FgWhite))
 
-		cmp, err := bench.Compare(before, after, analysisDur(ctx), !isMultiOp)
+		cmp, err := bench.Compare(before, after, analysisDur(ctx, before.Duration()), !isMultiOp)
 		if err != nil {
 			console.Println(err)
 			continue

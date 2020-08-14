@@ -205,14 +205,16 @@ func (o Operation) String() string {
 }
 
 // Aggregate the operation into segment if it belongs there.
-func (o Operation) Aggregate(s *Segment) {
+// Done returns true if operation is starting after segment ended.
+func (o Operation) Aggregate(s *Segment) (done bool) {
+	if o.Start.After(s.EndsBefore) || o.Start.Equal(s.EndsBefore) {
+		return true
+	}
+	done = false
 	if len(s.OpType) > 0 && o.OpType != s.OpType {
 		return
 	}
 	if o.End.Before(s.Start) {
-		return
-	}
-	if o.Start.After(s.EndsBefore) || o.Start.Equal(s.EndsBefore) {
 		return
 	}
 	startedInSegment := o.Start.After(s.Start) || o.Start.Equal(s.Start)
@@ -274,6 +276,7 @@ func (o Operation) Aggregate(s *Segment) {
 	}
 	s.Objects += float64(o.ObjPerOp) * float64(partDur) / float64(opDur)
 	s.TotalBytes += partSize
+	return done
 }
 
 // TTFB returns the time to first byte or 0 if nothing was recorded.
@@ -287,6 +290,11 @@ func (o Operation) TTFB() time.Duration {
 // SortByStartTime will sort the operations by start time.
 // Earliest operations first.
 func (o Operations) SortByStartTime() {
+	if sort.SliceIsSorted(o, func(i, j int) bool {
+		return o[i].Start.Before(o[j].Start)
+	}) {
+		return
+	}
 	sort.Slice(o, func(i, j int) bool {
 		return o[i].Start.Before(o[j].Start)
 	})
@@ -295,8 +303,7 @@ func (o Operations) SortByStartTime() {
 // SortByDuration will sort the operations by duration taken to complete.
 // Fastest operations first.
 func (o Operations) SortByDuration() {
-	o.SortByStartTime()
-	sort.SliceStable(o, func(i, j int) bool {
+	sort.Slice(o, func(i, j int) bool {
 		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
 		return a < b
 	})
@@ -305,8 +312,7 @@ func (o Operations) SortByDuration() {
 // SortByThroughput will sort the operations by throughput.
 // Fastest operations first.
 func (o Operations) SortByThroughput() {
-	o.SortByStartTime()
-	sort.SliceStable(o, func(i, j int) bool {
+	sort.Slice(o, func(i, j int) bool {
 		a, b := o[i], o[j]
 		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
 		if a.Size == 0 || b.Size == 0 {
@@ -655,6 +661,12 @@ func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	}
 
 	return res
+}
+
+// Duration returns the full duration from start of first operation to end of the last.
+func (o Operations) Duration() time.Duration {
+	start, end := o.TimeRange()
+	return end.Sub(start)
 }
 
 // TimeRange returns the full time range from start of first operation to end of the last.

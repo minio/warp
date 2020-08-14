@@ -164,7 +164,6 @@ func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedR
 		if len(filtered) <= 1 {
 			continue
 		}
-		filtered.SortByDuration()
 		a := SingleSizedRequests{}
 		a.fill(filtered)
 		res[ep] = a

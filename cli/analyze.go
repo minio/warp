@@ -42,8 +42,8 @@ import (
 var analyzeFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "analyze.dur",
-		Value: "1s",
-		Usage: "Split analysis into durations of this length",
+		Value: "",
+		Usage: "Split analysis into durations of this length. Can be '1s', '5s', '1m', etc.",
 	},
 	cli.StringFlag{
 		Name:  "analyze.out",
@@ -231,7 +231,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		o = o.FilterByOp(wantOp)
 	}
 
-	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
+	aggr := aggregate.Aggregate(o, analysisDur(ctx, o.Duration()), ctx.Duration("analyze.skip"))
 	isMixed := o.IsMixed()
 	for _, ops := range aggr.Operations {
 		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), isMixed)
@@ -325,9 +325,10 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	if wrSegs == nil {
 		return
 	}
+	totalDur := ops.Duration()
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
-		PerSegDuration: analysisDur(ctx),
+		PerSegDuration: analysisDur(ctx, totalDur),
 		AllThreads:     allThreads,
 	})
 
@@ -343,7 +344,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 			ops := ops.FilterByEndpoint(ep)
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
-				PerSegDuration: analysisDur(ctx),
+				PerSegDuration: analysisDur(ctx, totalDur),
 				AllThreads:     allThreads,
 			})
 			if len(segs) <= 1 {
@@ -468,14 +469,32 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
 }
 
 // analysisDur returns the analysis duration or 0 if un-parsable.
-func analysisDur(ctx *cli.Context) time.Duration {
-	d, err := time.ParseDuration(ctx.String("analyze.dur"))
+func analysisDur(ctx *cli.Context, total time.Duration) time.Duration {
+	dur := ctx.String("analyze.dur")
+	if dur == "" {
+		if total == 0 {
+			return 0
+		}
+		// Find appropriate duration
+		// We want the smallest segmentation duration that produces at most this number of segments.
+		const wantAtMost = 400
+
+		// Standard durations to try:
+		stdDurations := []time.Duration{time.Second, 5 * time.Second, 15 * time.Second, time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour, 3 * time.Hour}
+		for _, d := range stdDurations {
+			dur = d.String()
+			if total/d <= wantAtMost {
+				break
+			}
+		}
+	}
+	d, err := time.ParseDuration(dur)
 	fatalIf(probe.NewError(err), "Invalid -analyze.dur value")
 	return d
 }
 
 func checkAnalyze(ctx *cli.Context) {
-	if analysisDur(ctx) == 0 {
+	if analysisDur(ctx, time.Minute) == 0 {
 		err := errors.New("-analyze.dur cannot be 0")
 		fatal(probe.NewError(err), "Invalid -analyze.dur value")
 	}
