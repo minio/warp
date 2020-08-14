@@ -184,4 +184,9 @@ var ioFlags = []cli.Flag{
 		Name:  "md5",
 		Usage: "Add MD5 sum to uploads",
 	},
+	cli.StringFlag{
+		Name:  "storage-class",
+		Value: "",
+		Usage: "Specify custom storage class, for instance 'STANDARD' or 'REDUCED_REDUNDANCY'.",
+	},
 }
