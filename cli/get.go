@@ -50,14 +50,11 @@ var getCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#get
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainGet is the entry point for get command.

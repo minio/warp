@@ -73,14 +73,11 @@ var versionedCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#mixed
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainVersioned is the entry point for mixed command.
