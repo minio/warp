@@ -56,10 +56,11 @@ type Operations struct {
 
 // Server contains the state of the running server.
 type Server struct {
-	status BenchmarkStatus
-	ops    bench.Operations
-	agrr   *aggregate.Aggregated
-	server *http.Server
+	status  BenchmarkStatus
+	ops     bench.Operations
+	agrr    *aggregate.Aggregated
+	server  *http.Server
+	cmdLine string
 
 	// Shutting down
 	ctx    context.Context
@@ -73,11 +74,12 @@ type Server struct {
 }
 
 // OperationsReady can be used to send benchmark data to the server.
-func (s *Server) OperationsReady(ops bench.Operations, filename string) {
+func (s *Server) OperationsReady(ops bench.Operations, filename, cmdLine string) {
 	s.mu.Lock()
 	s.status.DataReady = ops != nil
 	s.ops = ops
 	s.status.Filename = filename
+	s.cmdLine = cmdLine
 	s.mu.Unlock()
 }
 
@@ -216,7 +218,7 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	}
 	defer enc.Close()
 
-	err = ops.CSV(enc)
+	err = ops.CSV(enc, s.cmdLine)
 	if err != nil {
 		s.Errorln(err)
 		return

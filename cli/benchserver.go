@@ -196,13 +196,13 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
 			defer enc.Close()
-			err = allOps.CSV(enc)
+			err = allOps.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
 			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
 		}()
 	}
-	monitor.OperationsReady(allOps, fileName)
+	monitor.OperationsReady(allOps, fileName, commandLine(ctx))
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)

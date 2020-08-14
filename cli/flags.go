@@ -19,6 +19,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/minio/cli"
@@ -115,6 +116,24 @@ func setGlobals(quiet, debug, json, noColor bool) {
 	if globalNoColor || globalQuiet {
 		console.SetColorOff()
 	}
+}
+
+// commandLine attempts to reconstruct the commandline.
+func commandLine(ctx *cli.Context) string {
+	s := os.Args[0] + " " + ctx.Command.Name
+	for _, flag := range ctx.Command.Flags {
+		val, err := flagToJSON(ctx, flag)
+		if err != nil || val == "" {
+			continue
+		}
+		name := flag.GetName()
+		switch name {
+		case "access-key", "secret-key":
+			val = "*REDACTED*"
+		}
+		s += " --" + flag.GetName() + "=" + val
+	}
+	return s
 }
 
 // Flags common across all I/O commands such as cp, mirror, stat, pipe etc.
