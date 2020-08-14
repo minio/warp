@@ -73,14 +73,11 @@ var mixedCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#mixed
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainMixed is the entry point for mixed command.

@@ -45,14 +45,11 @@ var cmpCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS] before-benchmark-data-file after-benchmark-data-file
+  -> see https://github.com/minio/warp#comparing-benchmarks
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainAnalyze is the entry point for analyze command.

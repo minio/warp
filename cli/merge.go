@@ -51,14 +51,11 @@ var mergeCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS] benchmark-data-file1 benchmark-data-file2 ... 
+  -> see https://github.com/minio/warp#merging-benchmarks
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainAnalyze is the entry point for analyze command.

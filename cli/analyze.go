@@ -97,16 +97,13 @@ var analyzeCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS] benchmark-data-file
+  -> see https://github.com/minio/warp#analysis
 
 Use - as input to read from stdin.
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainAnalyze is the entry point for analyze command.
