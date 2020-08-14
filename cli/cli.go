@@ -195,7 +195,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	}
 
 	app.HideHelpCommand = true
-	app.Usage = "Benchmark tool for S3 compatible object storage systems."
+	app.Usage = "Benchmark tool for S3 compatible object storage systems.\n\tFor usage details see https://github.com/minio/warp"
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
