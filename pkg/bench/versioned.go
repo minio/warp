@@ -54,13 +54,14 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
-	{
+	if !g.Versioned {
 		cl, done := g.Client()
 		err := cl.EnableVersioning(ctx, g.Bucket)
 		done()
 		if err != nil {
 			return err
 		}
+		g.Versioned = true
 	}
 	src := g.Source()
 	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
