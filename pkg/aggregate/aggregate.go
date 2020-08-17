@@ -19,6 +19,7 @@ package aggregate
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/minio/warp/pkg/bench"
@@ -40,6 +41,8 @@ type Aggregated struct {
 type Operation struct {
 	// Operation type
 	Type string `json:"type"`
+	// N is the number of operations.
+	N int `json:"n"`
 	// Skipped if too little data
 	Skipped bool `json:"skipped"`
 	// Unfiltered start time of this operation segment.
@@ -78,7 +81,6 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		MixedThroughputByHost: nil,
 		segmentDur:            segmentDur,
 	}
-	res := make([]Operation, 0, len(types))
 	isMixed := o.IsMixed()
 	// Fill mixed only parts...
 	if isMixed {
@@ -103,96 +105,115 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 
 		eps := o.Endpoints()
 		a.MixedThroughputByHost = make(map[string]Throughput, len(eps))
-		for _, ep := range eps {
-			ops := o.FilterByEndpoint(ep)
-			t := Throughput{}
-			t.fill(ops.Total(false))
-			a.MixedThroughputByHost[ep] = t
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		wg.Add(len(eps))
+		for i := range eps {
+			go func(i int) {
+				defer wg.Done()
+				ep := eps[i]
+				ops := o.FilterByEndpoint(ep)
+				t := Throughput{}
+				t.fill(ops.Total(false))
+				mu.Lock()
+				a.MixedThroughputByHost[ep] = t
+				mu.Unlock()
+			}(i)
 		}
+		wg.Wait()
 	}
 
-	for _, typ := range types {
-		a := Operation{}
-		a.Type = typ
-		ops := o.FilterByOp(typ)
-		if skipDur > 0 {
-			start, end := ops.TimeRange()
-			start = start.Add(skipDur)
-			ops = ops.FilterInsideRange(start, end)
-		}
-
-		if errs := ops.FilterErrors(); len(errs) > 0 {
-			a.Errors = len(errs)
-			for _, err := range errs {
-				if len(a.FirstErrors) >= 10 {
-					break
-				}
-				a.FirstErrors = append(a.FirstErrors, fmt.Sprintf("%s, %s: %v", err.Endpoint, err.End.Round(time.Second), err.Err))
+	res := make([]Operation, len(types))
+	var wg sync.WaitGroup
+	wg.Add(len(types))
+	for i := range types {
+		go func(i int) {
+			typ := types[i]
+			a := Operation{}
+			// Save a and mark as done.
+			defer func() {
+				res[i] = a
+				wg.Done()
+			}()
+			a.Type = typ
+			ops := o.FilterByOp(typ)
+			if skipDur > 0 {
+				start, end := ops.TimeRange()
+				start = start.Add(skipDur)
+				ops = ops.FilterInsideRange(start, end)
 			}
-		}
 
-		// Remove errored request from further analysis
-		allOps := ops
-		ops = ops.FilterSuccessful()
-		if len(ops) == 0 {
-			a.Skipped = true
-			continue
-		}
+			if errs := ops.FilterErrors(); len(errs) > 0 {
+				a.Errors = len(errs)
+				for _, err := range errs {
+					if len(a.FirstErrors) >= 10 {
+						break
+					}
+					a.FirstErrors = append(a.FirstErrors, fmt.Sprintf("%s, %s: %v", err.Endpoint, err.End.Round(time.Second), err.Err))
+				}
+			}
 
-		segs := ops.Segment(bench.SegmentOptions{
-			From:           time.Time{},
-			PerSegDuration: segmentDur,
-			AllThreads:     !isMixed,
-		})
-		if len(segs) <= 1 {
-			a.Skipped = true
-			res = append(res, a)
-			continue
-		}
-		total := ops.Total(!isMixed)
-		a.StartTime, a.EndTime = ops.TimeRange()
-		a.Throughput.fill(total)
-		a.Throughput.Segmented = &ThroughputSegmented{
-			SegmentDurationMillis: durToMillis(segmentDur),
-		}
-		a.Throughput.Segmented.fill(segs, total)
-
-		a.ObjectsPerOperation = ops.FirstObjPerOp()
-		a.Concurrency = ops.Threads()
-		a.Hosts = ops.Hosts()
-
-		if !ops.MultipleSizes() {
-			a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed)
-		} else {
-			a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed)
-		}
-
-		eps := ops.Endpoints()
-		a.ThroughputByHost = make(map[string]Throughput, len(eps))
-		for _, ep := range eps {
-			// Use all ops to include errors.
-			ops := allOps.FilterByEndpoint(ep)
-			total := ops.Total(false)
-			var host Throughput
-			host.fill(total)
+			// Remove errored request from further analysis
+			allOps := ops
+			ops = ops.FilterSuccessful()
+			if len(ops) == 0 {
+				a.Skipped = true
+				return
+			}
 
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: segmentDur,
-				AllThreads:     false,
+				AllThreads:     !isMixed,
 			})
-
-			if len(segs) > 1 {
-				host.Segmented = &ThroughputSegmented{
-					SegmentDurationMillis: durToMillis(segmentDur),
-				}
-				host.Segmented.fill(segs, total)
+			a.N = len(ops)
+			if len(segs) <= 1 {
+				a.Skipped = true
+				return
 			}
-			a.ThroughputByHost[ep] = host
-		}
+			total := ops.Total(!isMixed)
+			a.StartTime, a.EndTime = ops.TimeRange()
+			a.Throughput.fill(total)
+			a.Throughput.Segmented = &ThroughputSegmented{
+				SegmentDurationMillis: durToMillis(segmentDur),
+			}
+			a.Throughput.Segmented.fill(segs, total)
+			a.ObjectsPerOperation = ops.FirstObjPerOp()
+			a.Concurrency = ops.Threads()
+			a.Hosts = ops.Hosts()
 
-		res = append(res, a)
+			if !ops.MultipleSizes() {
+				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed)
+			} else {
+				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed)
+			}
+
+			eps := ops.Endpoints()
+			a.ThroughputByHost = make(map[string]Throughput, len(eps))
+			for _, ep := range eps {
+				// Use all ops to include errors.
+				ops := allOps.FilterByEndpoint(ep)
+				total := ops.Total(false)
+				var host Throughput
+				host.fill(total)
+
+				segs := ops.Segment(bench.SegmentOptions{
+					From:           time.Time{},
+					PerSegDuration: segmentDur,
+					AllThreads:     false,
+				})
+
+				if len(segs) > 1 {
+					host.Segmented = &ThroughputSegmented{
+						SegmentDurationMillis: durToMillis(segmentDur),
+					}
+					host.Segmented.fill(segs, total)
+				}
+				a.ThroughputByHost[ep] = host
+			}
+		}(i)
 	}
+	wg.Wait()
 	a.Operations = res
 	return a
 }

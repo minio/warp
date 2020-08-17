@@ -18,6 +18,7 @@
 package aggregate
 
 import (
+	"sync"
 	"time"
 
 	"github.com/minio/warp/pkg/bench"
@@ -113,8 +114,10 @@ type MultiSizedRequests struct {
 	// Average object size
 	AvgObjSize int64 `json:"avg_obj_size"`
 
+	// BySize contains request times separated by sizes
 	BySize []RequestSizeRange `json:"by_size"`
 
+	// ByHost contains request information by host.
 	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
 }
 
@@ -127,14 +130,21 @@ func (a *MultiSizedRequests) fill(ops bench.Operations) {
 	}
 	a.AvgObjSize = ops.AvgSize()
 	sizes := ops.SplitSizes(0.05)
-	a.BySize = make([]RequestSizeRange, 0, len(sizes))
-	for _, s := range sizes {
-		var r RequestSizeRange
-		r.fill(s)
-		r.FirstByte = TtfbFromBench(s.Ops.TTFB(start, end))
-		// Store
-		a.BySize = append(a.BySize, r)
+	a.BySize = make([]RequestSizeRange, len(sizes))
+	var wg sync.WaitGroup
+	wg.Add(len(sizes))
+	for i := range sizes {
+		go func(i int) {
+			defer wg.Done()
+			s := sizes[i]
+			var r RequestSizeRange
+			r.fill(s)
+			r.FirstByte = TtfbFromBench(s.Ops.TTFB(start, end))
+			// Store
+			a.BySize[i] = r
+		}(i)
 	}
+	wg.Wait()
 }
 
 // RequestAnalysisSingleSized performs analysis where all objects have equal size.
@@ -159,16 +169,25 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedRequests {
 	eps := o.Endpoints()
 	res := make(map[string]SingleSizedRequests, len(eps))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wg.Add(len(eps))
 	for _, ep := range eps {
-		filtered := o.FilterByEndpoint(ep)
-		if len(filtered) <= 1 {
-			continue
-		}
-		filtered.SortByDuration()
-		a := SingleSizedRequests{}
-		a.fill(filtered)
-		res[ep] = a
+		go func(ep string) {
+			defer wg.Done()
+			filtered := o.FilterByEndpoint(ep)
+			if len(filtered) <= 1 {
+				return
+			}
+			filtered.SortByDuration()
+			a := SingleSizedRequests{}
+			a.fill(filtered)
+			mu.Lock()
+			res[ep] = a
+			mu.Unlock()
+		}(ep)
 	}
+	wg.Wait()
 	return res
 }
 
@@ -194,16 +213,25 @@ func RequestAnalysisHostsMultiSized(o bench.Operations) map[string]RequestSizeRa
 	eps := o.Endpoints()
 	res := make(map[string]RequestSizeRange, len(eps))
 	start, end := o.TimeRange()
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wg.Add(len(eps))
 	for _, ep := range eps {
-		filtered := o.FilterByEndpoint(ep)
-		if len(filtered) <= 1 {
-			continue
-		}
-		a := RequestSizeRange{}
-		a.fill(filtered.SingleSizeSegment())
-		a.FirstByte = TtfbFromBench(filtered.TTFB(start, end))
-		res[ep] = a
+		go func(ep string) {
+			defer wg.Done()
+			filtered := o.FilterByEndpoint(ep)
+			if len(filtered) <= 1 {
+				return
+			}
+			a := RequestSizeRange{}
+			a.fill(filtered.SingleSizeSegment())
+			a.FirstByte = TtfbFromBench(filtered.TTFB(start, end))
+			mu.Lock()
+			res[ep] = a
+			mu.Unlock()
+		}(ep)
 	}
+	wg.Wait()
 	return res
 }
 
