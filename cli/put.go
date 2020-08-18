@@ -46,14 +46,11 @@ var putCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#put
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainPut is the entry point for cp command.

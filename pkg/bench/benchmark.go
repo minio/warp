@@ -59,6 +59,8 @@ type Common struct {
 	// Clear bucket before benchmark
 	Clear           bool
 	PrepareProgress chan float64
+	// Does destination support versioning?
+	Versioned bool
 
 	// Auto termination is set when this is > 0.
 	AutoTermDur   time.Duration
@@ -90,6 +92,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	if !x {
 		console.Infof("Creating Bucket %q...\n", c.Bucket)
 		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
@@ -110,6 +113,10 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 			}
 		}
 	}
+	if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
+		c.Versioned = bvc.Status == "Enabled"
+	}
+
 	if c.Clear {
 		console.Infof("Clearing Bucket %q...\n", c.Bucket)
 		c.deleteAllInBucket(ctx)
@@ -128,6 +135,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	go func() {
 		select {
 		case <-time.After(time.Minute):
+			console.Infoln("deleting slow, active goroutines:")
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case <-finished:
 			return
@@ -155,7 +163,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 			}()
 
-			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: true})
+			objects := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true, WithVersions: c.Versioned})
 			for {
 				select {
 				case obj, ok := <-objects:

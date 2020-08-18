@@ -49,14 +49,11 @@ var listCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#list
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainDelete is the entry point for get command.

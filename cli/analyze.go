@@ -97,16 +97,13 @@ var analyzeCmd = cli.Command{
 
 USAGE:
   {{.HelpName}} [FLAGS] benchmark-data-file
+  -> see https://github.com/minio/warp#analysis
 
 Use - as input to read from stdin.
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainAnalyze is the entry point for analyze command.
@@ -264,9 +261,9 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		opo := ops.ObjectsPerOperation
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		if opo > 1 {
-			console.Printf("Operation: %v. Objects per operation: %d. Concurrency: %d. Hosts: %d.\n", typ, opo, ops.Concurrency, ops.Hosts)
+			console.Printf("Operation: %v (%d). Objects per operation: %d. Concurrency: %d. Hosts: %d.\n", typ, ops.N, opo, ops.Concurrency, ops.Hosts)
 		} else {
-			console.Printf("Operation: %v. Concurrency: %d. Hosts: %d.\n", typ, ops.Concurrency, ops.Hosts)
+			console.Printf("Operation: %v (%d). Concurrency: %d. Hosts: %d.\n", typ, ops.N, ops.Concurrency, ops.Hosts)
 		}
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))

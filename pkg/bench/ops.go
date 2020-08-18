@@ -389,6 +389,7 @@ func (o Operations) SetClientID(id string) {
 }
 
 // FilterByEndpoint returns operations run against a specific endpoint.
+// Always returns a copy.
 func (o Operations) FilterByEndpoint(endpoint string) Operations {
 	dst := make(Operations, 0, len(o))
 	for _, o := range o {

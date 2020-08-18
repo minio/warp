@@ -55,14 +55,11 @@ var deleteCmd = cli.Command{
   The benchmark will end when either all objects have been deleted or the durations specified with -duration has been reached. 
 USAGE:
   {{.HelpName}} [FLAGS]
+  -> see https://github.com/minio/warp#delete
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
-  {{end}}
-
-EXAMPLES:
-...
- `,
+  {{end}}`,
 }
 
 // mainDelete is the entry point for get command.
