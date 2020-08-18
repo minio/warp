@@ -55,10 +55,6 @@ var analyzeFlags = []cli.Flag{
 		Value: "",
 		Usage: "Only output for this op. Can be GET/PUT/DELETE, etc.",
 	},
-	cli.BoolFlag{
-		Name:  "analyze.errors",
-		Usage: "Print out errors",
-	},
 	cli.StringFlag{
 		Name:  "analyze.host",
 		Value: "",
@@ -73,14 +69,6 @@ var analyzeFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "analyze.v",
 		Usage: "Display additional analysis data.",
-	},
-	cli.BoolFlag{
-		Name:  "analyze.hostdetails",
-		Usage: "Do detailed time segmentation per host",
-	},
-	cli.BoolFlag{
-		Name:  "requests",
-		Usage: "Display individual request stats.",
 	},
 	cli.StringFlag{
 		Name:   serverFlagName,
@@ -148,8 +136,6 @@ func mainAnalyze(ctx *cli.Context) error {
 }
 
 func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details bool) {
-	hostDetails := ctx.Bool("analyze.hostdetails") && len(aggr.MixedThroughputByHost) > 1
-
 	console.SetColor("Print", color.New(color.FgWhite))
 	console.Println("Mixed operations.")
 
@@ -178,7 +164,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", ops.Errors)
-			if ctx.Bool("analyze.errors") {
+			if details {
 				for _, err := range ops.FirstErrors {
 					console.Println(err)
 				}
@@ -186,11 +172,11 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 			console.SetColor("Print", color.New(color.FgWhite))
 		}
 		eps := ops.ThroughputByHost
-		if len(eps) == 1 || !hostDetails {
+		if len(eps) == 1 || !details {
 			console.Println(" * Throughput:", ops.Throughput.StringDetails(details))
 		}
 
-		if len(eps) > 1 && hostDetails {
+		if len(eps) > 1 && details {
 			console.SetColor("Print", color.New(color.FgWhite))
 			console.Println("\nThroughput by host:")
 
@@ -204,15 +190,15 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 			}
 		}
 
-		if ctx.Bool("requests") {
-			printRequestAnalysis(ctx, ops)
+		if details {
+			printRequestAnalysis(ctx, ops, details)
 			console.SetColor("Print", color.New(color.FgWhite))
 		}
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
 	console.Println("\nCluster Total:", aggr.MixedServerStats.StringDetails(details))
 	console.SetColor("Print", color.New(color.FgWhite))
-	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && hostDetails {
+	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && details {
 		for ep, ops := range eps {
 			console.Println(" * "+ep+":", ops.StringDetails(details))
 		}
@@ -244,7 +230,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
-			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed)
+			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)
 		}
 	}
 
@@ -262,7 +248,6 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		printMixedOpAnalysis(ctx, aggr, details)
 		return
 	}
-	hostDetails := ctx.Bool("analyze.hostdetails") && len(aggr.MixedThroughputByHost) > 1
 
 	for i, ops := range aggr.Operations {
 		typ := ops.Type
@@ -297,14 +282,14 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", ops.Errors)
-			if ctx.Bool("analyze.errors") {
+			if details {
 				for _, err := range ops.FirstErrors {
 					console.Println(err)
 				}
 			}
 		}
-		if ctx.Bool("requests") {
-			printRequestAnalysis(ctx, ops)
+		if details {
+			printRequestAnalysis(ctx, ops, details)
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nThroughput:")
 		}
@@ -322,7 +307,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 					console.SetColor("Print", color.New(color.FgHiRed))
 					console.Println("Errors:", ops.Errors)
 				}
-				if hostDetails {
+				if details {
 					seg := ops.Segmented
 					console.SetColor("Print", color.New(color.FgWhite))
 					if seg == nil || len(seg.Segments) <= 1 {
@@ -347,7 +332,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	}
 }
 
-func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThreads bool) {
+func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThreads, details bool) {
 	if wrSegs == nil {
 		return
 	}
@@ -357,14 +342,13 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 		AllThreads:     allThreads,
 	})
 
-	hostDetails := ctx.Bool("analyze.hostdetails") && ops.Hosts() > 1
 	segs.SortByTime()
 	err := segs.CSV(wrSegs)
 	errorIf(probe.NewError(err), "Error writing analysis")
 
 	// Write segments per endpoint
 	eps := ops.Endpoints()
-	if hostDetails && len(eps) > 1 {
+	if details && len(eps) > 1 {
 		for _, ep := range eps {
 			ops := ops.FilterByEndpoint(ep)
 			segs := ops.Segment(bench.SegmentOptions{
@@ -388,9 +372,8 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	}
 }
 
-func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
+func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details bool) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	hostDetails := ctx.Bool("analyze.hostdetails")
 
 	if ops.SingleSizedRequests != nil {
 		reqs := *ops.SingleSizedRequests
@@ -417,7 +400,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
 		if reqs.FirstByte != nil {
 			console.Println(" * First Byte:", reqs.FirstByte)
 		}
-		if eps := reqs.ByHost; len(eps) > 1 && hostDetails {
+		if eps := reqs.ByHost; len(eps) > 1 && details {
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nRequests by host:")
 
@@ -471,7 +454,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation) {
 			console.Println(" * First Byte:", s.FirstByte)
 		}
 	}
-	if eps := reqs.ByHost; len(eps) > 1 && hostDetails {
+	if eps := reqs.ByHost; len(eps) > 1 && details {
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nRequests by host:")
 
