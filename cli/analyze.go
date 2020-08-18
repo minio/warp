@@ -71,6 +71,10 @@ var analyzeFlags = []cli.Flag{
 		Value:  0,
 	},
 	cli.BoolFlag{
+		Name:  "analyze.v",
+		Usage: "Display additional analysis data.",
+	},
+	cli.BoolFlag{
 		Name:  "analyze.hostdetails",
 		Usage: "Do detailed time segmentation per host",
 	},
@@ -143,7 +147,9 @@ func mainAnalyze(ctx *cli.Context) error {
 	return nil
 }
 
-func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
+func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details bool) {
+	hostDetails := ctx.Bool("analyze.hostdetails") && len(aggr.MixedThroughputByHost) > 1
+
 	console.SetColor("Print", color.New(color.FgWhite))
 	console.Println("Mixed operations.")
 
@@ -153,15 +159,21 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 	for _, ops := range aggr.Operations {
 		console.Println("")
 		console.SetColor("Print", color.New(color.FgHiWhite))
-		console.Println("Operation:", ops.Type)
+		pct := 0.0
+		if aggr.MixedServerStats.Operations > 0 {
+			pct = 100.0 * float64(ops.Throughput.Operations) / float64(aggr.MixedServerStats.Operations)
+		}
+		if !details {
+			console.Printf("Operation: %v, %d%%\n", ops.Type, int(pct+0.5))
+		} else {
+			console.Printf("Operation: %v - total: %v, %.01f%%\n", ops.Type, ops.Throughput.Operations, pct)
+		}
 		console.SetColor("Print", color.New(color.FgWhite))
 
 		if ops.Skipped {
 			console.Println("Skipping", ops.Type, "too few samples.")
 			continue
 		}
-		pct := 100.0 * float64(ops.Throughput.Operations) / float64(aggr.MixedServerStats.Operations)
-		console.Printf(" * Operations: %v (%.01f%% of operations)\n", ops.Throughput.Operations, pct)
 
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
@@ -174,17 +186,17 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 			console.SetColor("Print", color.New(color.FgWhite))
 		}
 		eps := ops.ThroughputByHost
-		if len(eps) == 1 {
-			console.Println(" * Throughput:", ops.Throughput)
+		if len(eps) == 1 || !hostDetails {
+			console.Println(" * Throughput:", ops.Throughput.StringDetails(details))
 		}
 
-		if len(eps) > 1 {
+		if len(eps) > 1 && hostDetails {
 			console.SetColor("Print", color.New(color.FgWhite))
 			console.Println("\nThroughput by host:")
 
 			for ep, totals := range eps {
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", totals.String(), "\n")
+				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), "\n")
 				if totals.Errors > 0 {
 					console.SetColor("Print", color.New(color.FgHiRed))
 					console.Println("Errors:", totals.Errors)
@@ -198,16 +210,17 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated) {
 		}
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	console.Println("\nCluster Total: ", aggr.MixedServerStats.String())
+	console.Println("\nCluster Total:", aggr.MixedServerStats.StringDetails(details))
 	console.SetColor("Print", color.New(color.FgWhite))
-	if eps := aggr.MixedThroughputByHost; len(eps) > 1 {
+	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && hostDetails {
 		for ep, ops := range eps {
-			console.Println(" * "+ep+": ", ops.String())
+			console.Println(" * "+ep+":", ops.StringDetails(details))
 		}
 	}
 }
 
 func printAnalysis(ctx *cli.Context, o bench.Operations) {
+	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer
 	if fn := ctx.String("analyze.out"); fn != "" {
 		if fn == "-" {
@@ -229,9 +242,10 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	}
 
 	aggr := aggregate.Aggregate(o, analysisDur(ctx), ctx.Duration("analyze.skip"))
-	isMixed := o.IsMixed()
-	for _, ops := range aggr.Operations {
-		writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), isMixed)
+	if wrSegs != nil {
+		for _, ops := range aggr.Operations {
+			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed)
+		}
 	}
 
 	if globalJSON {
@@ -244,15 +258,18 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		return
 	}
 
-	if isMixed {
-		printMixedOpAnalysis(ctx, aggr)
+	if aggr.Mixed {
+		printMixedOpAnalysis(ctx, aggr, details)
 		return
 	}
-	hostDetails := ctx.Bool("analyze.hostdetails") && o.Hosts() > 1
+	hostDetails := ctx.Bool("analyze.hostdetails") && len(aggr.MixedThroughputByHost) > 1
 
-	for _, ops := range aggr.Operations {
+	for i, ops := range aggr.Operations {
 		typ := ops.Type
-		console.Println("-------------------")
+		if i > 0 {
+			console.Println("\n-------------------")
+		}
+		fmt.Println("")
 		if ops.Skipped {
 			console.Println("Skipping", typ, "too few samples.")
 			continue
@@ -260,10 +277,22 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 
 		opo := ops.ObjectsPerOperation
 		console.SetColor("Print", color.New(color.FgHiWhite))
+		hostsString := ""
+		if ops.Hosts > 1 {
+			hostsString = fmt.Sprintf(" Hosts: %d.", ops.Hosts)
+		}
 		if opo > 1 {
-			console.Printf("Operation: %v (%d). Objects per operation: %d. Concurrency: %d. Hosts: %d.\n", typ, ops.N, opo, ops.Concurrency, ops.Hosts)
+			if details {
+				console.Printf("Operation: %v (%d). Objects per operation: %d. Concurrency: %d.%s\n", typ, ops.N, opo, ops.Concurrency, hostsString)
+			} else {
+				console.Printf("Operation: %v\n", typ)
+			}
 		} else {
-			console.Printf("Operation: %v (%d). Concurrency: %d. Hosts: %d.\n", typ, ops.N, ops.Concurrency, ops.Hosts)
+			if details {
+				console.Printf("Operation: %v (%d). Concurrency: %d.%s\n", typ, ops.N, ops.Concurrency, hostsString)
+			} else {
+				console.Printf("Operation: %v\n", typ)
+			}
 		}
 		if ops.Errors > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
@@ -280,7 +309,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			console.Println("\nThroughput:")
 		}
 		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println("* Average:", ops.Throughput)
+		console.Println("* Average:", ops.Throughput.StringDetails(details))
 
 		if eps := ops.ThroughputByHost; len(eps) > 1 {
 			console.SetColor("Print", color.New(color.FgHiWhite))
@@ -288,7 +317,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 
 			for ep, ops := range eps {
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", ops, "\n")
+				console.Print(" * ", ep, ": Avg: ", ops.StringDetails(details), "\n")
 				if ops.Errors > 0 {
 					console.SetColor("Print", color.New(color.FgHiRed))
 					console.Println("Errors:", ops.Errors)
@@ -310,11 +339,11 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		segs := ops.Throughput.Segmented
 		dur := time.Millisecond * time.Duration(segs.SegmentDurationMillis)
 		console.SetColor("Print", color.New(color.FgHiWhite))
-		console.Println("\nAggregated Throughput, split into", len(segs.Segments), "x", dur, "time segments:")
+		console.Print("\nThroughput, split into ", len(segs.Segments), " x ", dur, ":\n")
 		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println(" * Fastest:", aggregate.SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLong(dur))
-		console.Println(" * 50% Median:", aggregate.SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLong(dur))
-		console.Println(" * Slowest:", aggregate.SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLong(dur))
+		console.Println(" * Fastest:", aggregate.SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLong(dur, details))
+		console.Println(" * 50% Median:", aggregate.SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLong(dur, details))
+		console.Println(" * Slowest:", aggregate.SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLong(dur, details))
 	}
 }
 
