@@ -23,8 +23,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/minio/minio/pkg/console"
 )
 
 // Put benchmarks upload speed.
@@ -83,7 +81,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
-					console.Errorln("upload error:", err)
+					u.Error("upload error: ", err)
 					op.Err = err.Error()
 				}
 				obj.VersionID = res.VersionID
@@ -93,7 +91,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					if op.Err == "" {
 						op.Err = err
 					}
-					console.Errorln(err)
+					u.Error(err)
 				}
 				op.Size = res.Size
 				cldone()

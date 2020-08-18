@@ -159,7 +159,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -189,7 +189,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -200,7 +200,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -268,7 +268,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
 					fbr.r = o
 					if err != nil {
-						console.Errorln("download error:", err)
+						g.Error("download error:", err)
 						op.Err = err.Error()
 						op.End = time.Now()
 						rcv <- op
@@ -278,14 +278,14 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					n, err := io.Copy(ioutil.Discard, &fbr)
 					if err != nil {
-						console.Errorln("download error:", err)
+						g.Error("download error:", err)
 						op.Err = err.Error()
 					}
 					op.FirstByte = fbr.t
 					op.End = time.Now()
 					if n != obj.Size && op.Err == "" {
 						op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
-						console.Errorln(op.Err)
+						g.Error(op.Err)
 					}
 					rcv <- op
 					objDone()
@@ -308,17 +308,17 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
-						console.Errorln("upload error:", err)
+						g.Error("upload error:", err)
 						op.Err = err.Error()
 					}
 					obj.VersionID = res.VersionID
 
-					if res.Size != obj.Size {
+					if res.Size != obj.Size && op.Err == "" {
 						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
 						if op.Err == "" {
 							op.Err = err
 						}
-						console.Errorln(err)
+						g.Error(err)
 					}
 					clDone()
 					if op.Err == "" {
@@ -341,7 +341,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.End = time.Now()
 					clDone()
 					if err != nil {
-						console.Errorln("delete error:", err)
+						g.Error("delete error: ", err)
 						op.Err = err.Error()
 					}
 					rcv <- op
@@ -360,19 +360,19 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					var err error
 					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
 					if err != nil {
-						console.Errorln("stat error:", err)
+						g.Error("stat error: ", err)
 						op.Err = err.Error()
 					}
 					op.End = time.Now()
 					if objI.Size != obj.Size && op.Err == "" {
 						op.Err = fmt.Sprint("unexpected stat size. want:", obj.Size, ", got:", objI.Size)
-						console.Errorln(op.Err)
+						g.Error(op.Err)
 					}
 					rcv <- op
 					objDone()
 					clDone()
 				default:
-					console.Errorln("unknown operation:", operation)
+					g.Error("unknown operation: ", operation)
 				}
 			}
 		}(i)

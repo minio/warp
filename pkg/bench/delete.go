@@ -47,7 +47,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := d.Source()
-	console.Infoln("Uploading", d.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", d.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	d.Collector = NewCollector()
@@ -88,7 +88,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -100,7 +100,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 
 				if obj.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, obj.Size)
-					console.Error(err)
+					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -196,7 +196,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 						break
 					}
 					if err.Err != nil {
-						console.Errorln(err.Err)
+						d.Error(err.Err)
 						op.Err = err.Err.Error()
 					}
 				}

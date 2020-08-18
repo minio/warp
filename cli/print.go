@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"unicode"
 
+	"github.com/cheggaaa/pb"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio/pkg/console"
 )
@@ -40,6 +42,32 @@ type errorMessage struct {
 	Type      string             `json:"type"`
 	CallTrace []probe.TracePoint `json:"trace,omitempty"`
 	SysInfo   map[string]string  `json:"sysinfo"`
+}
+
+var printMu sync.Mutex
+
+func printInfo(data ...interface{}) {
+	printMu.Lock()
+	defer printMu.Unlock()
+	w, _ := pb.GetTerminalWidth()
+	if w > 0 {
+		fmt.Print("\r", strings.Repeat(" ", w), "\r")
+	} else {
+		data = append(data, "\n")
+	}
+	console.Info(data...)
+}
+
+func printError(data ...interface{}) {
+	printMu.Lock()
+	defer printMu.Unlock()
+	w, _ := pb.GetTerminalWidth()
+	if w > 0 {
+		fmt.Print("\r", strings.Repeat(" ", w), "\r")
+	} else {
+		data = append(data, "\n")
+	}
+	console.Errorln(data...)
 }
 
 // fatalIf wrapper function which takes error and selectively prints stack frames if available on debug
@@ -104,7 +132,7 @@ func fatal(err *probe.Error, msg string, data ...interface{}) {
 			errmsg += "."
 		}
 	}
-
+	fmt.Println("")
 	console.Fatalln(fmt.Sprintf("%s %s", msg, errmsg))
 }
 
@@ -144,5 +172,6 @@ func errorIf(err *probe.Error, msg string, data ...interface{}) {
 		console.Errorln(fmt.Sprintf("%s %s", msg, err.ToGoError()))
 		return
 	}
+	fmt.Println("")
 	console.Errorln(fmt.Sprintf("%s %s", msg, err))
 }

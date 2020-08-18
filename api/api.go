@@ -102,15 +102,15 @@ func (s *Server) Done() {
 	<-s.ctx.Done()
 }
 
-// Infoln allows to log data to the server.
+// InfoLn allows to log data to the server.
 // The server will update its status and send message upstream if set.
-func (s *Server) Infoln(data ...interface{}) {
+func (s *Server) InfoLn(data ...interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.infoln != nil {
 		s.infoln(data...)
 	}
-	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
+	s.status.LastStatus = strings.TrimSpace(fmt.Sprint(data...))
 }
 
 // InfoQuietln can be used to log data to the internal status only

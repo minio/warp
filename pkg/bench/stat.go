@@ -48,7 +48,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -89,7 +89,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -101,7 +101,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -165,7 +165,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				opts.VersionID = obj.VersionID
 				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Errorln("StatObject error:", err)
+					g.Error("StatObject error: ", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -175,7 +175,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.End = time.Now()
 				if objI.Size != obj.Size && op.Err == "" {
 					op.Err = fmt.Sprint("unexpected file size. want:", obj.Size, ", got:", objI.Size)
-					console.Errorln(op.Err)
+					g.Error(op.Err)
 				}
 				rcv <- op
 				cldone()
