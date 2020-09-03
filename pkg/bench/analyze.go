@@ -135,7 +135,9 @@ func (o Operations) OpThroughput() Throughput {
 
 // Segment will segment the operations o.
 // Operations should be of the same type.
+// Operations will be sorted by start time.
 func (o Operations) Segment(so SegmentOptions) Segments {
+	o.SortByStartTime()
 	if so.PerSegDuration <= 0 {
 		panic("internal error: so.PerSegDuration <= 0")
 	}
@@ -167,8 +169,18 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 			s.OpType = ""
 			s.ObjsPerOp = 0
 		}
-		for _, op := range o {
-			op.Aggregate(&s)
+		// Search for the first entry
+		first := 0
+		for i, op := range o {
+			if op.End.After(s.Start) {
+				break
+			}
+			first = i
+		}
+		for _, op := range o[first:] {
+			if op.Aggregate(&s) {
+				break
+			}
 		}
 		segments = append(segments, s)
 		segStart = segStart.Add(so.PerSegDuration)

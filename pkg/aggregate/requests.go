@@ -179,7 +179,6 @@ func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedR
 			if len(filtered) <= 1 {
 				return
 			}
-			filtered.SortByDuration()
 			a := SingleSizedRequests{}
 			a.fill(filtered)
 			mu.Lock()
