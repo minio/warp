@@ -64,7 +64,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 		g.Versioned = true
 	}
 	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -94,7 +94,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -105,7 +105,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -171,7 +171,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					getOpts.VersionID = obj.VersionID
 					fbr.r, err = client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
 					if err != nil {
-						console.Errorln("download error:", err)
+						g.Error("download error: ", err)
 						op.Err = err.Error()
 						op.End = time.Now()
 						rcv <- op
@@ -181,14 +181,14 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					}
 					n, err := io.Copy(ioutil.Discard, &fbr)
 					if err != nil {
-						console.Errorln("download error:", err)
+						g.Error("download error: ", err)
 						op.Err = err.Error()
 					}
 					op.FirstByte = fbr.t
 					op.End = time.Now()
 					if n != obj.Size && op.Err == "" {
 						op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
-						console.Errorln(op.Err)
+						g.Error(op.Err)
 					}
 					rcv <- op
 					objDone()
@@ -209,7 +209,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
-						console.Errorln("upload error:", err)
+						g.Error("upload error: ", err)
 						op.Err = err.Error()
 					}
 
@@ -219,7 +219,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						if op.Err == "" {
 							op.Err = err
 						}
-						console.Errorln(err)
+						g.Error(err)
 					}
 					op.Size = res.Size
 					clDone()
@@ -245,7 +245,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					op.End = time.Now()
 					clDone()
 					if err != nil {
-						console.Errorln("delete error:", err)
+						g.Error("delete error:", err)
 						op.Err = err.Error()
 					}
 					rcv <- op
@@ -265,19 +265,19 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					statOpts.VersionID = obj.VersionID
 					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
 					if err != nil {
-						console.Errorln("stat error:", err)
+						g.Error("stat error:", err)
 						op.Err = err.Error()
 					}
 					op.End = time.Now()
 					if objI.Size != obj.Size && op.Err == "" {
 						op.Err = fmt.Sprint("unexpected stat size. want:", obj.Size, ", got:", objI.Size)
-						console.Errorln(op.Err)
+						g.Error(op.Err)
 					}
 					rcv <- op
 					objDone()
 					clDone()
 				default:
-					console.Errorln("unknown operation:", operation)
+					g.Error("unknown operation:", operation)
 				}
 			}
 		}(i)

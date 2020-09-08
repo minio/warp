@@ -34,7 +34,7 @@ type progressBar struct {
 
 // newProgressBar - instantiate a progress bar.
 func newProgressBar(total int64, units pb.Units) *progressBar {
-	// Progress bar speific theme customization.
+	// Progress bar specific theme customization.
 	console.SetColor("Bar", color.New(color.FgGreen, color.Bold))
 
 	pgbar := progressBar{}
@@ -58,7 +58,9 @@ func newProgressBar(total int64, units pb.Units) *progressBar {
 
 	// Custom callback with colorized bar.
 	bar.Callback = func(s string) {
-		console.Print(console.Colorize("Bar", "\r"+s))
+		printMu.Lock()
+		defer printMu.Unlock()
+		console.Print(console.Colorize("Bar", "\r"+s+"\r"))
 	}
 
 	// Use different unicodes for Linux, OS X and Windows.

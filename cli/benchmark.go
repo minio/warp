@@ -96,6 +96,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	activeBenchmarkMu.Lock()
 	ab := activeBenchmark
 	activeBenchmarkMu.Unlock()
+	b.GetCommon().Error = printError
 	if ab != nil {
 		return runClientBenchmark(ctx, b, ab)
 	}
@@ -105,10 +106,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
-	monitor.SetLnLoggers(console.Infoln, console.Errorln)
+	monitor.SetLnLoggers(printInfo, printError)
 	defer monitor.Done()
 
-	monitor.Infoln("Preparing server.")
+	monitor.InfoLn("Preparing server.")
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")
@@ -128,9 +129,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		pg.ShowFinalTime = true
 		go func() {
 			defer close(pgDone)
-			defer pg.FinishPrint("\n")
+			defer pg.Finish()
 			tick := time.Tick(time.Millisecond * 125)
 			pg.Set(-1)
+			pg.SetCaption("Preparing: ")
 			newVal := int64(-1)
 			for {
 				select {
@@ -183,7 +185,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	start := make(chan struct{})
 	go func() {
 		<-time.After(time.Until(tStart))
-		monitor.Infoln("Benchmark starting...")
+		monitor.InfoLn("Benchmark starting...")
 		close(start)
 	}()
 
@@ -195,13 +197,14 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	monitor.Infoln("Starting benchmark in", time.Until(tStart).Round(time.Second), "...")
+	monitor.InfoLn("Starting benchmark in ", time.Until(tStart).Round(time.Second), "...")
 	pgDone = make(chan struct{})
 	if !globalQuiet && !globalJSON {
 		pg := newProgressBar(int64(benchDur), pb.U_DURATION)
 		go func() {
 			defer close(pgDone)
-			defer pg.FinishPrint("\n")
+			defer pg.Finish()
+			pg.SetCaption("Benchmarking:")
 			tick := time.Tick(time.Millisecond * 125)
 			done := ctx2.Done()
 			for {
@@ -229,6 +232,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	<-pgDone
 
 	// Previous context is canceled, create a new...
+	monitor.InfoLn("Saving benchmark data...")
 	ctx2 = context.Background()
 	ops.SortByStartTime()
 	ops.SetClientID(cID)
@@ -247,16 +251,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			err = ops.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			monitor.Infoln(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+			monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
 	monitor.OperationsReady(ops, fileName, commandLine(ctx))
 	printAnalysis(ctx, ops)
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
-		monitor.Infoln("Starting cleanup...")
+		monitor.InfoLn("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
-	monitor.Infoln("Cleanup Done.")
+	monitor.InfoLn("Cleanup Done.")
 	return nil
 }
 

@@ -50,7 +50,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -92,7 +92,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -103,7 +103,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -187,7 +187,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				opts.VersionID = obj.VersionID
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
-					console.Errorln("download error:", err)
+					g.Error("download error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -197,14 +197,14 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				fbr.r = o
 				n, err := io.Copy(ioutil.Discard, &fbr)
 				if err != nil {
-					console.Errorln("download error:", err)
+					g.Error("download error:", err)
 					op.Err = err.Error()
 				}
 				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != obj.Size && op.Err == "" {
 					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
-					console.Errorln(op.Err)
+					g.Error(op.Err)
 				}
 				rcv <- op
 				cldone()
