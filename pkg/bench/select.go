@@ -50,7 +50,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
-	console.Infoln("Uploading", g.CreateObjects, "Objects of", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -91,7 +91,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -102,7 +102,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					g.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -168,7 +168,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)
 				fbr.r = o
 				if err != nil {
-					console.Errorln("download error:", err)
+					g.Error("download error: ", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -176,7 +176,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					continue
 				}
 				if _, err = io.Copy(ioutil.Discard, &fbr); err != nil {
-					console.Errorln("download error:", err)
+					g.Error("download error: ", err)
 					op.Err = err.Error()
 					op.Size = 0
 				}

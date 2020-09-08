@@ -32,7 +32,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
-	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -92,11 +91,12 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if len(conns.hosts) == 0 {
 		return true, errors.New("no hosts")
 	}
+	conns.info = printInfo
 	defer conns.closeAll()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
-	monitor.SetLnLoggers(console.Infoln, console.Errorln)
-	var infoLn = monitor.Infoln
+	monitor.SetLnLoggers(printInfo, printError)
+	var infoLn = monitor.InfoLn
 	var errorLn = monitor.Errorln
 
 	var allOps bench.Operations
@@ -138,7 +138,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		if resp.Err != "" {
 			fatalIf(probe.NewError(errors.New(resp.Err)), "Error received from warp client")
 		}
-		console.Infof("Client %v connected...\n", conns.hostName(i))
+		infoLn("Client ", conns.hostName(i), " connected...")
 		// Assume ok.
 	}
 	infoLn("All clients connected...")
@@ -160,6 +160,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		errorLn("Failed to start all clients", err)
 	}
+	infoLn("Running benchmark on all clients...")
 	err = conns.waitForStage(stageBenchmark, false)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
@@ -199,10 +200,12 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			err = allOps.CSV(enc, commandLine(ctx))
 			fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 		}()
 	}
 	monitor.OperationsReady(allOps, fileName, commandLine(ctx))
+	printAnalysis(ctx, allOps)
+
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)
@@ -211,7 +214,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
-	printAnalysis(ctx, allOps)
+	infoLn("Cleanup done.\n")
 
 	return true, nil
 }
@@ -221,6 +224,8 @@ type connections struct {
 	hosts []string
 	ws    []*websocket.Conn
 	si    serverInfo
+	info  func(data ...interface{})
+	errLn func(data ...interface{})
 }
 
 // newConnections creates connections (but does not connect) to clients.
@@ -234,6 +239,10 @@ func newConnections(hosts []string) *connections {
 	c.hosts = hosts
 	c.ws = make([]*websocket.Conn, len(hosts))
 	return &c
+}
+
+func (c *connections) errorF(format string, data ...interface{}) {
+	c.errLn(fmt.Sprintf(format, data...))
 }
 
 // closeAll will close all connections.
@@ -258,7 +267,7 @@ func (c *connections) hostName(i int) string {
 // hostName returns the remote host name of a connection.
 func (c *connections) disconnect(i int) {
 	if c.ws[i] != nil {
-		console.Infoln("Disconnecting client", c.hostName(i))
+		c.info("Disconnecting client: ", c.hostName(i))
 		c.ws[i].WriteJSON(serverRequest{Operation: serverReqDisconnect})
 		c.ws[i].Close()
 		c.ws[i] = nil
@@ -278,7 +287,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 		conn := c.ws[i]
 		err := conn.WriteJSON(req)
 		if err != nil {
-			console.Error(err)
+			c.errLn(err)
 			if err := c.connect(i); err == nil {
 				continue
 			}
@@ -287,7 +296,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 		var resp clientReply
 		err = conn.ReadJSON(&resp)
 		if err != nil {
-			console.Error(err)
+			c.errLn(err)
 			if err := c.connect(i); err == nil {
 				continue
 			}
@@ -307,7 +316,7 @@ func (c *connections) connect(i int) error {
 				host += ":" + strconv.Itoa(warpServerDefaultPort)
 			}
 			u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-			console.Infoln("Connecting to", u.String())
+			c.info("Connecting to ", u.String())
 			var err error
 			c.ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
 			if err != nil {
@@ -342,7 +351,7 @@ func (c *connections) connect(i int) error {
 			c.ws[i] = nil
 			return err
 		}
-		console.Errorf("Connection failed:%v, retrying...\n", err)
+		c.errorF("Connection failed:%v, retrying...\n", err)
 		tries++
 		time.Sleep(time.Second)
 	}
@@ -360,10 +369,10 @@ func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error
 		return err
 	}
 	if resp.Err != "" {
-		console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+		c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 		return errors.New(resp.Err)
 	}
-	console.Infof("Client %v: Requested stage %v start..\n", c.hostName(i), stage)
+	c.info("Client ", c.hostName(i), ": Requested stage ", stage, " start...")
 	return nil
 }
 
@@ -372,7 +381,7 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 	var wg sync.WaitGroup
 	var gerr error
 	var mu sync.Mutex
-	console.Infof("Requesting stage %v start...\n", stage)
+	c.info("Requesting stage ", stage, " start...")
 
 	for i, conn := range c.ws {
 		if conn == nil {
@@ -386,7 +395,7 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 				if failOnErr {
 					fatalIf(probe.NewError(err), "Stage start failed.")
 				}
-				console.Errorln("Starting stage error:", err)
+				c.errLn("Starting stage error:", err)
 				mu.Lock()
 				if gerr == nil {
 					gerr = err
@@ -405,7 +414,7 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 func (c *connections) downloadOps() []bench.Operations {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	console.Infof("Downloading operations...\n")
+	c.info("Downloading operations...")
 	res := make([]bench.Operations, 0, len(c.ws))
 	for i, conn := range c.ws {
 		if conn == nil {
@@ -420,10 +429,10 @@ func (c *connections) downloadOps() []bench.Operations {
 					return
 				}
 				if resp.Err != "" {
-					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+					c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
-				console.Infof("Client %v: Operations downloaded.\n", c.hostName(i))
+				c.info("Client ", c.hostName(i), ": Operations downloaded.")
 
 				mu.Lock()
 				res = append(res, resp.Ops)
@@ -458,7 +467,7 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 					if failOnErr {
 						fatalIf(probe.NewError(err), "Stage failed.")
 					}
-					console.Errorln(err)
+					c.errLn(err)
 					return
 				}
 				if resp.Err != "" {
@@ -466,11 +475,11 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 					if failOnErr {
 						fatalIf(probe.NewError(errors.New(resp.Err)), "Stage failed. Client %v returned error.", c.hostName(i))
 					}
-					console.Errorf("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+					c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
 				if resp.StageInfo.Finished {
-					console.Infof("Client %v: Finished stage %v...\n", c.hostName(i), stage)
+					c.info("Client ", c.hostName(i), ": Finished stage ", stage, "...")
 					return
 				}
 				time.Sleep(time.Second)

@@ -19,6 +19,7 @@ package bench
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"runtime/pprof"
@@ -68,6 +69,9 @@ type Common struct {
 
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
+
+	// Error should log an error similar to fmt.Print(data...)
+	Error func(data ...interface{})
 }
 
 const (
@@ -83,6 +87,10 @@ func (c *Common) GetCommon() *Common {
 	return c
 }
 
+func (c *Common) ErrorF(format string, data ...interface{}) {
+	c.Error(fmt.Sprintf(format, data...))
+}
+
 // createEmptyBucket will create an empty bucket
 // or delete all content if it already exists.
 func (c *Common) createEmptyBucket(ctx context.Context) error {
@@ -94,7 +102,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 
 	if !x {
-		console.Infof("Creating Bucket %q...\n", c.Bucket)
+		console.Infof("\rCreating Bucket %q...", c.Bucket)
 		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
 			Region: c.Location,
 		})
@@ -118,7 +126,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 
 	if c.Clear {
-		console.Infof("Clearing Bucket %q...\n", c.Bucket)
+		console.Infof("\rClearing Bucket %q...", c.Bucket)
 		c.deleteAllInBucket(ctx)
 	}
 	return nil
@@ -135,7 +143,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	go func() {
 		select {
 		case <-time.After(time.Minute):
-			console.Infoln("deleting slow, active goroutines:")
+			console.Infoln("\ndeleting slow, active goroutines:")
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case <-finished:
 			return
@@ -159,7 +167,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				// Wait for deletes to finish
 				err := <-errCh
 				if err.Err != nil {
-					console.Error(err.Err)
+					c.Error(err.Err)
 				}
 			}()
 
@@ -171,7 +179,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 						return
 					}
 					if obj.Err != nil {
-						console.Error(obj.Err)
+						c.Error(obj.Err)
 						continue
 					}
 				sendNext:
@@ -183,11 +191,11 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 						}:
 							break sendNext
 						case err := <-errCh:
-							console.Error(err)
+							c.Error(err)
 						}
 					}
 				case err := <-errCh:
-					console.Error(err)
+					c.Error(err)
 				}
 			}
 		}(prefix)

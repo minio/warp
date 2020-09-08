@@ -50,9 +50,9 @@ func (d *List) Prepare(ctx context.Context) error {
 	src := d.Source()
 	objPerPrefix := d.CreateObjects / d.Concurrency
 	if d.NoPrefix {
-		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with no prefixes")
+		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects of ", src.String(), " with no prefixes")
 	} else {
-		console.Infoln("Uploading", objPerPrefix*d.Concurrency, "Objects of", src.String(), "with", d.Concurrency, "prefixes")
+		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects of ", src.String(), " with ", d.Concurrency, " prefixes")
 	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
@@ -100,7 +100,7 @@ func (d *List) Prepare(ctx context.Context) error {
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
-					console.Error(err)
+					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -111,7 +111,7 @@ func (d *List) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 				if res.Size != obj.Size {
 					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					console.Error(err)
+					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
 						groupErr = err
@@ -192,7 +192,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 						break
 					}
 					if err.Err != nil {
-						console.Errorln(err.Err)
+						d.Error(err.Err)
 						op.Err = err.Err.Error()
 					}
 					op.ObjPerOp++
