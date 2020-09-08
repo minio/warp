@@ -497,7 +497,7 @@ func (o Operations) MultipleSizes() bool {
 	}
 	sz := o[0].Size
 	for _, op := range o {
-		if len(op.Err) != 0 && op.Size != sz {
+		if len(op.Err) == 0 && op.Size != sz {
 			return true
 		}
 	}

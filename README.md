@@ -65,7 +65,7 @@ It is possible to choose a simple round-robin algorithm by using the `--host-sel
 If there is only one host this parameter has no effect.
 
 When benchmarks are done per host averages will be printed out. 
-For further details, the `--analyze.hostdetails` parameter can also be used.
+For further details, the `--analyze.v` parameter can also be used.
 
 # Distributed Benchmarking
 
@@ -168,34 +168,34 @@ Example of objects (horizontally) and their sizes, 100MB max:
 
 ![objects (horizontally) and their sizes](https://user-images.githubusercontent.com/5663952/71828619-83381480-3057-11ea-9d6c-ff03607a66a7.png)
 
-To see segmented request statistics, use the `-requests` parameter.
+To see segmented request statistics, use the `--analyze.v` parameter.
 
 ```
-λ warp analyze warp-get-2020-01-07[024225]-QWK3.csv.zst -requests -analyze.op=GET
--------------------
-Operation: GET. Concurrency: 12. Hosts: 1.
+λ warp analyze --analyze.op=GET --analyze.v warp-get-2020-08-18[190338]-6Nha.csv.zst
 
-Requests considered: 1970. Multiple sizes, average 18982515 bytes:
+Operation: GET (78188). Concurrency: 32.
 
-Request size 100B -> 100KiB. Requests - 274:
- * Throughput: Average: 9.5MiB/s, 50%: 8.8MiB/s, 90%: 1494.8KB/s, 99%: 167.3KB/s, Fastest: 95.8MiB/s, Slowest: 154.8KB/s
- * First Byte: Average: 4.131413ms, Median: 3.9898ms, Best: 994.4µs, Worst: 80.7834ms
+Requests considered: 78123. Multiple sizes, average 1832860 bytes:
 
-Request size 100KiB -> 10MiB. Requests - 971:
- * Throughput: Average: 62.8MiB/s, 50%: 49.7MiB/s, 90%: 39.5MiB/s, 99%: 33.3MiB/s, Fastest: 1171.5MiB/s, Slowest: 6.6MiB/s
- * First Byte: Average: 5.276378ms, Median: 4.9864ms, Best: 993.7µs, Worst: 148.6016ms
+Request size 1 B -> 10 KiB. Requests - 10836:
+ * Throughput: Average: 1534.6KiB/s, 50%: 1571.9KiB/s, 90%: 166.0KiB/s, 99%: 6.6KiB/s, Fastest: 9.7MiB/s, Slowest: 1124.8B/s
+ * First Byte: Average: 3ms, Median: 2ms, Best: 1ms, Worst: 39ms
 
-Request size 10MiB -> 100MiB. Requests - 835:
- * Throughput: Average: 112.3MiB/s, 50%: 98.3MiB/s, 90%: 59.4MiB/s, 99%: 47.5MiB/s, Fastest: 1326.3MiB/s, Slowest: 45.8MiB/s
- * First Byte: Average: 4.186514ms, Median: 4.9863ms, Best: 990.2µs, Worst: 16.9915ms
+Request size 10KiB -> 1MiB. Requests - 38219:
+ * Throughput: Average: 73.5MiB/s, 50%: 66.4MiB/s, 90%: 27.0MiB/s, 99%: 13.6MiB/s, Fastest: 397.6MiB/s, Slowest: 3.1MiB/s
+ * First Byte: Average: 3ms, Median: 2ms, Best: 1ms, Worst: 41ms
+
+Request size 1MiB -> 10MiB. Requests - 33091:
+ * Throughput: Average: 162.1MiB/s, 50%: 159.4MiB/s, 90%: 114.3MiB/s, 99%: 80.3MiB/s, Fastest: 505.4MiB/s, Slowest: 22.4MiB/s
+ * First Byte: Average: 3ms, Median: 2ms, Best: 1ms, Worst: 40ms
 
 Throughput:
-* Average: 1252.19 MiB/s, 68.58 obj/s (28.885s, starting 02:42:27 PST)
+* Average: 4557.04 MiB/s, 2604.96 obj/s (29.901s, starting 19:03:41 CEST)
 
-Aggregated Throughput, split into 28 x 1s time segments:
- * Fastest: 1611.21 MiB/s, 64.32 obj/s (1s, starting 02:42:40 PST)
- * 50% Median: 1240.15 MiB/s, 74.85 obj/s (1s, starting 02:42:41 PST)
- * Slowest: 1061.56 MiB/s, 47.76 obj/s (1s, starting 02:42:44 PST)
+Throughput, split into 29 x 1s:
+ * Fastest: 4812.4MiB/s, 2711.62 obj/s (1s, starting 19:03:41 CEST)
+ * 50% Median: 4602.6MiB/s, 2740.27 obj/s (1s, starting 19:03:56 CEST)
+ * Slowest: 4287.0MiB/s, 2399.84 obj/s (1s, starting 19:03:53 CEST)
 ```
 
 ## Automatic Termination
@@ -258,22 +258,6 @@ Operation: DELETE
  * 78.91 obj/s (59.927s, starting 07:44:05 PST) (10.0% of operations)
 ```
 
-It is possible to get request statistics by adding the `--requests` parameter:
-```
-λ warp mixed --duration=1m --requests
-Mixed operations.
-
-Operation: GET
- * 725.42 MiB/s, 72.54 obj/s (59.961s, starting 07:07:34 PST) (45.0% of operations)
-
-Requests considered: 4304:
- * Avg: 131ms 50%: 124ms 90%: 300ms 99%: 495ms Fastest: 7ms Slowest: 700ms
- * First Byte: Average: 6ms, Median: 3ms, Best: 0s, Worst: 185ms
-
-[...]
-```
-
-If multiple hosts were used statistics for each host will also be displayed.
 
 A similar benchmark is called `versioned` which operates on versioned objects.
 
@@ -291,16 +275,16 @@ The analysis will include the upload stats as `PUT` operations and the `GET` ope
 
 ```
 Operation: GET
-* Average: 2344.50 MiB/s, 234.45 obj/s, 234.44 ops ended/s (59.119s)
+* Average: 94.10 MiB/s, 9866.97 obj/s
 
-Aggregated, split into 59 x 1s time segments:
-* Fastest: 2693.83 MiB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
-* 50% Median: 2419.56 MiB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
-* Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
+Throughput, split into 299 x 1s:
+ * Fastest: 99.8MiB/s, 10468.54 obj/s
+ * 50% Median: 94.4MiB/s, 9893.37 obj/s
+ * Slowest: 69.4MiB/s, 7279.03 obj/s
 ```
 
 The `GET` operations will contain the time until the first byte was received.
-This can be accessed using the `-requests` parameter.
+This can be accessed using the `--analyze.v` parameter.
 
 ## PUT
 
@@ -310,12 +294,12 @@ Objects will be uploaded with `--concurrent` different prefixes, except if `--no
 
 ```
 Operation: PUT
-* Average: 971.75 MiB/s, 97.18 obj/s, 97.16 ops ended/s (59.417s)
+* Average: 10.06 MiB/s, 1030.01 obj/s
 
-Aggregated, split into 59 x 1s time segments:
-* Fastest: 1591.40 MiB/s, 159.14 obj/s, 161.00 ops ended/s (1s)
-* 50% Median: 919.79 MiB/s, 91.98 obj/s, 95.00 ops ended/s (1s)
-* Slowest: 347.95 MiB/s, 34.80 obj/s, 32.00 ops ended/s (1s)
+Throughput, split into 59 x 1s:
+ * Fastest: 11.3MiB/s, 1159.69 obj/s
+ * 50% Median: 10.3MiB/s, 1059.06 obj/s
+ * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
 It is possible by forcing md5 checksums on data by using the `--md5` option. 
@@ -332,13 +316,13 @@ If there are no more objects left the benchmark will end.
 The analysis will include the upload stats as `PUT` operations and the `DELETE` operations.
 
 ```
-Operation: DELETE 100 objects per operation
-* Average: 2520.27 obj/s, 25.03 ops ended/s (38.554s)
+Operation: DELETE
+* Average: 10.06 MiB/s, 1030.01 obj/s
 
-Aggregated, split into 38 x 1s time segments:
-* Fastest: 2955.85 obj/s, 36.00 ops ended/s (1s)
-* 50% Median: 2538.10 obj/s, 25.00 ops ended/s (1s)
-* Slowest: 1919.86 obj/s, 23.00 ops ended/s (1s)
+Throughput, split into 59 x 1s:
+ * Fastest: 11.3MiB/s, 1159.69 obj/s
+ * 50% Median: 10.3MiB/s, 1059.06 obj/s
+ * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
 ## LIST
@@ -347,16 +331,16 @@ Benchmarking list operations will upload `--objects` objects of size `--obj.size
 The list operations are done per prefix.
 
 The analysis will include the upload stats as `PUT` operations and the `LIST` operations separately. 
-The time from request start to first object is recorded as well and can be accessed using the `--requests` parameter.
+The time from request start to first object is recorded as well and can be accessed using the `--analyze.v` parameter.
 
 ```
-Operation: LIST 833 objects per operation
-* Average: 30991.05 obj/s, 37.10 ops ended/s (59.387s)
+Operation: LIST
+* Average: 10.06 MiB/s, 1030.01 obj/s
 
-Aggregated, split into 59 x 1s time segments:
-* Fastest: 31831.96 obj/s, 39.00 ops ended/s (1s)
-* 50% Median: 31199.61 obj/s, 38.00 ops ended/s (1s)
-* Slowest: 27917.33 obj/s, 35.00 ops ended/s (1s)
+Throughput, split into 59 x 1s:
+ * Fastest: 11.3MiB/s, 1159.69 obj/s
+ * 50% Median: 10.3MiB/s, 1059.06 obj/s
+ * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
 ## STAT
@@ -373,13 +357,13 @@ Example:
 $ warp stat --autoterm
 [...]
 -------------------
-Operation: STAT. Concurrency: 12. Hosts: 1.
-* Average: 9536.72 obj/s (36.592s, starting 04:46:38 PST)
+Operation: STAT
+* Average: 10.06 MiB/s, 1030.01 obj/s
 
-Aggregated Throughput, split into 36 x 1s time segments:
- * Fastest: 10259.67 obj/s (1s, starting 04:46:38 PST)
- * 50% Median: 9585.33 obj/s (1s, starting 04:47:05 PST)
- * Slowest: 8897.26 obj/s (1s, starting 04:47:06 PST)
+Throughput, split into 59 x 1s:
+ * Fastest: 11.3MiB/s, 1159.69 obj/s
+ * 50% Median: 10.3MiB/s, 1059.06 obj/s
+ * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
 # Analysis
@@ -397,21 +381,21 @@ The data aggregation will *start* when all threads have completed one request
 This is to exclude variations due to warm-up and threads finishing at different times.
 Therefore the analysis time will typically be slightly below the selected benchmark duration.
 
-In this run "only" 42.9 seconds are included in the aggregate data, due to big payload size and low throughput:
+Example:
 ```
-Operation: PUT
-* Average: 37.19 MiB/s, 0.37 obj/s, 0.33 ops ended/s (42.957s)
+Operation: GET
+* Average: 92.05 MiB/s, 9652.01 obj/s
 ```
 
-The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`, default 1s. 
+The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`. 
 For each segment the throughput is calculated across all threads.
 
 The analysis output will display the fastest, slowest and 50% median segment.
 ```
-Aggregated, split into 59 x 1s time segments:
-* Fastest: 2693.83 MiB/s, 269.38 obj/s, 269.00 ops ended/s (1s)
-* 50% Median: 2419.56 MiB/s, 241.96 obj/s, 240.00 ops ended/s (1s)
-* Slowest: 1137.36 MiB/s, 113.74 obj/s, 112.00 ops ended/s (1s)
+Throughput, split into 59 x 1s:
+ * Fastest: 97.9MiB/s, 10269.68 obj/s
+ * 50% Median: 95.1MiB/s, 9969.63 obj/s
+ * Slowest: 66.3MiB/s, 6955.70 obj/s
 ```
 
 ### Analysis Parameters
@@ -419,7 +403,7 @@ Aggregated, split into 59 x 1s time segments:
 Beside the important `--analysis.dur` which specifies the time segment size for 
 aggregated data there are some additional parameters that can be used.
 
-Specifying `--analyze.hostdetails` will output time aggregated data per host instead of just averages. 
+Specifying `--analyze.v` will output time aggregated data per host instead of just averages. 
 For instance:
 
 ```
@@ -448,7 +432,7 @@ since the start time will still be aligned with requests starting.
 
 ### Per Request Statistics
 
-By adding the `--requests` parameter it is possible to display per request statistics.
+By adding the `--analysis.v` parameter it is possible to display per request statistics.
 
 This is not enabled by default, since it is assumed the benchmarks are throughput limited,
 but in certain scenarios it can be useful to determine problems with individual hosts for instance.
@@ -456,34 +440,31 @@ but in certain scenarios it can be useful to determine problems with individual 
 Example:
 
 ```
-Operation: GET. Concurrency: 12. Hosts: 7.
+Operation: GET - total: 84886, 45.2%
 
-Requests - 16720:
- * Fastest: 2.9965ms Slowest: 62.9993ms 50%: 21.0006ms 90%: 31.0021ms 99%: 41.0016ms
- * First Byte: Average: 20.575134ms, Median: 20.0007ms, Best: 1.9985ms, Worst: 62.9993ms
+Throughput by host:
+ * http://127.0.0.1:9001: Avg: 0.28 MiB/s, 73.09 obj/s (4m59.862s, starting 17:47:25 CEST)
+ * http://127.0.0.1:9002: Avg: 0.27 MiB/s, 69.98 obj/s (4m59.932s, starting 17:47:25 CEST)
+ * http://127.0.0.1:9003: Avg: 0.27 MiB/s, 70.06 obj/s (4m59.963s, starting 17:47:25 CEST)
+ * http://127.0.0.1:9004: Avg: 0.27 MiB/s, 69.91 obj/s (4m59.969s, starting 17:47:25 CEST)
+
+Requests considered: 84887:
+ * Avg: 33ms 50%: 9ms 90%: 78ms 99%: 474ms Fastest: 2ms Slowest: 2.518s
+ * First Byte: Average: 31ms, Median: 7ms, Best: 1ms, Worst: 2.517s
 
 Requests by host:
- * http://127.0.0.1:9001 - 2395 requests:
-        - Fastest: 2.9965ms Slowest: 55.0015ms 50%: 18.0002ms 90%: 28.001ms
-        - First Byte: Average: 17.139147ms, Median: 16.9998ms, Best: 1.9985ms, Worst: 53.0026ms
- * http://127.0.0.1:9002 - 2395 requests:
-        - Fastest: 4.999ms Slowest: 60.9925ms 50%: 20.9993ms 90%: 31.001ms
-        - First Byte: Average: 20.174683ms, Median: 19.9996ms, Best: 3.999ms, Worst: 59.9912ms
- * http://127.0.0.1:9003 - 2395 requests:
-        - Fastest: 6.9988ms Slowest: 56.0005ms 50%: 20.9978ms 90%: 31.001ms
-        - First Byte: Average: 20.272876ms, Median: 19.9983ms, Best: 5.0012ms, Worst: 55.0012ms
- * http://127.0.0.1:9004 - 2395 requests:
-        - Fastest: 5.0002ms Slowest: 62.9993ms 50%: 22.0009ms 90%: 33.001ms
-        - First Byte: Average: 22.039164ms, Median: 21.0015ms, Best: 4.0003ms, Worst: 62.9993ms
- * http://127.0.0.1:9005 - 2396 requests:
-        - Fastest: 6.9934ms Slowest: 54.002ms 50%: 21.0008ms 90%: 30.9998ms
-        - First Byte: Average: 20.871833ms, Median: 20.0006ms, Best: 4.9998ms, Worst: 52.0019ms
- * http://127.0.0.1:9006 - 2396 requests:
-        - Fastest: 6.0019ms Slowest: 54.9972ms 50%: 22.9985ms 90%: 33.0007ms
-        - First Byte: Average: 22.430863ms, Median: 21.9986ms, Best: 5.0008ms, Worst: 53.9981ms
- * http://127.0.0.1:9007 - 2396 requests:
-        - Fastest: 7.9968ms Slowest: 55.0899ms 50%: 21.998ms 90%: 30.9998ms
-        - First Byte: Average: 21.049681ms, Median: 20.9989ms, Best: 6.9958ms, Worst: 54.0884ms
+ * http://127.0.0.1:9003 - 21019 requests:
+        - Avg: 32ms Fastest: 2ms Slowest: 2.191s 50%: 9ms 90%: 77ms
+        - First Byte: Average: 30ms, Median: 7ms, Best: 1ms, Worst: 2.189s
+ * http://127.0.0.1:9004 - 20975 requests:
+        - Avg: 34ms Fastest: 2ms Slowest: 2.518s 50%: 9ms 90%: 79ms
+        - First Byte: Average: 32ms, Median: 7ms, Best: 1ms, Worst: 2.517s
+ * http://127.0.0.1:9001 - 21920 requests:
+        - Avg: 32ms Fastest: 2ms Slowest: 2.412s 50%: 9ms 90%: 77ms
+        - First Byte: Average: 30ms, Median: 7ms, Best: 2ms, Worst: 2.411s
+ * http://127.0.0.1:9002 - 20995 requests:
+        - Avg: 35ms Fastest: 2ms Slowest: 2.029s 50%: 10ms 90%: 80ms
+        - First Byte: Average: 32ms, Median: 7ms, Best: 1ms, Worst: 2.029s
 ```
 
 The fastest and slowest request times are shown, as well as selected 

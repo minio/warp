@@ -45,12 +45,21 @@ type Throughput struct {
 
 // String returns a string representation of the segment
 func (t Throughput) String() string {
+	return t.StringDetails(true)
+}
+
+// String returns a string representation of the segment
+func (t Throughput) StringDetails(details bool) string {
 	speed := ""
+	detail := ""
 	if t.AverageBPS > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
 	}
-	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
-		speed, t.AverageOPS, time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
+	if details {
+		detail = fmt.Sprintf(" (%v, starting %v)", time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
+	}
+	return fmt.Sprintf("%s%.02f obj/s%s",
+		speed, t.AverageOPS, detail)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
@@ -132,13 +141,17 @@ func cloneBenchSegments(s bench.Segments) []SegmentSmall {
 }
 
 // String returns a string representation of the segment.
-func (s SegmentSmall) StringLong(d time.Duration) string {
+func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 	speed := ""
 	if s.BPS > 0 {
 		speed = bench.Throughput(s.BPS).String() + ", "
 	}
-	return fmt.Sprintf("%s%.02f obj/s (%v, starting %v)",
-		speed, s.OPS, d, s.Start.Format("15:04:05 MST"))
+	detail := ""
+	if details {
+		detail = fmt.Sprintf(" (%v, starting %v)", d, s.Start.Format("15:04:05 MST"))
+	}
+	return fmt.Sprintf("%s%.02f obj/s%s",
+		speed, s.OPS, detail)
 }
 
 func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
