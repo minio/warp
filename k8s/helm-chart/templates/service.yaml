@@ -10,5 +10,5 @@ spec:
   selector:
     {{- include "warp.selectorLabels" . | nindent 4 }}
   ports:
-    - port: 7761
+    - port: {{ .Values.service.port }}
       name: warp
