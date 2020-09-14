@@ -51,18 +51,18 @@ func (c *circularBuffer) Seek(offset int64, whence int) (n int64, err error) {
 	// Switch through whence.
 	switch whence {
 	default:
-		return 0, errors.New("invalid argument")
-	case 0:
+		return 0, errors.New("circularBuffer.Seek: invalid whence")
+	case io.SeekStart:
 		if offset > c.want {
 			return 0, io.EOF
 		}
 		c.read = offset
-	case 1:
+	case io.SeekCurrent:
 		if offset+c.read > c.want {
 			return 0, io.EOF
 		}
 		c.read += offset
-	case 2:
+	case io.SeekEnd:
 		if offset > 0 {
 			return 0, io.EOF
 		}
@@ -70,6 +70,9 @@ func (c *circularBuffer) Seek(offset int64, whence int) (n int64, err error) {
 			return 0, io.ErrShortBuffer
 		}
 		c.read = c.want + offset
+	}
+	if c.read < 0 {
+		return 0, errors.New("circularBuffer.Seek: negative position")
 	}
 	return c.read, nil
 }
