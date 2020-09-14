@@ -9,3 +9,6 @@ spec:
   clusterIP: None
   selector:
     {{- include "warp.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: 7761
+      name: warp
