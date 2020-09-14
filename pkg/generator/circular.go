@@ -36,13 +36,45 @@ type circularBuffer struct {
 // Reset will reset the circular buffer.
 // The number of bytes to return can be specified.
 // If the number of bytes wanted is <= 0 the value will not be updated.
-func (c *circularBuffer) Reset(want int64) io.Reader {
+func (c *circularBuffer) Reset(want int64) io.ReadSeeker {
 	if want > 0 {
 		c.want = want
 	}
 	c.read = 0
 	c.left = c.data
 	return c
+}
+
+// Implement seeker compatible circular buffer,
+// implemented for minio-go to allow retries.
+func (c *circularBuffer) Seek(offset int64, whence int) (n int64, err error) {
+	// Switch through whence.
+	switch whence {
+	default:
+		return 0, errors.New("circularBuffer.Seek: invalid whence")
+	case io.SeekStart:
+		if offset > c.want {
+			return 0, io.EOF
+		}
+		c.read = offset
+	case io.SeekCurrent:
+		if offset+c.read > c.want {
+			return 0, io.EOF
+		}
+		c.read += offset
+	case io.SeekEnd:
+		if offset > 0 {
+			return 0, io.EOF
+		}
+		if c.want+offset < 0 {
+			return 0, io.ErrShortBuffer
+		}
+		c.read = c.want + offset
+	}
+	if c.read < 0 {
+		return 0, errors.New("circularBuffer.Seek: negative position")
+	}
+	return c.read, nil
 }
 
 // newCircularBuffer returns a new circular buffer.

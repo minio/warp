@@ -44,7 +44,7 @@ type Source interface {
 type Object struct {
 	// Reader will return a reader that will return the number of requested bytes
 	// and EOF on all subsequent calls.
-	Reader io.Reader
+	Reader io.ReadSeeker
 
 	// A random generated name.
 	Name string
