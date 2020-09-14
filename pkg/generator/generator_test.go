@@ -58,6 +58,7 @@ func TestNew(t *testing.T) {
 				return
 			}
 			if err != nil {
+				t.Error(err)
 				return
 			}
 			if got == nil {
@@ -67,10 +68,55 @@ func TestNew(t *testing.T) {
 			obj := got.Object()
 			b, err := ioutil.ReadAll(obj.Reader)
 			if err != nil {
+				t.Error(err)
 				return
 			}
 			if len(b) != tt.wantSize {
 				t.Errorf("New() size = %v, wantSize = %v", len(b), tt.wantSize)
+				return
+			}
+			n, err := obj.Reader.Seek(0, 0)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if n != 0 {
+				t.Errorf("Expected 0, got %v", n)
+				return
+			}
+			b, err = ioutil.ReadAll(obj.Reader)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if len(b) != tt.wantSize {
+				t.Errorf("New() size = %v, wantSize = %v", len(b), tt.wantSize)
+				return
+			}
+			n, err = obj.Reader.Seek(10, 0)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if n != 10 {
+				t.Errorf("Expected 10, got %v", n)
+				return
+			}
+			b, err = ioutil.ReadAll(obj.Reader)
+			if err != nil {
+				return
+			}
+			if len(b) != tt.wantSize-10 {
+				t.Errorf("New() size = %v, wantSize = %v", len(b), tt.wantSize)
+				return
+			}
+			n, err = obj.Reader.Seek(10, 1)
+			if err != io.EOF {
+				t.Errorf("Expected io.EOF, got %v", err)
+				return
+			}
+			if n != 0 {
+				t.Errorf("Expected 0, got %v", n)
 				return
 			}
 		})
