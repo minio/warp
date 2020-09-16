@@ -43,7 +43,6 @@ spec:
                   values:
                   - warp
               topologyKey: "kubernetes.io/hostname"
-    spec:
       containers:
         - name: warp
           image: "minio/warp:latest"
