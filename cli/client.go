@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -171,13 +172,39 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	return cl, nil
 }
 
+var rng = rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+
+type dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+
+func newCustomDialContext(dialTimeout, dialKeepAlive time.Duration) dialContext {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := &net.Dialer{
+			Timeout:   dialTimeout,
+			KeepAlive: dialKeepAlive,
+		}
+
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			addrs = []string{host}
+		}
+
+		for i := range addrs {
+			addrs[i] = net.JoinHostPort(addrs[i], port)
+		}
+
+		return dialer.DialContext(ctx, network, addrs[rng.Intn(len(addrs))])
+	}
+}
+
 func clientTransport(ctx *cli.Context) http.RoundTripper {
 	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 10 * time.Second,
-		}).DialContext,
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           newCustomDialContext(10*time.Second, 10*time.Second),
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   15 * time.Second,
