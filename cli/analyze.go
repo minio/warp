@@ -18,12 +18,10 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +62,18 @@ var analyzeFlags = []cli.Flag{
 		Name:   "analyze.skip",
 		Usage:  "Additional duration to skip when analyzing data.",
 		Hidden: false,
+		Value:  0,
+	},
+	cli.IntFlag{
+		Name:   "analyze.limit",
+		Usage:  "Max operations to load for analysis.",
+		Hidden: true,
+		Value:  0,
+	},
+	cli.IntFlag{
+		Name:   "analyze.offset",
+		Usage:  "Skip this number of operations for analysis",
+		Hidden: true,
 		Value:  0,
 	},
 	cli.BoolFlag{
@@ -123,10 +133,8 @@ func mainAnalyze(ctx *cli.Context) error {
 			input = f
 		}
 		err := zstdDec.Reset(input)
-		fatalIf(probe.NewError(err), "Unable to decompress input")
-		b, err := ioutil.ReadAll(zstdDec)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(bytes.NewBuffer(b))
+		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		printAnalysis(ctx, ops)
@@ -137,7 +145,7 @@ func mainAnalyze(ctx *cli.Context) error {
 
 func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details bool) {
 	console.SetColor("Print", color.New(color.FgWhite))
-	console.Println("Mixed operations.")
+	console.Printf("Mixed operations.")
 
 	if aggr.MixedServerStats == nil {
 		console.Errorln("No mixed stats")
@@ -149,10 +157,11 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		if aggr.MixedServerStats.Operations > 0 {
 			pct = 100.0 * float64(ops.Throughput.Operations) / float64(aggr.MixedServerStats.Operations)
 		}
+		duration := ops.EndTime.Sub(ops.StartTime).Truncate(time.Second)
 		if !details {
-			console.Printf("Operation: %v, %d%%\n", ops.Type, int(pct+0.5))
+			console.Printf("Operation: %v, %d%%, Concurrency: %d, Duration: %v.\n", ops.Type, int(pct+0.5), ops.Concurrency, duration)
 		} else {
-			console.Printf("Operation: %v - total: %v, %.01f%%\n", ops.Type, ops.Throughput.Operations, pct)
+			console.Printf("Operation: %v - total: %v, %.01f%%, Concurrency: %d, Duration: %v, starting %v\n", ops.Type, ops.Throughput.Operations, pct, ops.Concurrency, duration, ops.StartTime.Truncate(time.Millisecond))
 		}
 		console.SetColor("Print", color.New(color.FgWhite))
 
@@ -302,7 +311,12 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 
 			for ep, ops := range eps {
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", ops.StringDetails(details), "\n")
+				console.Print(" * ", ep, ":")
+				if !details {
+					console.Print(" Avg: ", ops.StringDetails(details), "\n")
+				} else {
+					console.Print("\n")
+				}
 				if ops.Errors > 0 {
 					console.SetColor("Print", color.New(color.FgHiRed))
 					console.Println("Errors:", ops.Errors)
@@ -315,6 +329,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 						continue
 					}
 					console.SetColor("Print", color.New(color.FgWhite))
+					console.Println("\t- Average: ", ops.StringDetails(false))
 					console.Println("\t- Fastest:", aggregate.BPSorOPS(seg.FastestBPS, seg.FastestOPS))
 					console.Println("\t- 50% Median:", aggregate.BPSorOPS(seg.MedianBPS, seg.MedianOPS))
 					console.Println("\t- Slowest:", aggregate.BPSorOPS(seg.SlowestBPS, seg.SlowestOPS))

@@ -45,21 +45,22 @@ type Throughput struct {
 
 // String returns a string representation of the segment
 func (t Throughput) String() string {
-	return t.StringDetails(true)
+	return t.StringDetails(true) + " " + t.StringDuration()
+}
+
+// StringDuration returns a string representation of the segment duration
+func (t Throughput) StringDuration() string {
+	return fmt.Sprintf("Duration: %v, starting %v", time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
 }
 
 // String returns a string representation of the segment
 func (t Throughput) StringDetails(details bool) string {
 	speed := ""
-	detail := ""
 	if t.AverageBPS > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
 	}
-	if details {
-		detail = fmt.Sprintf(" (%v, starting %v)", time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
-	}
-	return fmt.Sprintf("%s%.02f obj/s%s",
-		speed, t.AverageOPS, detail)
+	return fmt.Sprintf("%s%.02f obj/s",
+		speed, t.AverageOPS)
 }
 
 func (t *Throughput) fill(total bench.Segment) {

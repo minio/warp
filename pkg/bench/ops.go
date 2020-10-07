@@ -891,7 +891,7 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 }
 
 // OperationsFromCSV will load operations from CSV.
-func OperationsFromCSV(r io.Reader) (Operations, error) {
+func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int) (Operations, error) {
 	var ops Operations
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
@@ -905,6 +905,19 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 	for i, s := range header {
 		fieldIdx[s] = i
 	}
+	var clientMap = make(map[string]string, 16)
+	cb := byte('a')
+	getClient := func(c string) string {
+		if !analyzeOnly {
+			return c
+		}
+		if v, ok := clientMap[c]; ok {
+			return v
+		}
+		clientMap[c] = string([]byte{cb})
+		cb++
+		return clientMap[c]
+	}
 	for {
 		values, err := cr.Read()
 		if err == io.EOF {
@@ -914,6 +927,10 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			return nil, err
 		}
 		if len(values) == 0 {
+			continue
+		}
+		if offset > 0 {
+			offset--
 			continue
 		}
 		start, err := time.Parse(time.RFC3339Nano, values[fieldIdx["start"]])
@@ -951,6 +968,10 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 		if idx, ok := fieldIdx["client_id"]; ok {
 			clientID = values[idx]
 		}
+		var file string
+		if !analyzeOnly {
+			file = values[fieldIdx["file"]]
+		}
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
 			ObjPerOp:  int(objs),
@@ -959,11 +980,18 @@ func OperationsFromCSV(r io.Reader) (Operations, error) {
 			End:       end,
 			Err:       values[fieldIdx["error"]],
 			Size:      size,
-			File:      values[fieldIdx["file"]],
+			File:      file,
 			Thread:    uint16(thread),
 			Endpoint:  endpoint,
-			ClientID:  clientID,
+			ClientID:  getClient(clientID),
 		})
+		if len(ops)%1000000 == 0 {
+			console.Printf("\r%d operations loaded...", len(ops))
+		}
+		if limit > 0 && len(ops) >= limit {
+			break
+		}
 	}
+	console.Printf("\r%d operations loaded... Done!\n", len(ops))
 	return ops, nil
 }
