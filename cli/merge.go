@@ -18,10 +18,8 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -75,9 +73,7 @@ func mainMerge(ctx *cli.Context) error {
 		defer f.Close()
 		err = zstdDec.Reset(f)
 		fatalIf(probe.NewError(err), "Unable to decompress input")
-		b, err := ioutil.ReadAll(zstdDec)
-		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(bytes.NewBuffer(b))
+		ops, err := bench.OperationsFromCSV(zstdDec, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		threads = ops.OffsetThreads(threads)

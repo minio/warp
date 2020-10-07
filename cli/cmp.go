@@ -18,9 +18,7 @@
 package cli
 
 import (
-	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -64,10 +62,8 @@ func mainCmp(ctx *cli.Context) error {
 		fatalIf(probe.NewError(err), "Unable to open input file")
 		defer f.Close()
 		err = zstdDec.Reset(f)
-		fatalIf(probe.NewError(err), "Unable to decompress input")
-		b, err := ioutil.ReadAll(zstdDec)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(bytes.NewBuffer(b))
+		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
 		fatalIf(probe.NewError(err), "Unable to parse input")
 		return ops
 	}

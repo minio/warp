@@ -57,35 +57,41 @@ var globalFlags = []cli.Flag{
 }
 
 var profileFlags = []cli.Flag{
-	// These flags mimmic the `go test` flags.
 	cli.StringFlag{
-		Name:   "cpuprofile",
-		Value:  "",
-		Usage:  "Write a local CPU profile to the specified file before exiting.",
+		Name:   "profdir",
+		Usage:  "Write profiles to this folder",
+		Value:  "pprof",
 		Hidden: true,
 	},
-	cli.StringFlag{
-		Name:   "memprofile",
-		Value:  "",
-		Usage:  "Write an local allocation profile to the file after all tests have passed.",
+
+	cli.BoolFlag{
+		Name:   "cpu",
+		Usage:  "Write a local CPU profile",
 		Hidden: true,
 	},
-	cli.StringFlag{
-		Name:   "blockprofile",
-		Value:  "",
-		Usage:  "Write a local goroutine blocking profile to the specified file when all tests are complete.",
+	cli.BoolFlag{
+		Name:   "mem",
+		Usage:  "Write an local allocation profile",
 		Hidden: true,
 	},
-	cli.StringFlag{
-		Name:   "mutexprofile",
-		Value:  "",
-		Usage:  "Write a mutex contention profile to the specified file when all tests are complete.",
+	cli.BoolFlag{
+		Name:   "block",
+		Usage:  "Write a local goroutine blocking profile",
 		Hidden: true,
 	},
-	cli.StringFlag{
+	cli.BoolFlag{
+		Name:   "mutex",
+		Usage:  "Write a mutex contention profile",
+		Hidden: true,
+	},
+	cli.BoolFlag{
+		Name:   "threads",
+		Usage:  "Write a threas create profile",
+		Hidden: true,
+	},
+	cli.BoolFlag{
 		Name:   "trace",
-		Value:  "",
-		Usage:  "Write an local execution trace to the specified file before exiting.",
+		Usage:  "Write an local execution trace",
 		Hidden: true,
 	},
 }

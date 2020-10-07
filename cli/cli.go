@@ -159,29 +159,36 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	}
 
 	app.Before = func(ctx *cli.Context) error {
-		var after []func()
-		if s := ctx.String("cpuprofile"); s != "" {
-			after = append(after, profile.Start(profile.CPUProfile, profile.ProfilePath(s)).Stop)
+		var profiles []func(*profile.Profile)
+		if ctx.Bool("cpu") {
+			profiles = append(profiles, profile.CPUProfile)
 		}
-		if s := ctx.String("memprofile"); s != "" {
-			after = append(after, profile.Start(profile.MemProfile, profile.ProfilePath(s)).Stop)
+		if ctx.Bool("mem") {
+			profiles = append(profiles, profile.MemProfile)
 		}
-		if s := ctx.String("blockprofile"); s != "" {
-			after = append(after, profile.Start(profile.BlockProfile, profile.ProfilePath(s)).Stop)
+		if ctx.Bool("block") {
+			profiles = append(profiles, profile.BlockProfile)
 		}
-		if s := ctx.String("mutexprofile"); s != "" {
-			after = append(after, profile.Start(profile.MutexProfile, profile.ProfilePath(s)).Stop)
+		if ctx.Bool("mutex") {
+			profiles = append(profiles, profile.MutexProfile)
 		}
-		if s := ctx.String("trace"); s != "" {
-			after = append(after, profile.Start(profile.TraceProfile, profile.ProfilePath(s)).Stop)
+		if ctx.Bool("trace") {
+			profiles = append(profiles, profile.TraceProfile)
 		}
-		if len(after) == 0 {
+		if ctx.Bool("threads") {
+			profiles = append(profiles, profile.ThreadcreationProfile)
+		}
+		if len(profiles) == 0 {
 			return nil
 		}
+		if len(profiles) > 1 {
+			fatal(nil, "sorry, only one type of profiling can be enabled concurrently")
+		}
+		profiles = append(profiles, profile.ProfilePath(ctx.String("profdir")))
+		stopper := profile.Start(profiles...)
+
 		afterExec = func(ctx *cli.Context) error {
-			for _, fn := range after {
-				fn()
-			}
+			stopper.Stop()
 			return nil
 		}
 		return nil
