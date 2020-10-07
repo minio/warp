@@ -322,6 +322,8 @@ func (c *connections) connect(i int) error {
 			if err != nil {
 				return err
 			}
+			sent := time.Now()
+
 			// Send server info
 			err = c.ws[i].WriteJSON(c.si)
 			if err != nil {
@@ -335,12 +337,15 @@ func (c *connections) connect(i int) error {
 			if resp.Err != "" {
 				return errors.New(resp.Err)
 			}
-			delta := time.Since(resp.Time)
+
+			roundtrip := time.Since(sent)
+			// Add 50% of the roundtrip.
+			delta := time.Since(resp.Time.Add(roundtrip / 2))
 			if delta < 0 {
 				delta = -delta
 			}
 			if delta > time.Second {
-				return fmt.Errorf("host %v time delta too big (%v). Synchronize clock on client and retry", host, delta)
+				return fmt.Errorf("host %v time delta too big (%v). Roundtrip took %v. Synchronize clock on client and retry", host, delta.Round(time.Millisecond), roundtrip.Round(time.Millisecond))
 			}
 			return nil
 		}()
