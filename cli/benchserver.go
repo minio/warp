@@ -92,6 +92,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		return true, errors.New("no hosts")
 	}
 	conns.info = printInfo
+	conns.errLn = printError
 	defer conns.closeAll()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
