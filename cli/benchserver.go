@@ -505,7 +505,7 @@ func flagToJSON(ctx *cli.Context, flag cli.Flag) (string, error) {
 		}
 	case cli.BoolFlag:
 		if ctx.IsSet(flag.GetName()) {
-			return "true", nil
+			return fmt.Sprint(ctx.Bool(flag.GetName())), nil
 		}
 	case cli.Int64Flag:
 		if ctx.IsSet(flag.GetName()) {
