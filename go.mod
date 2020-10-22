@@ -3,6 +3,7 @@ module github.com/minio/warp
 go 1.13
 
 require (
+	github.com/bygui86/multi-profile v1.3.1
 	github.com/cheggaaa/pb v1.0.28
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0
@@ -13,7 +14,6 @@ require (
 	github.com/minio/md5-simd v1.1.0
 	github.com/minio/minio v0.0.0-20200430053134-c7470e6e6eed
 	github.com/minio/minio-go/v7 v7.0.5
-	github.com/pkg/profile v1.3.0
 	github.com/posener/complete v1.2.2-0.20190702141536-6ffe496ea953
 	github.com/secure-io/sio-go v0.3.0
 )

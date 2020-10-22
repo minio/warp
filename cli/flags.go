@@ -58,7 +58,7 @@ var globalFlags = []cli.Flag{
 
 var profileFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:   "profdir",
+		Name:   "pprofdir",
 		Usage:  "Write profiles to this folder",
 		Value:  "pprof",
 		Hidden: true,
