@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"sync/atomic"
 
 	"github.com/secure-io/sio-go"
 )
@@ -80,6 +81,7 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
+	counter uint64
 	o       Options
 	buf     *circularBuffer
 	rng     *rand.Rand
@@ -124,10 +126,11 @@ func newRandom(o Options) (Source, error) {
 }
 
 func (r *randomSrc) Object() *Object {
+	atomic.AddUint64(&r.counter, 1)
 	var nBuf [16]byte
 	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
-	r.obj.setName(string(nBuf[:]) + ".rnd")
+	r.obj.setName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
 	data := r.buf.data
 	if int64(len(data)) > r.obj.Size {
 		data = data[:r.obj.Size]
