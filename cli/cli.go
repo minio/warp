@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	mprofile "github.com/bygui86/multi-profile"
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -34,7 +35,6 @@ import (
 	"github.com/minio/minio/pkg/trie"
 	"github.com/minio/minio/pkg/words"
 	"github.com/minio/warp/pkg"
-	"github.com/pkg/profile"
 	completeinstall "github.com/posener/complete/cmd/install"
 )
 
@@ -159,36 +159,44 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	}
 
 	app.Before = func(ctx *cli.Context) error {
-		var profiles []func(*profile.Profile)
+		var profiles []*mprofile.Profile
+		cfg := &mprofile.Config{
+			Path:                ctx.String("pprofdir"),
+			UseTempPath:         false,
+			NoExit:              false,
+			DisableShutdownHook: false,
+			Quiet:               false,
+			MemProfileRate:      4096,
+			MemProfileType:      "heap",
+			CloserHook:          nil,
+			Logger:              nil,
+		}
 		if ctx.Bool("cpu") {
-			profiles = append(profiles, profile.CPUProfile)
+			profiles = append(profiles, mprofile.CPUProfile(cfg).Start())
 		}
 		if ctx.Bool("mem") {
-			profiles = append(profiles, profile.MemProfile)
+			profiles = append(profiles, mprofile.MemProfile(cfg).Start())
 		}
 		if ctx.Bool("block") {
-			profiles = append(profiles, profile.BlockProfile)
+			profiles = append(profiles, mprofile.BlockProfile(cfg).Start())
 		}
 		if ctx.Bool("mutex") {
-			profiles = append(profiles, profile.MutexProfile)
+			profiles = append(profiles, mprofile.MutexProfile(cfg).Start())
 		}
 		if ctx.Bool("trace") {
-			profiles = append(profiles, profile.TraceProfile)
+			profiles = append(profiles, mprofile.TraceProfile(cfg).Start())
 		}
 		if ctx.Bool("threads") {
-			profiles = append(profiles, profile.ThreadcreationProfile)
+			profiles = append(profiles, mprofile.ThreadCreationProfile(cfg).Start())
 		}
 		if len(profiles) == 0 {
 			return nil
 		}
-		if len(profiles) > 1 {
-			fatal(nil, "sorry, only one type of profiling can be enabled concurrently")
-		}
-		profiles = append(profiles, profile.ProfilePath(ctx.String("profdir")))
-		stopper := profile.Start(profiles...)
 
 		afterExec = func(ctx *cli.Context) error {
-			stopper.Stop()
+			for _, profile := range profiles {
+				profile.Stop()
+			}
 			return nil
 		}
 		return nil
