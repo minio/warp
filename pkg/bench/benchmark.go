@@ -21,8 +21,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
-	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -138,17 +136,6 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	if len(prefixes) == 0 {
 		prefixes = []string{""}
 	}
-	finished := make(chan struct{})
-	defer close(finished)
-	go func() {
-		select {
-		case <-time.After(time.Minute):
-			console.Infoln("\ndeleting slow, active goroutines:")
-			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-		case <-finished:
-			return
-		}
-	}()
 	var wg sync.WaitGroup
 	wg.Add(len(prefixes))
 	for _, prefix := range prefixes {
@@ -159,7 +146,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			defer close(doneCh)
 			cl, done := c.Client()
 			defer done()
-			remove := make(chan minio.ObjectInfo, 100)
+			remove := make(chan minio.ObjectInfo, 1000)
 			errCh := cl.RemoveObjects(ctx, c.Bucket, remove, minio.RemoveObjectsOptions{})
 			defer func() {
 				// Signal we are done
