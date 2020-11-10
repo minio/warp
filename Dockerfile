@@ -13,7 +13,7 @@ ENV CGO_ENABLED=0
 
 RUN go build -ldflags '-w -s' -a -o warp .
 
-FROM scratch
+FROM alpine
 MAINTAINER MinIO Development "dev@min.io"
 EXPOSE 7761
 
