@@ -59,6 +59,7 @@ type Server struct {
 	status  BenchmarkStatus
 	ops     bench.Operations
 	agrr    *aggregate.Aggregated
+	aggrDur time.Duration
 	server  *http.Server
 	cmdLine string
 
@@ -165,16 +166,19 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-
+	durFn := func(total time.Duration) time.Duration {
+		return segmentDur
+	}
 	s.mu.Lock()
 	if s.ops == nil {
 		s.mu.Unlock()
 		w.WriteHeader(404)
 		return
 	}
-	if s.agrr == nil || !s.agrr.HasDuration(segmentDur) {
-		aggr := aggregate.Aggregate(s.ops, segmentDur, 0)
+	if s.agrr == nil || s.aggrDur != segmentDur {
+		aggr := aggregate.Aggregate(s.ops, durFn, 0)
 		s.agrr = &aggr
+		s.aggrDur = segmentDur
 	}
 	// Copy
 	aggregated := *s.agrr

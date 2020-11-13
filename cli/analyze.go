@@ -235,8 +235,13 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	if wantOp := ctx.String("analyze.op"); wantOp != "" {
 		o = o.FilterByOp(wantOp)
 	}
-
-	aggr := aggregate.Aggregate(o, analysisDur(ctx, o.Duration()), ctx.Duration("analyze.skip"))
+	durFn := func(total time.Duration) time.Duration {
+		if total <= 0 {
+			return 0
+		}
+		return analysisDur(ctx, total)
+	}
+	aggr := aggregate.Aggregate(o, durFn, ctx.Duration("analyze.skip"))
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
 			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)

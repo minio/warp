@@ -33,8 +33,6 @@ type Aggregated struct {
 	// MixedServerStats and MixedThroughputByHost is populated only when data is mixed.
 	MixedServerStats      *Throughput           `json:"mixed_server_stats,omitempty"`
 	MixedThroughputByHost map[string]Throughput `json:"mixed_throughput_by_host,omitempty"`
-	// segmentDur records the duration used for segmenting the data.
-	segmentDur time.Duration
 }
 
 // Operation returns statistics for a single operation type.
@@ -69,8 +67,11 @@ type Operation struct {
 	ThroughputByHost map[string]Throughput `json:"throughput_by_host"`
 }
 
+// SegmentDurFn accepts a total time and should return the duration used for each segment.
+type SegmentDurFn func(total time.Duration) time.Duration
+
 // Aggregate returns statistics when only a single operation was running concurrently.
-func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated {
+func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggregated {
 	o.SortByStartTime()
 	types := o.OpTypes()
 	a := Aggregated{
@@ -79,19 +80,22 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 		Operations:            nil,
 		MixedServerStats:      nil,
 		MixedThroughputByHost: nil,
-		segmentDur:            segmentDur,
 	}
 	isMixed := o.IsMixed()
 	// Fill mixed only parts...
 	if isMixed {
 		a.Mixed = true
 		a.Type = "mixed"
-		ops := o.FilterInsideRange(o.ActiveTimeRange(true))
-		total := ops.Total(false)
+		o.SortByStartTime()
+		start, end := o.ActiveTimeRange(true)
+		start.Add(skipDur)
+		total := o.FilterInsideRange(start, end).Total(false)
 		a.MixedServerStats = &Throughput{}
 		a.MixedServerStats.fill(total)
+
+		segmentDur := dFn(total.Duration())
 		segs := o.Segment(bench.SegmentOptions{
-			From:           time.Time{},
+			From:           start.Add(skipDur),
 			PerSegDuration: segmentDur,
 			AllThreads:     true,
 			MultiOp:        true,
@@ -160,7 +164,7 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 				a.Skipped = true
 				return
 			}
-
+			segmentDur := dFn(ops.Duration())
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: segmentDur,
@@ -190,35 +194,39 @@ func Aggregate(o bench.Operations, segmentDur, skipDur time.Duration) Aggregated
 
 			eps := ops.Endpoints()
 			a.ThroughputByHost = make(map[string]Throughput, len(eps))
+			var epMu sync.Mutex
+			var epWg sync.WaitGroup
+			epWg.Add(len(eps))
 			for _, ep := range eps {
-				// Use all ops to include errors.
-				ops := allOps.FilterByEndpoint(ep)
-				total := ops.Total(false)
-				var host Throughput
-				host.fill(total)
+				go func(ep string) {
+					defer epWg.Done()
+					// Use all ops to include errors.
+					ops := allOps.FilterByEndpoint(ep)
+					total := ops.Total(false)
+					var host Throughput
+					host.fill(total)
 
-				segs := ops.Segment(bench.SegmentOptions{
-					From:           time.Time{},
-					PerSegDuration: segmentDur,
-					AllThreads:     false,
-				})
+					segs := ops.Segment(bench.SegmentOptions{
+						From:           time.Time{},
+						PerSegDuration: segmentDur,
+						AllThreads:     false,
+					})
 
-				if len(segs) > 1 {
-					host.Segmented = &ThroughputSegmented{
-						SegmentDurationMillis: durToMillis(segmentDur),
+					if len(segs) > 1 {
+						host.Segmented = &ThroughputSegmented{
+							SegmentDurationMillis: durToMillis(segmentDur),
+						}
+						host.Segmented.fill(segs, total)
 					}
-					host.Segmented.fill(segs, total)
-				}
-				a.ThroughputByHost[ep] = host
+					epMu.Lock()
+					a.ThroughputByHost[ep] = host
+					epMu.Unlock()
+				}(ep)
 			}
+			epWg.Wait()
 		}(i)
 	}
 	wg.Wait()
 	a.Operations = res
 	return a
-}
-
-// HasDuration returns whether the aggregation has been created with the specified duration.
-func (a Aggregated) HasDuration(d time.Duration) bool {
-	return a.segmentDur == d
 }
