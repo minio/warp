@@ -280,6 +280,9 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		if ops.Hosts > 1 {
 			hostsString = fmt.Sprintf(" Hosts: %d.", ops.Hosts)
 		}
+		if ops.Clients > 1 {
+			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, ops.Clients)
+		}
 		if opo > 1 {
 			if details {
 				console.Printf("Operation: %v (%d). Objects per operation: %d. Concurrency: %d.%s\n", typ, ops.N, opo, ops.Concurrency, hostsString)

@@ -51,6 +51,8 @@ type Operation struct {
 	ObjectsPerOperation int `json:"objects_per_operation"`
 	// Concurrency - total number of threads running.
 	Concurrency int `json:"concurrency"`
+	// Number of warp clients.
+	Clients int `json:"clients"`
 	// Numbers of hosts
 	Hosts int `json:"hosts"`
 	// Populated if requests are all of same object size.
@@ -184,6 +186,7 @@ func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggr
 			a.Throughput.Segmented.fill(segs, total)
 			a.ObjectsPerOperation = ops.FirstObjPerOp()
 			a.Concurrency = ops.Threads()
+			a.Clients = ops.Clients()
 			a.Hosts = ops.Hosts()
 
 			if !ops.MultipleSizes() {
