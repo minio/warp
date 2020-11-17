@@ -70,8 +70,14 @@ type Operation struct {
 // SegmentDurFn accepts a total time and should return the duration used for each segment.
 type SegmentDurFn func(total time.Duration) time.Duration
 
+type Options struct {
+	Prefiltered bool
+	DurFunc     SegmentDurFn
+	SkipDur     time.Duration
+}
+
 // Aggregate returns statistics when only a single operation was running concurrently.
-func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggregated {
+func Aggregate(o bench.Operations, opts Options) Aggregated {
 	o.SortByStartTime()
 	types := o.OpTypes()
 	a := Aggregated{
@@ -88,14 +94,14 @@ func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggr
 		a.Type = "mixed"
 		o.SortByStartTime()
 		start, end := o.ActiveTimeRange(true)
-		start.Add(skipDur)
+		start.Add(opts.SkipDur)
 		total := o.FilterInsideRange(start, end).Total(false)
 		a.MixedServerStats = &Throughput{}
 		a.MixedServerStats.fill(total)
 
-		segmentDur := dFn(total.Duration())
+		segmentDur := opts.DurFunc(total.Duration())
 		segs := o.Segment(bench.SegmentOptions{
-			From:           start.Add(skipDur),
+			From:           start.Add(opts.SkipDur),
 			PerSegDuration: segmentDur,
 			AllThreads:     true,
 			MultiOp:        true,
@@ -141,9 +147,9 @@ func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggr
 			}()
 			a.Type = typ
 			ops := o.FilterByOp(typ)
-			if skipDur > 0 {
+			if opts.SkipDur > 0 {
 				start, end := ops.TimeRange()
-				start = start.Add(skipDur)
+				start = start.Add(opts.SkipDur)
 				ops = ops.FilterInsideRange(start, end)
 			}
 
@@ -164,18 +170,18 @@ func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggr
 				a.Skipped = true
 				return
 			}
-			segmentDur := dFn(ops.Duration())
+			segmentDur := opts.DurFunc(ops.Duration())
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: segmentDur,
-				AllThreads:     !isMixed,
+				AllThreads:     !isMixed && !opts.Prefiltered,
 			})
 			a.N = len(ops)
 			if len(segs) <= 1 {
 				a.Skipped = true
 				return
 			}
-			total := ops.Total(!isMixed)
+			total := ops.Total(!isMixed && !opts.Prefiltered)
 			a.StartTime, a.EndTime = ops.TimeRange()
 			a.Throughput.fill(total)
 			a.Throughput.Segmented = &ThroughputSegmented{
@@ -187,9 +193,9 @@ func Aggregate(o bench.Operations, dFn SegmentDurFn, skipDur time.Duration) Aggr
 			a.Hosts = ops.Hosts()
 
 			if !ops.MultipleSizes() {
-				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed)
+				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed && !opts.Prefiltered)
 			} else {
-				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed)
+				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed && !opts.Prefiltered)
 			}
 
 			eps := ops.Endpoints()
