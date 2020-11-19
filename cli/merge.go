@@ -67,13 +67,17 @@ func mainMerge(ctx *cli.Context) error {
 	defer zstdDec.Close()
 	var allOps bench.Operations
 	threads := uint16(0)
+	log := console.Printf
+	if globalQuiet {
+		log = nil
+	}
 	for _, arg := range args {
 		f, err := os.Open(arg)
 		fatalIf(probe.NewError(err), "Unable to open input file")
 		defer f.Close()
 		err = zstdDec.Reset(f)
 		fatalIf(probe.NewError(err), "Unable to decompress input")
-		ops, err := bench.OperationsFromCSV(zstdDec, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
+		ops, err := bench.OperationsFromCSV(zstdDec, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		threads = ops.OffsetThreads(threads)

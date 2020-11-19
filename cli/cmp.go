@@ -57,13 +57,17 @@ func mainCmp(ctx *cli.Context) error {
 	args := ctx.Args()
 	var zstdDec, _ = zstd.NewReader(nil)
 	defer zstdDec.Close()
+	log := console.Printf
+	if globalQuiet {
+		log = nil
+	}
 	readOps := func(s string) bench.Operations {
 		f, err := os.Open(s)
 		fatalIf(probe.NewError(err), "Unable to open input file")
 		defer f.Close()
 		err = zstdDec.Reset(f)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
+		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 		fatalIf(probe.NewError(err), "Unable to parse input")
 		return ops
 	}

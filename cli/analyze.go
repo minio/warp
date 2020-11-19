@@ -122,6 +122,10 @@ func mainAnalyze(ctx *cli.Context) error {
 	defer zstdDec.Close()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
+	log := console.Printf
+	if globalQuiet {
+		log = nil
+	}
 	for _, arg := range args {
 		var input io.Reader
 		if arg == "-" {
@@ -134,7 +138,7 @@ func mainAnalyze(ctx *cli.Context) error {
 		}
 		err := zstdDec.Reset(input)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
+		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		printAnalysis(ctx, ops)
@@ -217,6 +221,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer
+	prefiltered := false
 	if fn := ctx.String("analyze.out"); fn != "" {
 		if fn == "-" {
 			wrSegs = os.Stdout
@@ -229,10 +234,21 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		}
 	}
 	if onlyHost := ctx.String("analyze.host"); onlyHost != "" {
-		o = o.FilterByEndpoint(onlyHost)
+		o2 := o.FilterByEndpoint(onlyHost)
+		if len(o2) == 0 {
+			hosts := o.Endpoints()
+			console.Println("Host not found, valid hosts are:")
+			for _, h := range hosts {
+				console.Println("\t* %s", h)
+			}
+			return
+		}
+		prefiltered = true
+		o = o2
 	}
 
 	if wantOp := ctx.String("analyze.op"); wantOp != "" {
+		prefiltered = prefiltered || o.IsMixed()
 		o = o.FilterByOp(wantOp)
 	}
 	durFn := func(total time.Duration) time.Duration {
@@ -241,7 +257,11 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		}
 		return analysisDur(ctx, total)
 	}
-	aggr := aggregate.Aggregate(o, durFn, ctx.Duration("analyze.skip"))
+	aggr := aggregate.Aggregate(o, aggregate.Options{
+		Prefiltered: prefiltered,
+		DurFunc:     durFn,
+		SkipDur:     ctx.Duration("analyze.skip"),
+	})
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
 			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)
@@ -279,6 +299,9 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		hostsString := ""
 		if ops.Hosts > 1 {
 			hostsString = fmt.Sprintf(" Hosts: %d.", ops.Hosts)
+		}
+		if ops.Clients > 1 {
+			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, ops.Clients)
 		}
 		if opo > 1 {
 			if details {
