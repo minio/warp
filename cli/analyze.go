@@ -217,6 +217,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer
+	prefiltered := false
 	if fn := ctx.String("analyze.out"); fn != "" {
 		if fn == "-" {
 			wrSegs = os.Stdout
@@ -229,10 +230,21 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		}
 	}
 	if onlyHost := ctx.String("analyze.host"); onlyHost != "" {
-		o = o.FilterByEndpoint(onlyHost)
+		o2 := o.FilterByEndpoint(onlyHost)
+		if len(o2) == 0 {
+			hosts := o.Endpoints()
+			console.Println("Host not found, valid hosts are:")
+			for _, h := range hosts {
+				console.Println("\t* %s", h)
+			}
+			return
+		}
+		prefiltered = true
+		o = o2
 	}
 
 	if wantOp := ctx.String("analyze.op"); wantOp != "" {
+		prefiltered = prefiltered || o.IsMixed()
 		o = o.FilterByOp(wantOp)
 	}
 	durFn := func(total time.Duration) time.Duration {
@@ -241,7 +253,11 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		}
 		return analysisDur(ctx, total)
 	}
-	aggr := aggregate.Aggregate(o, durFn, ctx.Duration("analyze.skip"))
+	aggr := aggregate.Aggregate(o, aggregate.Options{
+		Prefiltered: prefiltered,
+		DurFunc:     durFn,
+		SkipDur:     ctx.Duration("analyze.skip"),
+	})
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
 			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)

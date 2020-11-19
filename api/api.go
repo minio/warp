@@ -176,7 +176,10 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if s.agrr == nil || s.aggrDur != segmentDur {
-		aggr := aggregate.Aggregate(s.ops, durFn, 0)
+		aggr := aggregate.Aggregate(s.ops, aggregate.Options{
+			DurFunc: durFn,
+			SkipDur: 0,
+		})
 		s.agrr = &aggr
 		s.aggrDur = segmentDur
 	}
