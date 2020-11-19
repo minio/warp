@@ -122,6 +122,10 @@ func mainAnalyze(ctx *cli.Context) error {
 	defer zstdDec.Close()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
+	log := console.Printf
+	if globalQuiet {
+		log = nil
+	}
 	for _, arg := range args {
 		var input io.Reader
 		if arg == "-" {
@@ -134,7 +138,7 @@ func mainAnalyze(ctx *cli.Context) error {
 		}
 		err := zstdDec.Reset(input)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"))
+		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 		fatalIf(probe.NewError(err), "Unable to parse input")
 
 		printAnalysis(ctx, ops)
