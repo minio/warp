@@ -800,6 +800,18 @@ func (o Operations) Hosts() int {
 	return len(endpoints)
 }
 
+// Clients returns the number of clients.
+func (o Operations) Clients() int {
+	if len(o) == 0 {
+		return 0
+	}
+	clients := make(map[string]struct{}, 10)
+	for _, op := range o {
+		clients[op.ClientID] = struct{}{}
+	}
+	return len(clients)
+}
+
 // Endpoints returns the endpoints as a sorted slice.
 func (o Operations) Endpoints() []string {
 	if len(o) == 0 {
