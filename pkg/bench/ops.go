@@ -891,7 +891,7 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 }
 
 // OperationsFromCSV will load operations from CSV.
-func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int) (Operations, error) {
+func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{})) (Operations, error) {
 	var ops Operations
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
@@ -985,13 +985,15 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int) (Operat
 			Endpoint:  endpoint,
 			ClientID:  getClient(clientID),
 		})
-		if len(ops)%1000000 == 0 {
-			console.Printf("\r%d operations loaded...", len(ops))
+		if log != nil && len(ops)%1000000 == 0 {
+			log("\r%d operations loaded...", len(ops))
 		}
 		if limit > 0 && len(ops) >= limit {
 			break
 		}
 	}
-	console.Printf("\r%d operations loaded... Done!\n", len(ops))
+	if log != nil {
+		log("\r%d operations loaded... Done!\n", len(ops))
+	}
 	return ops, nil
 }

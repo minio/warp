@@ -37,7 +37,7 @@ func TestOperations_Segment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ops, err := OperationsFromCSV(bytes.NewBuffer(b), false, 0, 0)
+	ops, err := OperationsFromCSV(bytes.NewBuffer(b), false, 0, 0, t.Logf)
 	if err != nil {
 		t.Fatal(err)
 	}
