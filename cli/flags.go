@@ -20,7 +20,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"runtime"
 
 	"github.com/minio/cli"
 	"github.com/minio/minio/pkg/console"
@@ -194,7 +193,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.IntFlag{
 		Name:  "concurrent",
-		Value: runtime.GOMAXPROCS(0),
+		Value: 20,
 		Usage: "Run this many concurrent operations",
 	},
 	cli.BoolFlag{

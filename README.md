@@ -39,8 +39,7 @@ This will run the benchmark for up to 5 minutes and print the results.
 
 # Benchmarks
 
-All benchmarks operate concurrently. 
-By default the processor determines the number of operations that will be running concurrently. 
+All benchmarks operate concurrently. By default, 20 operations will run concurrently.
 This can however also be tweaked using the `--concurrent` parameter.
 
 Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
