@@ -266,7 +266,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	})
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
-			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)
+			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed || prefiltered, details)
 		}
 	}
 
@@ -385,7 +385,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
 		PerSegDuration: analysisDur(ctx, totalDur),
-		AllThreads:     allThreads,
+		AllThreads:     allThreads && !ops.HasError(),
 	})
 
 	segs.SortByTime()
@@ -400,12 +400,12 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: analysisDur(ctx, totalDur),
-				AllThreads:     allThreads,
+				AllThreads:     false,
 			})
 			if len(segs) <= 1 {
 				continue
 			}
-			totals := ops.Total(allThreads)
+			totals := ops.Total(false)
 			if totals.TotalBytes > 0 {
 				segs.SortByThroughput()
 			} else {
