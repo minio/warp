@@ -209,7 +209,9 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		}
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	console.Println("\nCluster Total:", aggr.MixedServerStats.StringDetails(details))
+	dur := time.Duration(aggr.MixedServerStats.MeasureDurationMillis) * time.Millisecond
+	dur = dur.Round(time.Second)
+	console.Printf("\nCluster Total: %v over %v.\n", aggr.MixedServerStats.StringDetails(details), dur)
 	console.SetColor("Print", color.New(color.FgWhite))
 	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && details {
 		for ep, ops := range eps {

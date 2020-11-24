@@ -431,6 +431,19 @@ func (o Operations) IsMixed() bool {
 	return o.isMixed(o.OpTypes())
 }
 
+// HasError returns whether one or more operations failed.
+func (o Operations) HasError() bool {
+	if len(o) == 0 {
+		return false
+	}
+	for _, op := range o {
+		if len(op.Err) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // isMixed returns true if operation types are overlapping.
 func (o Operations) isMixed(types []string) bool {
 	if len(types) <= 1 {
@@ -843,12 +856,25 @@ func (o Operations) Errors() []string {
 	return errs
 }
 
-// FilterSuccessful returns the errors found.
+// FilterSuccessful returns the successful requests.
 func (o Operations) FilterSuccessful() Operations {
 	if len(o) == 0 {
 		return nil
 	}
-	ok := make(Operations, 0, len(o))
+	failed := 0
+	for _, op := range o {
+		if len(op.Err) > 0 {
+			failed++
+		}
+	}
+	if failed == 0 {
+		return o
+	}
+	if failed == len(o) {
+		return nil
+	}
+
+	ok := make(Operations, 0, len(o)-failed)
 	for _, op := range o {
 		if len(op.Err) == 0 {
 			ok = append(ok, op)

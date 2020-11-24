@@ -90,22 +90,31 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 		MixedThroughputByHost: nil,
 	}
 	isMixed := o.IsMixed()
+	opts.Prefiltered = opts.Prefiltered || o.HasError()
+
 	// Fill mixed only parts...
 	if isMixed {
 		a.Mixed = true
 		a.Type = "mixed"
-		o.SortByStartTime()
-		start, end := o.ActiveTimeRange(true)
-		start.Add(opts.SkipDur)
-		total := o.FilterInsideRange(start, end).Total(false)
+		var ops bench.Operations
+		if !o.HasError() {
+			start, end := o.ActiveTimeRange(!opts.Prefiltered)
+			start.Add(opts.SkipDur)
+			o = o.FilterInsideRange(start, end)
+			ops = o
+		} else {
+			ops = o.FilterSuccessful()
+		}
+
+		total := ops.Total(false)
 		a.MixedServerStats = &Throughput{}
 		a.MixedServerStats.fill(total)
 
 		segmentDur := opts.DurFunc(total.Duration())
-		segs := o.Segment(bench.SegmentOptions{
-			From:           start.Add(opts.SkipDur),
+		segs := ops.Segment(bench.SegmentOptions{
+			From:           time.Time{},
 			PerSegDuration: segmentDur,
-			AllThreads:     true,
+			AllThreads:     false,
 			MultiOp:        true,
 		})
 		if len(segs) > 1 {
@@ -124,7 +133,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			go func(i int) {
 				defer wg.Done()
 				ep := eps[i]
-				ops := o.FilterByEndpoint(ep)
+				ops := o.FilterByEndpoint(ep).FilterSuccessful()
 				t := Throughput{}
 				t.fill(ops.Total(false))
 				mu.Lock()
@@ -133,6 +142,8 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			}(i)
 		}
 		wg.Wait()
+		opts.Prefiltered = true
+		opts.SkipDur = 0
 	}
 
 	res := make([]Operation, len(types))
@@ -176,14 +187,14 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: segmentDur,
-				AllThreads:     !isMixed && !opts.Prefiltered,
+				AllThreads:     !opts.Prefiltered,
 			})
 			a.N = len(ops)
 			if len(segs) <= 1 {
 				a.Skipped = true
 				return
 			}
-			total := ops.Total(!isMixed && !opts.Prefiltered)
+			total := ops.Total(!opts.Prefiltered)
 			a.StartTime, a.EndTime = ops.TimeRange()
 			a.Throughput.fill(total)
 			a.Throughput.Segmented = &ThroughputSegmented{
@@ -196,9 +207,9 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			a.Hosts = ops.Hosts()
 
 			if !ops.MultipleSizes() {
-				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !isMixed && !opts.Prefiltered)
+				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !opts.Prefiltered)
 			} else {
-				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !isMixed && !opts.Prefiltered)
+				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !opts.Prefiltered)
 			}
 
 			eps := ops.Endpoints()
@@ -211,6 +222,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 					defer epWg.Done()
 					// Use all ops to include errors.
 					ops := allOps.FilterByEndpoint(ep)
+					ops = ops.FilterSuccessful()
 					total := ops.Total(false)
 					var host Throughput
 					host.fill(total)

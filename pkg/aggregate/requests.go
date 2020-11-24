@@ -194,7 +194,7 @@ func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedR
 func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedRequests {
 	var res MultiSizedRequests
 	// Single type, require one operation per thread.
-	start, end := o.ActiveTimeRange(false)
+	start, end := o.ActiveTimeRange(allThreads)
 	active := o.FilterInsideRange(start, end)
 
 	res.Requests = len(active)

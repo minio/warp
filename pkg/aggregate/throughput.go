@@ -33,6 +33,8 @@ type Throughput struct {
 	MeasureDurationMillis int `json:"measure_duration_millis"`
 	// Start time of the measurement.
 	StartTime time.Time `json:"start_time"`
+	// End time of the measurement.
+	EndTime time.Time `json:"end_time"`
 	// Average bytes per second. Can be 0.
 	AverageBPS float64 `json:"average_bps"`
 	// Average operations per second.
@@ -69,6 +71,7 @@ func (t *Throughput) fill(total bench.Segment) {
 		Operations:            total.FullOps,
 		MeasureDurationMillis: durToMillis(total.EndsBefore.Sub(total.Start)),
 		StartTime:             total.Start,
+		EndTime:               total.EndsBefore,
 		AverageBPS:            math.Round(mib*(1<<20)*10) / 10,
 		AverageOPS:            math.Round(objs*100) / 100,
 		Errors:                total.Errors,
