@@ -195,11 +195,12 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 
 			for ep, totals := range eps {
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), "\n")
+				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), ".")
 				if totals.Errors > 0 {
 					console.SetColor("Print", color.New(color.FgHiRed))
-					console.Println("Errors:", totals.Errors)
+					console.Print(" Errors: ", totals.Errors)
 				}
+				console.Println("")
 			}
 		}
 
@@ -209,7 +210,13 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		}
 	}
 	console.SetColor("Print", color.New(color.FgHiWhite))
-	console.Println("\nCluster Total:", aggr.MixedServerStats.StringDetails(details))
+	dur := time.Duration(aggr.MixedServerStats.MeasureDurationMillis) * time.Millisecond
+	dur = dur.Round(time.Second)
+	console.Printf("\nCluster Total: %v over %v.\n", aggr.MixedServerStats.StringDetails(details), dur)
+	if aggr.MixedServerStats.Errors > 0 {
+		console.SetColor("Print", color.New(color.FgHiRed))
+		console.Print("Total Errors:", aggr.MixedServerStats.Errors, ".\n")
+	}
 	console.SetColor("Print", color.New(color.FgWhite))
 	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && details {
 		for ep, ops := range eps {
@@ -264,7 +271,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 	})
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
-			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed, details)
+			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), aggr.Mixed || prefiltered, details)
 		}
 	}
 
@@ -383,7 +390,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
 		PerSegDuration: analysisDur(ctx, totalDur),
-		AllThreads:     allThreads,
+		AllThreads:     allThreads && !ops.HasError(),
 	})
 
 	segs.SortByTime()
@@ -398,12 +405,12 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           time.Time{},
 				PerSegDuration: analysisDur(ctx, totalDur),
-				AllThreads:     allThreads,
+				AllThreads:     false,
 			})
 			if len(segs) <= 1 {
 				continue
 			}
-			totals := ops.Total(allThreads)
+			totals := ops.Total(false)
 			if totals.TotalBytes > 0 {
 				segs.SortByThroughput()
 			} else {
