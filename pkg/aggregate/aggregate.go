@@ -97,8 +97,8 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 		a.Mixed = true
 		a.Type = "mixed"
 		var ops bench.Operations
-		hasErrs := o.HasError()
-		if !hasErrs {
+		errs := o.FilterErrors()
+		if len(errs) == 0 {
 			start, end := o.ActiveTimeRange(!opts.Prefiltered)
 			start.Add(opts.SkipDur)
 			o = o.FilterInsideRange(start, end)
@@ -113,6 +113,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 		}
 
 		total := ops.Total(false)
+		total.Errors = len(errs)
 		a.MixedServerStats = &Throughput{}
 		a.MixedServerStats.fill(total)
 
@@ -142,8 +143,8 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 				ops := ops.FilterByEndpoint(ep)
 				t := Throughput{}
 				t.fill(ops.Total(false))
-				if hasErrs {
-					errs := o.FilterErrors().FilterByEndpoint(ep)
+				if len(errs) > 0 {
+					errs := errs.FilterByEndpoint(ep)
 					t.Errors = len(errs)
 				}
 				mu.Lock()

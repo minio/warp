@@ -195,11 +195,12 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 
 			for ep, totals := range eps {
 				console.SetColor("Print", color.New(color.FgWhite))
-				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), "\n")
+				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), ".")
 				if totals.Errors > 0 {
 					console.SetColor("Print", color.New(color.FgHiRed))
-					console.Println("Errors:", totals.Errors)
+					console.Print(" Errors: ", totals.Errors)
 				}
+				console.Println("")
 			}
 		}
 
@@ -212,6 +213,10 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 	dur := time.Duration(aggr.MixedServerStats.MeasureDurationMillis) * time.Millisecond
 	dur = dur.Round(time.Second)
 	console.Printf("\nCluster Total: %v over %v.\n", aggr.MixedServerStats.StringDetails(details), dur)
+	if aggr.MixedServerStats.Errors > 0 {
+		console.SetColor("Print", color.New(color.FgHiRed))
+		console.Print("Total Errors:", aggr.MixedServerStats.Errors, ".\n")
+	}
 	console.SetColor("Print", color.New(color.FgWhite))
 	if eps := aggr.MixedThroughputByHost; len(eps) > 1 && details {
 		for ep, ops := range eps {

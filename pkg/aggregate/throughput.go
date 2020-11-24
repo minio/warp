@@ -61,8 +61,12 @@ func (t Throughput) StringDetails(details bool) string {
 	if t.AverageBPS > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
 	}
-	return fmt.Sprintf("%s%.02f obj/s",
-		speed, t.AverageOPS)
+	errs := ""
+	if t.Errors > 0 {
+		errs = fmt.Sprintf(", %d errors", t.Errors)
+	}
+	return fmt.Sprintf("%s%.02f obj/s%s",
+		speed, t.AverageOPS, errs)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
