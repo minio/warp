@@ -103,6 +103,11 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			o = o.FilterInsideRange(start, end)
 			ops = o
 		} else {
+			if opts.SkipDur > 0 {
+				start, end := o.TimeRange()
+				start.Add(opts.SkipDur)
+				o = o.FilterInsideRange(start, end)
+			}
 			ops = o.FilterSuccessful()
 		}
 
