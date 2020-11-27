@@ -9,7 +9,7 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/gopherjs/gopherjs v0.0.0-20190328170749-bb2674552d8f // indirect
 	github.com/gorilla/websocket v1.4.2
-	github.com/klauspost/compress v1.10.5
+	github.com/klauspost/compress v1.11.3
 	github.com/minio/cli v1.22.0
 	github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9
 	github.com/minio/md5-simd v1.1.0
