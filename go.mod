@@ -14,7 +14,8 @@ require (
 	github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9
 	github.com/minio/md5-simd v1.1.0
 	github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8
-	github.com/minio/minio-go/v7 v7.0.6-0.20201108211532-7972c40e9fee
+	github.com/minio/minio-go/v7 v7.0.6
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.0
+	golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
 )

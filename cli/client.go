@@ -39,6 +39,7 @@ import (
 	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
 	"github.com/minio/warp/pkg"
+	"golang.org/x/net/http2"
 )
 
 type hostSelectType string
@@ -207,12 +208,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
-		//
-		// TODO: Enable http2.0 when upstream issues related to HTTP/2 are fixed.
-		//
-		// if e = http2.ConfigureTransport(tr); e != nil {
-		// 	return nil, probe.NewError(e)
-		// }
+		http2.ConfigureTransport(tr)
 	}
 	return tr
 }
