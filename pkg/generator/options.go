@@ -19,7 +19,6 @@ package generator
 
 import (
 	"errors"
-	"math"
 	"math/rand"
 )
 
@@ -44,17 +43,7 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 	if !o.randSize {
 		return o.totalSize
 	}
-	logSizeMax := math.Log2(float64(o.totalSize - 1))
-	// Minimum size: 127 bytes, max scale is 256 times smaller than max size.
-	logSizeMin := math.Max(7, logSizeMax-8)
-	lsDelta := logSizeMax - logSizeMin
-	random := rng.Float64()
-	logSize := random * lsDelta
-	if logSize > 1 {
-		return 1 + int64(math.Pow(2, logSize+logSizeMin))
-	}
-	// For lowest part, do linear
-	return 1 + int64(random*math.Pow(2, logSizeMin+1))
+	return GetExpRandSize(rng, o.totalSize)
 }
 
 func defaultOptions() Options {

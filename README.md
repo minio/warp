@@ -285,6 +285,10 @@ Throughput, split into 299 x 1s:
 The `GET` operations will contain the time until the first byte was received.
 This can be accessed using the `--analyze.v` parameter.
 
+It is possible to test speed of partial file requests using the `--range` option.
+This will start reading each object at a random offset and read a random number of bytes.
+Using this produces output similar to `--obj.randsize` - and they can even be combined. 
+
 ## PUT
 
 Benchmarking put operations will upload objects of size `--obj.size` until `--duration` time has elapsed.
