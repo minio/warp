@@ -35,6 +35,7 @@ import (
 // Get benchmarks download speed.
 type Get struct {
 	CreateObjects int
+	RandomRanges  bool
 	Collector     *Collector
 	objects       generator.Objects
 
@@ -182,6 +183,14 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.RandomRanges && op.Size > 2 {
+					// Randomize length similar to --obj.randsize
+					size := generator.GetExpRandSize(rng, op.Size-2)
+					start := rng.Int63n(op.Size - size)
+					end := start + size
+					op.Size = end - start + 1
+					opts.SetRange(start, end)
+				}
 				op.Start = time.Now()
 				var err error
 				opts.VersionID = obj.VersionID
@@ -202,8 +211,8 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				op.FirstByte = fbr.t
 				op.End = time.Now()
-				if n != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected download size. want:", obj.Size, ", got:", n)
+				if n != op.Size && op.Err == "" {
+					op.Err = fmt.Sprint("unexpected download size. want:", op.Size, ", got:", n)
 					g.Error(op.Err)
 				}
 				rcv <- op
