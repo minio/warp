@@ -170,7 +170,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		console.SetColor("Print", color.New(color.FgWhite))
 
 		if ops.Skipped {
-			console.Println("Skipping", ops.Type, "too few samples.")
+			console.Println("Skipping", ops.Type, "too few samples. Longer benchmark run required for reliable results.")
 			continue
 		}
 
@@ -297,7 +297,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		}
 		fmt.Println("")
 		if ops.Skipped {
-			console.Println("Skipping", typ, "too few samples.")
+			console.Println("Skipping", typ, "too few samples. Longer benchmark run required for reliable results.")
 			continue
 		}
 
@@ -360,7 +360,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 					seg := ops.Segmented
 					console.SetColor("Print", color.New(color.FgWhite))
 					if seg == nil || len(seg.Segments) <= 1 {
-						console.Println("Skipping", typ, "host:", ep, " - Too few samples.")
+						console.Println("Skipping", typ, "host:", ep, " - Too few samples. Longer benchmark run needed for reliable results.")
 						continue
 					}
 					console.SetColor("Print", color.New(color.FgWhite))
