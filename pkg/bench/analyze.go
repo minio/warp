@@ -139,7 +139,7 @@ func (o Operations) OpThroughput() Throughput {
 func (o Operations) Segment(so SegmentOptions) Segments {
 	o.SortByStartTime()
 	if so.PerSegDuration <= 0 {
-		panic("internal error: so.PerSegDuration <= 0")
+		return nil
 	}
 	start, end := o.ActiveTimeRange(so.AllThreads)
 	if start.After(so.From) {
