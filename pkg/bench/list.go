@@ -59,6 +59,7 @@ func (d *List) Prepare(ctx context.Context) error {
 	d.Collector = NewCollector()
 	d.objects = make([]generator.Objects, d.Concurrency)
 	var mu sync.Mutex
+	objsCreated := 0
 	var groupErr error
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
@@ -123,7 +124,8 @@ func (d *List) Prepare(ctx context.Context) error {
 				mu.Lock()
 				obj.Reader = nil
 				d.objects[i] = append(d.objects[i], *obj)
-				d.prepareProgress(float64(len(d.objects)) / float64(objPerPrefix*d.Concurrency))
+				objsCreated++
+				d.prepareProgress(float64(objsCreated) / float64(objPerPrefix*d.Concurrency))
 				mu.Unlock()
 				rcv <- op
 			}
@@ -183,7 +185,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix})
+				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix, Recursive: true})
 
 				// Wait for errCh to close.
 				for {

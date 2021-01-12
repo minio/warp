@@ -290,16 +290,9 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		return
 	}
 
-	for i, ops := range aggr.Operations {
+	for _, ops := range aggr.Operations {
 		typ := ops.Type
-		if i > 0 {
-			console.Println("\n-------------------")
-		}
-		fmt.Println("")
-		if ops.Skipped {
-			console.Println("Skipping", typ, "too few samples. Longer benchmark run required for reliable results.")
-			continue
-		}
+		console.Println("\n----------------------------------------")
 
 		opo := ops.ObjectsPerOperation
 		console.SetColor("Print", color.New(color.FgHiWhite))
@@ -327,11 +320,21 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", ops.Errors)
 			if details {
+				console.SetColor("Print", color.New(color.FgWhite))
+				console.Println("First Errors:")
 				for _, err := range ops.FirstErrors {
-					console.Println(err)
+					console.Println(" *", err)
 				}
+				console.Println("")
 			}
 		}
+
+		if ops.Skipped {
+			console.SetColor("Print", color.New(color.FgHiWhite))
+			console.Println("Skipping", typ, "too few samples. Longer benchmark run required for reliable results.")
+			continue
+		}
+
 		if details {
 			printRequestAnalysis(ctx, ops, details)
 			console.SetColor("Print", color.New(color.FgHiWhite))

@@ -202,6 +202,8 @@ github.com/klauspost/cpuid v1.2.3/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgo
 github.com/klauspost/cpuid v1.2.4/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
 github.com/klauspost/cpuid v1.3.1 h1:5JNjFYYQrZeKRJ0734q51WCEEn2huer72Dc7K+R/b6s=
 github.com/klauspost/cpuid v1.3.1/go.mod h1:bYW4mA6ZgKPob1/Dlai2LviZJO7KGI3uoWLd42rAQw4=
+github.com/klauspost/cpuid/v2 v2.0.1 h1:lb04bBEJoAoV48eHs4Eq0UyhmJCkRSdIjQ3uS8WJRM4=
+github.com/klauspost/cpuid/v2 v2.0.1/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
 github.com/klauspost/pgzip v1.2.1/go.mod h1:Ch1tH69qFZu15pkjo5kYi6mth2Zzwzt50oCQKQE9RUs=
 github.com/klauspost/readahead v1.3.1/go.mod h1:AH9juHzNH7xqdqFHrMRSHeH2Ps+vFf+kblDqzPFiLJg=
 github.com/klauspost/reedsolomon v1.9.9/go.mod h1:O7yFFHiQwDR6b2t63KPUpccPtNdp5ADgh1gg4fd12wo=
@@ -245,6 +247,8 @@ github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9 h1:QbmtnKTcl7jnpTFAf0btqo
 github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9/go.mod h1:/Gah+B16Ns5rvIXB0XaRZPE7vKmQJvn8WLAUxiLhDbc=
 github.com/minio/md5-simd v1.1.0 h1:QPfiOqlZH+Cj9teu0t9b1nTBfPbyTl16Of5MeuShdK4=
 github.com/minio/md5-simd v1.1.0/go.mod h1:XpBqgZULrMYD3R+M28PcmP0CkI7PEMzB3U77ZrKZ0Gw=
+github.com/minio/md5-simd v1.1.2-0.20210107194844-776275e0c9a7 h1:uNbuDyqqb6/j017luX0eAd+E5TvjIYdKszRzk6v0qHM=
+github.com/minio/md5-simd v1.1.2-0.20210107194844-776275e0c9a7/go.mod h1:MzdKDxYpY2BT9XQFocsiZf/NKVtR7nkE4RoEpN+20RM=
 github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8 h1:yCDFjUBUoE1uNr8dEqjHuwySdAtOyvVONchEVrPPOGQ=
 github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8/go.mod h1:640kMkCwiyOX8dheptHYModdUw4HrnUFHKw3McqUXD8=
 github.com/minio/minio-go/v7 v7.0.6-0.20200929220449-755b5633803a/go.mod h1:CSt2ETZNs+bIIhWTse0mcZKZWMGrFU7Er7RR0TmkDYk=
