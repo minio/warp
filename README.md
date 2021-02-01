@@ -1,4 +1,4 @@
-![warp](warp_logo.png)
+![warp](https://raw.githubusercontent.com/minio/warp/master/warp_logo.png)
 
 S3 benchmarking tool.
 
@@ -68,7 +68,7 @@ For further details, the `--analyze.v` parameter can also be used.
 
 # Distributed Benchmarking
 
-![distributed](arch_warp.png)
+![distributed](https://raw.githubusercontent.com/minio/warp/master/arch_warp.png)
 
 It is possible to coordinate several warp instances automatically.
 This can be useful for testing performance of a cluster from several clients at once.
