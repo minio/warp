@@ -37,7 +37,7 @@ func (t TTFB) String() string {
 	if t.AverageMillis == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v",
+	return fmt.Sprintf("Avg: %v, Median: %v, Best: %v, Worst: %v",
 		time.Duration(t.AverageMillis)*time.Millisecond,
 		time.Duration(t.MedianMillis)*time.Millisecond,
 		time.Duration(t.FastestMillis)*time.Millisecond,
