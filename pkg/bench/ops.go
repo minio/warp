@@ -431,6 +431,18 @@ func (o Operations) IsMixed() bool {
 	return o.isMixed(o.OpTypes())
 }
 
+// IsMultiTouch returns true if the same files are touched multiple times.
+func (o Operations) IsMultiTouch() bool {
+	seen := make(map[string]struct{}, len(o))
+	for _, op := range o {
+		if _, ok := seen[op.File]; ok {
+			return true
+		}
+		seen[op.File] = struct{}{}
+	}
+	return false
+}
+
 // HasError returns whether one or more operations failed.
 func (o Operations) HasError() bool {
 	if len(o) == 0 {
@@ -883,6 +895,24 @@ func (o Operations) FilterSuccessful() Operations {
 	return ok
 }
 
+// FilterFirst returns the first operation on any file.
+func (o Operations) FilterFirst() Operations {
+	if len(o) == 0 {
+		return nil
+	}
+	ok := make(Operations, 0, 1000)
+	seen := make(map[string]struct{}, len(o))
+	for _, op := range o {
+		if _, ok := seen[op.File]; ok {
+			continue
+		}
+		seen[op.File] = struct{}{}
+		ok = append(ok, op)
+	}
+
+	return ok
+}
+
 // Errors returns the errors found.
 func (o Operations) FilterErrors() Operations {
 	if len(o) == 0 {
@@ -956,6 +986,22 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		cb++
 		return clientMap[c]
 	}
+	var fileMap = func(s string) string {
+		return s
+	}
+	if analyzeOnly {
+		// When analyzing map file names to a number for less RAM.
+		var i int
+		m := make(map[string]int)
+		fileMap = func(s string) string {
+			if v, ok := m[s]; ok {
+				return strconv.Itoa(v)
+			}
+			i++
+			m[s] = i
+			return strconv.Itoa(i)
+		}
+	}
 	for {
 		values, err := cr.Read()
 		if err == io.EOF {
@@ -1006,10 +1052,8 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		if idx, ok := fieldIdx["client_id"]; ok {
 			clientID = values[idx]
 		}
-		var file string
-		if !analyzeOnly {
-			file = values[fieldIdx["file"]]
-		}
+		file := fileMap(values[fieldIdx["file"]])
+
 		ops = append(ops, Operation{
 			OpType:    values[fieldIdx["op"]],
 			ObjPerOp:  int(objs),

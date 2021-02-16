@@ -442,18 +442,35 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			return
 		}
 
-		console.Println(
-			" * Avg:", time.Duration(reqs.DurAvgMillis)*time.Millisecond,
-			"50%:", time.Duration(reqs.DurMedianMillis)*time.Millisecond,
-			"90%:", time.Duration(reqs.Dur90Millis)*time.Millisecond,
-			"99%:", time.Duration(reqs.Dur99Millis)*time.Millisecond,
-			"Fastest:", time.Duration(reqs.FastestMillis)*time.Millisecond,
-			"Slowest:", time.Duration(reqs.SlowestMillis)*time.Millisecond,
-		)
+		console.Print(
+			" * Avg: ", time.Duration(reqs.DurAvgMillis)*time.Millisecond,
+			", 50%: ", time.Duration(reqs.DurMedianMillis)*time.Millisecond,
+			", 90%: ", time.Duration(reqs.Dur90Millis)*time.Millisecond,
+			", 99%: ", time.Duration(reqs.Dur99Millis)*time.Millisecond,
+			", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
+			", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
+			"\n")
 
 		if reqs.FirstByte != nil {
 			console.Println(" * First Byte:", reqs.FirstByte)
 		}
+
+		if reqs.FirstAccess != nil {
+			reqs := reqs.FirstAccess
+			console.Print(
+				" * First Access: Avg: ", time.Duration(reqs.DurAvgMillis)*time.Millisecond,
+				", 50%: ", time.Duration(reqs.DurMedianMillis)*time.Millisecond,
+				", 90%: ", time.Duration(reqs.Dur90Millis)*time.Millisecond,
+				", 99%: ", time.Duration(reqs.Dur99Millis)*time.Millisecond,
+				", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
+				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
+				"\n")
+			if reqs.FirstByte != nil {
+				console.Print(" * First Access TTFB: ", reqs.FirstByte)
+			}
+			console.Println("")
+		}
+
 		if eps := reqs.ByHost; len(eps) > 1 && details {
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nRequests by host:")
@@ -504,9 +521,26 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			", Fastest: ", bench.Throughput(s.BpsFastest),
 			", Slowest: ", bench.Throughput(s.BpsSlowest),
 			"\n")
+
 		if s.FirstByte != nil {
 			console.Println(" * First Byte:", s.FirstByte)
 		}
+
+		if s.FirstAccess != nil {
+			s := s.FirstAccess
+			console.Print(""+
+				" * First Access: Average: ", bench.Throughput(s.BpsAverage),
+				", 50%: ", bench.Throughput(s.BpsMedian),
+				", 90%: ", bench.Throughput(s.Bps90),
+				", 99%: ", bench.Throughput(s.Bps99),
+				", Fastest: ", bench.Throughput(s.BpsFastest),
+				", Slowest: ", bench.Throughput(s.BpsSlowest),
+				"\n")
+			if s.FirstByte != nil {
+				console.Print(" * First Access TTFB: ", s.FirstByte, "\n")
+			}
+		}
+
 	}
 	if eps := reqs.ByHost; len(eps) > 1 && details {
 		console.SetColor("Print", color.New(color.FgHiWhite))
