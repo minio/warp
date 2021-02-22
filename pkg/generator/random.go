@@ -18,16 +18,11 @@
 package generator
 
 import (
-	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"sync/atomic"
-
-	"github.com/secure-io/sio-go"
 )
 
 func WithRandomData() RandomOpts {
@@ -75,18 +70,16 @@ type RandomOpts struct {
 func randomOptsDefaults() RandomOpts {
 	return RandomOpts{
 		seed: nil,
-		// 10 MB before we wrap around.
-		size: 10 << 20,
+		// Use 128KB as base.
+		size: 128 << 10,
 	}
 }
 
 type randomSrc struct {
 	counter uint64
 	o       Options
-	buf     *circularBuffer
+	buf     *scrambler
 	rng     *rand.Rand
-	randSrc [16]byte
-	databuf *bytes.Reader
 	obj     Object
 }
 
@@ -104,16 +97,17 @@ func newRandom(o Options) (Source, error) {
 	if size <= 0 {
 		return nil, fmt.Errorf("size must be >= 0, got %d", size)
 	}
+
+	// Seed with random data.
 	data := make([]byte, size)
 	_, err := io.ReadFull(rng, data)
 	if err != nil {
 		return nil, err
 	}
 	r := randomSrc{
-		o:       o,
-		databuf: bytes.NewReader(data),
-		rng:     rng,
-		buf:     newCircularBuffer(data, o.totalSize),
+		o:   o,
+		rng: rng,
+		buf: newScrambler(data, o.totalSize, rng),
 		obj: Object{
 			Reader:      nil,
 			Name:        "",
@@ -131,44 +125,17 @@ func (r *randomSrc) Object() *Object {
 	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
 	r.obj.setName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
-	data := r.buf.data
-	if int64(len(data)) > r.obj.Size {
-		data = data[:r.obj.Size]
-	}
 
-	if len(data) < 128 {
-		_, err := io.ReadFull(r.rng, data)
-		if err != nil {
-			panic(err)
-		}
-		r.obj.Reader = r.buf.Reset(r.obj.Size)
-		return &r.obj
-	}
-
-	_, err := io.ReadFull(r.rng, r.randSrc[:])
-	if err != nil {
-		panic(err)
-	}
-
-	// Scramble data
-	block, _ := aes.NewCipher(r.randSrc[:])
-	gcm, _ := cipher.NewGCM(block)
-	stream := sio.NewStream(gcm, sio.BufSize)
-	r.databuf.Reset(data)
-	rr := stream.EncryptReader(r.databuf, r.randSrc[:stream.NonceSize()], nil)
-	_, err = io.ReadFull(rr, data)
-	if err != nil {
-		panic(err)
-	}
+	// Reset scrambler
 	r.obj.Reader = r.buf.Reset(r.obj.Size)
 	return &r.obj
 }
 
 func (r *randomSrc) String() string {
 	if r.o.randSize {
-		return fmt.Sprintf("Random data; random size up to %d bytes, %d byte buffer", r.o.totalSize, len(r.buf.data))
+		return fmt.Sprintf("Random data; random size up to %d bytes", r.o.totalSize)
 	}
-	return fmt.Sprintf("Random data; %d bytes total, %d byte buffer", r.buf.want, len(r.buf.data))
+	return fmt.Sprintf("Random data; %d bytes total", r.buf.want)
 }
 
 func (r *randomSrc) Prefix() string {

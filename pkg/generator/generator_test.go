@@ -193,6 +193,10 @@ func BenchmarkWithRandomData(b *testing.B) {
 			name: "10MB",
 			args: args{opts: []Option{WithSize(10 << 20), WithRandomData().Apply()}},
 		},
+		{
+			name: "1GB",
+			args: args{opts: []Option{WithSize(10 << 30), WithRandomData().Apply()}},
+		},
 	}
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
@@ -202,13 +206,12 @@ func BenchmarkWithRandomData(b *testing.B) {
 				return
 			}
 			obj := got.Object()
-			payload, err := ioutil.ReadAll(obj.Reader)
+			n, err := io.Copy(ioutil.Discard, obj.Reader)
 			if err != nil {
 				b.Errorf("ioutil error = %v", err)
 				return
 			}
-			b.SetBytes(int64(len(payload)))
-			//ioutil.WriteFile(tt.name+".bin", payload, os.ModePerm)
+			b.SetBytes(n)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
