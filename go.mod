@@ -16,6 +16,8 @@ require (
 	github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8
 	github.com/minio/minio-go/v7 v7.0.6
 	github.com/posener/complete v1.2.3
-	github.com/secure-io/sio-go v0.3.0
+	github.com/secure-io/sio-go v0.3.1
+	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
 	golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
+	golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43 // indirect
 )
