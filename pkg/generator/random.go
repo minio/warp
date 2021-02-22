@@ -23,8 +23,6 @@ import (
 	"io"
 	"math/rand"
 	"sync/atomic"
-
-	"github.com/secure-io/sio-go"
 )
 
 func WithRandomData() RandomOpts {
@@ -83,7 +81,6 @@ type randomSrc struct {
 	buf     *scrambler
 	rng     *rand.Rand
 	obj     Object
-	stream  *sio.Stream
 }
 
 func newRandom(o Options) (Source, error) {
