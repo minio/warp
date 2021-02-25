@@ -14,7 +14,7 @@ require (
 	github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9
 	github.com/minio/md5-simd v1.1.2-0.20210107194844-776275e0c9a7
 	github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8
-	github.com/minio/minio-go/v7 v7.0.6
+	github.com/minio/minio-go/v7 v7.0.10
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
