@@ -197,6 +197,10 @@ Throughput, split into 29 x 1s:
  * Slowest: 4287.0MiB/s, 2399.84 obj/s (1s, starting 19:03:53 CEST)
 ```
 
+The average object size will be close to `--obj.size` multiplied by 0.179151. 
+
+To get a value for `--obj.size` multiply the desired average object size by 5.582 to get a maximum value. 
+
 ## Automatic Termination
 Adding `--autoterm` parameter will enable automatic termination when results are considered stable. 
 To detect a stable setup, warp continuously downsample the current data to 
