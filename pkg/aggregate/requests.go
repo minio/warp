@@ -49,6 +49,8 @@ type SingleSizedRequests struct {
 	// FirstAccess is filled if the same object is accessed multiple times.
 	// This records the first touch of the object.
 	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
+	// Host names, sorted.
+	HostNames []string
 	// Request times by host.
 	ByHost map[string]SingleSizedRequests `json:"by_host,omitempty"`
 }
@@ -146,6 +148,9 @@ type MultiSizedRequests struct {
 	// BySize contains request times separated by sizes
 	BySize []RequestSizeRange `json:"by_size"`
 
+	// HostNames are the host names, sorted.
+	HostNames []string
+
 	// ByHost contains request information by host.
 	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
 }
@@ -191,6 +196,7 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 	}
 	res.fill(active)
 	res.fillFirst(o)
+	res.HostNames = o.Endpoints()
 	res.ByHost = RequestAnalysisHostsSingleSized(o)
 
 	return &res
@@ -235,6 +241,7 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 	}
 	res.fill(active)
 	res.ByHost = RequestAnalysisHostsMultiSized(active)
+	res.HostNames = active.Endpoints()
 	return &res
 }
 
