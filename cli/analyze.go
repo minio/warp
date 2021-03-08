@@ -347,7 +347,8 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nThroughput by host:")
 
-			for ep, ops := range eps {
+			for _, ep := range ops.HostNames {
+				ops := eps[ep]
 				console.SetColor("Print", color.New(color.FgWhite))
 				console.Print(" * ", ep, ":")
 				if !details {
@@ -475,7 +476,8 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nRequests by host:")
 
-			for ep, reqs := range eps {
+			for _, ep := range reqs.HostNames {
+				reqs := eps[ep]
 				if reqs.Requests <= 1 {
 					continue
 				}
@@ -546,7 +548,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nRequests by host:")
 
-		for ep, s := range eps {
+		for ep, s := range reqs.ByHost {
 			if s.Requests <= 1 {
 				continue
 			}

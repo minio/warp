@@ -55,6 +55,8 @@ type Operation struct {
 	Clients int `json:"clients"`
 	// Numbers of hosts
 	Hosts int `json:"hosts"`
+	// HostNames are sorted names of hosts
+	HostNames []string `json:"host_names"`
 	// Populated if requests are all of same object size.
 	SingleSizedRequests *SingleSizedRequests `json:"single_sized_requests,omitempty"`
 	// Populated if requests are of difference object sizes.
@@ -220,6 +222,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			a.Concurrency = ops.Threads()
 			a.Clients = ops.Clients()
 			a.Hosts = ops.Hosts()
+			a.HostNames = ops.Endpoints()
 
 			if !ops.MultipleSizes() {
 				a.SingleSizedRequests = RequestAnalysisSingleSized(ops, !opts.Prefiltered)

@@ -300,6 +300,19 @@ func (o Operations) SortByStartTime() {
 	})
 }
 
+// SortByEndTime will sort the operations by end time.
+// Earliest operations first.
+func (o Operations) SortByEndTime() {
+	if sort.SliceIsSorted(o, func(i, j int) bool {
+		return o[i].End.Before(o[j].End)
+	}) {
+		return
+	}
+	sort.Slice(o, func(i, j int) bool {
+		return o[i].End.Before(o[j].End)
+	})
+}
+
 // SortByDuration will sort the operations by duration taken to complete.
 // Fastest operations first.
 func (o Operations) SortByDuration() {
@@ -893,6 +906,13 @@ func (o Operations) FilterSuccessful() Operations {
 		}
 	}
 	return ok
+}
+
+// Clone the operations.
+func (o Operations) Clone() Operations {
+	c := make(Operations, len(o))
+	copy(c, o)
+	return c
 }
 
 // FilterFirst returns the first operation on any file.
