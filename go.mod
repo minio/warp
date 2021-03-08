@@ -6,18 +6,15 @@ require (
 	github.com/bygui86/multi-profile v1.3.1
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.0
-	github.com/fatih/color v1.9.0
-	github.com/gopherjs/gopherjs v0.0.0-20190328170749-bb2674552d8f // indirect
+	github.com/fatih/color v1.10.0
 	github.com/gorilla/websocket v1.4.2
-	github.com/klauspost/compress v1.11.3
+	github.com/klauspost/compress v1.11.7
 	github.com/minio/cli v1.22.0
-	github.com/minio/mc v0.0.0-20201106215650-63ce578c46e9
-	github.com/minio/md5-simd v1.1.2-0.20210107194844-776275e0c9a7
-	github.com/minio/minio v0.0.0-20201102034248-d8e07f2c41c8
-	github.com/minio/minio-go/v7 v7.0.10
+	github.com/minio/mc v0.0.0-20210306211449-1d9873c51226
+	github.com/minio/md5-simd v1.1.2
+	github.com/minio/minio v0.0.0-20210308193537-3d8c512bba51
+	github.com/minio/minio-go/v7 v7.0.11-0.20210302210017-6ae69c73ce78
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
-	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
-	golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
-	golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43 // indirect
+	golang.org/x/net v0.0.0-20201216054612-986b41b23924
 )

@@ -112,11 +112,6 @@ func setGlobals(quiet, debug, json, noColor bool) {
 	globalJSON = globalJSON || json
 	globalNoColor = globalNoColor || noColor
 
-	// Enable debug messages if requested.
-	if globalDebug {
-		console.DebugPrint = true
-	}
-
 	// Disable colorified messages if requested.
 	if globalNoColor || globalQuiet {
 		console.SetColorOff()
