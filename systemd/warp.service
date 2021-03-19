@@ -1,0 +1,26 @@
+[Unit]
+Description=Warp
+Documentation=https://github.com/minio/warp
+Wants=network-online.target
+After=network-online.target
+AssertFileIsExecutable=/usr/local/bin/warp
+
+[Service]
+WorkingDirectory=/tmp
+
+ExecStart=/usr/local/bin/warp client
+
+# Let systemd restart this service always
+Restart=always
+
+# Specifies the maximum file descriptor number that can be opened by this process
+LimitNOFILE=65536
+
+# Disable timeout logic and wait until process is stopped
+TimeoutStopSec=infinity
+SendSIGKILL=no
+
+[Install]
+WantedBy=multi-user.target
+
+# Built for ${project.name}-${project.version} (${project.name})
