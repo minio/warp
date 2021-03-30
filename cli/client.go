@@ -216,7 +216,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 // parseHosts will parse the host parameter given.
 func parseHosts(h string) []string {
 	hosts := strings.Split(h, ",")
-	dst := make([]string, 0, len(hosts))
+	var dst []string
 	for _, host := range hosts {
 		if !ellipses.HasEllipses(host) {
 			dst = append(dst, host)
@@ -228,8 +228,8 @@ func parseHosts(h string) []string {
 
 			log.Fatal(perr.Error())
 		}
-		for _, p := range patterns {
-			dst = append(dst, p.Expand()...)
+		for _, lbls := range patterns.Expand() {
+			dst = append(dst, strings.Join(lbls, ""))
 		}
 	}
 	return dst
