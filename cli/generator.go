@@ -50,6 +50,7 @@ func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
 	size, err := toSize(ctx.String("obj.size"))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
 	src, err := generator.NewFn(g.Apply(),
+		generator.WithCustomPrefix(ctx.String("prefix")),
 		generator.WithPrefixSize(prefixSize),
 		generator.WithSize(int64(size)),
 		generator.WithRandomSize(ctx.Bool("obj.randsize")),
@@ -79,6 +80,7 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 	size, err := toSize(ctx.String("obj.size"))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
 	src, err := generator.NewFn(g.Apply(),
+		generator.WithCustomPrefix(ctx.String("prefix")),
 		generator.WithPrefixSize(prefixSize),
 		generator.WithSize(int64(size)),
 		generator.WithRandomSize(ctx.Bool("obj.randsize")),
