@@ -195,6 +195,10 @@ var ioFlags = []cli.Flag{
 		Name:  "noprefix",
 		Usage: "Do not use separate prefix for each thread",
 	},
+	cli.StringFlag{
+		Name:  "prefix",
+		Usage: "Use a custom prefix for each thread",
+	},
 	cli.BoolFlag{
 		Name:  "disable-multipart",
 		Usage: "disable multipart uploads",

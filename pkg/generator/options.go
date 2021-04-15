@@ -28,6 +28,7 @@ type Options struct {
 	src          func(o Options) (Source, error)
 	totalSize    int64
 	randSize     bool
+	customPrefix string
 	csv          CsvOpts
 	random       RandomOpts
 	randomPrefix int
@@ -79,6 +80,14 @@ func WithRandomSize(b bool) Option {
 			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
 		}
 		o.randSize = b
+		return nil
+	}
+}
+
+// WithCustomPrefix adds custom prefix under bucket where all warp content is created.
+func WithCustomPrefix(prefix string) Option {
+	return func(o *Options) error {
+		o.customPrefix = prefix
 		return nil
 	}
 }
