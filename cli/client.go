@@ -35,6 +35,7 @@ import (
 	md5simd "github.com/minio/md5-simd"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio/pkg/certs"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/minio/pkg/ellipses"
 	"github.com/minio/minio/pkg/madmin"
@@ -237,11 +238,14 @@ func parseHosts(h string) []string {
 
 // mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)
 func mustGetSystemCertPool() *x509.CertPool {
-	pool, err := x509.SystemCertPool()
+	rootCAs, err := certs.GetRootCAs("")
 	if err != nil {
-		return x509.NewCertPool()
+		rootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return x509.NewCertPool()
+		}
 	}
-	return pool
+	return rootCAs
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
