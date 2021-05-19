@@ -13,7 +13,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-warpConfiguration: 
+warpConfiguration:
   # MinIO or other S3 Compatible server URL
   s3ServerURL: minio-{0...3}.minio.default.svc.cluster.local:9000
   # Whether TLS enabled or not for above URL
@@ -25,19 +25,24 @@ warpConfiguration:
   # MinIO or other S3 Compatible server Secret Key
   s3SecretKey: "minio123"
   # Operation to be benchmarked (get / put / delete / list / stat / mixed)
-  operationToBenchmark: mixed
-  # Number of objects to be used 
-  objectCount: 1000
+  operationToBenchmark: get
+  #
+  # Number of objects to be used
+  # objectCount: 1000
+  #
   # Object size to be used for benchmarks
-  objectSize: 5 MiB
+  # objectSize: 10MiB
+  #
   # Duration for which the benchmark will run
-  duration: 5m0s
+  # duration: 5m0s
+  #
   # Number of parallel operations to run during benchmark
-  concurrentOperations: 10
-  # By default operations are performed on a bucket called warp-benchmark-bucket. 
-  # This can be changed using the --bucket parameter. Do however note that the bucket 
+  # concurrentOperations: 10
+  #
+  # By default operations are performed on a bucket called warp-benchmark-bucket.
+  # This can be changed using the --bucket parameter. Do however note that the bucket
   # will be completely cleaned before and after each run, so it should not contain any data.
-  bucket: "warp-benchmark-bucket"
+  # bucket: "warp-benchmark-bucket"
 
 serviceAccount:
   # Specifies whether a service account should be created
