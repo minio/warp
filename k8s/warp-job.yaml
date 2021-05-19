@@ -14,6 +14,6 @@ spec:
             value: "minio123"
         image: "minio/warp:latest"
         imagePullPolicy: Always
-        args: [ "get", "--bucket", "benchmark-bucket", "--warp-client", "warp-{0...3}.warp.default.svc.cluster.local:7761", "--host", "minio-{0...3}.minio.default.svc.cluster.local:9000", "--concurrent", "64", "--obj.size", "32MiB", "--objects", "512" ]
+        args: [ "get", "--bucket", "benchmark-bucket", "--warp-client", "warp-{0...3}.warp.default.svc.cluster.local:7761", "--host", "minio-{0...3}.minio.default.svc.cluster.local:9000", "--concurrent", "64", "--obj.size", "32MiB" ]
       restartPolicy: Never
   backoffLimit: 4
