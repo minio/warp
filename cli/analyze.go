@@ -80,12 +80,6 @@ var analyzeFlags = []cli.Flag{
 		Name:  "analyze.v",
 		Usage: "Display additional analysis data.",
 	},
-	cli.StringFlag{
-		Name:   serverFlagName,
-		Usage:  "When running benchmarks open a webserver on this ip:port and keep it running afterwards.",
-		Value:  "",
-		Hidden: true,
-	},
 }
 
 var analyzeCmd = cli.Command{

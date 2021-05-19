@@ -53,6 +53,10 @@ var globalFlags = []cli.Flag{
 		Name:  "autocompletion",
 		Usage: "install auto-completion for your shell",
 	},
+	cli.StringFlag{
+		Name:  serverFlagName,
+		Usage: "When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762",
+	},
 }
 
 var profileFlags = []cli.Flag{
