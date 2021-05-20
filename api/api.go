@@ -249,19 +249,12 @@ func (s *Server) handleDownloadJSON(w http.ResponseWriter, req *http.Request) {
 
 // handleStop handles requests to `/v1/stop`, stops the service.
 func (s *Server) handleStop(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodDelete {
-		w.WriteHeader(200)
-		w.Write([]byte(`bye...`))
-		s.server.Close()
+	if req.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if req.Method == http.MethodGet {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte(`{"status": "ok"}`))
-		return
-	}
-	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte(`bye...`))
+	s.server.Close()
 }
 
 // NewBenchmarkMonitor creates a new Server.

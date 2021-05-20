@@ -80,6 +80,10 @@ var analyzeFlags = []cli.Flag{
 		Name:  "analyze.v",
 		Usage: "Display additional analysis data.",
 	},
+	cli.StringFlag{
+		Name:  serverFlagName,
+		Usage: "When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762",
+	},
 }
 
 var analyzeCmd = cli.Command{
