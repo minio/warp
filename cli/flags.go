@@ -22,7 +22,7 @@ import (
 	"os"
 
 	"github.com/minio/cli"
-	"github.com/minio/minio/pkg/console"
+	"github.com/minio/pkg/console"
 )
 
 // Collection of warp flags currently supported
