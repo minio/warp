@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/zstd"
-	"github.com/minio/minio/pkg/console"
+	"github.com/minio/pkg/console"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
