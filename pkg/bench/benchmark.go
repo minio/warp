@@ -158,7 +158,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 				objectsCh <- object
 			}
-			console.Infof("\rClearing Prefix %/%q...", c.Bucket, prefix)
+			console.Infof("\rClearing Prefix %q/%q...", c.Bucket, prefix)
 		}
 	}()
 
