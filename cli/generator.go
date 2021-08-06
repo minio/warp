@@ -73,7 +73,7 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 	case "csv":
 		g = generator.WithCSV().Size(25, 1000)
 	default:
-		err := errors.New("unknown generator type:" + ctx.String("generator"))
+		err := errors.New("unknown generator type:" + ctx.String("obj.generator"))
 		fatal(probe.NewError(err), "Invalid -generator parameter")
 		return nil
 	}
