@@ -150,7 +150,9 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			WithVersions: c.Versioned,
 		}
 		for _, prefix := range prefixes {
-			opts.Prefix = prefix
+			if c.Source().Prefix() != "" {
+				opts.Prefix = prefix + "/"
+			}
 			for object := range cl.ListObjects(ctx, c.Bucket, opts) {
 				if object.Err != nil {
 					c.Error(object.Err)
