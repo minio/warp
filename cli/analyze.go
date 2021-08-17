@@ -451,7 +451,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			"\n")
 
 		if reqs.FirstByte != nil {
-			console.Println(" * First Byte:", reqs.FirstByte)
+			console.Println(" * TTFB:", reqs.FirstByte)
 		}
 
 		if reqs.FirstAccess != nil {
@@ -523,7 +523,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			"\n")
 
 		if s.FirstByte != nil {
-			console.Println(" * First Byte:", s.FirstByte)
+			console.Println(" * TTFB:", s.FirstByte)
 		}
 
 		if s.FirstAccess != nil {
@@ -558,7 +558,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 				"50%:", bench.Throughput(s.BpsMedian),
 				"90%:", bench.Throughput(s.Bps90))
 			if s.FirstByte != nil {
-				console.Println(" * First Byte:", s.FirstByte)
+				console.Println(" * TTFB:", s.FirstByte)
 			}
 		}
 	}
