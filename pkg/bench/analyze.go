@@ -55,8 +55,12 @@ type Segment struct {
 type TTFB struct {
 	Average time.Duration
 	Worst   time.Duration
-	Best    time.Duration
+	P25     time.Duration
 	Median  time.Duration
+	P75     time.Duration
+	P90     time.Duration
+	P99     time.Duration
+	Best    time.Duration
 }
 
 // Segments is a slice of segment elements.
@@ -99,19 +103,17 @@ func (o Operations) TTFB(start, end time.Time) TTFB {
 
 	res := TTFB{
 		Average: 0,
-		Worst:   0,
-		Best:    time.Minute * 10000,
-		Median:  filtered[len(filtered)/2].TTFB(),
+		Worst:   filtered.Median(0).TTFB(),
+		P25:     filtered.Median(0.25).TTFB(),
+		Median:  filtered.Median(0.5).TTFB(),
+		P75:     filtered.Median(0.75).TTFB(),
+		P90:     filtered.Median(0.9).TTFB(),
+		P99:     filtered.Median(0.99).TTFB(),
+		Best:    filtered.Median(1).TTFB(),
 	}
 	for _, op := range filtered {
 		ttfb := op.TTFB()
 		res.Average += ttfb
-		if res.Best > ttfb {
-			res.Best = ttfb
-		}
-		if res.Worst < ttfb {
-			res.Worst = ttfb
-		}
 	}
 	res.Average /= time.Duration(len(filtered))
 	return res

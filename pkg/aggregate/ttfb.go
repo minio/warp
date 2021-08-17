@@ -27,9 +27,13 @@ import (
 // TTFB contains times to first byte if applicable.
 type TTFB struct {
 	AverageMillis int `json:"average_millis"`
-	MedianMillis  int `json:"median_millis"`
-	FastestMillis int `json:"fastest_millis"`
 	SlowestMillis int `json:"slowest_millis"`
+	P25Millis     int `json:"p25_millis"`
+	MedianMillis  int `json:"median_millis"`
+	P75Millis     int `json:"p75_millis"`
+	P90Millis     int `json:"p90_millis"`
+	P99Millis     int `json:"p99_millis"`
+	FastestMillis int `json:"fastest_millis"`
 }
 
 // String returns a human printable version of the time to first byte.
@@ -37,11 +41,15 @@ func (t TTFB) String() string {
 	if t.AverageMillis == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %v, Median: %v, Best: %v, Worst: %v",
+	return fmt.Sprintf("Avg: %v, Worst: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Best: %v",
 		time.Duration(t.AverageMillis)*time.Millisecond,
+		time.Duration(t.SlowestMillis)*time.Millisecond,
+		time.Duration(t.P25Millis)*time.Millisecond,
 		time.Duration(t.MedianMillis)*time.Millisecond,
-		time.Duration(t.FastestMillis)*time.Millisecond,
-		time.Duration(t.SlowestMillis)*time.Millisecond)
+		time.Duration(t.P75Millis)*time.Millisecond,
+		time.Duration(t.P90Millis)*time.Millisecond,
+		time.Duration(t.P99Millis)*time.Millisecond,
+		time.Duration(t.FastestMillis)*time.Millisecond)
 }
 
 // TtfbFromBench converts from bench.TTFB
@@ -51,8 +59,12 @@ func TtfbFromBench(t bench.TTFB) *TTFB {
 	}
 	return &TTFB{
 		AverageMillis: durToMillis(t.Average),
-		MedianMillis:  durToMillis(t.Median),
-		FastestMillis: durToMillis(t.Best),
 		SlowestMillis: durToMillis(t.Worst),
+		P25Millis:     durToMillis(t.P25),
+		MedianMillis:  durToMillis(t.Median),
+		P75Millis:     durToMillis(t.P75),
+		P90Millis:     durToMillis(t.P90),
+		P99Millis:     durToMillis(t.P99),
+		FastestMillis: durToMillis(t.Best),
 	}
 }
