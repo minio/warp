@@ -192,6 +192,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		// Refer:
 		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
 		DisableCompression: true,
+		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
 	}
 	if ctx.Bool("tls") {
 		// Keep TLS config.

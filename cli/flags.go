@@ -212,4 +212,9 @@ var ioFlags = []cli.Flag{
 		Value: "",
 		Usage: "Specify custom storage class, for instance 'STANDARD' or 'REDUCED_REDUNDANCY'.",
 	},
+	cli.BoolFlag{
+		Name:   "disable-http-keepalive",
+		Usage:  "Disable HTTP Keep-Alive",
+		Hidden: true,
+	},
 }
