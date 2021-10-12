@@ -80,10 +80,12 @@ const (
 	autoTermCheck = 7
 )
 
+// GetCommon implements interface compatible implementation
 func (c *Common) GetCommon() *Common {
 	return c
 }
 
+// ErrorF formatted error printer
 func (c *Common) ErrorF(format string, data ...interface{}) {
 	c.Error(fmt.Sprintf(format, data...))
 }
