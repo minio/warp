@@ -36,6 +36,7 @@ type List struct {
 	CreateObjects int
 	NoPrefix      bool
 	Collector     *Collector
+	Metadata      bool
 	objects       []generator.Objects
 
 	Common
@@ -185,7 +186,11 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				op.Start = time.Now()
 
 				// List all objects with prefix
-				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix, Recursive: true})
+				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{
+					WithMetadata: d.Metadata,
+					Prefix:       objs[0].Prefix,
+					Recursive:    true,
+				})
 
 				// Wait for errCh to close.
 				for {

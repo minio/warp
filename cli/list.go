@@ -35,6 +35,10 @@ var (
 			Value: "1KB",
 			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
 		},
+		cli.BoolFlag{
+			Name:  "metadata",
+			Usage: "Enable extended MinIO ListObjects with metadata, by default this benchmarking uses ListObjectsV2 API.",
+		},
 	}
 )
 
@@ -70,6 +74,7 @@ func mainList(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
+		Metadata:      ctx.Bool("metadata"),
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),
 	}
