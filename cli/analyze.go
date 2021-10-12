@@ -389,15 +389,21 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 		return
 	}
 	totalDur := ops.Duration()
+	aDur := analysisDur(ctx, totalDur)
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
-		PerSegDuration: analysisDur(ctx, totalDur),
+		PerSegDuration: aDur,
 		AllThreads:     allThreads && !ops.HasError(),
 	})
+	if len(segs) == 0 {
+		return
+	}
 
 	segs.SortByTime()
 	err := segs.CSV(wrSegs)
 	errorIf(probe.NewError(err), "Error writing analysis")
+	start := segs[0].Start
+	wantSegs := len(segs)
 
 	// Write segments per endpoint
 	eps := ops.Endpoints()
@@ -405,12 +411,15 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 		for _, ep := range eps {
 			ops := ops.FilterByEndpoint(ep)
 			segs := ops.Segment(bench.SegmentOptions{
-				From:           time.Time{},
-				PerSegDuration: analysisDur(ctx, totalDur),
+				From:           start,
+				PerSegDuration: aDur,
 				AllThreads:     false,
 			})
 			if len(segs) <= 1 {
 				continue
+			}
+			if len(segs) > wantSegs {
+				segs = segs[:wantSegs]
 			}
 			totals := ops.Total(false)
 			if totals.TotalBytes > 0 {
