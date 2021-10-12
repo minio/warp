@@ -7,6 +7,7 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.12.0
+	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/klauspost/compress v1.11.7
 	github.com/minio/cli v1.22.0
@@ -18,4 +19,5 @@ require (
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
 	golang.org/x/net v0.0.0-20210421230115-4e50805a0758
+	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac // indirect
 )
