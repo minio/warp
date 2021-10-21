@@ -159,6 +159,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
+	console.Eraseline()
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
