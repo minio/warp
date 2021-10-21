@@ -373,6 +373,32 @@ Throughput, split into 59 x 1s:
  * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
+## RETENTION
+
+Benchmarking [PutObjectRetention](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObjectRetention.html) operations
+will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes and `--versions` versions on each object.
+
+Example:
+```
+λ warp retention --objects=2500 --duration=1m
+[...]
+----------------------------------------
+Operation: RETENTION
+* Average: 169.50 obj/s
+
+Throughput by host:
+ * http://192.168.1.78:9001: Avg: 85.01 obj/s
+ * http://192.168.1.78:9002: Avg: 84.56 obj/s
+
+Throughput, split into 59 x 1s:
+ * Fastest: 203.45 obj/s
+ * 50% Median: 169.45 obj/s
+ * Slowest: 161.73 obj/s
+```
+
+Note that since object locking can only be specified when creating a bucket, it may be needed to recreate the bucket. 
+Warp will attempt to do that automatically.
+
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.

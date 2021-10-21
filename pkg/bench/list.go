@@ -50,6 +50,7 @@ func (d *List) Prepare(ctx context.Context) error {
 	}
 	src := d.Source()
 	objPerPrefix := d.CreateObjects / d.Concurrency
+	console.Eraseline()
 	if d.NoPrefix {
 		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects of ", src.String(), " with no prefixes")
 	} else {

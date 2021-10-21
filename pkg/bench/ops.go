@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/minio/pkg/console"
 )
 
@@ -136,10 +136,12 @@ func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, 
 			}
 			// All checks passed.
 			if mb > 0 {
+				console.Eraseline()
 				console.Printf("\rThroughput %0.01fMiB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
 					mb, threshold*100,
 					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
 			} else {
+				console.Eraseline()
 				console.Printf("\rThroughput %0.01f objects/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
 					objs, threshold*100,
 					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
@@ -1088,6 +1090,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 			ClientID:  getClient(clientID),
 		})
 		if log != nil && len(ops)%1000000 == 0 {
+			console.Eraseline()
 			log("\r%d operations loaded...", len(ops))
 		}
 		if limit > 0 && len(ops) >= limit {
@@ -1095,6 +1098,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		}
 	}
 	if log != nil {
+		console.Eraseline()
 		log("\r%d operations loaded... Done!\n", len(ops))
 	}
 	return ops, nil

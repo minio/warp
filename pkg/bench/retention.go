@@ -30,26 +30,35 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// Stat benchmarks HEAD speed.
-type Stat struct {
+// Retention benchmarks download speed.
+type Retention struct {
 	CreateObjects int
+	Versions      int
 	Collector     *Collector
 	objects       generator.Objects
 
-	// Default Stat options.
-	StatOpts minio.StatObjectOptions
 	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (g *Stat) Prepare(ctx context.Context) error {
+func (g *Retention) Prepare(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
+	cl, done := g.Client()
+	defer done()
+	if !g.Versioned {
+		err := cl.EnableVersioning(ctx, g.Bucket)
+		if err != nil {
+			return err
+		}
+		g.Versioned = true
+	}
+
 	src := g.Source()
 	console.Eraseline()
-	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
+	console.Info("\rUploading ", g.CreateObjects, " objects with ", g.Versions, " versions each of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -60,6 +69,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 	close(obj)
 	var groupErr error
 	var mu sync.Mutex
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -75,48 +85,53 @@ func (g *Stat) Prepare(ctx context.Context) error {
 				default:
 				}
 				obj := src.Object()
-				client, cldone := g.Client()
-				op := Operation{
-					OpType:   http.MethodPut,
-					Thread:   uint16(i),
-					Size:     obj.Size,
-					File:     obj.Name,
-					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
-				}
-				opts.ContentType = obj.ContentType
-				op.Start = time.Now()
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
-				op.End = time.Now()
-				if err != nil {
-					err := fmt.Errorf("upload error: %w", err)
-					g.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+				name := obj.Name
+				for ver := 0; ver < g.Versions; ver++ {
+					// New input for each version
+					obj := src.Object()
+					obj.Name = name
+					client, cldone := g.Client()
+					op := Operation{
+						OpType:   http.MethodPut,
+						Thread:   uint16(i),
+						Size:     obj.Size,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
 					}
-					mu.Unlock()
-					return
-				}
-
-				obj.VersionID = res.VersionID
-				if res.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					g.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+					opts.ContentType = obj.ContentType
+					op.Start = time.Now()
+					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						err := fmt.Errorf("upload error: %w", err)
+						g.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
 					}
+					obj.VersionID = res.VersionID
+					if res.Size != obj.Size {
+						err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
+						g.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
+					}
+					cldone()
+					mu.Lock()
+					obj.Reader = nil
+					g.objects = append(g.objects, *obj)
+					g.prepareProgress(float64(len(g.objects)) / float64(g.CreateObjects*g.Versions))
 					mu.Unlock()
-					return
+					rcv <- op
 				}
-				cldone()
-				mu.Lock()
-				obj.Reader = nil
-				g.objects = append(g.objects, *obj)
-				g.prepareProgress(float64(len(g.objects)) / float64(g.CreateObjects))
-				mu.Unlock()
-				rcv <- op
 			}
 		}(i)
 	}
@@ -126,13 +141,14 @@ func (g *Stat) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Retention) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "STAT", g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
+		ctx = c.AutoTerm(ctx, http.MethodGet, g.AutoTermScale, autoTermCheck, autoTermSamples, g.AutoTermDur)
 	}
+
 	// Non-terminating context.
 	nonTerm := context.Background()
 
@@ -141,10 +157,11 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 			rng := rand.New(rand.NewSource(int64(i)))
 			rcv := c.Receiver()
 			defer wg.Done()
-			opts := g.StatOpts
 			done := ctx.Done()
+			var opts minio.PutObjectRetentionOptions
 
 			<-wait
+			mode := minio.Governance
 			for {
 				select {
 				case <-done:
@@ -154,19 +171,23 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
-					OpType:   "STAT",
+					OpType:   "RETENTION",
 					Thread:   uint16(i),
 					Size:     0,
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
-				var err error
 				opts.VersionID = obj.VersionID
-				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
+				t := op.Start.Add(24 * time.Hour)
+				opts.RetainUntilDate = &t
+				opts.Mode = &mode
+				opts.GovernanceBypass = true
+				err := client.PutObjectRetention(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
-					g.Error("StatObject error: ", err)
+					g.Error("put retention error:", err)
 					op.Err = err.Error()
 					op.End = time.Now()
 					rcv <- op
@@ -174,10 +195,6 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					continue
 				}
 				op.End = time.Now()
-				if objI.Size != obj.Size && op.Err == "" {
-					op.Err = fmt.Sprint("unexpected file size. want:", obj.Size, ", got:", objI.Size)
-					g.Error(op.Err)
-				}
 				rcv <- op
 				cldone()
 			}
@@ -188,6 +205,6 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (g *Stat) Cleanup(ctx context.Context) {
+func (g *Retention) Cleanup(ctx context.Context) {
 	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
 }

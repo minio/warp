@@ -19,8 +19,10 @@ package bench
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -51,6 +53,7 @@ type Common struct {
 	Source      func() generator.Source
 	Bucket      string
 	Location    string
+	Locking     bool
 
 	// Running in client mode.
 	ClientMode bool
@@ -100,10 +103,33 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 		return err
 	}
 
+	if x && c.Locking {
+		_, _, _, err := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
+		if err != nil {
+			if !c.Clear {
+				return errors.New("not allowed to clear bucket to re-create bucket with locking")
+			}
+			if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
+				c.Versioned = bvc.Status == "Enabled"
+			}
+			console.Eraseline()
+			console.Infof("\rClearing Bucket %q to enable locking...", c.Bucket)
+			c.deleteAllInBucket(ctx)
+			err = cl.RemoveBucket(ctx, c.Bucket)
+			if err != nil {
+				return err
+			}
+			// Recreate bucket.
+			x = false
+		}
+	}
+
 	if !x {
+		console.Eraseline()
 		console.Infof("\rCreating Bucket %q...", c.Bucket)
 		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
-			Region: c.Location,
+			Region:        c.Location,
+			ObjectLocking: c.Locking,
 		})
 
 		// In client mode someone else may have created it first.
@@ -125,6 +151,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 
 	if c.Clear {
+		console.Eraseline()
 		console.Infof("\rClearing Bucket %q...", c.Bucket)
 		c.deleteAllInBucket(ctx)
 	}
@@ -152,7 +179,8 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			WithVersions: c.Versioned,
 		}
 		for _, prefix := range prefixes {
-			if c.Source().Prefix() != "" {
+			opts.Prefix = prefix
+			if prefix != "" {
 				opts.Prefix = prefix + "/"
 			}
 			for object := range cl.ListObjects(ctx, c.Bucket, opts) {
@@ -162,11 +190,12 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				}
 				objectsCh <- object
 			}
-			console.Infof("\rClearing Prefix %q/%q...", c.Bucket, prefix)
+			console.Eraseline()
+			console.Infof("\rClearing Prefix %q...", strings.Join([]string{c.Bucket, opts.Prefix}, "/"))
 		}
 	}()
 
-	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, minio.RemoveObjectsOptions{})
+	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, minio.RemoveObjectsOptions{GovernanceBypass: true})
 	for err := range errCh {
 		if err.Err != nil {
 			c.Error(err.Err)

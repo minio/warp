@@ -47,6 +47,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := d.Source()
+	console.Eraseline()
 	console.Info("\rUploading ", d.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
