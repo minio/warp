@@ -63,7 +63,7 @@ FLAGS:
 
 // mainGet is the entry point for get command.
 func mainRetention(ctx *cli.Context) error {
-	checkGetSyntax(ctx)
+	checkRetentionSyntax(ctx)
 	src := newGenSource(ctx)
 	b := bench.Retention{
 		Common: bench.Common{
