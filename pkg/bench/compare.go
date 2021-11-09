@@ -96,31 +96,31 @@ func (c *CmpRequests) fill(ops Operations) {
 }
 
 // String returns a human readable representation of the TTFB comparison.
-func (t *CmpReqs) String() string {
-	if t == nil {
+func (c *CmpReqs) String() string {
+	if c == nil {
 		return ""
 	}
 	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
-		plusPositiveD(t.Average),
-		t.Average.Round(time.Millisecond/20),
-		plusPositiveD(t.Average),
-		100*(float64(t.After.Average)-float64(t.Before.Average))/float64(t.Before.Average),
-		plusPositiveD(t.Median),
-		t.Median,
-		plusPositiveD(t.Median),
-		100*(float64(t.After.Median)-float64(t.Before.Median))/float64(t.Before.Median),
-		plusPositiveD(t.P99),
-		t.P99,
-		plusPositiveD(t.P99),
-		100*(float64(t.After.P99)-float64(t.Before.P99))/float64(t.Before.P99),
-		plusPositiveD(t.Best),
-		t.Best,
-		plusPositiveD(t.Best),
-		100*(float64(t.After.Best)-float64(t.Before.Best))/float64(t.Before.Best),
-		plusPositiveD(t.Worst),
-		t.Worst,
-		plusPositiveD(t.Worst),
-		100*(float64(t.After.Worst)-float64(t.Before.Worst))/float64(t.Before.Worst),
+		plusPositiveD(c.Average),
+		c.Average.Round(time.Millisecond/20),
+		plusPositiveD(c.Average),
+		100*(float64(c.After.Average)-float64(c.Before.Average))/float64(c.Before.Average),
+		plusPositiveD(c.Median),
+		c.Median,
+		plusPositiveD(c.Median),
+		100*(float64(c.After.Median)-float64(c.Before.Median))/float64(c.Before.Median),
+		plusPositiveD(c.P99),
+		c.P99,
+		plusPositiveD(c.P99),
+		100*(float64(c.After.P99)-float64(c.Before.P99))/float64(c.Before.P99),
+		plusPositiveD(c.Best),
+		c.Best,
+		plusPositiveD(c.Best),
+		100*(float64(c.After.Best)-float64(c.Before.Best))/float64(c.Before.Best),
+		plusPositiveD(c.Worst),
+		c.Worst,
+		plusPositiveD(c.Worst),
+		100*(float64(c.After.Worst)-float64(c.Before.Worst))/float64(c.Before.Worst),
 	)
 }
 
