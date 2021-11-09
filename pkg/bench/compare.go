@@ -29,6 +29,7 @@ type Comparison struct {
 	Op string
 
 	TTFB *TTFBCmp
+	Reqs CmpReqs
 
 	Average CmpSegment
 	Fastest CmpSegment
@@ -42,6 +43,85 @@ type CmpSegment struct {
 	ThroughputPerSec float64
 	ObjPerSec        float64
 	OpsEndedPerSec   float64
+}
+
+type CmpReqs struct {
+	CmpRequests
+	Before, After CmpRequests
+}
+
+func (c *CmpReqs) Compare(before, after Operations) {
+	c.Before.fill(before)
+	c.After.fill(after)
+	a := c.After
+	b := c.Before
+	c.CmpRequests =
+		CmpRequests{
+			Average: a.Average - b.Average,
+			Worst:   a.Worst - b.Worst,
+			Best:    a.Best - b.Best,
+			Median:  a.Median - b.Median,
+			P25:     a.P25 - b.P25,
+			P75:     a.P75 - b.P75,
+			P90:     a.P90 - b.P90,
+			P99:     a.P99 - b.P99,
+		}
+}
+
+type CmpRequests struct {
+	AvgObjSize int64
+	Requests   int
+	Average    time.Duration
+	Best       time.Duration
+	P25        time.Duration
+	Median     time.Duration
+	P75        time.Duration
+	P90        time.Duration
+	P99        time.Duration
+	Worst      time.Duration
+}
+
+func (c *CmpRequests) fill(ops Operations) {
+	ops.SortByDuration()
+	c.Requests = len(ops)
+	c.AvgObjSize = ops.AvgSize()
+	c.Average = ops.AvgDuration()
+	c.Best = ops.Median(0).Duration()
+	c.P25 = ops.Median(0.25).Duration()
+	c.Median = ops.Median(0.5).Duration()
+	c.P75 = ops.Median(0.75).Duration()
+	c.P90 = ops.Median(0.9).Duration()
+	c.P99 = ops.Median(0.99).Duration()
+	c.Worst = ops.Median(1).Duration()
+}
+
+// String returns a human readable representation of the TTFB comparison.
+func (c *CmpReqs) String() string {
+	if c == nil {
+		return ""
+	}
+	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
+		plusPositiveD(c.Average),
+		c.Average.Round(time.Millisecond/20),
+		plusPositiveD(c.Average),
+		100*(float64(c.After.Average)-float64(c.Before.Average))/float64(c.Before.Average),
+		plusPositiveD(c.Median),
+		c.Median,
+		plusPositiveD(c.Median),
+		100*(float64(c.After.Median)-float64(c.Before.Median))/float64(c.Before.Median),
+		plusPositiveD(c.P99),
+		c.P99,
+		plusPositiveD(c.P99),
+		100*(float64(c.After.P99)-float64(c.Before.P99))/float64(c.Before.P99),
+		plusPositiveD(c.Best),
+		c.Best,
+		plusPositiveD(c.Best),
+		100*(float64(c.After.Best)-float64(c.Before.Best))/float64(c.Before.Best),
+		plusPositiveD(c.Worst),
+		c.Worst,
+		plusPositiveD(c.Worst),
+		100*(float64(c.After.Worst)-float64(c.Before.Worst))/float64(c.Before.Worst),
+	)
 }
 
 // Compare sets c to a comparison between before and after.
@@ -118,15 +198,19 @@ func (t *TTFBCmp) String() string {
 	if t == nil {
 		return ""
 	}
-	return fmt.Sprintf("Average: %s%v (%s%.f%%), Median: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
+	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
 		plusPositiveD(t.Average),
-		t.Average,
+		t.Average.Round(time.Millisecond/20),
 		plusPositiveD(t.Average),
 		100*(float64(t.After.Average)-float64(t.Before.Average))/float64(t.Before.Average),
 		plusPositiveD(t.Median),
 		t.Median,
 		plusPositiveD(t.Median),
 		100*(float64(t.After.Median)-float64(t.Before.Median))/float64(t.Before.Median),
+		plusPositiveD(t.P99),
+		t.P99,
+		plusPositiveD(t.P99),
+		100*(float64(t.After.P99)-float64(t.Before.P99))/float64(t.Before.P99),
 		plusPositiveD(t.Best),
 		t.Best,
 		plusPositiveD(t.Best),
@@ -192,6 +276,7 @@ func Compare(before, after Operations, analysis time.Duration, allThreads bool) 
 
 	beforeTotals, beforeTTFB := before.Total(allThreads), before.TTFB(before.TimeRange())
 	afterTotals, afterTTFB := after.Total(allThreads), after.TTFB(after.TimeRange())
+	res.Reqs.Compare(before, after)
 
 	res.Average.Compare(beforeTotals, afterTotals)
 	res.TTFB = beforeTTFB.Compare(afterTTFB)
