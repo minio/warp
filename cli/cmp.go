@@ -135,9 +135,14 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		if timeDur(before) != timeDur(after) {
 			console.Println("Duration:", timeDur(before), "->", timeDur(after))
 		}
+		if cmp.Reqs.Before.AvgObjSize != cmp.Reqs.After.AvgObjSize {
+			console.Println("Object size: %d->%d, ", cmp.Reqs.Before.AvgObjSize, cmp.Reqs.After.AvgObjSize)
+		}
 		console.Println("* Average:", cmp.Average)
+		console.Println("* Requests:", cmp.Reqs.String())
+
 		if cmp.TTFB != nil {
-			console.Println("* First Byte:", cmp.TTFB)
+			console.Println("* TTFB:", cmp.TTFB)
 		}
 		if !isMultiOp {
 			console.SetColor("Print", color.New(color.FgWhite))
