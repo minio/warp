@@ -6,7 +6,7 @@ require (
 	github.com/bygui86/multi-profile v1.3.1
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.0
-	github.com/fatih/color v1.12.0
+	github.com/fatih/color v1.13.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/klauspost/compress v1.11.7
 	github.com/minio/cli v1.22.0
