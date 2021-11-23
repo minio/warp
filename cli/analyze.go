@@ -463,7 +463,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			console.Println(" * TTFB:", reqs.FirstByte)
 		}
 
-		if reqs.FirstAccess != nil {
+		if details && reqs.FirstAccess != nil {
 			reqs := reqs.FirstAccess
 			console.Print(
 				" * First Access: Avg: ", time.Duration(reqs.DurAvgMillis)*time.Millisecond,
@@ -476,7 +476,20 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 			if reqs.FirstByte != nil {
 				console.Print(" * First Access TTFB: ", reqs.FirstByte)
 			}
-			console.Println("")
+		}
+		if details && reqs.LastAccess != nil {
+			reqs := reqs.LastAccess
+			console.Print(
+				" * Last Access: Avg: ", time.Duration(reqs.DurAvgMillis)*time.Millisecond,
+				", 50%: ", time.Duration(reqs.DurMedianMillis)*time.Millisecond,
+				", 90%: ", time.Duration(reqs.Dur90Millis)*time.Millisecond,
+				", 99%: ", time.Duration(reqs.Dur99Millis)*time.Millisecond,
+				", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
+				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
+				"\n")
+			if reqs.FirstByte != nil {
+				console.Print(" * Last Access TTFB: ", reqs.FirstByte)
+			}
 		}
 
 		if eps := reqs.ByHost; len(eps) > 1 && details {

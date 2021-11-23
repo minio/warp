@@ -922,9 +922,30 @@ func (o Operations) FilterFirst() Operations {
 	if len(o) == 0 {
 		return nil
 	}
+	o.SortByStartTime()
 	ok := make(Operations, 0, 1000)
 	seen := make(map[string]struct{}, len(o))
 	for _, op := range o {
+		if _, ok := seen[op.File]; ok {
+			continue
+		}
+		seen[op.File] = struct{}{}
+		ok = append(ok, op)
+	}
+
+	return ok
+}
+
+// FilterLast returns the last operation on any file.
+func (o Operations) FilterLast() Operations {
+	if len(o) == 0 {
+		return nil
+	}
+	o.SortByStartTime()
+	ok := make(Operations, 0, 1000)
+	seen := make(map[string]struct{}, len(o))
+	for i := len(o) - 1; i >= 0; i-- {
+		op := o[i]
 		if _, ok := seen[op.File]; ok {
 			continue
 		}
