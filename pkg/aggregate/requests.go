@@ -49,6 +49,7 @@ type SingleSizedRequests struct {
 	// FirstAccess is filled if the same object is accessed multiple times.
 	// This records the first touch of the object.
 	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
+	LastAccess  *SingleSizedRequests `json:"last_access,omitempty"`
 	// Host names, sorted.
 	HostNames []string
 	// Request times by host.
@@ -69,14 +70,17 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
 }
 
-func (a *SingleSizedRequests) fillFirst(ops bench.Operations) {
+func (a *SingleSizedRequests) fillFirstLast(ops bench.Operations) {
 	if !ops.IsMultiTouch() {
 		return
 	}
-	r := SingleSizedRequests{}
-	ops = ops.FilterFirst()
-	r.fill(ops)
-	a.FirstAccess = &r
+	var first, last SingleSizedRequests
+	o := ops.FilterFirst()
+	first.fill(o)
+	a.FirstAccess = &first
+	o = ops.FilterLast()
+	last.fill(o)
+	a.LastAccess = &last
 }
 
 type RequestSizeRange struct {
@@ -195,7 +199,7 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 		return &res
 	}
 	res.fill(active)
-	res.fillFirst(o)
+	res.fillFirstLast(o)
 	res.HostNames = o.Endpoints()
 	res.ByHost = RequestAnalysisHostsSingleSized(o)
 
