@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -78,8 +77,8 @@ func (m *MixedDistribution) Generate(allocObjs int) error {
 		}
 	}
 	m.rng = rand.New(rand.NewSource(0xabad1dea))
-	sort.Slice(m.ops, func(i, j int) bool {
-		return m.rng.Int63()&1 == 0
+	m.rng.Shuffle(len(m.ops), func(i, j int) {
+		m.ops[i], m.ops[j] = m.ops[j], m.ops[i]
 	})
 	return nil
 }

@@ -30,6 +30,11 @@ var (
 			Value: 10000,
 			Usage: "Number of objects to upload. Rounded to have equal concurrent objects.",
 		},
+		cli.IntFlag{
+			Name:  "versions",
+			Value: 1,
+			Usage: "Number of versions to upload. If more than 1, versioned listing will be benchmarked",
+		},
 		cli.StringFlag{
 			Name:  "obj.size",
 			Value: "1KB",
@@ -74,6 +79,7 @@ func mainList(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
+		Versions:      ctx.Int("versions"),
 		Metadata:      ctx.Bool("metadata"),
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),
@@ -84,6 +90,9 @@ func mainList(ctx *cli.Context) error {
 func checkListSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
+	}
+	if ctx.Int("versions") < 1 {
+		console.Fatal("At least one version must be tested")
 	}
 
 	checkAnalyze(ctx)

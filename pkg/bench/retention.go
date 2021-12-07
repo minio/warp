@@ -47,13 +47,13 @@ func (g *Retention) Prepare(ctx context.Context) error {
 		return err
 	}
 	cl, done := g.Client()
-	defer done()
 	if !g.Versioned {
 		err := cl.EnableVersioning(ctx, g.Bucket)
 		if err != nil {
 			return err
 		}
 		g.Versioned = true
+		done()
 	}
 
 	src := g.Source()
