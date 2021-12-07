@@ -37,6 +37,7 @@ type List struct {
 	NoPrefix      bool
 	Collector     *Collector
 	Metadata      bool
+	Versions      int
 	objects       []generator.Objects
 
 	Common
@@ -48,13 +49,28 @@ func (d *List) Prepare(ctx context.Context) error {
 	if err := d.createEmptyBucket(ctx); err != nil {
 		return err
 	}
-	src := d.Source()
+	if d.Versions > 1 {
+		cl, done := d.Client()
+		if !d.Versioned {
+			err := cl.EnableVersioning(ctx, d.Bucket)
+			if err != nil {
+				return err
+			}
+			d.Versioned = true
+		}
+		done()
+	}
+
 	objPerPrefix := d.CreateObjects / d.Concurrency
 	console.Eraseline()
+	x := ""
+	if d.Versions > 1 {
+		x = fmt.Sprintf(" with %d versions each", d.Versions)
+	}
 	if d.NoPrefix {
-		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects of ", src.String(), " with no prefixes")
+		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects", x)
 	} else {
-		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects of ", src.String(), " with ", d.Concurrency, " prefixes")
+		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects", x, " in ", d.Concurrency, " prefixes")
 	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
@@ -87,49 +103,55 @@ func (d *List) Prepare(ctx context.Context) error {
 					}
 					break
 				}
-				exists[obj.Name] = struct{}{}
-				client, cldone := d.Client()
-				op := Operation{
-					OpType:   http.MethodPut,
-					Thread:   uint16(i),
-					Size:     obj.Size,
-					File:     obj.Name,
-					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
-				}
-				opts.ContentType = obj.ContentType
-				op.Start = time.Now()
-				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
-				op.End = time.Now()
-				if err != nil {
-					err := fmt.Errorf("upload error: %w", err)
-					d.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+				name := obj.Name
+				exists[name] = struct{}{}
+				for ver := 0; ver < d.Versions; ver++ {
+					// New input for each version
+					obj := src.Object()
+					obj.Name = name
+					client, cldone := d.Client()
+					op := Operation{
+						OpType:   http.MethodPut,
+						Thread:   uint16(i),
+						Size:     obj.Size,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
 					}
-					mu.Unlock()
-					return
-				}
-				obj.VersionID = res.VersionID
-				if res.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					d.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+					opts.ContentType = obj.ContentType
+					op.Start = time.Now()
+					res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						err := fmt.Errorf("upload error: %w", err)
+						d.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
 					}
+					obj.VersionID = res.VersionID
+					if res.Size != obj.Size {
+						err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
+						d.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
+					}
+					cldone()
+					mu.Lock()
+					obj.Reader = nil
+					d.objects[i] = append(d.objects[i], *obj)
+					objsCreated++
+					d.prepareProgress(float64(objsCreated) / float64(objPerPrefix*d.Concurrency*d.Versions))
 					mu.Unlock()
-					return
+					rcv <- op
 				}
-				cldone()
-				mu.Lock()
-				obj.Reader = nil
-				d.objects[i] = append(d.objects[i], *obj)
-				objsCreated++
-				d.prepareProgress(float64(objsCreated) / float64(objPerPrefix*d.Concurrency))
-				mu.Unlock()
-				rcv <- op
 			}
 		}(i)
 	}
@@ -191,6 +213,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					WithMetadata: d.Metadata,
 					Prefix:       objs[0].Prefix,
 					Recursive:    true,
+					WithVersions: d.Versions > 1,
 				})
 
 				// Wait for errCh to close.

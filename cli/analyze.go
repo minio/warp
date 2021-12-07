@@ -161,9 +161,9 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		}
 		duration := ops.EndTime.Sub(ops.StartTime).Truncate(time.Second)
 		if !details {
-			console.Printf("Operation: %v, %d%%, Concurrency: %d, Duration: %v.\n", ops.Type, int(pct+0.5), ops.Concurrency, duration)
+			console.Printf("Operation: %v, %d%%, Concurrency: %d, Ran %v.\n", ops.Type, int(pct+0.5), ops.Concurrency, duration)
 		} else {
-			console.Printf("Operation: %v - total: %v, %.01f%%, Concurrency: %d, Duration: %v, starting %v\n", ops.Type, ops.Throughput.Operations, pct, ops.Concurrency, duration, ops.StartTime.Truncate(time.Millisecond))
+			console.Printf("Operation: %v - total: %v, %.01f%%, Concurrency: %d, Ran %v, starting %v\n", ops.Type, ops.Throughput.Operations, pct, ops.Concurrency, duration, ops.StartTime.Truncate(time.Millisecond))
 		}
 		console.SetColor("Print", color.New(color.FgWhite))
 
@@ -301,15 +301,16 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		if ops.Clients > 1 {
 			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, ops.Clients)
 		}
+		ran := ops.EndTime.Sub(ops.StartTime).Truncate(time.Second)
 		if opo > 1 {
 			if details {
-				console.Printf("Operation: %v (%d). Objects per operation: %d. Concurrency: %d.%s\n", typ, ops.N, opo, ops.Concurrency, hostsString)
+				console.Printf("Operation: %v (%d). Ran %v. Objects per operation: %d. Concurrency: %d.%s\n", typ, ops.N, ran, opo, ops.Concurrency, hostsString)
 			} else {
 				console.Printf("Operation: %v\n", typ)
 			}
 		} else {
 			if details {
-				console.Printf("Operation: %v (%d). Concurrency: %d.%s\n", typ, ops.N, ops.Concurrency, hostsString)
+				console.Printf("Operation: %v (%d). Ran %v. Concurrency: %d.%s\n", typ, ops.N, ran, ops.Concurrency, hostsString)
 			} else {
 				console.Printf("Operation: %v\n", typ)
 			}
@@ -474,7 +475,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
 				"\n")
 			if reqs.FirstByte != nil {
-				console.Print(" * First Access TTFB: ", reqs.FirstByte)
+				console.Print(" * First Access TTFB: ", reqs.FirstByte, "\n")
 			}
 		}
 		if details && reqs.LastAccess != nil {
@@ -488,7 +489,7 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
 				"\n")
 			if reqs.FirstByte != nil {
-				console.Print(" * Last Access TTFB: ", reqs.FirstByte)
+				console.Print(" * Last Access TTFB: ", reqs.FirstByte, "\n")
 			}
 		}
 
