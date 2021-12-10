@@ -40,6 +40,11 @@ var (
 			Name:  "range",
 			Usage: "Do ranged get operations. Will request with random offset and length.",
 		},
+		cli.IntFlag{
+			Name:  "versions",
+			Value: 1,
+			Usage: "Number of versions to upload. If more than 1, versioned listing will be benchmarked",
+		},
 	}
 )
 
@@ -75,6 +80,7 @@ func mainGet(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
+		Versions:      ctx.Int("versions"),
 		RandomRanges:  ctx.Bool("range"),
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
@@ -86,7 +92,9 @@ func checkGetSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
+	if ctx.Int("versions") < 1 {
+		console.Fatal("At least one version must be tested")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }
