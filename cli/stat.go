@@ -36,6 +36,11 @@ var (
 			Value: "1KB",
 			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
 		},
+		cli.IntFlag{
+			Name:  "versions",
+			Value: 1,
+			Usage: "Number of versions to upload. If more than 1, versioned listing will be benchmarked",
+		},
 	}
 )
 
@@ -72,6 +77,7 @@ func mainStat(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
+		Versions:      ctx.Int("versions"),
 		CreateObjects: ctx.Int("objects"),
 		StatOpts: minio.StatObjectOptions{
 			ServerSideEncryption: sse,
@@ -84,7 +90,9 @@ func checkStatSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
+	if ctx.Int("versions") < 1 {
+		console.Fatal("At least one version must be tested")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

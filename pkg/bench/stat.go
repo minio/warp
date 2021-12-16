@@ -35,6 +35,7 @@ type Stat struct {
 	CreateObjects int
 	Collector     *Collector
 	objects       generator.Objects
+	Versions      int
 
 	// Default Stat options.
 	StatOpts minio.StatObjectOptions
@@ -47,9 +48,24 @@ func (g *Stat) Prepare(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
-	src := g.Source()
+	if g.Versions > 1 {
+		cl, done := g.Client()
+		if !g.Versioned {
+			err := cl.EnableVersioning(ctx, g.Bucket)
+			if err != nil {
+				return err
+			}
+			g.Versioned = true
+		}
+		done()
+	}
 	console.Eraseline()
-	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
+	x := ""
+	if g.Versions > 1 {
+		x = fmt.Sprintf(" with %d versions each", g.Versions)
+	}
+	console.Info("\rUploading ", g.CreateObjects, " objects", x)
+
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.Collector = NewCollector()
@@ -57,66 +73,72 @@ func (g *Stat) Prepare(ctx context.Context) error {
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
 	}
+	rcv := g.Collector.rcv
 	close(obj)
 	var groupErr error
 	var mu sync.Mutex
+
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
 			src := g.Source()
-			for range obj {
-				opts := g.PutOpts
-				rcv := g.Collector.Receiver()
-				done := ctx.Done()
+			opts := g.PutOpts
 
+			for range obj {
 				select {
-				case <-done:
+				case <-ctx.Done():
 					return
 				default:
 				}
 				obj := src.Object()
-				client, cldone := g.Client()
-				op := Operation{
-					OpType:   http.MethodPut,
-					Thread:   uint16(i),
-					Size:     obj.Size,
-					File:     obj.Name,
-					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
-				}
-				opts.ContentType = obj.ContentType
-				op.Start = time.Now()
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
-				op.End = time.Now()
-				if err != nil {
-					err := fmt.Errorf("upload error: %w", err)
-					g.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
-					}
-					mu.Unlock()
-					return
-				}
 
-				obj.VersionID = res.VersionID
-				if res.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					g.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+				name := obj.Name
+				for ver := 0; ver < g.Versions; ver++ {
+					// New input for each version
+					obj := src.Object()
+					obj.Name = name
+					client, cldone := g.Client()
+					op := Operation{
+						OpType:   http.MethodPut,
+						Thread:   uint16(i),
+						Size:     obj.Size,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
 					}
+					opts.ContentType = obj.ContentType
+					op.Start = time.Now()
+					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						err := fmt.Errorf("upload error: %w", err)
+						g.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
+					}
+					obj.VersionID = res.VersionID
+					if res.Size != obj.Size {
+						err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
+						g.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
+					}
+					cldone()
+					mu.Lock()
+					obj.Reader = nil
+					g.objects = append(g.objects, *obj)
+					g.prepareProgress(float64(len(g.objects)) / float64(g.CreateObjects*g.Versions))
 					mu.Unlock()
-					return
+					rcv <- op
 				}
-				cldone()
-				mu.Lock()
-				obj.Reader = nil
-				g.objects = append(g.objects, *obj)
-				g.prepareProgress(float64(len(g.objects)) / float64(g.CreateObjects))
-				mu.Unlock()
-				rcv <- op
 			}
 		}(i)
 	}
@@ -163,7 +185,9 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				}
 				op.Start = time.Now()
 				var err error
-				opts.VersionID = obj.VersionID
+				if g.Versions > 1 {
+					opts.VersionID = obj.VersionID
+				}
 				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
 					g.Error("StatObject error: ", err)

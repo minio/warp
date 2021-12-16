@@ -269,6 +269,9 @@ A similar benchmark is called `versioned` which operates on versioned objects.
 Benchmarking get operations will upload `--objects` objects of size `--obj.size` 
 and attempt to download as many it can within `--duration`.
 
+If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
+which will add multiple versions of each object and request individual versions.
+
 Objects will be uploaded with `--concurrent` different prefixes, 
 except if `--noprefix` is specified. Downloads are chosen randomly between all uploaded data.
 
@@ -337,6 +340,9 @@ Throughput, split into 59 x 1s:
 Benchmarking list operations will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes. 
 The list operations are done per prefix.
 
+If versioned listing should be tested, it is possible by setting `--versions=N` (default 1), 
+which will add multiple versions of each object and use `ListObjectVersions` for listing.
+
 The analysis will include the upload stats as `PUT` operations and the `LIST` operations separately. 
 The time from request start to first object is recorded as well and can be accessed using the `--analyze.v` parameter.
 
@@ -354,6 +360,9 @@ Throughput, split into 59 x 1s:
 
 Benchmarking [stat object](https://docs.min.io/docs/golang-client-api-reference#StatObject) operations 
 will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes.
+
+If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
+which will add multiple versions of each object and request information for individual versions.
 
 The main benchmark will do individual requests to get object information for the uploaded objects.
 
