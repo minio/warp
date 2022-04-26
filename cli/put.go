@@ -26,6 +26,11 @@ import (
 
 var (
 	putFlags = []cli.Flag{
+		cli.IntFlag{
+			Name:  "objects",
+			Value: 0,
+			Usage: "Number of objects to upload.",
+		},
 		cli.StringFlag{
 			Name:  "obj.size",
 			Value: "10MiB",
@@ -66,6 +71,7 @@ func mainPut(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
+		CreateObjects: ctx.Int("objects"),
 	}
 	return runBench(ctx, &b)
 }

@@ -27,6 +27,7 @@ import (
 
 // Put benchmarks upload speed.
 type Put struct {
+	CreateObjects int
 	Common
 	prefixes map[string]struct{}
 }
@@ -59,43 +60,87 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 			opts := u.PutOpts
 			done := ctx.Done()
 
-			<-wait
-			for {
-				select {
-				case <-done:
-					return
-				default:
-				}
-				obj := src.Object()
-				opts.ContentType = obj.ContentType
-				client, cldone := u.Client()
-				op := Operation{
-					OpType:   http.MethodPut,
-					Thread:   uint16(i),
-					Size:     obj.Size,
-					File:     obj.Name,
-					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
-				}
-				op.Start = time.Now()
-				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
-				op.End = time.Now()
-				if err != nil {
-					u.Error("upload error: ", err)
-					op.Err = err.Error()
-				}
-				obj.VersionID = res.VersionID
-
-				if res.Size != obj.Size && op.Err == "" {
-					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
-					if op.Err == "" {
-						op.Err = err
+			if u.CreateObjects == 0 {
+				<-wait
+				for {
+					select {
+					case <-done:
+						return
+					default:
 					}
-					u.Error(err)
+					obj := src.Object()
+					opts.ContentType = obj.ContentType
+					client, cldone := u.Client()
+					op := Operation{
+						OpType:   http.MethodPut,
+						Thread:   uint16(i),
+						Size:     obj.Size,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
+					}
+					op.Start = time.Now()
+
+					res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						u.Error("upload error: ", err)
+						op.Err = err.Error()
+					}
+					obj.VersionID = res.VersionID
+
+					if res.Size != obj.Size && op.Err == "" {
+						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
+						if op.Err == "" {
+							op.Err = err
+						}
+						u.Error(err)
+					}
+					op.Size = res.Size
+					cldone()
+					rcv <- op
 				}
-				op.Size = res.Size
-				cldone()
-				rcv <- op
+			} else {
+                                j := 0
+				for j < u.CreateObjects{
+					select {
+					case <-done:
+						return
+					default:
+					}
+					obj := src.Object()
+					opts.ContentType = obj.ContentType
+					client, cldone := u.Client()
+					op := Operation{
+						OpType:   http.MethodPut,
+						Thread:   uint16(i),
+						Size:     obj.Size,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
+					}
+					op.Start = time.Now()
+
+					res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						u.Error("upload error: ", err)
+						op.Err = err.Error()
+					}
+					obj.VersionID = res.VersionID
+
+					if res.Size != obj.Size && op.Err == "" {
+						err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
+						if op.Err == "" {
+							op.Err = err
+						}
+						u.Error(err)
+					}
+					op.Size = res.Size
+					cldone()
+					rcv <- op
+                                        j++
+				}
 			}
 		}(i)
 	}
