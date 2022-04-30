@@ -482,32 +482,48 @@ but in certain scenarios it can be useful to determine problems with individual 
 Example:
 
 ```
-Operation: GET - total: 84886, 45.2%
+Operation: GET (386413). Ran 1m0s. Concurrency: 20. Hosts: 2.
 
-Throughput by host:
- * http://127.0.0.1:9001: Avg: 0.28 MiB/s, 73.09 obj/s (4m59.862s, starting 17:47:25 CEST)
- * http://127.0.0.1:9002: Avg: 0.27 MiB/s, 69.98 obj/s (4m59.932s, starting 17:47:25 CEST)
- * http://127.0.0.1:9003: Avg: 0.27 MiB/s, 70.06 obj/s (4m59.963s, starting 17:47:25 CEST)
- * http://127.0.0.1:9004: Avg: 0.27 MiB/s, 69.91 obj/s (4m59.969s, starting 17:47:25 CEST)
-
-Requests considered: 84887:
- * Avg: 33ms 50%: 9ms 90%: 78ms 99%: 474ms Fastest: 2ms Slowest: 2.518s
- * First Byte: Average: 31ms, Median: 7ms, Best: 1ms, Worst: 2.517s
+Requests considered: 386334:
+ * Avg: 3ms, 50%: 3ms, 90%: 4ms, 99%: 8ms, Fastest: 1ms, Slowest: 504ms
+ * TTFB: Avg: 3ms, Best: 1ms, 25th: 3ms, Median: 3ms, 75th: 3ms, 90th: 4ms, 99th: 8ms, Worst: 504ms
+ * First Access: Avg: 3ms, 50%: 3ms, 90%: 4ms, 99%: 10ms, Fastest: 1ms, Slowest: 18ms
+ * First Access TTFB: Avg: 3ms, Best: 1ms, 25th: 3ms, Median: 3ms, 75th: 3ms, 90th: 4ms, 99th: 10ms, Worst: 18ms
+ * Last Access: Avg: 3ms, 50%: 3ms, 90%: 4ms, 99%: 7ms, Fastest: 2ms, Slowest: 10ms
+ * Last Access TTFB: Avg: 3ms, Best: 1ms, 25th: 3ms, Median: 3ms, 75th: 3ms, 90th: 4ms, 99th: 7ms, Worst: 10ms
 
 Requests by host:
- * http://127.0.0.1:9003 - 21019 requests:
-        - Avg: 32ms Fastest: 2ms Slowest: 2.191s 50%: 9ms 90%: 77ms
-        - First Byte: Average: 30ms, Median: 7ms, Best: 1ms, Worst: 2.189s
- * http://127.0.0.1:9004 - 20975 requests:
-        - Avg: 34ms Fastest: 2ms Slowest: 2.518s 50%: 9ms 90%: 79ms
-        - First Byte: Average: 32ms, Median: 7ms, Best: 1ms, Worst: 2.517s
- * http://127.0.0.1:9001 - 21920 requests:
-        - Avg: 32ms Fastest: 2ms Slowest: 2.412s 50%: 9ms 90%: 77ms
-        - First Byte: Average: 30ms, Median: 7ms, Best: 2ms, Worst: 2.411s
- * http://127.0.0.1:9002 - 20995 requests:
-        - Avg: 35ms Fastest: 2ms Slowest: 2.029s 50%: 10ms 90%: 80ms
-        - First Byte: Average: 32ms, Median: 7ms, Best: 1ms, Worst: 2.029s
+ * http://127.0.0.1:9001 - 193103 requests:
+        - Avg: 3ms Fastest: 1ms Slowest: 504ms 50%: 3ms 90%: 4ms
+        - First Byte: Avg: 3ms, Best: 1ms, 25th: 3ms, Median: 3ms, 75th: 3ms, 90th: 4ms, 99th: 8ms, Worst: 504ms
+ * http://127.0.0.1:9002 - 193310 requests:
+        - Avg: 3ms Fastest: 1ms Slowest: 88ms 50%: 3ms 90%: 4ms
+        - First Byte: Avg: 3ms, Best: 1ms, 25th: 3ms, Median: 3ms, 75th: 3ms, 90th: 4ms, 99th: 8ms, Worst: 88ms
+
+Throughput:
+* Average: 1.57 MiB/s, 6440.36 obj/s
+
+Throughput by host:
+ * http://127.0.0.1:9001:
+        - Average:  0.79 MiB/s, 3218.47 obj/s
+        - Fastest: 844.5KiB/s
+        - 50% Median: 807.9KiB/s
+        - Slowest: 718.9KiB/s
+ * http://127.0.0.1:9002:
+        - Average:  0.79 MiB/s, 3221.85 obj/s
+        - Fastest: 846.8KiB/s
+        - 50% Median: 811.0KiB/s
+        - Slowest: 711.1KiB/s
+
+Throughput, split into 59 x 1s:
+ * Fastest: 1688.0KiB/s, 6752.22 obj/s (1s, starting 12:31:40 CET)
+ * 50% Median: 1621.9KiB/s, 6487.60 obj/s (1s, starting 12:31:17 CET)
+ * Slowest: 1430.5KiB/s, 5721.95 obj/s (1s, starting 12:31:59 CET)
 ```
+
+* `TTFB` is the time from request was sent to the first byte was received.
+* `First Access` is the first access per object.
+* `Last Access` is the last access per object.
 
 The fastest and slowest request times are shown, as well as selected 
 percentiles and the total amount is requests considered.
