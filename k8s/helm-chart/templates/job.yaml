@@ -26,4 +26,7 @@ spec:
             value: {{ .Values.warpConfiguration.s3AccessKey | quote }}
           - name: WARP_SECRET_KEY
             value: {{ .Values.warpConfiguration.s3SecretKey | quote }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector: {{- .Values.nodeSelector | toYaml | nindent 8 }}
+    {{- end }}
   backoffLimit: 4
