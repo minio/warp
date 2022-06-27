@@ -191,7 +191,8 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 			console.SetColor("Print", color.New(color.FgWhite))
 			console.Println("\nThroughput by host:")
 
-			for ep, totals := range eps {
+			for _, ep := range ops.HostNames {
+				totals := eps[ep]
 				console.SetColor("Print", color.New(color.FgWhite))
 				console.Print(" * ", ep, ": Avg: ", totals.StringDetails(details), ".")
 				if totals.Errors > 0 {
@@ -569,7 +570,8 @@ func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details boo
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("\nRequests by host:")
 
-		for ep, s := range reqs.ByHost {
+		for _, ep := range ops.HostNames {
+			s := eps[ep]
 			if s.Requests <= 1 {
 				continue
 			}
