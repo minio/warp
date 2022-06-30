@@ -31,18 +31,18 @@ jobs:
         if: success()
         with:
           name: Warp-Snapshot-Build-Win64
-          path: dist/warp_windows_amd64
+          path: dist/warp_windows_amd64_v1
       -
         name: Upload Linux Binaries
         uses: actions/upload-artifact@v1
         if: success()
         with:
           name: Warp-Snapshot-Build-Linux-amd64
-          path: dist/warp_linux_amd64
+          path: dist/warp_linux_amd64_v1
       -
         name: Upload MacOS Binaries
         uses: actions/upload-artifact@v1
         if: success()
         with:
           name: Warp-Snapshot-Build-MacOSX-amd64
-          path: dist/warp_darwin_amd64
+          path: dist/warp_darwin_amd64_v1
