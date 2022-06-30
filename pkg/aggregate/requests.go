@@ -44,6 +44,8 @@ type SingleSizedRequests struct {
 	FastestMillis int `json:"fastest_millis"`
 	// Slowest request time.
 	SlowestMillis int `json:"slowest_millis"`
+	// DurPct is duration percentiles.
+	DurPct [101]int `json:"dur_percentiles_millis"`
 	// Time to first byte if applicable.
 	FirstByte *TTFB `json:"first_byte,omitempty"`
 	// FirstAccess is filled if the same object is accessed multiple times.
@@ -68,6 +70,10 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	a.SlowestMillis = durToMillis(ops.Median(1).Duration())
 	a.FastestMillis = durToMillis(ops.Median(0).Duration())
 	a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
+	for i := range a.DurPct[:] {
+		a.DurPct[i] = durToMillis(ops.Median(float64(i) / 100).Duration())
+	}
+
 }
 
 func (a *SingleSizedRequests) fillFirstLast(ops bench.Operations) {
@@ -104,6 +110,9 @@ type RequestSizeRange struct {
 	BpsFastest float64 `json:"bps_fastest"`
 	BpsSlowest float64 `json:"bps_slowest"`
 
+	// BpsPct is BPS percentiles.
+	BpsPct [101]float64 `json:"bps_percentiles"`
+
 	// FirstAccess is filled if the same object is accessed multiple times.
 	// This records the first touch of the object.
 	FirstAccess *RequestSizeRange `json:"first_access,omitempty"`
@@ -126,6 +135,9 @@ func (r *RequestSizeRange) fill(s bench.SizeSegment) {
 	r.Bps99 = s.Ops.Median(0.99).BytesPerSec().Float()
 	r.BpsFastest = s.Ops.Median(0.0).BytesPerSec().Float()
 	r.BpsSlowest = s.Ops.Median(1).BytesPerSec().Float()
+	for i := range r.BpsPct[:] {
+		r.BpsPct[i] = s.Ops.Median(float64(i) / 100).BytesPerSec().Float()
+	}
 }
 
 func (r *RequestSizeRange) fillFirst(s bench.SizeSegment) {
