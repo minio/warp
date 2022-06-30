@@ -53,14 +53,15 @@ type Segment struct {
 
 // TTFB contains time to first byte stats.
 type TTFB struct {
-	Average time.Duration
-	Best    time.Duration
-	P25     time.Duration
-	Median  time.Duration
-	P75     time.Duration
-	P90     time.Duration
-	P99     time.Duration
-	Worst   time.Duration
+	Average     time.Duration
+	Best        time.Duration
+	P25         time.Duration
+	Median      time.Duration
+	P75         time.Duration
+	P90         time.Duration
+	P99         time.Duration
+	Worst       time.Duration
+	Percentiles [101]time.Duration `json:"percentiles_millis"`
 }
 
 // Segments is a slice of segment elements.
@@ -111,6 +112,10 @@ func (o Operations) TTFB(start, end time.Time) TTFB {
 		P99:     filtered.Median(0.99).TTFB(),
 		Worst:   filtered.Median(1).TTFB(),
 	}
+	for i := range res.Percentiles[:] {
+		res.Percentiles[i] = filtered.Median(float64(i) / 100).TTFB()
+	}
+
 	for _, op := range filtered {
 		ttfb := op.TTFB()
 		res.Average += ttfb
