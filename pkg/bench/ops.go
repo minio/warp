@@ -1016,7 +1016,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 	for i, s := range header {
 		fieldIdx[s] = i
 	}
-	var clientMap = make(map[string]string, 16)
+	clientMap := make(map[string]string, 16)
 	cb := byte('a')
 	getClient := func(c string) string {
 		if !analyzeOnly {
@@ -1029,7 +1029,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		cb++
 		return clientMap[c]
 	}
-	var fileMap = func(s string) string {
+	fileMap := func(s string) string {
 		return s
 	}
 	if analyzeOnly {

@@ -12,10 +12,11 @@ linters:
     - goimports
     - misspell
     - govet
-    - golint
+    - revive
     - ineffassign
     - gosimple
     - deadcode
+    - gofumpt
     - structcheck
 
 issues:
@@ -26,4 +27,4 @@ issues:
       - should have comment or be unexported
       - error strings should not be capitalized or end with punctuation or a newline
 service:
-  golangci-lint-version: 1.20.0 # use the fixed version to not introduce new linters unexpectedly
+  golangci-lint-version: 1.45.2 # use the fixed version to not introduce new linters unexpectedly

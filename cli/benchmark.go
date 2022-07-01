@@ -264,8 +264,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	return nil
 }
 
-var activeBenchmarkMu sync.Mutex
-var activeBenchmark *clientBenchmark
+var (
+	activeBenchmarkMu sync.Mutex
+	activeBenchmark   *clientBenchmark
+)
 
 type clientBenchmark struct {
 	sync.Mutex

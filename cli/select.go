@@ -23,25 +23,23 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	selectFlags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "objects",
-			Value: 2500,
-			Usage: "Number of objects to upload.",
-		},
-		cli.StringFlag{
-			Name:  "obj.size",
-			Value: "10MiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
-		},
-		cli.StringFlag{
-			Name:  "query",
-			Value: "select * from s3object",
-			Usage: "select query expression",
-		},
-	}
-)
+var selectFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "objects",
+		Value: 2500,
+		Usage: "Number of objects to upload.",
+	},
+	cli.StringFlag{
+		Name:  "obj.size",
+		Value: "10MiB",
+		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+	},
+	cli.StringFlag{
+		Name:  "query",
+		Value: "select * from s3object",
+		Usage: "select query expression",
+	},
+}
 
 var selectCmd = cli.Command{
 	Name:   "select",

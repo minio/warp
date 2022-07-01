@@ -27,9 +27,7 @@ import (
 	"github.com/minio/pkg/console"
 )
 
-var (
-	clientFlags = []cli.Flag{}
-)
+var clientFlags = []cli.Flag{}
 
 // Put command.
 var clientCmd = cli.Command{

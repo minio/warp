@@ -30,7 +30,7 @@ import (
 func mainComplete() error {
 	// Recursively register all commands and subcommands
 	// along with global and local flags
-	var complCmds = make(complete.Commands)
+	complCmds := make(complete.Commands)
 	for _, cmd := range appCmds {
 		complCmds[cmd.Name] = cmdToCompleteCmd(cmd, "")
 	}
@@ -53,7 +53,7 @@ var completeCmds = map[string]complete.Predictor{
 // flagsToCompleteFlags transforms a cli.Flag to complete.Flags
 // understood by posener/complete library.
 func flagsToCompleteFlags(flags []cli.Flag) complete.Flags {
-	var complFlags = make(complete.Flags)
+	complFlags := make(complete.Flags)
 	for _, f := range flags {
 		for _, s := range strings.Split(f.GetName(), ",") {
 			var flagName string

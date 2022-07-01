@@ -23,25 +23,23 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	deleteFlags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "objects",
-			Value: 25000,
-			Usage: "Number of objects to upload.",
-		},
-		cli.StringFlag{
-			Name:  "obj.size",
-			Value: "1KiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
-		},
-		cli.IntFlag{
-			Name:  "batch",
-			Value: 100,
-			Usage: "Number of DELETE operations per batch.",
-		},
-	}
-)
+var deleteFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "objects",
+		Value: 25000,
+		Usage: "Number of objects to upload.",
+	},
+	cli.StringFlag{
+		Name:  "obj.size",
+		Value: "1KiB",
+		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+	},
+	cli.IntFlag{
+		Name:  "batch",
+		Value: 100,
+		Usage: "Number of DELETE operations per batch.",
+	},
+}
 
 var deleteCmd = cli.Command{
 	Name:   "delete",

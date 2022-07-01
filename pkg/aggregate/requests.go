@@ -73,7 +73,6 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	for i := range a.DurPct[:] {
 		a.DurPct[i] = durToMillis(ops.Median(float64(i) / 100).Duration())
 	}
-
 }
 
 func (a *SingleSizedRequests) fillFirstLast(ops bench.Operations) {
