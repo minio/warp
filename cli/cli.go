@@ -27,7 +27,7 @@ import (
 	"strconv"
 	"time"
 
-	mprofile "github.com/bygui86/multi-profile"
+	mprofile "github.com/bygui86/multi-profile/v2"
 	"github.com/cheggaaa/pb"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -86,6 +86,7 @@ func Main(args []string) {
 		os.Exit(1)
 	}
 }
+
 func init() {
 	a := []cli.Command{
 		mixedCmd,
@@ -162,15 +163,13 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Before = func(ctx *cli.Context) error {
 		var profiles []*mprofile.Profile
 		cfg := &mprofile.Config{
-			Path:                ctx.String("pprofdir"),
-			UseTempPath:         false,
-			NoExit:              false,
-			DisableShutdownHook: false,
-			Quiet:               false,
-			MemProfileRate:      4096,
-			MemProfileType:      "heap",
-			CloserHook:          nil,
-			Logger:              nil,
+			Path:           ctx.String("pprofdir"),
+			UseTempPath:    false,
+			Quiet:          false,
+			MemProfileRate: 4096,
+			MemProfileType: "heap",
+			CloserHook:     nil,
+			Logger:         nil,
 		}
 		if ctx.Bool("cpu") {
 			profiles = append(profiles, mprofile.CPUProfile(cfg).Start())

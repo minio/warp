@@ -131,7 +131,7 @@ func newCsv(o Options) (Source, error) {
 
 func (c *csvSource) Object() *Object {
 	opts := c.o.csv
-	var dst = c.buf.data[:0]
+	dst := c.buf.data[:0]
 	c.obj.Size = c.o.getSize(c.rng)
 	for i := 0; i < opts.rows; i++ {
 		for j := 0; j < opts.cols; j++ {
@@ -154,7 +154,6 @@ func (c *csvSource) Object() *Object {
 	randASCIIBytes(nBuf[:], c.rng)
 	c.obj.setName(string(nBuf[:]) + ".csv")
 	return &c.obj
-
 }
 
 func (c *csvSource) String() string {
