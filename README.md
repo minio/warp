@@ -77,6 +77,8 @@ For reliable benchmarks, clients should have synchronized clocks.
 Warp checks whether clocks are within one second of the server,
 but ideally, clocks should be synchronized with [NTP](http://www.ntp.org/) or a similar service.
 
+To use Kubernetes see [Running warp on kubernetes](https://github.com/minio/warp/blob/master/k8s/README.md).
+
 ## Client Setup
 
 WARNING: Never run warp clients on a publicly exposed port. Clients have the potential to DDOS any service.
