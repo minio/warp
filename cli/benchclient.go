@@ -48,9 +48,10 @@ type clientReply struct {
 	Err       string           `json:"err,omitempty"`
 	Ops       bench.Operations `json:"ops,omitempty"`
 	StageInfo struct {
-		Started  bool    `json:"started"`
-		Finished bool    `json:"finished"`
-		Progress float64 `json:"progress"`
+		Started  bool              `json:"started"`
+		Finished bool              `json:"finished"`
+		Progress float64           `json:"progress"`
+		Custom   map[string]string `json:"custom,omitempty"`
 	} `json:"stage_info"`
 }
 
@@ -77,6 +78,7 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	}
 	var cb clientBenchmark
 	cb.init(ctx)
+	cb.clientIdx = s.ClientIdx
 	activeBenchmarkMu.Lock()
 	activeBenchmark = &cb
 	activeBenchmarkMu.Unlock()
@@ -263,6 +265,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			select {
 			case <-info.done:
 				resp.StageInfo.Finished = true
+				resp.StageInfo.Custom = info.custom
 			default:
 			}
 		case serverReqSendOps:

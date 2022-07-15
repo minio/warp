@@ -98,9 +98,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	activeBenchmarkMu.Unlock()
 	b.GetCommon().Error = printError
 	if ab != nil {
+		b.GetCommon().ClientIdx = ab.clientIdx
 		return runClientBenchmark(ctx, b, ab)
 	}
-	if done, err := runServerBenchmark(ctx); done || err != nil {
+	if done, err := runServerBenchmark(ctx, b); done || err != nil {
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
@@ -164,6 +165,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
 		<-pgDone
+	}
+
+	if ap, ok := b.(AfterPreparer); ok {
+		err := ap.AfterPrepare(context.Background())
+		fatalIf(probe.NewError(err), "Error preparing server")
 	}
 
 	// Start after waiting a second or until we reached the start time.
@@ -269,18 +275,20 @@ var activeBenchmark *clientBenchmark
 
 type clientBenchmark struct {
 	sync.Mutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	results bench.Operations
-	err     error
-	stage   benchmarkStage
-	info    map[benchmarkStage]stageInfo
+	ctx       context.Context
+	cancel    context.CancelFunc
+	results   bench.Operations
+	err       error
+	stage     benchmarkStage
+	info      map[benchmarkStage]stageInfo
+	clientIdx int
 }
 
 type stageInfo struct {
 	startRequested bool
 	start          chan struct{}
 	done           chan struct{}
+	custom         map[string]string
 }
 
 func (c *clientBenchmark) init(ctx context.Context) {
@@ -316,19 +324,21 @@ func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
 }
 
 // waitForStage waits for the stage to be ready and updates the stage when it is
-func (c *clientBenchmark) stageDone(s benchmarkStage, err error) {
+func (c *clientBenchmark) stageDone(s benchmarkStage, err error, custom map[string]string) {
 	console.Infoln(s, "done...")
 	if err != nil {
 		console.Errorln(err.Error())
 	}
 	c.Lock()
 	info := c.info[s]
+	info.custom = custom
 	if err != nil && c.err == nil {
 		c.err = err
 	}
 	if info.done != nil {
 		close(info.done)
 	}
+	c.info[s] = info
 	c.Unlock()
 }
 
@@ -357,13 +367,15 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
+	common := b.GetCommon()
 	cb.Lock()
 	start := cb.info[stageBenchmark].start
 	ctx2, cancel := context.WithCancel(cb.ctx)
 	defer cancel()
 	cb.Unlock()
 	err = b.Prepare(ctx2)
-	cb.stageDone(stagePrepare, err)
+
+	cb.stageDone(stagePrepare, err, common.Custom)
 	if err != nil {
 		return err
 	}
@@ -402,7 +414,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	cb.Lock()
 	cb.results = ops
 	cb.Unlock()
-	cb.stageDone(stageBenchmark, err)
+	cb.stageDone(stageBenchmark, err, common.Custom)
 	if err != nil {
 		return err
 	}
@@ -434,7 +446,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 		console.Infoln("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
-	cb.stageDone(stageCleanup, nil)
+	cb.stageDone(stageCleanup, nil, common.Custom)
 
 	return nil
 }

@@ -70,8 +70,18 @@ type Common struct {
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
 
+	// Custom is returned to server if set by clients.
+	Custom map[string]string
+
 	// Error should log an error similar to fmt.Print(data...)
 	Error func(data ...interface{})
+
+	// ClientIdx is the client index.
+	// Will be 0 if single client.
+	ClientIdx int
+
+	// ExtraFlags contains extra flags to add to remote clients.
+	ExtraFlags map[string]string
 }
 
 const (

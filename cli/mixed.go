@@ -83,7 +83,7 @@ FLAGS:
 // mainMixed is the entry point for mixed command.
 func mainMixed(ctx *cli.Context) error {
 	checkMixedSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	dist := bench.MixedDistribution{
 		Distribution: map[string]float64{

@@ -20,7 +20,7 @@ package cli
 import (
 	"errors"
 
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/minio/mc/pkg/probe"
 
 	"github.com/minio/cli"
@@ -60,7 +60,7 @@ func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
 }
 
 // newGenSource returns a new generator
-func newGenSource(ctx *cli.Context) func() generator.Source {
+func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 	prefixSize := 8
 	if ctx.Bool("noprefix") {
 		prefixSize = 0
@@ -77,7 +77,7 @@ func newGenSource(ctx *cli.Context) func() generator.Source {
 		fatal(probe.NewError(err), "Invalid -generator parameter")
 		return nil
 	}
-	size, err := toSize(ctx.String("obj.size"))
+	size, err := toSize(ctx.String(sizeField))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
 	src, err := generator.NewFn(g.Apply(),
 		generator.WithCustomPrefix(ctx.String("prefix")),
