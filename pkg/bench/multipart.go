@@ -160,7 +160,6 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 }
 
 func (g *Multipart) AfterPrepare(ctx context.Context) error {
-
 	cl, done := g.Client()
 	c := minio.Core{Client: cl}
 	defer done()

@@ -26,37 +26,35 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	multipartFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "part.size",
-			Value: "5MiB",
-			Usage: "Size of each part. Can be a number or MiB/GiB. Must be >= 5MiB",
-		},
-		cli.IntFlag{
-			Name:  "parts",
-			Value: 200,
-			Usage: "Parts to add per client",
-		},
-		cli.StringFlag{
-			Name:  "obj.name",
-			Value: "warp-multipart.bin",
-			Usage: "Object name.",
-		},
-		cli.StringFlag{
-			Name:   "_upload-id",
-			Value:  "",
-			Usage:  "(internal)",
-			Hidden: true,
-		},
-		cli.IntFlag{
-			Name:   "_part-start",
-			Value:  1,
-			Usage:  "(internal)",
-			Hidden: true,
-		},
-	}
-)
+var multipartFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "part.size",
+		Value: "5MiB",
+		Usage: "Size of each part. Can be a number or MiB/GiB. Must be >= 5MiB",
+	},
+	cli.IntFlag{
+		Name:  "parts",
+		Value: 200,
+		Usage: "Parts to add per client",
+	},
+	cli.StringFlag{
+		Name:  "obj.name",
+		Value: "warp-multipart.bin",
+		Usage: "Object name.",
+	},
+	cli.StringFlag{
+		Name:   "_upload-id",
+		Value:  "",
+		Usage:  "(internal)",
+		Hidden: true,
+	},
+	cli.IntFlag{
+		Name:   "_part-start",
+		Value:  1,
+		Usage:  "(internal)",
+		Hidden: true,
+	},
+}
 
 // Put command.
 var multipartCmd = cli.Command{
