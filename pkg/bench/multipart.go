@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2020 MinIO, Inc.
+ * Warp (C) 2019-2022 MinIO, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -176,7 +176,7 @@ func (g *Multipart) AfterPrepare(ctx context.Context) error {
 	}
 	console.Eraseline()
 	console.Infof("\rCompleting Object with %d parts...", len(parts))
-	_, err := c.CompleteMultipartUpload(ctx, g.Bucket, g.ObjName, g.UploadID, parts)
+	_, err := c.CompleteMultipartUpload(ctx, g.Bucket, g.ObjName, g.UploadID, parts, g.PutOpts)
 	return err
 }
 
@@ -222,11 +222,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
-				// TODO: Hack, we should set 'partNumber' parameter.
-				err := opts.SetRange(int64(part)*obj.Size-obj.Size, int64(part)*obj.Size-1)
-				if err != nil {
-					console.Fatal(err)
-				}
+				opts.PartNumber = part
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
 					g.Error("download error:", err)

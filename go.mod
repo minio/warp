@@ -8,12 +8,12 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.13.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/klauspost/compress v1.15.7
+	github.com/klauspost/compress v1.15.8
 	github.com/minio/cli v1.22.0
 	github.com/minio/madmin-go v1.4.1
 	github.com/minio/mc v0.0.0-20220628120902-bf1145af1e48
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.30
+	github.com/minio/minio-go/v7 v7.0.31
 	github.com/minio/pkg v1.1.26
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
