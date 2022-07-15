@@ -27,40 +27,38 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	versionedFlags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "objects",
-			Value: 250,
-			Usage: "Number of objects to upload.",
-		},
-		cli.StringFlag{
-			Name:  "obj.size",
-			Value: "10MiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
-		},
-		cli.Float64Flag{
-			Name:  "get-distrib",
-			Usage: "The amount of GET operations.",
-			Value: 45,
-		},
-		cli.Float64Flag{
-			Name:  "stat-distrib",
-			Usage: "The amount of STAT operations.",
-			Value: 30,
-		},
-		cli.Float64Flag{
-			Name:  "put-distrib",
-			Usage: "The amount of PUT operations.",
-			Value: 15,
-		},
-		cli.Float64Flag{
-			Name:  "delete-distrib",
-			Usage: "The amount of DELETE operations. Must be at least the same as PUT.",
-			Value: 10,
-		},
-	}
-)
+var versionedFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "objects",
+		Value: 250,
+		Usage: "Number of objects to upload.",
+	},
+	cli.StringFlag{
+		Name:  "obj.size",
+		Value: "10MiB",
+		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+	},
+	cli.Float64Flag{
+		Name:  "get-distrib",
+		Usage: "The amount of GET operations.",
+		Value: 45,
+	},
+	cli.Float64Flag{
+		Name:  "stat-distrib",
+		Usage: "The amount of STAT operations.",
+		Value: 30,
+	},
+	cli.Float64Flag{
+		Name:  "put-distrib",
+		Usage: "The amount of PUT operations.",
+		Value: 15,
+	},
+	cli.Float64Flag{
+		Name:  "delete-distrib",
+		Usage: "The amount of DELETE operations. Must be at least the same as PUT.",
+		Value: 10,
+	},
+}
 
 var versionedCmd = cli.Command{
 	Name:   "versioned",

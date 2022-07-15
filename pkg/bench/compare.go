@@ -55,17 +55,16 @@ func (c *CmpReqs) Compare(before, after Operations) {
 	c.After.fill(after)
 	a := c.After
 	b := c.Before
-	c.CmpRequests =
-		CmpRequests{
-			Average: a.Average - b.Average,
-			Worst:   a.Worst - b.Worst,
-			Best:    a.Best - b.Best,
-			Median:  a.Median - b.Median,
-			P25:     a.P25 - b.P25,
-			P75:     a.P75 - b.P75,
-			P90:     a.P90 - b.P90,
-			P99:     a.P99 - b.P99,
-		}
+	c.CmpRequests = CmpRequests{
+		Average: a.Average - b.Average,
+		Worst:   a.Worst - b.Worst,
+		Best:    a.Best - b.Best,
+		Median:  a.Median - b.Median,
+		P25:     a.P25 - b.P25,
+		P75:     a.P75 - b.P75,
+		P90:     a.P90 - b.P90,
+		P99:     a.P99 - b.P99,
+	}
 }
 
 type CmpRequests struct {

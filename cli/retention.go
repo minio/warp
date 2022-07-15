@@ -23,25 +23,23 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	retentionFlags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "objects",
-			Value: 25000,
-			Usage: "Number of objects to upload.",
-		},
-		cli.IntFlag{
-			Name:  "versions",
-			Value: 5,
-			Usage: "Number of versions to upload to each object",
-		},
-		cli.StringFlag{
-			Name:  "obj.size",
-			Value: "1KiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
-		},
-	}
-)
+var retentionFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "objects",
+		Value: 25000,
+		Usage: "Number of objects to upload.",
+	},
+	cli.IntFlag{
+		Name:  "versions",
+		Value: 5,
+		Usage: "Number of versions to upload to each object",
+	},
+	cli.StringFlag{
+		Name:  "obj.size",
+		Value: "1KiB",
+		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+	},
+}
 
 var retentionCmd = cli.Command{
 	Name:   "retention",

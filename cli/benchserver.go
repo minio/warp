@@ -102,8 +102,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
 	monitor.SetLnLoggers(printInfo, printError)
-	var infoLn = monitor.InfoLn
-	var errorLn = monitor.Errorln
+	infoLn := monitor.InfoLn
+	errorLn := monitor.Errorln
 
 	var allOps bench.Operations
 

@@ -3,12 +3,12 @@ Description=Warp
 Documentation=https://github.com/minio/warp
 Wants=network-online.target
 After=network-online.target
-AssertFileIsExecutable=/usr/local/bin/warp
+AssertFileIsExecutable=/usr/bin/warp
 
 [Service]
 WorkingDirectory=/tmp
 
-ExecStart=/usr/local/bin/warp client
+ExecStart=/usr/bin/warp client
 
 # Let systemd restart this service always
 Restart=always

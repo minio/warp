@@ -24,15 +24,13 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var (
-	putFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "obj.size",
-			Value: "10MiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
-		},
-	}
-)
+var putFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "obj.size",
+		Value: "10MiB",
+		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+	},
+}
 
 // Put command.
 var putCmd = cli.Command{

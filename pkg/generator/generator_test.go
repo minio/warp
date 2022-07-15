@@ -158,7 +158,7 @@ func BenchmarkWithCSV(b *testing.B) {
 				return
 			}
 			b.SetBytes(int64(len(payload)))
-			//ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
+			// ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

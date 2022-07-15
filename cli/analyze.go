@@ -116,7 +116,7 @@ func mainAnalyze(ctx *cli.Context) error {
 	if len(args) > 1 {
 		console.Fatal("Only one benchmark file can be given")
 	}
-	var zstdDec, _ = zstd.NewReader(nil)
+	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()

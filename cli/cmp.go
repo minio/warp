@@ -55,7 +55,7 @@ func mainCmp(ctx *cli.Context) error {
 	checkAnalyze(ctx)
 	checkCmp(ctx)
 	args := ctx.Args()
-	var zstdDec, _ = zstd.NewReader(nil)
+	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
 	log := console.Printf
 	if globalQuiet {

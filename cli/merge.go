@@ -63,7 +63,7 @@ func mainMerge(ctx *cli.Context) error {
 	if len(args) <= 1 {
 		console.Fatal("Two or more benchmark data files must be supplied")
 	}
-	var zstdDec, _ = zstd.NewReader(nil)
+	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
 	var allOps bench.Operations
 	threads := uint16(0)

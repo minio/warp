@@ -141,7 +141,6 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 			Region:        c.Location,
 			ObjectLocking: c.Locking,
 		})
-
 		// In client mode someone else may have created it first.
 		// Check if it exists now.
 		// We don't test against a specific error since we might run against many different servers.
