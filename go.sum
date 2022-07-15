@@ -38,8 +38,8 @@ github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+l
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
-github.com/klauspost/compress v1.15.7 h1:7cgTQxJCU/vy+oP/E3B9RGbQTgbiVzIJWIKOLoAsPok=
-github.com/klauspost/compress v1.15.7/go.mod h1:PhcZ0MbTNciWF3rruxRgKxI5NkcHHrHUDtV4Yw2GlzU=
+github.com/klauspost/compress v1.15.8 h1:JahtItbkWjf2jzm/T+qgMxkP9EMHsqEUA6vCMGmXvhA=
+github.com/klauspost/compress v1.15.8/go.mod h1:PhcZ0MbTNciWF3rruxRgKxI5NkcHHrHUDtV4Yw2GlzU=
 github.com/klauspost/cpuid/v2 v2.0.1/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
 github.com/klauspost/cpuid/v2 v2.0.4/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
 github.com/klauspost/cpuid/v2 v2.0.14 h1:QRqdp6bb9M9S5yyKeYteXKuoKE4p0tGlra81fKOpWH8=
@@ -82,8 +82,8 @@ github.com/minio/mc v0.0.0-20220628120902-bf1145af1e48 h1:6UUl4eQ/8puDEF6gW9EWX/
 github.com/minio/mc v0.0.0-20220628120902-bf1145af1e48/go.mod h1:CFMNn+ApbdgQt3ZNtta3apCF3Dn53VZ7SRFM9idvKQ0=
 github.com/minio/md5-simd v1.1.2 h1:Gdi1DZK69+ZVMoNHRXJyNcxrMA4dSxoYHZSQbirFg34=
 github.com/minio/md5-simd v1.1.2/go.mod h1:MzdKDxYpY2BT9XQFocsiZf/NKVtR7nkE4RoEpN+20RM=
-github.com/minio/minio-go/v7 v7.0.30 h1:Re+qlwA+LB3mgFGYbztVPzlEjKtGzRVV5Sk38np858k=
-github.com/minio/minio-go/v7 v7.0.30/go.mod h1:/sjRKkKIA75CKh1iu8E3qBy7ktBmCCDGII0zbXGwbUk=
+github.com/minio/minio-go/v7 v7.0.31 h1:zsJ3qPDeU3bC5UMVi9HJ4ED0lyEzrNd3iQguglZS5FE=
+github.com/minio/minio-go/v7 v7.0.31/go.mod h1:/sjRKkKIA75CKh1iu8E3qBy7ktBmCCDGII0zbXGwbUk=
 github.com/minio/pkg v1.1.26 h1:a8x4sHNBxCiHEkxZ/0EBTLqvV3nMtM2G/A6lXNfXN3U=
 github.com/minio/pkg v1.1.26/go.mod h1:z9PfmEI804KFkF6eY4LoGe8IDVvTCsYGVuaf58Dr0WI=
 github.com/minio/sha256-simd v1.0.0 h1:v1ta+49hkWZyvaKwrQB8elexRqm6Y0aMLjCNsrYxo6g=

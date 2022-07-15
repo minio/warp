@@ -57,6 +57,10 @@ type serverInfo struct {
 	connected bool
 }
 
+type AfterPreparer interface {
+	AfterPrepare(ctx context.Context) error
+}
+
 // validate the serverinfo.
 func (s serverInfo) validate() error {
 	if s.ID == "" {
@@ -78,11 +82,12 @@ type serverRequest struct {
 	}
 	Stage     benchmarkStage `json:"stage"`
 	StartTime time.Time      `json:"start_time"`
+	ClientIdx int            `json:"client_idx"`
 }
 
 // runServerBenchmark will run a benchmark server if requested.
 // Returns a bool whether clients were specified.
-func runServerBenchmark(ctx *cli.Context) (bool, error) {
+func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	if ctx.String("warp-client") == "" {
 		return false, nil
 	}
@@ -131,6 +136,9 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 			}
 		}
 	}
+	for k, v := range b.GetCommon().ExtraFlags {
+		req.Benchmark.Flags[k] = v
+	}
 
 	// Connect to hosts, send benchmark requests.
 	for i := range conns.hosts {
@@ -144,11 +152,17 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	}
 	infoLn("All clients connected...")
 
+	common := b.GetCommon()
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(stagePrepare, true)
+	err := conns.waitForStage(stagePrepare, true, common)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
+	if ap, ok := b.(AfterPreparer); ok {
+		err := ap.AfterPrepare(context.Background())
+		fatalIf(probe.NewError(err), "Error preparing server")
+	}
+
 	infoLn("All clients prepared...")
 
 	const benchmarkWait = 3 * time.Second
@@ -162,7 +176,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 		errorLn("Failed to start all clients", err)
 	}
 	infoLn("Running benchmark on all clients...")
-	err = conns.waitForStage(stageBenchmark, false)
+	err = conns.waitForStage(stageBenchmark, false, common)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -211,7 +225,7 @@ func runServerBenchmark(ctx *cli.Context) (bool, error) {
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)
 	}
-	err = conns.waitForStage(stageCleanup, false)
+	err = conns.waitForStage(stageCleanup, false, common)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -285,6 +299,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 		}
 	}
 	for {
+		req.ClientIdx = i
 		conn := c.ws[i]
 		err := conn.WriteJSON(req)
 		if err != nil {
@@ -452,8 +467,9 @@ func (c *connections) downloadOps() []bench.Operations {
 }
 
 // waitForStage will wait for stage completion on all clients.
-func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
+func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common *bench.Common) error {
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for i, conn := range c.ws {
 		if conn == nil {
 			// log?
@@ -485,6 +501,17 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool) error {
 					return
 				}
 				if resp.StageInfo.Finished {
+					// Merge custom
+					if len(resp.StageInfo.Custom) > 0 {
+						mu.Lock()
+						if common.Custom == nil {
+							common.Custom = make(map[string]string, len(resp.StageInfo.Custom))
+						}
+						for k, v := range resp.StageInfo.Custom {
+							common.Custom[k] = v
+						}
+						mu.Unlock()
+					}
 					c.info("Client ", c.hostName(i), ": Finished stage ", stage, "...")
 					return
 				}

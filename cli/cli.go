@@ -98,6 +98,7 @@ func init() {
 		selectCmd,
 		versionedCmd,
 		retentionCmd,
+		multipartCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,

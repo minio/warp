@@ -410,6 +410,40 @@ Throughput, split into 59 x 1s:
 Note that since object locking can only be specified when creating a bucket, it may be needed to recreate the bucket. 
 Warp will attempt to do that automatically.
 
+## MULTIPART
+
+Multipart benchmark will upload parts to a *single* object, and afterwards test download speed of parts.
+
+When running in distributed mode each client will upload the number of parts specified.
+
+Only `--concurrent` uploads will be started by each client, 
+so having `--parts` be a multiple of `--concurrent` is recommended, but not required. 
+
+```
+λ warp multipart --parts=500 --part.size=10MiB
+warp: Benchmark data written to "warp-remote-2022-07-15[190649]-bRtD.csv.zst"
+
+----------------------------------------
+Operation: PUT
+* Average: 470.88 MiB/s, 47.09 obj/s
+
+Throughput, split into 15 x 1s:
+ * Fastest: 856.9MiB/s, 85.69 obj/s
+ * 50% Median: 446.7MiB/s, 44.67 obj/s
+ * Slowest: 114.1MiB/s, 11.41 obj/s
+
+----------------------------------------
+Operation: GET
+* Average: 1532.79 MiB/s, 153.28 obj/s
+
+Throughput, split into 9 x 1s:
+ * Fastest: 1573.7MiB/s, 157.37 obj/s
+ * 50% Median: 1534.1MiB/s, 153.41 obj/s
+ * Slowest: 1489.5MiB/s, 148.95 obj/s
+warp: Cleanup done.
+```
+
+
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.

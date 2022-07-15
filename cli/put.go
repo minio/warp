@@ -54,7 +54,7 @@ FLAGS:
 // mainPut is the entry point for cp command.
 func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 	b := bench.Put{
 		Common: bench.Common{
 			Client:      newClient(ctx),

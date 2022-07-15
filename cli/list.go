@@ -66,7 +66,7 @@ FLAGS:
 // mainDelete is the entry point for get command.
 func mainList(ctx *cli.Context) error {
 	checkListSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 
 	b := bench.List{
 		Common: bench.Common{

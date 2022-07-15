@@ -63,7 +63,7 @@ FLAGS:
 // mainDelete is the entry point for get command.
 func mainDelete(ctx *cli.Context) error {
 	checkDeleteSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 
 	b := bench.Delete{
 		Common: bench.Common{

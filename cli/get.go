@@ -67,7 +67,7 @@ FLAGS:
 // mainGet is the entry point for get command.
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	b := bench.Get{
 		Common: bench.Common{

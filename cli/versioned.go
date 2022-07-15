@@ -81,7 +81,7 @@ FLAGS:
 // mainVersioned is the entry point for mixed command.
 func mainVersioned(ctx *cli.Context) error {
 	checkVersionedSyntax(ctx)
-	src := newGenSource(ctx)
+	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	dist := bench.VersionedDistribution{
 		Distribution: map[string]float64{
