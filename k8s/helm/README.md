@@ -11,7 +11,7 @@ This chart bootstraps Warp deployment on a [Kubernetes](http://kubernetes.io) cl
 
 ### Configuring the Chart
 
-The [configuration](./values.yaml) file lists the configuration parameters. If you cloned the repo to `/home/warp`, edit the `/home/warp/k8s/helm-chart/values.yaml` file to configure MinIO Server endpoint, credentials and other relevant fields explained in the [Warp documentation](https://github.com/minio/warp#usage).
+The [configuration](./values.yaml) file lists the configuration parameters. If you cloned the repo to `/home/warp`, edit the `/home/warp/k8s/helm/values.yaml` file to configure MinIO Server endpoint, credentials and other relevant fields explained in the [Warp documentation](https://github.com/minio/warp#usage).
 
 We recommend setting `replicaCount` as the same number of MinIO Pods.
 
@@ -21,7 +21,7 @@ After configuring the `values.yaml` file, install this chart using:
 
 ```bash
 cd /home/warp/k8s/
-helm install warp helm-chart/
+helm install warp helm/
 ```
 
 The command deploys a StatefulSet with `replicaCount` number of Warp client pods and a Job with Warp Server.
