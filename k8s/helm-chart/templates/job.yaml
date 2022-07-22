@@ -12,7 +12,12 @@ spec:
       - name: {{ include "warp.fullname" . }}
         image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        args: [ "{{ .Values.warpConfiguration.operationToBenchmark }}", "--warp-client", "warp-{0...{{ sub .Values.replicaCount 1 }}}.warp.default.svc.cluster.local", "--concurrent", "{{ .Values.warpConfiguration.concurrentOperations }}", "--obj.size", "{{ .Values.warpConfiguration.objectSize }}", "--objects", "{{ .Values.warpConfiguration.objectCount }}", "--duration", "{{ .Values.warpConfiguration.duration }}", "--bucket", "{{ .Values.warpConfiguration.bucket }}" ]
+        args:
+          - "{{ .Values.warpConfiguration.operationToBenchmark }}"
+          - "--warp-client=warp-{0...{{ sub .Values.replicaCount 1 }}}.warp.{{ .Release.Namespace }}"
+        {{- range $k, $v := .Values.warpJobArgs }}
+          - --{{ $k }}={{ $v }}
+        {{- end }}
         env:
           - name: WARP_HOST
             value: {{ .Values.warpConfiguration.s3ServerURL | quote }}
@@ -26,4 +31,7 @@ spec:
             value: {{ .Values.warpConfiguration.s3AccessKey | quote }}
           - name: WARP_SECRET_KEY
             value: {{ .Values.warpConfiguration.s3SecretKey | quote }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector: {{- .Values.nodeSelector | toYaml | nindent 8 }}
+    {{- end }}
   backoffLimit: 4

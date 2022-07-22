@@ -26,18 +26,21 @@ warpConfiguration:
   s3SecretKey: "minio123"
   # Operation to be benchmarked (get / put / delete / list / stat / mixed)
   operationToBenchmark: get
+
+warpJobArgs: {}
+  # Full args can be found: https://github.com/minio/warp#usage
   #
   # Number of objects to be used
-  # objectCount: 1000
+  # objects: 1000
   #
   # Object size to be used for benchmarks
-  # objectSize: 10MiB
+  # obj.size: 10MiB
   #
   # Duration for which the benchmark will run
   # duration: 5m0s
   #
   # Number of parallel operations to run during benchmark
-  # concurrentOperations: 10
+  # concurrent: 10
   #
   # By default operations are performed on a bucket called warp-benchmark-bucket.
   # This can be changed using the --bucket parameter. Do however note that the bucket
