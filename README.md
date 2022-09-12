@@ -478,7 +478,7 @@ Throughput, split into 59 x 1s:
 
 ### Analysis Parameters
 
-Beside the important `--analysis.dur` which specifies the time segment size for 
+Beside the important `--analyze.dur` which specifies the time segment size for 
 aggregated data there are some additional parameters that can be used.
 
 Specifying `--analyze.v` will output time aggregated data per host instead of just averages. 
@@ -510,7 +510,7 @@ since the start time will still be aligned with requests starting.
 
 ### Per Request Statistics
 
-By adding the `--analysis.v` parameter it is possible to display per request statistics.
+By adding the `--analyze.v` parameter it is possible to display per request statistics.
 
 This is not enabled by default, since it is assumed the benchmarks are throughput limited,
 but in certain scenarios it can be useful to determine problems with individual hosts for instance.
