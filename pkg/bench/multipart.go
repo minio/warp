@@ -71,7 +71,7 @@ func (g *Multipart) InitOnce(ctx context.Context) error {
 // and upload a number of objects.
 func (g *Multipart) Prepare(ctx context.Context) error {
 	g.PartStart += g.CreateParts * g.ClientIdx
-	if g.PartStart+g.CreateParts > 10000 {
+	if g.PartStart+g.CreateParts > 10001 {
 		return errors.New("10000 part limit exceeded")
 	}
 	console.Println("")
