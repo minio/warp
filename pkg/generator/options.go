@@ -28,6 +28,7 @@ type Options struct {
 	src          func(o Options) (Source, error)
 	totalSize    int64
 	randSize     bool
+	dist         []int
 	customPrefix string
 	csv          CsvOpts
 	random       RandomOpts
@@ -41,10 +42,12 @@ type OptionApplier interface {
 
 // getSize will return a size for an object.
 func (o Options) getSize(rng *rand.Rand) int64 {
-	if !o.randSize {
-		return o.totalSize
+	if o.randSize {
+		return GetExpRandSize(rng, o.totalSize)
+	} else if len(o.dist) > 0 {
+		return GetDistributionSize(rng, o.dist)
 	}
-	return GetExpRandSize(rng, o.totalSize)
+	return o.totalSize
 }
 
 func defaultOptions() Options {
@@ -80,6 +83,14 @@ func WithRandomSize(b bool) Option {
 			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
 		}
 		o.randSize = b
+		return nil
+	}
+}
+
+// WithSizeDistribution will distribute the size based on the provided specification.
+func WithSizeDistribution(dist []int) Option {
+	return func(o *Options) error {
+		o.dist = dist
 		return nil
 	}
 }

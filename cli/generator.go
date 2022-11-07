@@ -19,6 +19,8 @@ package cli
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/minio/mc/pkg/probe"
@@ -37,6 +39,12 @@ var genFlags = []cli.Flag{
 		Name:  "obj.randsize",
 		Usage: "Randomize size of objects so they will be up to the specified size",
 	},
+	cli.StringFlag{
+		Name: "obj.dist",
+		Usage: "Specify a CSV string containing object size distributions such that all percentages add up to 100. " +
+			"Format: size1:percent1,size2:percent2,etc. " +
+			"Example: 1KiB:10,4KiB:15,8KiB:15,16KiB:15,32KiB:15,64KiB:10,128KiB:5,256KiB:10,1MiB:5",
+	},
 }
 
 func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
@@ -49,12 +57,11 @@ func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
 
 	size, err := toSize(ctx.String("obj.size"))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
-	src, err := generator.NewFn(g.Apply(),
-		generator.WithCustomPrefix(ctx.String("prefix")),
-		generator.WithPrefixSize(prefixSize),
-		generator.WithSize(int64(size)),
-		generator.WithRandomSize(ctx.Bool("obj.randsize")),
-	)
+
+	validateGeneratorFlags(ctx)
+
+	src, err := applyGenerators(g, ctx, prefixSize, size)
+
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src
 }
@@ -77,14 +84,14 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		fatal(probe.NewError(err), "Invalid -generator parameter")
 		return nil
 	}
+
 	size, err := toSize(ctx.String(sizeField))
 	fatalIf(probe.NewError(err), "Invalid obj.size specified")
-	src, err := generator.NewFn(g.Apply(),
-		generator.WithCustomPrefix(ctx.String("prefix")),
-		generator.WithPrefixSize(prefixSize),
-		generator.WithSize(int64(size)),
-		generator.WithRandomSize(ctx.Bool("obj.randsize")),
-	)
+
+	validateGeneratorFlags(ctx)
+
+	src, err := applyGenerators(g, ctx, prefixSize, size)
+
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src
 }
@@ -92,4 +99,87 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 // toSize converts a size indication to bytes.
 func toSize(size string) (uint64, error) {
 	return humanize.ParseBytes(size)
+}
+
+// validates whether generator flags are compatible.
+func validateGeneratorFlags(ctx *cli.Context) {
+	if ctx.Bool("obj.randsize") && ctx.String("obj.dist") != "" {
+		err := errors.New("specify either 'obj.randsize' or 'obj.dist' options, not both")
+		fatalIf(probe.NewError(err), "Incompatible generator parameters.")
+	}
+}
+
+// applies generators based on the randomization option provided.
+func applyGenerators(g generator.OptionApplier, ctx *cli.Context, prefixSize int, size uint64) (func() generator.Source, error) {
+	if ctx.Bool("obj.randsize") {
+		src, err := generator.NewFn(g.Apply(),
+			generator.WithCustomPrefix(ctx.String("prefix")),
+			generator.WithPrefixSize(prefixSize),
+			generator.WithSize(int64(size)),
+			generator.WithRandomSize(ctx.Bool("obj.randsize")),
+		)
+		return src, err
+	} else {
+		sizesArr := parseDisrtibutionSizes(ctx)
+
+		src, err := generator.NewFn(g.Apply(),
+			generator.WithCustomPrefix(ctx.String("prefix")),
+			generator.WithPrefixSize(prefixSize),
+			generator.WithSizeDistribution(sizesArr),
+		)
+		return src, err
+	}
+}
+
+/*
+generates an array of sizes based on the distribution percentages provided.
+
+sample:
+
+	input: 1KiB:10,4KiB:15,8KiB:15,16KiB:15,32KiB:15,64KiB:10,128KiB:5,256KiB:10,1MiB:5
+	output: [
+		1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+		4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096,
+		8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192, 8192,
+		16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384,
+		32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768,
+		65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536,
+		131072, 131072, 131072, 131072, 131072, 262144, 262144, 262144, 262144, 262144, 262144, 262144, 262144, 262144, 262144,
+		1048576, 1048576, 1048576, 1048576, 1048576
+	]
+*/
+func parseDisrtibutionSizes(ctx *cli.Context) []int {
+	sizesArr := []int{}
+
+	distArr := strings.Split(ctx.String("obj.dist"), ",")
+	for i := 0; i < len(distArr); i++ {
+		distElement := strings.Split(distArr[i], ":")
+
+		if len(distElement) != 2 {
+			err := errors.New("distribution should be of the format 'size:percent' (Ex: 4KiB:10). Received: " + distArr[i])
+			fatalIf(probe.NewError(err), "Invalid size distribution.")
+		}
+
+		percentInt, err := strconv.Atoi(distElement[1])
+		fatalIf(probe.NewError(err), "Failed to convert distribution percentage to an integer. Received: "+distElement[1])
+
+		if int(percentInt) <= 0 || int(percentInt) >= 100 {
+			err := errors.New("distribution percentage should be an integer value greater than 0 and less than 100. Received: " + distElement[1])
+			fatalIf(probe.NewError(err), "Invalid distribution percentage.")
+		}
+
+		sizeInBytes, err := toSize(distElement[0])
+		fatalIf(probe.NewError(err), "Failed to convert human readable size to bytes.")
+
+		for j := 0; j < int(percentInt); j++ {
+			sizesArr = append(sizesArr, int(sizeInBytes))
+		}
+	}
+
+	if len(sizesArr) != 100 {
+		err := errors.New("distribution percentages should add up to 100. Received: " + strconv.Itoa(len(sizesArr)))
+		fatalIf(probe.NewError(err), "Invalid distribution percentage.")
+	}
+
+	return sizesArr
 }
