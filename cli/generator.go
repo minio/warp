@@ -111,21 +111,21 @@ func validateGeneratorFlags(ctx *cli.Context) {
 
 // applies generators based on the randomization option provided.
 func applyGenerators(g generator.OptionApplier, ctx *cli.Context, prefixSize int, size uint64) (func() generator.Source, error) {
-	if ctx.Bool("obj.randsize") {
-		src, err := generator.NewFn(g.Apply(),
-			generator.WithCustomPrefix(ctx.String("prefix")),
-			generator.WithPrefixSize(prefixSize),
-			generator.WithSize(int64(size)),
-			generator.WithRandomSize(ctx.Bool("obj.randsize")),
-		)
-		return src, err
-	} else {
+	if ctx.String("obj.dist") != "" {
 		sizesArr := parseDisrtibutionSizes(ctx)
 
 		src, err := generator.NewFn(g.Apply(),
 			generator.WithCustomPrefix(ctx.String("prefix")),
 			generator.WithPrefixSize(prefixSize),
 			generator.WithSizeDistribution(sizesArr),
+		)
+		return src, err
+	} else {
+		src, err := generator.NewFn(g.Apply(),
+			generator.WithCustomPrefix(ctx.String("prefix")),
+			generator.WithPrefixSize(prefixSize),
+			generator.WithSize(int64(size)),
+			generator.WithRandomSize(ctx.Bool("obj.randsize")),
 		)
 		return src, err
 	}
