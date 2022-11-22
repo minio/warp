@@ -149,7 +149,7 @@ func (c *csvSource) Object() *Object {
 		}
 	}
 	c.buf.data = dst
-	c.obj.Reader = c.buf.Reset(0)
+	c.obj.Reader = c.buf.Reset(c.obj.Size)
 	var nBuf [16]byte
 	randASCIIBytes(nBuf[:], c.rng)
 	c.obj.setName(string(nBuf[:]) + ".csv")
