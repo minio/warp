@@ -196,7 +196,7 @@ func GetExpRandSize(rng *rand.Rand, max int64) int64 {
 }
 
 // GetDistributionSize will pick a random value from the provided distribution list.
-func GetDistributionSize(rng *rand.Rand, dist []int) int64 {
+func GetDistributionSize(rng *rand.Rand, dist []int64) int64 {
 	idx := 1 + rng.Int63n(int64(len(dist))) // generates a random value between [1, 100] inclusive.
 	return int64(dist[idx-1])               // returns a value between [0, 99].
 }

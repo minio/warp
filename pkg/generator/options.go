@@ -28,11 +28,13 @@ type Options struct {
 	src          func(o Options) (Source, error)
 	totalSize    int64
 	randSize     bool
-	dist         []int
+	dist         []int64
 	customPrefix string
 	csv          CsvOpts
 	random       RandomOpts
+	text         TextOpts
 	randomPrefix int
+	compRatio    int
 }
 
 // OptionApplier allows to abstract generator options.
@@ -56,10 +58,13 @@ func defaultOptions() Options {
 		totalSize:    1 << 20,
 		csv:          csvOptsDefaults(),
 		random:       randomOptsDefaults(),
+		text:         textOptsDefaults(),
 		randomPrefix: 0,
 	}
 	return o
 }
+
+const MIN_RAND_SIZE = 256
 
 // WithSize sets the size of the generated data.
 func WithSize(n int64) Option {
@@ -67,7 +72,7 @@ func WithSize(n int64) Option {
 		if n <= 0 {
 			return errors.New("WithSize: size must be > 0")
 		}
-		if o.randSize && o.totalSize < 256 {
+		if o.randSize && o.totalSize < MIN_RAND_SIZE {
 			return errors.New("WithSize: random sized objects should be at least 256 bytes")
 		}
 
@@ -88,7 +93,7 @@ func WithRandomSize(b bool) Option {
 }
 
 // WithSizeDistribution will distribute the size based on the provided specification.
-func WithSizeDistribution(dist []int) Option {
+func WithSizeDistribution(dist []int64) Option {
 	return func(o *Options) error {
 		o.dist = dist
 		return nil
@@ -113,6 +118,14 @@ func WithPrefixSize(n int) Option {
 			return errors.New("WithPrefixSize: size must be >= 0 and <= 16")
 		}
 		o.randomPrefix = n
+		return nil
+	}
+}
+
+// WithCompression sets the compression ratio.
+func WithCompression(compRatio int) Option {
+	return func(o *Options) error {
+		o.compRatio = compRatio
 		return nil
 	}
 }

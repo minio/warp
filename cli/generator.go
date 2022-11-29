@@ -33,7 +33,7 @@ var genFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "obj.generator",
 		Value: "random",
-		Usage: "Use specific data generator",
+		Usage: "Use specific data generator. Options: text, random, csv",
 	},
 	cli.BoolFlag{
 		Name:  "obj.randsize",
@@ -41,9 +41,15 @@ var genFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name: "obj.dist",
-		Usage: "Specify a CSV string containing object size distributions such that all percentages add up to 100. " +
-			"Format: size1:percent1,size2:percent2,etc. " +
-			"Example: 1KiB:10,4KiB:15,8KiB:15,16KiB:15,32KiB:15,64KiB:10,128KiB:5,256KiB:10,1MiB:5",
+		Usage: "Specify a CSV string containing object size distributions such that all percentages add up to 100." +
+			"\n\tFormat: size1:percent1,size2:percent2,etc." +
+			"\n\tExample: 1KiB:10,4KiB:15,8KiB:15,16KiB:15,32KiB:15,64KiB:10,128KiB:5,256KiB:10,1MiB:5",
+	},
+	cli.StringFlag{
+		Name: "obj.comp",
+		Usage: "Integer value for the compression ratio desired on the generated data." +
+			"\n\tFor instance, a value of 2 will generate data that is 50% compressible." +
+			"\n\tExample: 2",
 	},
 }
 
@@ -79,6 +85,8 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		g = generator.WithRandomData()
 	case "csv":
 		g = generator.WithCSV().Size(25, 1000)
+	case "text":
+		g = generator.WithTextData()
 	default:
 		err := errors.New("unknown generator type:" + ctx.String("obj.generator"))
 		fatal(probe.NewError(err), "Invalid -generator parameter")
@@ -107,28 +115,70 @@ func validateGeneratorFlags(ctx *cli.Context) {
 		err := errors.New("specify either 'obj.randsize' or 'obj.dist' options, not both")
 		fatalIf(probe.NewError(err), "Incompatible generator parameters.")
 	}
+
+	if ctx.String("obj.comp") != "" && ctx.String("obj.generator") != "text" {
+		err := errors.New("compression is only applicable to generator type 'text'. Specify the option: '--obj.generator text'")
+		fatalIf(probe.NewError(err), "Incompatible generator parameters.")
+	}
 }
 
 // applies generators based on the randomization option provided.
 func applyGenerators(g generator.OptionApplier, ctx *cli.Context, prefixSize int, size uint64) (func() generator.Source, error) {
+	compRatio := 0
+	var err error
+	if ctx.String("obj.comp") != "" {
+		compRatio, err = strconv.Atoi(ctx.String("obj.comp"))
+		fatalIf(probe.NewError(err), "obj.comp should be an integer")
+	}
+
 	if ctx.String("obj.dist") != "" {
 		sizesArr := parseDisrtibutionSizes(ctx)
+
+		// make sure the min obj size from distribution is greater than compRatio.
+		validateCompRatio(compRatio, getMinObjSize(sizesArr))
 
 		src, err := generator.NewFn(g.Apply(),
 			generator.WithCustomPrefix(ctx.String("prefix")),
 			generator.WithPrefixSize(prefixSize),
 			generator.WithSizeDistribution(sizesArr),
+			generator.WithCompression(compRatio),
 		)
 		return src, err
 	} else {
+		if ctx.Bool("obj.randsize") {
+			validateCompRatio(compRatio, generator.MIN_RAND_SIZE)
+		} else{
+			validateCompRatio(compRatio, int64(size))
+		}
+
 		src, err := generator.NewFn(g.Apply(),
 			generator.WithCustomPrefix(ctx.String("prefix")),
 			generator.WithPrefixSize(prefixSize),
 			generator.WithSize(int64(size)),
 			generator.WithRandomSize(ctx.Bool("obj.randsize")),
+			generator.WithCompression(compRatio),
 		)
 		return src, err
 	}
+}
+
+// validates the compression ratio provided.
+func validateCompRatio(compRatio int, size int64) {
+	if int64(compRatio) > size {
+		err := errors.New("compression ratio (" + strconv.Itoa(compRatio) + ") cannot be greater than the minimum object size (" + strconv.FormatInt(size, 10) + ").")
+		fatalIf(probe.NewError(err), "Invalid compression ratio provided.")
+	}
+}
+
+// provides the smallest object size in an array of object sizes
+func getMinObjSize(sizesArr []int64) int64 {
+	smallest := sizesArr[0]
+	for _, num := range sizesArr[1:] {
+		if num < smallest {
+			smallest = num
+		}
+	}
+	return smallest
 }
 
 /*
@@ -148,8 +198,8 @@ sample:
 		1048576, 1048576, 1048576, 1048576, 1048576
 	]
 */
-func parseDisrtibutionSizes(ctx *cli.Context) []int {
-	sizesArr := []int{}
+func parseDisrtibutionSizes(ctx *cli.Context) []int64 {
+	sizesArr := []int64{}
 
 	distArr := strings.Split(ctx.String("obj.dist"), ",")
 	for i := 0; i < len(distArr); i++ {
@@ -172,7 +222,7 @@ func parseDisrtibutionSizes(ctx *cli.Context) []int {
 		fatalIf(probe.NewError(err), "Failed to convert human readable size to bytes.")
 
 		for j := 0; j < int(percentInt); j++ {
-			sizesArr = append(sizesArr, int(sizeInBytes))
+			sizesArr = append(sizesArr, int64(sizeInBytes))
 		}
 	}
 
