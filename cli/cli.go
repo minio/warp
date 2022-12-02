@@ -99,6 +99,7 @@ func init() {
 		versionedCmd,
 		retentionCmd,
 		multipartCmd,
+		zipCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,

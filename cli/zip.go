@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2020 MinIO, Inc.
+ * Warp (C) 2019-2022 MinIO, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,16 +18,23 @@
 package cli
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/minio/cli"
-	"github.com/minio/minio-go/v7"
 	"github.com/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
-var putFlags = []cli.Flag{
+var zipFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "files",
+		Value: 10000,
+		Usage: "Number of files to upload in the zip file.",
+	},
 	cli.StringFlag{
 		Name:  "obj.size",
-		Value: "10MiB",
+		Value: "10KiB",
 		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 	},
 	cli.StringFlag{
@@ -38,30 +45,30 @@ var putFlags = []cli.Flag{
 	},
 }
 
-// Put command.
-var putCmd = cli.Command{
-	Name:   "put",
-	Usage:  "benchmark put objects",
-	Action: mainPut,
+var zipCmd = cli.Command{
+	Name:   "zip",
+	Usage:  "benchmark minio s3zip",
+	Action: mainZip,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, zipFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
 USAGE:
   {{.HelpName}} [FLAGS]
-  -> see https://github.com/minio/warp#put
+  -> see https://github.com/minio/warp#zip
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}`,
 }
 
-// mainPut is the entry point for cp command.
-func mainPut(ctx *cli.Context) error {
-	checkPutSyntax(ctx)
+// mainGet is the entry point for get command.
+func mainZip(ctx *cli.Context) error {
+	checkZipSyntax(ctx)
+	ctx.Set("noprefix", "true")
 	src := newGenSource(ctx, "obj.size")
-	b := bench.Put{
+	b := bench.S3Zip{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -69,26 +76,20 @@ func mainPut(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     putOpts(ctx),
+			Locking:     true,
 		},
+		CreateFiles: ctx.Int("files"),
+		ZipObjName:  fmt.Sprintf("%d.zip", time.Now().UnixNano()),
 	}
 	return runBench(ctx, &b)
 }
 
-// putOpts retrieves put options from the context.
-func putOpts(ctx *cli.Context) minio.PutObjectOptions {
-	pSize, _ := toSize(ctx.String("part.size"))
-	return minio.PutObjectOptions{
-		ServerSideEncryption: newSSE(ctx),
-		DisableMultipart:     ctx.Bool("disable-multipart"),
-		SendContentMd5:       ctx.Bool("md5"),
-		StorageClass:         ctx.String("storage-class"),
-		PartSize:             pSize,
-	}
-}
-
-func checkPutSyntax(ctx *cli.Context) {
+func checkZipSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
+	}
+	if ctx.Int("files") <= 0 {
+		console.Fatal("There must be more than 0 objects.")
 	}
 
 	checkAnalyze(ctx)

@@ -444,6 +444,32 @@ warp: Cleanup done.
 ```
 
 
+## ZIP
+
+The `zip` command benchmarks the MinIO [s3zip](https://blog.min.io/small-file-archives/) extension
+that allows 
+
+This will upload a single zip file with 10000 individual files (change with `--files`) of 10KiB each (changed with `--obj.size`).
+
+The benchmark will then download individual files concurrently and present the result as a GET benchmark.
+
+Example:
+```
+λ warp zip --obj.size=1MiB -duration=1m
+warp: Benchmark data written to "warp-zip-2022-12-02[150109]-xmXj.csv.zst"
+
+----------------------------------------
+Operation: GET
+* Average: 728.78 MiB/s, 728.78 obj/s
+
+Throughput, split into 59 x 1s:
+ * Fastest: 757.0MiB/s, 756.96 obj/s
+ * 50% Median: 732.7MiB/s, 732.67 obj/s
+ * Slowest: 662.7MiB/s, 662.65 obj/s
+```
+
+This will only work on recent MinIO versions, from 2022 and going forward.
+
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
