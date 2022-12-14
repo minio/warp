@@ -42,10 +42,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Vet
+      - name: go vet
         run: go vet ./...
 
-      - name: fmt
+      - name: go fmt
         run: diff <(gofmt -d .) <(printf "")
 
       - name: Lint

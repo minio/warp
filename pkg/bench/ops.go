@@ -235,6 +235,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 		s.OpsEnded++
 		s.ObjsPerOp = o.ObjPerOp
 		s.Objects += float64(o.ObjPerOp)
+		s.ReqAvg += float64(o.End.Sub(o.Start)) / float64(time.Millisecond)
 		return
 	}
 	// Operation partially within segment.
@@ -253,6 +254,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 			s.Errors++
 			return
 		}
+		s.ReqAvg += float64(o.End.Sub(o.Start)) / float64(time.Millisecond)
 	}
 
 	opDur := o.End.Sub(o.Start)

@@ -47,6 +47,7 @@ type Segment struct {
 	OpsEnded   int       `json:"ops_ended"`
 	Objects    float64   `json:"objects"`
 	Errors     int       `json:"errors"`
+	ReqAvg     float64   `json:"req_avg_ms"` // Average duration of operations ending in segment.
 	Start      time.Time `json:"start"`
 	EndsBefore time.Time `json:"ends_before"`
 }
@@ -189,6 +190,9 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 				break
 			}
 		}
+		if s.OpsEnded > 0 {
+			s.ReqAvg /= float64(s.OpsEnded)
+		}
 		segments = append(segments, s)
 		segStart = segStart.Add(so.PerSegDuration)
 	}
@@ -234,6 +238,7 @@ func (s Segments) CSV(w io.Writer) error {
 		"mb_per_sec",
 		"ops_ended_per_sec",
 		"objs_per_sec",
+		"reqs_ended_avg_ms",
 		"start_time",
 		"end_time",
 	})
@@ -268,6 +273,7 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 		fmt.Sprint(mib),
 		fmt.Sprint(ops),
 		fmt.Sprint(objs),
+		fmt.Sprint(s.ReqAvg),
 		fmt.Sprint(s.Start),
 		fmt.Sprint(s.EndsBefore),
 	})
