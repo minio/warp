@@ -160,10 +160,15 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 			pct = 100.0 * float64(ops.Throughput.Operations) / float64(aggr.MixedServerStats.Operations)
 		}
 		duration := ops.EndTime.Sub(ops.StartTime).Truncate(time.Second)
-		if !details {
+
+		if !details || ops.Skipped {
 			console.Printf("Operation: %v, %d%%, Concurrency: %d, Ran %v.\n", ops.Type, int(pct+0.5), ops.Concurrency, duration)
 		} else {
-			console.Printf("Operation: %v - total: %v, %.01f%%, Concurrency: %d, Ran %v, starting %v\n", ops.Type, ops.Throughput.Operations, pct, ops.Concurrency, duration, ops.StartTime.Truncate(time.Millisecond))
+			sz := ""
+			if ops.SingleSizedRequests != nil && ops.SingleSizedRequests.ObjSize > 0 {
+				sz = fmt.Sprintf("Size: %d bytes. ", ops.SingleSizedRequests.ObjSize)
+			}
+			console.Printf("Operation: %v - total: %v, %.01f%%, %vConcurrency: %d, Ran %v, starting %v\n", ops.Type, ops.Throughput.Operations, pct, sz, ops.Concurrency, duration, ops.StartTime.Truncate(time.Millisecond))
 		}
 		console.SetColor("Print", color.New(color.FgWhite))
 
@@ -303,15 +308,19 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, ops.Clients)
 		}
 		ran := ops.EndTime.Sub(ops.StartTime).Truncate(time.Second)
+		sz := ""
+		if ops.SingleSizedRequests != nil && ops.SingleSizedRequests.ObjSize > 0 {
+			sz = fmt.Sprintf("Size: %d bytes. ", ops.SingleSizedRequests.ObjSize)
+		}
 		if opo > 1 {
-			if details {
-				console.Printf("Operation: %v (%d). Ran %v. Objects per operation: %d. Concurrency: %d.%s\n", typ, ops.N, ran, opo, ops.Concurrency, hostsString)
+			if details && ops.Concurrency > 0 {
+				console.Printf("Operation: %v (%d). Ran %v. Objects per operation: %d. %vConcurrency: %d.%s\n", typ, ops.N, ran, opo, sz, ops.Concurrency, hostsString)
 			} else {
 				console.Printf("Operation: %v\n", typ)
 			}
 		} else {
-			if details {
-				console.Printf("Operation: %v (%d). Ran %v. Concurrency: %d.%s\n", typ, ops.N, ran, ops.Concurrency, hostsString)
+			if details && ops.Concurrency > 0 {
+				console.Printf("Operation: %v (%d). Ran %v. %vConcurrency: %d.%s\n", typ, ops.N, ran, sz, ops.Concurrency, hostsString)
 			} else {
 				console.Printf("Operation: %v\n", typ)
 			}
