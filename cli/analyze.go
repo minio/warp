@@ -153,7 +153,11 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 		console.Errorln("No mixed stats")
 	}
 	for _, ops := range aggr.Operations {
-		console.Println("")
+		if details {
+			console.Println("\n----------------------------------------")
+		} else {
+			console.Println("")
+		}
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		pct := 0.0
 		if aggr.MixedServerStats.Operations > 0 {
