@@ -13,7 +13,7 @@ require (
 	github.com/minio/madmin-go v1.7.5
 	github.com/minio/mc v0.0.0-20220628120902-bf1145af1e48
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.45
+	github.com/minio/minio-go/v7 v7.0.47
 	github.com/minio/pkg v1.1.26
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
