@@ -19,6 +19,8 @@ package cli
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/minio/mc/pkg/probe"
@@ -77,14 +79,33 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		fatal(probe.NewError(err), "Invalid -generator parameter")
 		return nil
 	}
-	size, err := toSize(ctx.String(sizeField))
-	fatalIf(probe.NewError(err), "Invalid obj.size specified")
-	src, err := generator.NewFn(g.Apply(),
+	opts := []generator.Option{
 		generator.WithCustomPrefix(ctx.String("prefix")),
 		generator.WithPrefixSize(prefixSize),
-		generator.WithSize(int64(size)),
-		generator.WithRandomSize(ctx.Bool("obj.randsize")),
-	)
+	}
+	tokens := strings.Split(ctx.String(sizeField), ",")
+	switch len(tokens) {
+	case 1:
+		size, err := toSize(tokens[0])
+		if err != nil {
+			fatalIf(probe.NewError(err), "Invalid obj.size specified")
+		}
+		opts = append(opts, generator.WithSize(int64(size)))
+	case 2:
+		minSize, err := toSize(tokens[0])
+		if err != nil {
+			fatalIf(probe.NewError(err), "Invalid min obj.size specified")
+		}
+		maxSize, err := toSize(tokens[1])
+		if err != nil {
+			fatalIf(probe.NewError(err), "Invalid max obj.size specified")
+		}
+		opts = append(opts, generator.WithMinMaxSize(int64(minSize), int64(maxSize)))
+	default:
+		fatalIf(probe.NewError(fmt.Errorf("unexpected obj.size specified: %s", ctx.String(sizeField))), "Invalid obj.size parameter")
+	}
+	opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
+	src, err := generator.NewFn(opts...)
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src
 }
