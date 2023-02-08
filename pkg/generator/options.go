@@ -27,7 +27,6 @@ import (
 type Options struct {
 	src          func(o Options) (Source, error)
 	minSize      int64
-	maxSize      int64
 	totalSize    int64
 	randSize     bool
 	customPrefix string
@@ -46,10 +45,7 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 	if !o.randSize {
 		return o.totalSize
 	}
-	if o.minSize > 0 {
-		return GetExpRandSize(rng, o.minSize, o.maxSize)
-	}
-	return GetExpRandSize(rng, 0, o.totalSize)
+	return GetExpRandSize(rng, o.minSize, o.totalSize)
 }
 
 func defaultOptions() Options {
@@ -80,6 +76,7 @@ func WithMinMaxSize(min, max int64) Option {
 		}
 
 		o.totalSize = max
+		o.minSize = min
 		return nil
 	}
 }
