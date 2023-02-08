@@ -26,6 +26,7 @@ import (
 // Use WithXXX functions to set them.
 type Options struct {
 	src          func(o Options) (Source, error)
+	minSize      int64
 	totalSize    int64
 	randSize     bool
 	customPrefix string
@@ -44,7 +45,7 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 	if !o.randSize {
 		return o.totalSize
 	}
-	return GetExpRandSize(rng, o.totalSize)
+	return GetExpRandSize(rng, o.minSize, o.totalSize)
 }
 
 func defaultOptions() Options {
@@ -56,6 +57,28 @@ func defaultOptions() Options {
 		randomPrefix: 0,
 	}
 	return o
+}
+
+// WithMinMaxSize sets the min and max size of the generated data.
+func WithMinMaxSize(min, max int64) Option {
+	return func(o *Options) error {
+		if min <= 0 {
+			return errors.New("WithSize: minSize must be >= 0")
+		}
+		if max < 0 {
+			return errors.New("WithSize: maxSize must be > 0")
+		}
+		if min > max {
+			return errors.New("WithSize: minSize must be < maxSize")
+		}
+		if o.randSize && max < 256 {
+			return errors.New("WithSize: random sized objects should be at least 256 bytes")
+		}
+
+		o.totalSize = max
+		o.minSize = min
+		return nil
+	}
 }
 
 // WithSize sets the size of the generated data.

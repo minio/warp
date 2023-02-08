@@ -208,7 +208,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				if g.RandomRanges && op.Size > 2 {
 					// Randomize length similar to --obj.randsize
-					size := generator.GetExpRandSize(rng, op.Size-2)
+					size := generator.GetExpRandSize(rng, 0, op.Size-2)
 					start := rng.Int63n(op.Size - size)
 					end := start + size
 					op.Size = end - start + 1
