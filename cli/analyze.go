@@ -326,7 +326,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 			if details && ops.Concurrency > 0 {
 				console.Printf("Operation: %v (%d). Ran %v. %vConcurrency: %d.%s\n", typ, ops.N, ran, sz, ops.Concurrency, hostsString)
 			} else {
-				console.Printf("Operation: %v\n", typ)
+				console.Printf("Operation: %v. Concurrency: %v\n", typ, ops.Concurrency)
 			}
 		}
 		if ops.Errors > 0 {
