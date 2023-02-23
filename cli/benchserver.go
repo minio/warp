@@ -28,12 +28,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/websocket"
 )
 
 const warpServerVersion = 1

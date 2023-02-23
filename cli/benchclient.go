@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/minio/cli"
 	"github.com/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/websocket"
 )
 
 // clientReplyType indicates the client reply type.
