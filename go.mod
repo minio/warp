@@ -9,7 +9,7 @@ require (
 	github.com/fatih/color v1.14.1
 	github.com/klauspost/compress v1.15.15
 	github.com/minio/cli v1.24.2
-	github.com/minio/madmin-go v1.7.5
+	github.com/minio/madmin-go/v2 v2.0.14
 	github.com/minio/mc v0.0.0-20230221173238-1843bab50013
 	github.com/minio/md5-simd v1.1.2
 	github.com/minio/minio-go/v7 v7.0.49
@@ -39,7 +39,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
-	github.com/minio/madmin-go/v2 v2.0.14 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect

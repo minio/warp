@@ -73,8 +73,6 @@ github.com/mattn/go-runewidth v0.0.14 h1:+xnbZSEeDbOIg5/mE6JF0w6n9duR1l3/WmbinWV
 github.com/mattn/go-runewidth v0.0.14/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/minio/cli v1.24.2 h1:J+fCUh9mhPLjN3Lj/YhklXvxj8mnyE/D6FpFduXJ2jg=
 github.com/minio/cli v1.24.2/go.mod h1:bYxnK0uS629N3Bq+AOZZ+6lwF77Sodk4+UL9vNuXhOY=
-github.com/minio/madmin-go v1.7.5 h1:IF8j2HR0jWc7msiOcy0KJ8EyY7Q3z+j+lsmSDksQm+I=
-github.com/minio/madmin-go v1.7.5/go.mod h1:3SO8SROxHN++tF6QxdTii2SSUaYSrr8lnE9EJWjvz0k=
 github.com/minio/madmin-go/v2 v2.0.14 h1:FJs34UMm1jmDj3rA75tZnZAVRSaeXCL6q0D4Twrwz0M=
 github.com/minio/madmin-go/v2 v2.0.14/go.mod h1:lFQ1Zzi30StjJtyIpVLhjoxn/uPS+0Wxw4MyuRlNkR0=
 github.com/minio/mc v0.0.0-20230221173238-1843bab50013 h1:+4Zrme5jLaQ7o8O3CMMZbOtK9iz0CGOj8tFDm0frMC0=
