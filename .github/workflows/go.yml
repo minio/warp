@@ -54,6 +54,7 @@ jobs:
           $(go env GOPATH)/bin/golangci-lint run --timeout=5m --config ./.golangci.yml
 
       - name: Staticcheck
-        uses: dominikh/staticcheck-action@v1.2.0
+        uses: dominikh/staticcheck-action@v1.3.0
         with:
           version: "2023.1.2"
+          install-go: false
