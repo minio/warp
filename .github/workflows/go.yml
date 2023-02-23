@@ -52,3 +52,8 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.51.2
           $(go env GOPATH)/bin/golangci-lint run --timeout=5m --config ./.golangci.yml
+
+      - name: Staticcheck
+        uses: dominikh/staticcheck-action@v1.2.0
+        with:
+          version: "2023.1.2"

@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -232,7 +231,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					continue
 				}
 				fbr.r = o
-				n, err := io.Copy(ioutil.Discard, &fbr)
+				n, err := io.Copy(io.Discard, &fbr)
 				if err != nil {
 					g.Error("download error:", err)
 					op.Err = err.Error()

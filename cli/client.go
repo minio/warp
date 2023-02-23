@@ -99,9 +99,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 			now := time.Now()
 			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(hosts))
 			for i := range lastFinished {
-				t := now
-				t.Add(time.Duration(i + off%len(hosts)))
-				lastFinished[i] = t
+				lastFinished[i] = now.Add(time.Duration(i + off%len(hosts)))
 			}
 		}
 		find := func() int {

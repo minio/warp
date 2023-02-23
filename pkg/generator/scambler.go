@@ -118,7 +118,6 @@ func (c *scrambler) Read(p []byte) (n int, err error) {
 		return copied, err
 	}
 	// Assign remaining back to c.left
-	p = p[copied:]
 	c.read += int64(copied)
 	if c.read == c.want {
 		return copied, io.EOF

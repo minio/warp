@@ -19,7 +19,7 @@ package bench
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -29,7 +29,7 @@ import (
 var zstdDec, _ = zstd.NewReader(nil)
 
 func TestOperations_Segment(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/warp-benchdata-get.csv.zst")
+	b, err := os.ReadFile("testdata/warp-benchdata-get.csv.zst")
 	if err != nil {
 		t.Fatal(err)
 	}

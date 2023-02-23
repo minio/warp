@@ -99,8 +99,8 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				}
 				obj.VersionID = res.VersionID
 
-				if obj.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, obj.Size)
+				if res.Size != obj.Size {
+					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
 					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
