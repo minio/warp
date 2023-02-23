@@ -66,7 +66,7 @@ func TestNew(t *testing.T) {
 				return
 			}
 			obj := got.Object()
-			b, err := ioutil.ReadAll(obj.Reader)
+			b, err := io.ReadAll(obj.Reader)
 			if err != nil {
 				t.Error(err)
 				return
@@ -102,7 +102,7 @@ func TestNew(t *testing.T) {
 				t.Errorf("Expected 10, got %v", n)
 				return
 			}
-			b, err = ioutil.ReadAll(obj.Reader)
+			b, err = io.ReadAll(obj.Reader)
 			if err != nil {
 				return
 			}
@@ -152,7 +152,7 @@ func BenchmarkWithCSV(b *testing.B) {
 				return
 			}
 			obj := got.Object()
-			payload, err := ioutil.ReadAll(obj.Reader)
+			payload, err := io.ReadAll(obj.Reader)
 			if err != nil {
 				b.Errorf("ioutil error = %v", err)
 				return
@@ -163,7 +163,7 @@ func BenchmarkWithCSV(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				obj := got.Object()
-				_, err := io.Copy(ioutil.Discard, obj.Reader)
+				_, err := io.Copy(io.Discard, obj.Reader)
 				if err != nil {
 					b.Errorf("New() error = %v", err)
 					return
@@ -206,7 +206,7 @@ func BenchmarkWithRandomData(b *testing.B) {
 				return
 			}
 			obj := got.Object()
-			n, err := io.Copy(ioutil.Discard, obj.Reader)
+			n, err := io.Copy(io.Discard, obj.Reader)
 			if err != nil {
 				b.Errorf("ioutil error = %v", err)
 				return
@@ -216,7 +216,7 @@ func BenchmarkWithRandomData(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				obj = got.Object()
-				_, err := io.Copy(ioutil.Discard, obj.Reader)
+				_, err := io.Copy(io.Discard, obj.Reader)
 				if err != nil {
 					b.Errorf("New() error = %v", err)
 					return

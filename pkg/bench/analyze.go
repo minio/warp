@@ -279,7 +279,7 @@ func (s Segment) CSV(w *csv.Writer, idx int) error {
 	})
 }
 
-// String returns a string representation of the segment
+// Duration returns the duration of the segment
 func (s Segment) Duration() time.Duration {
 	return s.EndsBefore.Sub(s.Start)
 }
@@ -326,7 +326,7 @@ func (s Segments) SortByOpsEnded() {
 	})
 }
 
-// SortByOpsEnded sorts the segments by the number of distributed objects processed.
+// SortByObjsPerSec sorts the segments by the number of distributed objects processed.
 // Lowest first.
 func (s Segments) SortByObjsPerSec() {
 	sort.Slice(s, func(i, j int) bool {

@@ -32,7 +32,7 @@ import (
 	"github.com/cheggaaa/pb"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
-	"github.com/minio/madmin-go"
+	"github.com/minio/madmin-go/v2"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/console"
 	"github.com/minio/warp/api"
@@ -131,13 +131,14 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		go func() {
 			defer close(pgDone)
 			defer pg.Finish()
-			tick := time.Tick(time.Millisecond * 125)
+			tick := time.NewTicker(time.Millisecond * 125)
+			defer tick.Stop()
 			pg.Set(-1)
 			pg.SetCaption("Preparing: ")
 			newVal := int64(-1)
 			for {
 				select {
-				case <-tick:
+				case <-tick.C:
 					current := pg.Get()
 					if current != newVal {
 						pg.Set64(newVal)
@@ -211,11 +212,12 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			defer close(pgDone)
 			defer pg.Finish()
 			pg.SetCaption("Benchmarking:")
-			tick := time.Tick(time.Millisecond * 125)
+			tick := time.NewTicker(time.Millisecond * 125)
+			defer tick.Stop()
 			done := ctx2.Done()
 			for {
 				select {
-				case t := <-tick:
+				case t := <-tick.C:
 					elapsed := t.Sub(tStart)
 					if elapsed < 0 {
 						continue
@@ -354,10 +356,10 @@ type benchmarkStage string
 
 const (
 	stagePrepare    benchmarkStage = "prepare"
-	stageBenchmark                 = "benchmark"
-	stageCleanup                   = "cleanup"
-	stageDone                      = "done"
-	stageNotStarted                = ""
+	stageBenchmark  benchmarkStage = "benchmark"
+	stageCleanup    benchmarkStage = "cleanup"
+	stageDone       benchmarkStage = "done"
+	stageNotStarted benchmarkStage = ""
 )
 
 var benchmarkStages = []benchmarkStage{

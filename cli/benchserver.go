@@ -28,12 +28,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/websocket"
 )
 
 const warpServerVersion = 1
@@ -42,10 +42,10 @@ type serverRequestOp string
 
 const (
 	serverReqDisconnect  serverRequestOp = "disconnect"
-	serverReqBenchmark                   = "benchmark"
-	serverReqStartStage                  = "start_stage"
-	serverReqStageStatus                 = "stage_status"
-	serverReqSendOps                     = "send_ops"
+	serverReqBenchmark   serverRequestOp = "benchmark"
+	serverReqStartStage  serverRequestOp = "start_stage"
+	serverReqStageStatus serverRequestOp = "stage_status"
+	serverReqSendOps     serverRequestOp = "send_ops"
 )
 
 const serverFlagName = "serve"
@@ -444,22 +444,20 @@ func (c *connections) downloadOps() []bench.Operations {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			for {
-				resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps})
-				if err != nil {
-					return
-				}
-				if resp.Err != "" {
-					c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
-					return
-				}
-				c.info("Client ", c.hostName(i), ": Operations downloaded.")
-
-				mu.Lock()
-				res = append(res, resp.Ops)
-				mu.Unlock()
+			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps})
+			if err != nil {
+				c.errorF("Client %v download returned error: %v\n", c.hostName(i), resp.Err)
 				return
 			}
+			if resp.Err != "" {
+				c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+				return
+			}
+			c.info("Client ", c.hostName(i), ": Operations downloaded.")
+
+			mu.Lock()
+			res = append(res, resp.Ops)
+			mu.Unlock()
 		}(i)
 	}
 	wg.Wait()

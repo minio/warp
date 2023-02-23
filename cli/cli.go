@@ -43,8 +43,6 @@ var (
 	globalJSON    = false // Json flag set via command line
 	globalDebug   = false // Debug flag set via command line
 	globalNoColor = false // No Color flag set via command line
-	// Terminal width
-	globalTermWidth int
 )
 
 const (
@@ -72,10 +70,8 @@ func Main(args []string) {
 
 	// Fetch terminal size, if not available, automatically
 	// set globalQuiet to true.
-	if w, e := pb.GetTerminalWidth(); e != nil {
+	if _, e := pb.GetTerminalWidth(); e != nil {
 		globalQuiet = true
-	} else {
-		globalTermWidth = w
 	}
 
 	// Set the warp app name.

@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -229,7 +228,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					continue
 				}
 				fbr.r = o
-				n, err := io.Copy(ioutil.Discard, &fbr)
+				n, err := io.Copy(io.Discard, &fbr)
 				if err != nil {
 					g.Error("download error:", err)
 					op.Err = err.Error()
