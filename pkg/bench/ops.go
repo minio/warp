@@ -499,7 +499,7 @@ func (o Operations) isMixed(types []string) bool {
 	return false
 }
 
-// ByOp separates the operations by endpoint.
+// ByEndpoint separates the operations by endpoint.
 func (o Operations) ByEndpoint() map[string]Operations {
 	dst := make(map[string]Operations, 1)
 	for _, o := range o {
@@ -516,7 +516,7 @@ func (o Operations) FirstOpType() string {
 	return o[0].OpType
 }
 
-// FirstObjSizeType returns the size of the first entry, 0 if there are no ops.
+// FirstObjSize returns the size of the first entry, 0 if there are no ops.
 func (o Operations) FirstObjSize() int64 {
 	if len(o) == 0 {
 		return 0
@@ -958,7 +958,7 @@ func (o Operations) FilterLast() Operations {
 	return ok
 }
 
-// Errors returns the errors found.
+// FilterErrors returns all operations with errors.
 func (o Operations) FilterErrors() Operations {
 	if len(o) == 0 {
 		return nil

@@ -55,7 +55,7 @@ func (t Throughput) StringDuration() string {
 	return fmt.Sprintf("Duration: %v, starting %v", time.Duration(t.MeasureDurationMillis)*time.Millisecond, t.StartTime.Format("15:04:05 MST"))
 }
 
-// String returns a string representation of the segment
+// StringDetails returns a detailed string representation of the segment
 func (t Throughput) StringDetails(details bool) string {
 	speed := ""
 	if t.AverageBPS > 0 {
@@ -148,7 +148,7 @@ func cloneBenchSegments(s bench.Segments) []SegmentSmall {
 	return res
 }
 
-// String returns a string representation of the segment.
+// StringLong returns a long string representation of the segment.
 func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 	speed := ""
 	if s.BPS > 0 {
