@@ -101,8 +101,10 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 }
 
 // Information on currently or last connected server.
-var connectedMu sync.Mutex
-var connected serverInfo
+var (
+	connectedMu sync.Mutex
+	connected   serverInfo
+)
 
 // wsUpgrader performs websocket upgrades.
 var wsUpgrader = websocket.Upgrader{
