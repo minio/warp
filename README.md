@@ -267,19 +267,24 @@ Operation: DELETE
 A similar benchmark is called `versioned` which operates on versioned objects.
 
 ## GET
+Benchmarking get operations will attempt to download as many objects it can within `--duration`.
 
-Benchmarking get operations will upload `--objects` objects of size `--obj.size` 
-and attempt to download as many it can within `--duration`.
+By default, `--objects` objects of size `--obj.size` are uploaded before doing the actual bench.
+Objects will be uploaded with `--concurrent` different prefixes, except if `--noprefix` is specified.
+
+Using `--list-existing` will list at most `--objects` from the bucket and download them instead
+of uploading random objects (set it to 0 to use all object from the listing).
+Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`
 
 If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
 which will add multiple versions of each object and request individual versions.
 
-Objects will be uploaded with `--concurrent` different prefixes, 
-except if `--noprefix` is specified. Downloads are chosen randomly between all uploaded data.
-
-When downloading, the benchmark will attempt to run `--concurrent` concurrent downloads.
+When downloading, objects are chosen randomly between all uploaded data and the benchmark
+will attempt to run `--concurrent` concurrent downloads.
 
 The analysis will include the upload stats as `PUT` operations and the `GET` operations.
+
+
 
 ```
 Operation: GET

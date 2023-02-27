@@ -38,6 +38,9 @@ type Get struct {
 	Collector     *Collector
 	objects       generator.Objects
 	Versions      int
+	ListExisting  bool
+	ListFlat      bool
+	ListPrefix    string
 
 	// Default Get options.
 	GetOpts minio.GetObjectOptions
@@ -47,6 +50,74 @@ type Get struct {
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (g *Get) Prepare(ctx context.Context) error {
+	// prepare the bench by listing object from the bucket
+	if g.ListExisting {
+		cl, done := g.Client()
+
+		// ensure the bucket exist
+		found, err := cl.BucketExists(ctx, g.Bucket)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return (fmt.Errorf("bucket %s does not exist and --list-existing has been set", g.Bucket))
+		}
+
+		// list all objects
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		objectCh := cl.ListObjects(ctx, g.Bucket, minio.ListObjectsOptions{
+			WithVersions: g.Versions > 1,
+			Prefix:       g.ListPrefix,
+			Recursive:    !g.ListFlat,
+		})
+
+		versions := map[string]int{}
+
+		for object := range objectCh {
+			if object.Err != nil {
+				return object.Err
+			}
+			if object.Size == 0 {
+				continue
+			}
+			obj := generator.Object{
+				Name: object.Key,
+				Size: object.Size,
+			}
+
+			if g.Versions > 1 {
+				if object.VersionID == "" {
+					continue
+				}
+
+				if version, found := versions[object.Key]; found {
+					if version >= g.Versions {
+						continue
+					}
+					versions[object.Key]++
+				} else {
+					versions[object.Key] = 1
+				}
+				obj.VersionID = object.VersionID
+			}
+
+			g.objects = append(g.objects, obj)
+
+			// limit to ListingMaxObjects
+			if g.CreateObjects > 0 && len(g.objects) >= g.CreateObjects {
+				break
+			}
+		}
+		if len(g.objects) == 0 {
+			return (fmt.Errorf("no objects found for bucket %s", g.Bucket))
+		}
+		done()
+		g.Collector = NewCollector()
+		return nil
+	}
+
+	// prepare the bench by creating the bucket and pushing some objects
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
@@ -251,5 +322,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 // Cleanup deletes everything uploaded to the bucket.
 func (g *Get) Cleanup(ctx context.Context) {
-	g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
+	if !g.ListExisting {
+		g.deleteAllInBucket(ctx, g.objects.Prefixes()...)
+	}
 }
