@@ -8,6 +8,8 @@ replicaCount: 4
 image:
   repository: minio/warp
   pullPolicy: IfNotPresent
+  # Set version to use a specific release of Warp
+  # version: latest
 
 imagePullSecrets: []
 nameOverride: ""
@@ -52,30 +54,31 @@ serviceAccount:
   create: true
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
-  name:
+  # name:
 
-podSecurityContext: {}
-  # fsGroup: 2000
+securityContext:
+  readOnlyRootFilesystem: true
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
 
 service:
   port: 7761
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+serverResources: {}
   # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
   #   cpu: 100m
   #   memory: 128Mi
+
+clientResources: {}
+  # limits:
+  #   cpu: 4
+  #   memory: 512Mi
   # requests:
   #   cpu: 100m
   #   memory: 128Mi

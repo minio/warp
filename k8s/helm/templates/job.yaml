@@ -10,7 +10,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: {{ include "warp.fullname" . }}
-        image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+        image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
           - "{{ .Values.warpConfiguration.operationToBenchmark }}"
@@ -31,7 +31,25 @@ spec:
             value: {{ .Values.warpConfiguration.s3AccessKey | quote }}
           - name: WARP_SECRET_KEY
             value: {{ .Values.warpConfiguration.s3SecretKey | quote }}
+      {{- if .Values.serverResources }}
+        resources: {{- toYaml .Values.serverResources | nindent 12 }}
+      {{- end }}
+      {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- end }}
+    {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "warp.serviceAccountName" . }}
+    {{- end }}
+    {{- if .Values.podSecurityContext }}
+      securityContext: {{- .Values.podSecurityContext | toYaml | nindent 8 }}
+    {{- end }}
+    {{- if .Values.affinity }}
+      affinity: {{- .Values.affinity | toYaml | nindent 8 }}
+    {{- end }}
     {{- if .Values.nodeSelector }}
       nodeSelector: {{- .Values.nodeSelector | toYaml | nindent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations: {{- .Values.tolerations | toYaml | nindent 8 }}
     {{- end }}
   backoffLimit: 4

@@ -32,6 +32,13 @@ Create chart name and version as used by the chart label.
 {{- end -}}
 
 {{/*
+Set the image tag to use.
+*/}}
+{{- define "warp.imageVersion" -}}
+{{- default .Chart.AppVersion .Values.image.version -}}
+{{- end -}}
+
+{{/*
 Common labels
 */}}
 {{- define "warp.labels" -}}
