@@ -14,7 +14,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
           - "{{ .Values.warpConfiguration.operationToBenchmark }}"
-          - "--warp-client=warp-{0...{{ sub .Values.replicaCount 1 }}}.warp.{{ .Release.Namespace }}"
+          - "--warp-client={{ include "warp.fullname" . }}-{0...{{ sub .Values.replicaCount 1 }}}.{{ include "warp.fullname" . }}.{{ .Release.Namespace }}"
         {{- range $k, $v := .Values.warpJobArgs }}
           - --{{ $k }}={{ $v }}
         {{- end }}
