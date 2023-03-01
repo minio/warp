@@ -28,9 +28,15 @@ spec:
           - name: WARP_REGION
             value: {{ .Values.warpConfiguration.s3ServerRegion | quote }}
           - name: WARP_ACCESS_KEY
-            value: {{ .Values.warpConfiguration.s3AccessKey | quote }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "warp.fullname" . }}-credentials
+                key: access_key
           - name: WARP_SECRET_KEY
-            value: {{ .Values.warpConfiguration.s3SecretKey | quote }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "warp.fullname" . }}-credentials
+                key: secret_key
       {{- if .Values.serverResources }}
         resources: {{- toYaml .Values.serverResources | nindent 12 }}
       {{- end }}
