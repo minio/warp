@@ -25,6 +25,14 @@ import (
 )
 
 var getFlags = []cli.Flag{
+	cli.BoolFlag{
+		Name:  "list-existing",
+		Usage: "Instead of preparing the bench by PUTing some objects, only use objects already in the bucket",
+	},
+	cli.BoolFlag{
+		Name:  "list-flat",
+		Usage: "When using --list-existing, do not use recursive listing",
+	},
 	cli.IntFlag{
 		Name:  "objects",
 		Value: 2500,
@@ -82,6 +90,9 @@ func mainGet(ctx *cli.Context) error {
 		RandomRanges:  ctx.Bool("range"),
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
+		ListExisting:  ctx.Bool("list-existing"),
+		ListFlat:      ctx.Bool("list-flat"),
+		ListPrefix:    ctx.String("prefix"),
 	}
 	return runBench(ctx, &b)
 }
