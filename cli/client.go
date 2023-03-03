@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +169,11 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		return nil, err
 	}
 	cl.SetAppInfo(appName, pkg.Version)
+
+	if ctx.Bool("debug") {
+		cl.TraceOn(os.Stderr)
+	}
+
 	return cl, nil
 }
 
