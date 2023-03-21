@@ -64,6 +64,7 @@ func (c *CmpReqs) Compare(before, after Operations) {
 		P75:     a.P75 - b.P75,
 		P90:     a.P90 - b.P90,
 		P99:     a.P99 - b.P99,
+		StdDev:  a.StdDev - b.StdDev,
 	}
 }
 
@@ -78,6 +79,7 @@ type CmpRequests struct {
 	P90        time.Duration
 	P99        time.Duration
 	Worst      time.Duration
+	StdDev     time.Duration
 }
 
 func (c *CmpRequests) fill(ops Operations) {
@@ -92,6 +94,7 @@ func (c *CmpRequests) fill(ops Operations) {
 	c.P90 = ops.Median(0.9).Duration()
 	c.P99 = ops.Median(0.99).Duration()
 	c.Worst = ops.Median(1).Duration()
+	c.StdDev = ops.StdDev()
 }
 
 // String returns a human readable representation of the TTFB comparison.
@@ -99,7 +102,7 @@ func (c *CmpReqs) String() string {
 	if c == nil {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
+	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
 		plusPositiveD(c.Average),
 		c.Average.Round(time.Millisecond/20),
 		plusPositiveD(c.Average),
@@ -120,6 +123,10 @@ func (c *CmpReqs) String() string {
 		c.Worst,
 		plusPositiveD(c.Worst),
 		100*(float64(c.After.Worst)-float64(c.Before.Worst))/float64(c.Before.Worst),
+		plusPositiveD(c.StdDev),
+		c.StdDev,
+		plusPositiveD(c.StdDev),
+		100*(float64(c.After.StdDev)-float64(c.Before.StdDev))/float64(c.Before.StdDev),
 	)
 }
 
@@ -186,6 +193,7 @@ func (t TTFB) Compare(after TTFB) *TTFBCmp {
 			P75:     after.P75 - t.P75,
 			P90:     after.P90 - t.P90,
 			P99:     after.P99 - t.P99,
+			StdDev:  after.StdDev - t.StdDev,
 		},
 		Before: t,
 		After:  after,
@@ -197,7 +205,7 @@ func (t *TTFBCmp) String() string {
 	if t == nil {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%)",
+	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
 		plusPositiveD(t.Average),
 		t.Average.Round(time.Millisecond/20),
 		plusPositiveD(t.Average),
@@ -218,6 +226,10 @@ func (t *TTFBCmp) String() string {
 		t.Worst,
 		plusPositiveD(t.Worst),
 		100*(float64(t.After.Worst)-float64(t.Before.Worst))/float64(t.Before.Worst),
+		plusPositiveD(t.StdDev),
+		t.StdDev,
+		plusPositiveD(t.StdDev),
+		100*(float64(t.After.StdDev)-float64(t.Before.StdDev))/float64(t.Before.StdDev),
 	)
 }
 

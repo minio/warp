@@ -62,6 +62,7 @@ type TTFB struct {
 	P90         time.Duration
 	P99         time.Duration
 	Worst       time.Duration
+	StdDev      time.Duration
 	Percentiles [101]time.Duration `json:"percentiles_millis"`
 }
 
@@ -121,7 +122,18 @@ func (o Operations) TTFB(start, end time.Time) TTFB {
 		ttfb := op.TTFB()
 		res.Average += ttfb
 	}
+	avg := float64(res.Average) / float64(len(filtered))
 	res.Average /= time.Duration(len(filtered))
+	res.StdDev = 0
+	if len(filtered) > 1 {
+		var stdDev float64
+		for _, op := range filtered {
+			ttfb := op.TTFB()
+			d := float64(ttfb) - avg
+			stdDev += d * d
+		}
+		res.StdDev = time.Duration(math.Sqrt(stdDev / float64(len(filtered)-1)))
+	}
 	return res
 }
 
@@ -361,6 +373,6 @@ func (t TTFB) String() string {
 	if t.Average == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v",
-		t.Average.Round(time.Millisecond), t.Median.Round(time.Millisecond), t.Best.Round(time.Millisecond), t.Worst.Round(time.Millisecond))
+	return fmt.Sprintf("Average: %v, Median: %v, Best: %v, Worst: %v, StdDev: %v",
+		t.Average.Round(time.Millisecond), t.Median.Round(time.Millisecond), t.Best.Round(time.Millisecond), t.Worst.Round(time.Millisecond), t.StdDev.Round(time.Millisecond))
 }

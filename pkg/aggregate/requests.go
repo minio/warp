@@ -28,32 +28,48 @@ import (
 type SingleSizedRequests struct {
 	// Skipped if too little data.
 	Skipped bool `json:"skipped"`
+
 	// Object size per operation. Can be 0.
 	ObjSize int64 `json:"obj_size"`
+
 	// Total number of requests.
 	Requests int `json:"requests"`
+
 	// Average request duration.
 	DurAvgMillis int `json:"dur_avg_millis"`
+
 	// Median request duration.
 	DurMedianMillis int `json:"dur_median_millis"`
+
 	// 90% request time.
 	Dur90Millis int `json:"dur_90_millis"`
+
 	// 99% request time.
 	Dur99Millis int `json:"dur_99_millis"`
+
 	// Fastest request time.
 	FastestMillis int `json:"fastest_millis"`
+
 	// Slowest request time.
 	SlowestMillis int `json:"slowest_millis"`
+
+	// StdDev is the standard deviation of requests.
+	StdDev int `json:"std_dev_millis"`
+
 	// DurPct is duration percentiles.
 	DurPct [101]int `json:"dur_percentiles_millis"`
+
 	// Time to first byte if applicable.
 	FirstByte *TTFB `json:"first_byte,omitempty"`
+
 	// FirstAccess is filled if the same object is accessed multiple times.
 	// This records the first touch of the object.
 	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
 	LastAccess  *SingleSizedRequests `json:"last_access,omitempty"`
+
 	// Host names, sorted.
 	HostNames []string
+
 	// Request times by host.
 	ByHost map[string]SingleSizedRequests `json:"by_host,omitempty"`
 }
@@ -64,6 +80,7 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	a.Requests = len(ops)
 	a.ObjSize = ops.FirstObjSize()
 	a.DurAvgMillis = durToMillis(ops.AvgDuration())
+	a.StdDev = durToMillis(ops.StdDev())
 	a.DurMedianMillis = durToMillis(ops.Median(0.5).Duration())
 	a.Dur90Millis = durToMillis(ops.Median(0.9).Duration())
 	a.Dur99Millis = durToMillis(ops.Median(0.99).Duration())
