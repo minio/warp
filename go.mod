@@ -7,12 +7,12 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.14.1
-	github.com/klauspost/compress v1.15.15
+	github.com/klauspost/compress v1.16.4
 	github.com/minio/cli v1.24.2
 	github.com/minio/madmin-go/v2 v2.0.14
 	github.com/minio/mc v0.0.0-20230221173238-1843bab50013
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.49
+	github.com/minio/minio-go/v7 v7.0.50
 	github.com/minio/pkg v1.6.3
 	github.com/minio/websocket v1.6.0
 	github.com/posener/complete v1.2.3
