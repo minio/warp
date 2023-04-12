@@ -119,8 +119,11 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 					Endpoint: client.EndpointURL().String(),
 				}
 				opts.ContentType = obj.ContentType
+				mpopts := minio.PutObjectPartOptions{
+					SSE: g.Common.PutOpts.ServerSideEncryption,
+				}
 				op.Start = time.Now()
-				res, err := core.PutObjectPart(ctx, g.Bucket, obj.Name, g.UploadID, partN, obj.Reader, obj.Size, "", "", g.Common.PutOpts.ServerSideEncryption)
+				res, err := core.PutObjectPart(ctx, g.Bucket, obj.Name, g.UploadID, partN, obj.Reader, obj.Size, mpopts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)

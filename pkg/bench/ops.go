@@ -589,6 +589,20 @@ func (o Operations) AvgDuration() time.Duration {
 	return total / time.Duration(len(o))
 }
 
+// StdDev returns the standard deviation.
+func (o Operations) StdDev() time.Duration {
+	if len(o) <= 1 {
+		return 0
+	}
+	avg := o.AvgDuration()
+	var total float64
+	for _, op := range o {
+		delta := float64(avg - op.Duration())
+		total += delta * delta
+	}
+	return time.Duration(math.Sqrt(total / float64(len(o)-1)))
+}
+
 // SizeSegment is a size segment.
 type SizeSegment struct {
 	Smallest      int64

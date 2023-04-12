@@ -267,19 +267,24 @@ Operation: DELETE
 A similar benchmark is called `versioned` which operates on versioned objects.
 
 ## GET
+Benchmarking get operations will attempt to download as many objects it can within `--duration`.
 
-Benchmarking get operations will upload `--objects` objects of size `--obj.size` 
-and attempt to download as many it can within `--duration`.
+By default, `--objects` objects of size `--obj.size` are uploaded before doing the actual bench.
+Objects will be uploaded with `--concurrent` different prefixes, except if `--noprefix` is specified.
+
+Using `--list-existing` will list at most `--objects` from the bucket and download them instead
+of uploading random objects (set it to 0 to use all object from the listing).
+Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`
 
 If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
 which will add multiple versions of each object and request individual versions.
 
-Objects will be uploaded with `--concurrent` different prefixes, 
-except if `--noprefix` is specified. Downloads are chosen randomly between all uploaded data.
-
-When downloading, the benchmark will attempt to run `--concurrent` concurrent downloads.
+When downloading, objects are chosen randomly between all uploaded data and the benchmark
+will attempt to run `--concurrent` concurrent downloads.
 
 The analysis will include the upload stats as `PUT` operations and the `GET` operations.
+
+
 
 ```
 Operation: GET
@@ -469,6 +474,59 @@ Throughput, split into 59 x 1s:
 ```
 
 This will only work on recent MinIO versions, from 2022 and going forward.
+
+## SNOWBALL
+
+The Snowball benchmark will test uploading a "snowball" TAR file with multiple files inside that are extracted as individual objects.
+
+Parameters:
+
+* `--obj.size=N` controls the size of each object inside the TAR file that is uploaded. Default is 512KiB.
+* `--objs.per=N` controls the number of objects per TAR file. Default is 50.
+* `--compress` will compress the TAR file before upload. Object data will be duplicated inside each TAR. This limits `--obj.size` to 10MiB.
+
+Since TAR operations are done in-memory the total size is limited to 1GiB.
+
+This is calculated as `--obj.size` * `--concurrent`. 
+If `--compress` is NOT specified this is also multiplied by `--objs.per`. 
+
+Examples:
+
+Benchmark using default parameters. 50 x 512KiB duplicated objects inside each TAR file. Compressed.
+```
+λ warp snowball --duration=30s --compress
+warp: Benchmark data written to "warp-snowball-2023-04-06[115116]-9S9Z.csv.zst"
+
+----------------------------------------
+Operation: PUT
+* Average: 223.90 MiB/s, 447.80 obj/s
+
+Throughput, split into 26 x 1s:
+ * Fastest: 261.0MiB/s, 522.08 obj/s
+ * 50% Median: 237.7MiB/s, 475.32 obj/s
+ * Slowest: 151.6MiB/s, 303.27 obj/s
+warp: Cleanup Done.
+```
+
+Test 1000 unique 1KB objects inside each snowball, with 2 concurrent uploads running:
+```
+λ warp snowball --duration=60s --obj.size=1K --objs.per=1000 --concurrent=2
+warp: Benchmark data written to "warp-snowball-2023-04-06[114915]-W3zw.csv.zst"
+
+----------------------------------------
+Operation: PUT
+* Average: 0.93 MiB/s, 975.72 obj/s
+
+Throughput, split into 56 x 1s:
+ * Fastest: 1051.9KiB/s, 1077.12 obj/s
+ * 50% Median: 1010.0KiB/s, 1034.26 obj/s
+ * Slowest: 568.2KiB/s, 581.84 obj/s
+warp: Cleanup Done.
+```
+
+The analysis throughput represents the object count and sizes as they are written when extracted.
+
+Request times shown with `--analyze.v` represents request time for each snowball.
 
 # Analysis
 

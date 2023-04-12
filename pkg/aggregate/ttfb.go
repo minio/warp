@@ -34,6 +34,7 @@ type TTFB struct {
 	P90Millis         int      `json:"p90_millis"`
 	P99Millis         int      `json:"p99_millis"`
 	SlowestMillis     int      `json:"slowest_millis"`
+	StdDevMillis      int      `json:"std_dev_millis"`
 	PercentilesMillis [101]int `json:"percentiles_millis"`
 }
 
@@ -42,7 +43,7 @@ func (t TTFB) String() string {
 	if t.AverageMillis == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v",
+	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
 		time.Duration(t.AverageMillis)*time.Millisecond,
 		time.Duration(t.FastestMillis)*time.Millisecond,
 		time.Duration(t.P25Millis)*time.Millisecond,
@@ -50,7 +51,8 @@ func (t TTFB) String() string {
 		time.Duration(t.P75Millis)*time.Millisecond,
 		time.Duration(t.P90Millis)*time.Millisecond,
 		time.Duration(t.P99Millis)*time.Millisecond,
-		time.Duration(t.SlowestMillis)*time.Millisecond)
+		time.Duration(t.SlowestMillis)*time.Millisecond,
+		time.Duration(t.StdDevMillis)*time.Millisecond)
 }
 
 // TtfbFromBench converts from bench.TTFB
@@ -66,6 +68,7 @@ func TtfbFromBench(t bench.TTFB) *TTFB {
 		P75Millis:     durToMillis(t.P75),
 		P90Millis:     durToMillis(t.P90),
 		P99Millis:     durToMillis(t.P99),
+		StdDevMillis:  durToMillis(t.StdDev),
 		FastestMillis: durToMillis(t.Best),
 	}
 	for i, v := range t.Percentiles[:] {
