@@ -186,6 +186,11 @@ var ioFlags = []cli.Flag{
 		Value: string(hostSelectTypeWeighed),
 		Usage: fmt.Sprintf("Host selection algorithm. Can be %q or %q", hostSelectTypeWeighed, hostSelectTypeRoundrobin),
 	},
+	cli.BoolFlag{
+		Name:   "resolve-host",
+		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). This can break SSL certificates, use --insecure if so",
+		Hidden: true,
+	},
 	cli.IntFlag{
 		Name:  "concurrent",
 		Value: 20,

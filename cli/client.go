@@ -52,7 +52,7 @@ const (
 )
 
 func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
-	hosts := parseHosts(ctx.String("host"))
+	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	switch len(hosts) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
@@ -220,7 +220,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 }
 
 // parseHosts will parse the host parameter given.
-func parseHosts(h string) []string {
+func parseHosts(h string, resolveDNS bool) []string {
 	hosts := strings.Split(h, ",")
 	var dst []string
 	for _, host := range hosts {
@@ -238,7 +238,31 @@ func parseHosts(h string) []string {
 			dst = append(dst, strings.Join(lbls, ""))
 		}
 	}
-	return dst
+
+	if !resolveDNS {
+		return dst
+	}
+
+	var resolved []string
+	for _, hostport := range dst {
+		host, port, _ := net.SplitHostPort(hostport)
+		if host == "" {
+			host = hostport
+		}
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			fatalIf(probe.NewError(err), "Could not get IPs for "+hostport)
+			log.Fatal(err.Error())
+		}
+		for _, ip := range ips {
+			if port == "" {
+				resolved = append(resolved, ip.String())
+			} else {
+				resolved = append(resolved, ip.String()+":"+port)
+			}
+		}
+	}
+	return resolved
 }
 
 // mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)
@@ -254,7 +278,7 @@ func mustGetSystemCertPool() *x509.CertPool {
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
-	hosts := parseHosts(ctx.String("host"))
+	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	if len(hosts) == 0 {
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO admin client")
 	}

@@ -92,7 +92,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		return false, nil
 	}
 
-	conns := newConnections(parseHosts(ctx.String("warp-client")))
+	conns := newConnections(parseHosts(ctx.String("warp-client"), false))
 	if len(conns.hosts) == 0 {
 		return true, errors.New("no hosts")
 	}
