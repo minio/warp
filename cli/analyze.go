@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -405,6 +406,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	}
 	totalDur := ops.Duration()
 	aDur := analysisDur(ctx, totalDur)
+	ops.SortByStartTime()
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
 		PerSegDuration: aDur,
@@ -421,10 +423,11 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	wantSegs := len(segs)
 
 	// Write segments per endpoint
-	eps := ops.Endpoints()
+	eps := ops.SortSplitByEndpoint()
+	epsSorted := stringKeysSorted(eps)
 	if details && len(eps) > 1 {
-		for _, ep := range eps {
-			ops := ops.FilterByEndpoint(ep)
+		for _, ep := range epsSorted {
+			ops := eps[ep]
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           start,
 				PerSegDuration: aDur,
@@ -636,4 +639,14 @@ func checkAnalyze(ctx *cli.Context) {
 		err := errors.New("-analyze.dur cannot be 0")
 		fatal(probe.NewError(err), "Invalid -analyze.dur value")
 	}
+}
+
+// stringKeysSorted returns the keys as a sorted string slice.
+func stringKeysSorted[K string, V any](m map[K]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, string(k))
+	}
+	sort.Strings(keys)
+	return keys
 }

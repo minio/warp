@@ -133,26 +133,24 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			a.MixedServerStats.Segmented.fill(segs, total)
 		}
 
-		eps := o.Endpoints()
+		eps := o.SortSplitByEndpoint()
 		a.MixedThroughputByHost = make(map[string]Throughput, len(eps))
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		wg.Add(len(eps))
-		for i := range eps {
-			go func(i int) {
+		for ep, ops := range eps {
+			go func(ep string, ops bench.Operations) {
 				defer wg.Done()
-				ep := eps[i]
-				ops := ops.FilterByEndpoint(ep)
 				t := Throughput{}
 				t.fill(ops.Total(false))
 				if len(errs) > 0 {
-					errs := errs.FilterByEndpoint(ep)
+					errs := errs.FilterErrors()
 					t.Errors = len(errs)
 				}
 				mu.Lock()
 				a.MixedThroughputByHost[ep] = t
 				mu.Unlock()
-			}(i)
+			}(ep, ops)
 		}
 		wg.Wait()
 		opts.Prefiltered = true
@@ -230,16 +228,14 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 				a.MultiSizedRequests = RequestAnalysisMultiSized(ops, !opts.Prefiltered)
 			}
 
-			eps := ops.Endpoints()
+			eps := allOps.SortSplitByEndpoint()
 			a.ThroughputByHost = make(map[string]Throughput, len(eps))
 			var epMu sync.Mutex
 			var epWg sync.WaitGroup
 			epWg.Add(len(eps))
-			for _, ep := range eps {
-				go func(ep string) {
+			for ep, ops := range eps {
+				go func(ep string, ops bench.Operations) {
 					defer epWg.Done()
-					// Use all ops to include errors.
-					ops := allOps.FilterByEndpoint(ep)
 
 					segs := ops.Segment(bench.SegmentOptions{
 						From:           time.Time{},
@@ -267,7 +263,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 					epMu.Lock()
 					a.ThroughputByHost[ep] = host
 					epMu.Unlock()
-				}(ep)
+				}(ep, ops)
 			}
 			epWg.Wait()
 		}(i)
