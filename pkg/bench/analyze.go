@@ -171,6 +171,7 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 	if e := o.Endpoints(); len(e) == 1 {
 		host = e[0]
 	}
+	ops := o
 	for segStart.Before(end.Add(-so.PerSegDuration)) {
 		s := Segment{
 			OpType:     o.FirstOpType(),
@@ -191,17 +192,19 @@ func (o Operations) Segment(so SegmentOptions) Segments {
 		}
 		// Search for the first entry
 		first := 0
-		for i, op := range o {
+		for i := range ops {
+			op := &ops[i]
 			if op.End.After(s.Start) {
 				break
 			}
 			first = i
 		}
-		for _, op := range o[first:] {
+		for _, op := range ops[first:] {
 			if op.Aggregate(&s) {
 				break
 			}
 		}
+		ops = ops[first:]
 		if s.OpsEnded > 0 {
 			s.ReqAvg /= float64(s.OpsEnded)
 		}

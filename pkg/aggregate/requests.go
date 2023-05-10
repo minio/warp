@@ -236,24 +236,23 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 
 // RequestAnalysisHostsSingleSized performs host analysis where all objects have equal size.
 func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedRequests {
-	eps := o.Endpoints()
+	eps := o.SortSplitByEndpoint()
 	res := make(map[string]SingleSizedRequests, len(eps))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	wg.Add(len(eps))
-	for _, ep := range eps {
-		go func(ep string) {
+	for ep, ops := range eps {
+		go func(ep string, ops bench.Operations) {
 			defer wg.Done()
-			filtered := o.FilterByEndpoint(ep)
-			if len(filtered) <= 1 {
+			if len(ops) <= 1 {
 				return
 			}
 			a := SingleSizedRequests{}
-			a.fill(filtered)
+			a.fill(ops)
 			mu.Lock()
 			res[ep] = a
 			mu.Unlock()
-		}(ep)
+		}(ep, ops)
 	}
 	wg.Wait()
 	return res
@@ -279,26 +278,25 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 
 // RequestAnalysisHostsMultiSized performs host analysis where objects have different sizes.
 func RequestAnalysisHostsMultiSized(o bench.Operations) map[string]RequestSizeRange {
-	eps := o.Endpoints()
-	res := make(map[string]RequestSizeRange, len(eps))
 	start, end := o.TimeRange()
+	eps := o.SortSplitByEndpoint()
+	res := make(map[string]RequestSizeRange, len(eps))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	wg.Add(len(eps))
-	for _, ep := range eps {
-		go func(ep string) {
+	for ep, ops := range eps {
+		go func(ep string, ops bench.Operations) {
 			defer wg.Done()
-			filtered := o.FilterByEndpoint(ep)
-			if len(filtered) <= 1 {
+			if len(ops) <= 1 {
 				return
 			}
 			a := RequestSizeRange{}
-			a.fill(filtered.SingleSizeSegment())
-			a.FirstByte = TtfbFromBench(filtered.TTFB(start, end))
+			a.fill(ops.SingleSizeSegment())
+			a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
 			mu.Lock()
 			res[ep] = a
 			mu.Unlock()
-		}(ep)
+		}(ep, ops)
 	}
 	wg.Wait()
 	return res

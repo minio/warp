@@ -317,6 +317,25 @@ func (o Operations) SortByEndTime() {
 	})
 }
 
+// SortByEndpoint will sort the operations by end-point.
+// Earliest operations first.
+func (o Operations) SortByEndpoint() {
+	if sort.SliceIsSorted(o, func(i, j int) bool {
+		if o[i].Endpoint == o[j].Endpoint {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].Endpoint < o[j].Endpoint
+	}) {
+		return
+	}
+	sort.Slice(o, func(i, j int) bool {
+		if o[i].Endpoint == o[j].Endpoint {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].Endpoint < o[j].Endpoint
+	})
+}
+
 // SortByDuration will sort the operations by duration taken to complete.
 // Fastest operations first.
 func (o Operations) SortByDuration() {
@@ -330,7 +349,7 @@ func (o Operations) SortByDuration() {
 // Fastest operations first.
 func (o Operations) SortByThroughput() {
 	sort.Slice(o, func(i, j int) bool {
-		a, b := o[i], o[j]
+		a, b := &o[i], &o[j]
 		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
 		if a.Size == 0 || b.Size == 0 {
 			return aDur < bDur
@@ -355,7 +374,7 @@ func (o Operations) Median(m float64) Operation {
 // Smallest first.
 func (o Operations) SortByTTFB() {
 	sort.Slice(o, func(i, j int) bool {
-		a, b := o[i], o[j]
+		a, b := &o[i], &o[j]
 		if a.FirstByte == nil || b.FirstByte == nil {
 			return a.Start.Before(b.Start)
 		}
@@ -378,11 +397,12 @@ func (o Operations) FilterByHasTTFB(hasTTFB bool) Operations {
 // Operations starting before start or ending after end are discarded.
 func (o Operations) FilterInsideRange(start, end time.Time) Operations {
 	dst := make(Operations, 0, len(o))
-	for _, o := range o {
-		if o.Start.Before(start) || o.End.After(end) {
+	for i := range o {
+		op := &o[i]
+		if op.Start.Before(start) || op.End.After(end) {
 			continue
 		}
-		dst = append(dst, o)
+		dst = append(dst, *op)
 	}
 	return dst
 }
@@ -414,6 +434,30 @@ func (o Operations) FilterByEndpoint(endpoint string) Operations {
 			dst = append(dst, o)
 		}
 	}
+	return dst
+}
+
+// SortSplitByEndpoint will sort operations by endpoint and split by host.
+func (o Operations) SortSplitByEndpoint() map[string]Operations {
+	eps := o.Endpoints()
+	o.SortByEndpoint()
+	dst := make(map[string]Operations, len(eps))
+	ep := ""
+	start := 0
+	for i, op := range o {
+		if op.Endpoint == ep {
+			continue
+		}
+		if ep != "" {
+			dst[ep] = o[start:i]
+		}
+		ep = op.Endpoint
+		start = i
+	}
+	if ep != "" {
+		dst[ep] = o[start:]
+	}
+
 	return dst
 }
 

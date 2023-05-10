@@ -405,6 +405,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	}
 	totalDur := ops.Duration()
 	aDur := analysisDur(ctx, totalDur)
+	ops.SortByStartTime()
 	segs := ops.Segment(bench.SegmentOptions{
 		From:           time.Time{},
 		PerSegDuration: aDur,
@@ -421,10 +422,9 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	wantSegs := len(segs)
 
 	// Write segments per endpoint
-	eps := ops.Endpoints()
+	eps := ops.SortSplitByEndpoint()
 	if details && len(eps) > 1 {
-		for _, ep := range eps {
-			ops := ops.FilterByEndpoint(ep)
+		for _, ops := range eps {
 			segs := ops.Segment(bench.SegmentOptions{
 				From:           start,
 				PerSegDuration: aDur,

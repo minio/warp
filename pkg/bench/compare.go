@@ -256,6 +256,7 @@ func Compare(before, after Operations, analysis time.Duration, allThreads bool) 
 	}
 	res.Op = before.FirstOpType()
 	segment := func(ops Operations) (Segments, error) {
+		ops.SortByStartTime()
 		segs := ops.Segment(SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: analysis,
