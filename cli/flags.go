@@ -222,4 +222,9 @@ var ioFlags = []cli.Flag{
 		Usage:  "Disable HTTP Keep-Alive",
 		Hidden: true,
 	},
+	cli.BoolFlag{
+		Name:   "http2",
+		Usage:  "enable HTTP2 support if server supports it",
+		Hidden: true,
+	},
 }

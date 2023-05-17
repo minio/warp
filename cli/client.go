@@ -214,7 +214,9 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
-		http2.ConfigureTransport(tr)
+		if ctx.Bool("http2") {
+			http2.ConfigureTransport(tr)
+		}
 	}
 	return tr
 }
