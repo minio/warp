@@ -80,6 +80,9 @@ type Common struct {
 	// Will be 0 if single client.
 	ClientIdx int
 
+	// Terse output.
+	Terse bool // indicates if we prefer a terse output useful in lengthy runs
+
 	// ExtraFlags contains extra flags to add to remote clients.
 	ExtraFlags map[string]string
 }

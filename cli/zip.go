@@ -77,6 +77,7 @@ func mainZip(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 			Locking:     true,
+			Terse:       ctx.Bool("terse"),
 		},
 		CreateFiles: ctx.Int("files"),
 		ZipObjName:  fmt.Sprintf("%d.zip", time.Now().UnixNano()),

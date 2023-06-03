@@ -118,6 +118,10 @@ func (d *List) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if d.Terse {
+						op.File = ""
+					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -206,6 +210,10 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					Size:     0,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if d.Terse {
+					op.File = ""
+				}
+
 				op.Start = time.Now()
 
 				// List all objects with prefix

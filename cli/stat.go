@@ -74,6 +74,7 @@ func mainStat(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     putOpts(ctx),
+			Terse:       ctx.Bool("terse"),
 		},
 		Versions:      ctx.Int("versions"),
 		CreateObjects: ctx.Int("objects"),

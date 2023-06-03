@@ -99,6 +99,10 @@ func (g *Retention) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)

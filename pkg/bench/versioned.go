@@ -166,6 +166,10 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
@@ -205,6 +209,10 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					op.Start = time.Now()
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()

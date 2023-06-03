@@ -83,6 +83,10 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if d.Terse {
+					op.File = ""
+				}
+
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
 				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -186,6 +190,10 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					ObjPerOp: len(objs),
 					Endpoint: client.EndpointURL().String(),
 				}
+				if d.Terse {
+					op.File = ""
+				}
+
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
 				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})

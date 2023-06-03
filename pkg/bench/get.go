@@ -179,6 +179,10 @@ func (g *Get) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -276,6 +280,10 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.Terse {
+					op.File = ""
+				}
+
 				if g.RandomRanges && op.Size > 2 {
 					// Randomize length similar to --obj.randsize
 					size := generator.GetExpRandSize(rng, 0, op.Size-2)

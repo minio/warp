@@ -53,6 +53,10 @@ var globalFlags = []cli.Flag{
 		Name:  "autocompletion",
 		Usage: "install auto-completion for your shell",
 	},
+	cli.BoolFlag{
+		Name:  "terse",
+		Usage: "generate terse output",
+	},
 }
 
 var profileFlags = []cli.Flag{

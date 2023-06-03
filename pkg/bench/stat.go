@@ -106,6 +106,10 @@ func (g *Stat) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -183,6 +187,10 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.Terse {
+					op.File = ""
+				}
+
 				op.Start = time.Now()
 				var err error
 				if g.Versions > 1 {

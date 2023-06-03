@@ -44,7 +44,7 @@ type Operation struct {
 	End       time.Time  `json:"end"`
 	Err       string     `json:"err"`
 	Size      int64      `json:"size"`
-	File      string     `json:"file"`
+	File      string     `json:"file,omitempty"`
 	Thread    uint16     `json:"thread"`
 	ClientID  string     `json:"client_id"`
 	Endpoint  string     `json:"endpoint"`
@@ -1038,6 +1038,7 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 	if err != nil {
 		return err
 	}
+
 	for i, op := range o {
 		var ttfb string
 		if op.FirstByte != nil {

@@ -73,6 +73,7 @@ func mainDelete(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     putOpts(ctx),
+			Terse:       ctx.Bool("terse"),
 		},
 		CreateObjects: ctx.Int("objects"),
 		BatchSize:     ctx.Int("batch"),

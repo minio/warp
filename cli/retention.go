@@ -72,6 +72,7 @@ func mainRetention(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 			Locking:     true,
+			Terse:       ctx.Bool("terse"),
 		},
 		CreateObjects: ctx.Int("objects"),
 		Versions:      ctx.Int("versions"),

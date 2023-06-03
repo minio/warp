@@ -452,7 +452,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	}
 }
 
-func printRequestAnalysis(ctx *cli.Context, ops aggregate.Operation, details bool) {
+func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool) {
 	console.SetColor("Print", color.New(color.FgHiWhite))
 
 	if ops.SingleSizedRequests != nil {

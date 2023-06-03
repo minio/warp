@@ -87,6 +87,7 @@ func mainMultipart(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     multipartOpts(ctx),
+			Terse:       ctx.Bool("terse"),
 		},
 		ObjName:     ctx.String("obj.name"),
 		PartStart:   ctx.Int("_part-start"),

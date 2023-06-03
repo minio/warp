@@ -85,6 +85,10 @@ func (g *Select) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.Terse {
+					op.File = ""
+				}
+
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
 				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -163,6 +167,10 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.Terse {
+					op.File = ""
+				}
+
 				op.Start = time.Now()
 				var err error
 				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)

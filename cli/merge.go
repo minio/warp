@@ -116,5 +116,5 @@ func mainMerge(ctx *cli.Context) error {
 	return nil
 }
 
-func checkMerge(ctx *cli.Context) {
+func checkMerge(_ *cli.Context) {
 }

@@ -101,6 +101,7 @@ func mainVersioned(ctx *cli.Context) error {
 			Bucket:      ctx.String("bucket"),
 			Location:    "",
 			PutOpts:     putOpts(ctx),
+			Terse:       ctx.Bool("terse"),
 		},
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},

@@ -43,7 +43,7 @@ func newProgressBar(total int64, units pb.Units) *progressBar {
 	bar := pb.New64(total)
 
 	// Set new human friendly print units.
-	bar.SetUnits(pb.U_DURATION)
+	bar.SetUnits(units)
 
 	// Refresh rate for progress bar is set to 125 milliseconds.
 	bar.SetRefreshRate(time.Millisecond * 125)

@@ -59,10 +59,7 @@ func (s *Snowball) Prepare(ctx context.Context) error {
 		}
 	}
 	s.prefixes = make(map[string]struct{}, s.Concurrency)
-	if err := s.createEmptyBucket(ctx); err != nil {
-		return err
-	}
-	return nil
+	return s.createEmptyBucket(ctx)
 }
 
 // Start will execute the main benchmark.
@@ -110,6 +107,10 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, e
 					File:     path.Join(obj.Prefix, "snowball.tar"),
 					ObjPerOp: s.NumObjs,
 				}
+				if s.Terse {
+					op.File = ""
+				}
+
 				{
 					tw := tar.NewWriter(w)
 					content, err := io.ReadAll(obj.Reader)
@@ -193,7 +194,7 @@ func (s *Snowball) Cleanup(ctx context.Context) {
 			s.enc[i] = nil
 		}
 	}
-	var pf []string
+	pf := make([]string, 0, len(s.prefixes))
 	for p := range s.prefixes {
 		pf = append(pf, p)
 	}

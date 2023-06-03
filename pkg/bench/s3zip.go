@@ -162,6 +162,9 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.Terse {
+					op.File = ""
+				}
 
 				op.Start = time.Now()
 				opts.Set("x-minio-extract", "true")

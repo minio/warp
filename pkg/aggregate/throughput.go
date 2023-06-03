@@ -56,7 +56,7 @@ func (t Throughput) StringDuration() string {
 }
 
 // StringDetails returns a detailed string representation of the segment
-func (t Throughput) StringDetails(details bool) string {
+func (t Throughput) StringDetails(_ bool) string {
 	speed := ""
 	if t.AverageBPS > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))

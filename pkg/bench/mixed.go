@@ -261,6 +261,10 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
@@ -335,6 +339,10 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+					if g.Terse {
+						op.File = ""
+					}
+
 					op.Start = time.Now()
 					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
