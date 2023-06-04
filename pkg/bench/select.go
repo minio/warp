@@ -33,13 +33,14 @@ import (
 
 // Select benchmarks download speed.
 type Select struct {
-	CreateObjects int
-	Collector     *Collector
-	objects       generator.Objects
+	Common
+	Collector *Collector
 
 	// Default Select options.
 	SelectOpts minio.SelectObjectOptions
-	Common
+	objects    generator.Objects
+
+	CreateObjects int
 }
 
 // Prepare will create an empty bucket or delete any content already there

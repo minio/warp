@@ -33,18 +33,19 @@ import (
 
 // Get benchmarks download speed.
 type Get struct {
-	CreateObjects int
-	RandomRanges  bool
-	Collector     *Collector
-	objects       generator.Objects
-	Versions      int
-	ListExisting  bool
-	ListFlat      bool
-	ListPrefix    string
+	Common
+	Collector *Collector
 
 	// Default Get options.
-	GetOpts minio.GetObjectOptions
-	Common
+	GetOpts    minio.GetObjectOptions
+	ListPrefix string
+
+	objects       generator.Objects
+	CreateObjects int
+	Versions      int
+	RandomRanges  bool
+	ListExisting  bool
+	ListFlat      bool
 }
 
 // Prepare will create an empty bucket or delete any content already there

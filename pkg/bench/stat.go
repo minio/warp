@@ -32,14 +32,14 @@ import (
 
 // Stat benchmarks HEAD speed.
 type Stat struct {
-	CreateObjects int
-	Collector     *Collector
-	objects       generator.Objects
-	Versions      int
+	Common
+	Collector *Collector
 
 	// Default Stat options.
-	StatOpts minio.StatObjectOptions
-	Common
+	StatOpts      minio.StatObjectOptions
+	objects       generator.Objects
+	CreateObjects int
+	Versions      int
 }
 
 // Prepare will create an empty bucket or delete any content already there

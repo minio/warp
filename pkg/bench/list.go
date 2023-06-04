@@ -33,14 +33,14 @@ import (
 
 // List benchmarks listing speed.
 type List struct {
-	CreateObjects int
-	NoPrefix      bool
-	Collector     *Collector
-	Metadata      bool
-	Versions      int
-	objects       []generator.Objects
-
 	Common
+	Collector *Collector
+	objects   []generator.Objects
+
+	CreateObjects int
+	Versions      int
+	NoPrefix      bool
+	Metadata      bool
 }
 
 // Prepare will create an empty bucket or delete any content already there

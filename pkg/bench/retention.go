@@ -32,12 +32,12 @@ import (
 
 // Retention benchmarks download speed.
 type Retention struct {
+	Common
+	Collector *Collector
+	objects   generator.Objects
+
 	CreateObjects int
 	Versions      int
-	Collector     *Collector
-	objects       generator.Objects
-
-	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there

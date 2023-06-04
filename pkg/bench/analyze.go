@@ -37,19 +37,19 @@ type SegmentOptions struct {
 // A Segment represents totals of operations in a specific time segment
 // starting at Start and ending before EndsBefore.
 type Segment struct {
+	EndsBefore time.Time `json:"ends_before"`
+	Start      time.Time `json:"start"`
 	OpType     string    `json:"op"`
 	Host       string    `json:"host"`
-	ObjsPerOp  int       `json:"objects_per_op"`
-	TotalBytes int64     `json:"total_bytes"`
-	FullOps    int       `json:"full_ops"`
-	PartialOps int       `json:"partial_ops"`
 	OpsStarted int       `json:"ops_started"`
+	PartialOps int       `json:"partial_ops"`
+	FullOps    int       `json:"full_ops"`
 	OpsEnded   int       `json:"ops_ended"`
 	Objects    float64   `json:"objects"`
 	Errors     int       `json:"errors"`
 	ReqAvg     float64   `json:"req_avg_ms"` // Average duration of operations ending in segment.
-	Start      time.Time `json:"start"`
-	EndsBefore time.Time `json:"ends_before"`
+	TotalBytes int64     `json:"total_bytes"`
+	ObjsPerOp  int       `json:"objects_per_op"`
 }
 
 // TTFB contains time to first byte stats.

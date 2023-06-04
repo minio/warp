@@ -35,12 +35,12 @@ import (
 
 // S3Zip benchmarks download from a zip file.
 type S3Zip struct {
-	CreateFiles int
-	ZipObjName  string
-	Collector   *Collector
-	objects     generator.Objects
-
 	Common
+	Collector  *Collector
+	ZipObjName string
+	objects    generator.Objects
+
+	CreateFiles int
 }
 
 // Prepare will create an empty bucket or delete any content already there

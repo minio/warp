@@ -26,26 +26,26 @@ import (
 
 // SingleSizedRequests contains statistics when all objects have the same size.
 type SingleSizedRequests struct {
-	// Skipped if too little data.
-	Skipped bool `json:"skipped"`
 
-	// Object size per operation. Can be 0.
-	ObjSize int64 `json:"obj_size"`
+	// Request times by host.
+	ByHost     map[string]SingleSizedRequests `json:"by_host,omitempty"`
+	LastAccess *SingleSizedRequests           `json:"last_access,omitempty"`
 
-	// Total number of requests.
-	Requests int `json:"requests"`
+	// FirstAccess is filled if the same object is accessed multiple times.
+	// This records the first touch of the object.
+	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
 
-	// Average request duration.
-	DurAvgMillis int `json:"dur_avg_millis"`
+	// Time to first byte if applicable.
+	FirstByte *TTFB `json:"first_byte,omitempty"`
+
+	// Host names, sorted.
+	HostNames []string
+
+	// DurPct is duration percentiles.
+	DurPct [101]int `json:"dur_percentiles_millis"`
 
 	// Median request duration.
 	DurMedianMillis int `json:"dur_median_millis"`
-
-	// 90% request time.
-	Dur90Millis int `json:"dur_90_millis"`
-
-	// 99% request time.
-	Dur99Millis int `json:"dur_99_millis"`
 
 	// Fastest request time.
 	FastestMillis int `json:"fastest_millis"`
@@ -56,22 +56,23 @@ type SingleSizedRequests struct {
 	// StdDev is the standard deviation of requests.
 	StdDev int `json:"std_dev_millis"`
 
-	// DurPct is duration percentiles.
-	DurPct [101]int `json:"dur_percentiles_millis"`
+	// 99% request time.
+	Dur99Millis int `json:"dur_99_millis"`
 
-	// Time to first byte if applicable.
-	FirstByte *TTFB `json:"first_byte,omitempty"`
+	// 90% request time.
+	Dur90Millis int `json:"dur_90_millis"`
 
-	// FirstAccess is filled if the same object is accessed multiple times.
-	// This records the first touch of the object.
-	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
-	LastAccess  *SingleSizedRequests `json:"last_access,omitempty"`
+	// Average request duration.
+	DurAvgMillis int `json:"dur_avg_millis"`
 
-	// Host names, sorted.
-	HostNames []string
+	// Total number of requests.
+	Requests int `json:"requests"`
 
-	// Request times by host.
-	ByHost map[string]SingleSizedRequests `json:"by_host,omitempty"`
+	// Object size per operation. Can be 0.
+	ObjSize int64 `json:"obj_size"`
+
+	// Skipped if too little data.
+	Skipped bool `json:"skipped"`
 }
 
 func (a *SingleSizedRequests) fill(ops bench.Operations) {
@@ -106,35 +107,38 @@ func (a *SingleSizedRequests) fillFirstLast(ops bench.Operations) {
 }
 
 type RequestSizeRange struct {
-	// Number of requests in this range.
-	Requests int `json:"requests"`
-	// Minimum size in request size range.
-	MinSize       int    `json:"min_size"`
-	MinSizeString string `json:"min_size_string"`
-	// Maximum size in request size range (not included).
-	MaxSize       int    `json:"max_size"`
-	MaxSizeString string `json:"max_size_string"`
-	// Average payload size of requests in bytes.
-	AvgObjSize        int `json:"avg_obj_size"`
-	AvgDurationMillis int `json:"avg_duration_millis"`
 
-	// Stats:
-	BpsAverage float64 `json:"bps_average"`
-	BpsMedian  float64 `json:"bps_median"`
-	Bps90      float64 `json:"bps_90"`
-	Bps99      float64 `json:"bps_99"`
-	BpsFastest float64 `json:"bps_fastest"`
-	BpsSlowest float64 `json:"bps_slowest"`
-
-	// BpsPct is BPS percentiles.
-	BpsPct [101]float64 `json:"bps_percentiles"`
+	// Time to first byte if applicable.
+	FirstByte *TTFB `json:"first_byte,omitempty"`
 
 	// FirstAccess is filled if the same object is accessed multiple times.
 	// This records the first touch of the object.
 	FirstAccess *RequestSizeRange `json:"first_access,omitempty"`
 
-	// Time to first byte if applicable.
-	FirstByte *TTFB `json:"first_byte,omitempty"`
+	MinSizeString string `json:"min_size_string"`
+	MaxSizeString string `json:"max_size_string"`
+
+	// BpsPct is BPS percentiles.
+	BpsPct [101]float64 `json:"bps_percentiles"`
+
+	BpsMedian         float64 `json:"bps_median"`
+	AvgDurationMillis int     `json:"avg_duration_millis"`
+
+	// Stats:
+	BpsAverage float64 `json:"bps_average"`
+	// Number of requests in this range.
+	Requests   int     `json:"requests"`
+	Bps90      float64 `json:"bps_90"`
+	Bps99      float64 `json:"bps_99"`
+	BpsFastest float64 `json:"bps_fastest"`
+	BpsSlowest float64 `json:"bps_slowest"`
+
+	// Average payload size of requests in bytes.
+	AvgObjSize int `json:"avg_obj_size"`
+	// Maximum size in request size range (not included).
+	MaxSize int `json:"max_size"`
+	// Minimum size in request size range.
+	MinSize int `json:"min_size"`
 }
 
 func (r *RequestSizeRange) fill(s bench.SizeSegment) {
@@ -170,12 +174,9 @@ func (r *RequestSizeRange) fillFirst(s bench.SizeSegment) {
 
 // MultiSizedRequests contains statistics when objects have the same different size.
 type MultiSizedRequests struct {
-	// Skipped if too little data.
-	Skipped bool `json:"skipped"`
-	// Total number of requests.
-	Requests int `json:"requests"`
-	// Average object size
-	AvgObjSize int64 `json:"avg_obj_size"`
+
+	// ByHost contains request information by host.
+	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
 
 	// BySize contains request times separated by sizes
 	BySize []RequestSizeRange `json:"by_size"`
@@ -183,8 +184,13 @@ type MultiSizedRequests struct {
 	// HostNames are the host names, sorted.
 	HostNames []string
 
-	// ByHost contains request information by host.
-	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
+	// Total number of requests.
+	Requests int `json:"requests"`
+	// Average object size
+	AvgObjSize int64 `json:"avg_obj_size"`
+
+	// Skipped if too little data.
+	Skipped bool `json:"skipped"`
 }
 
 func (a *MultiSizedRequests) fill(ops bench.Operations) {

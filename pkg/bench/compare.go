@@ -26,15 +26,14 @@ import (
 
 // Comparison is a comparison between two benchmarks.
 type Comparison struct {
-	Op string
-
 	TTFB *TTFBCmp
-	Reqs CmpReqs
+	Op   string
 
 	Average CmpSegment
 	Fastest CmpSegment
 	Median  CmpSegment
 	Slowest CmpSegment
+	Reqs    CmpReqs
 }
 
 // CmpSegment is s comparisons between two segments.

@@ -34,15 +34,15 @@ import (
 
 // Snowball benchmarks snowball upload speed.
 type Snowball struct {
-	NumObjs    int  // Number objects in each snowball.
+	Common
+	Collector *Collector
+	prefixes  map[string]struct{}
+
+	enc        []*zstd.Encoder
+	NumObjs    int // Number objects in each snowball.
+	WindowSize int
 	Duplicate  bool // Duplicate object content.
 	Compress   bool // Zstandard compress snowball.
-	Collector  *Collector
-	WindowSize int
-	prefixes   map[string]struct{}
-
-	enc []*zstd.Encoder
-	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there

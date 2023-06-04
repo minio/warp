@@ -32,12 +32,12 @@ import (
 
 // Delete benchmarks delete speed.
 type Delete struct {
+	Common
+	Collector *Collector
+	objects   generator.Objects
+
 	CreateObjects int
 	BatchSize     int
-	Collector     *Collector
-	objects       generator.Objects
-
-	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there

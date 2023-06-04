@@ -35,13 +35,13 @@ import (
 
 // Versioned benchmarks mixed operations all inclusive.
 type Versioned struct {
-	CreateObjects int
-	Collector     *Collector
-	Dist          *VersionedDistribution
-
-	GetOpts  minio.GetObjectOptions
-	StatOpts minio.StatObjectOptions
 	Common
+	Collector *Collector
+	Dist      *VersionedDistribution
+
+	GetOpts       minio.GetObjectOptions
+	StatOpts      minio.StatObjectOptions
+	CreateObjects int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -308,9 +308,10 @@ type versionedObj struct {
 type VersionedDistribution struct {
 	// Operation -> distribution.
 	Distribution map[string]float64
-	ops          []string
 	objects      map[string]versionedObj
 	rng          *rand.Rand
+
+	ops []string
 
 	current int
 	mu      sync.Mutex

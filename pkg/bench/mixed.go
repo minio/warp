@@ -34,13 +34,13 @@ import (
 
 // Mixed benchmarks mixed operations all inclusive.
 type Mixed struct {
-	CreateObjects int
-	Collector     *Collector
-	Dist          *MixedDistribution
-
-	GetOpts  minio.GetObjectOptions
-	StatOpts minio.StatObjectOptions
 	Common
+	Collector *Collector
+	Dist      *MixedDistribution
+
+	GetOpts       minio.GetObjectOptions
+	StatOpts      minio.StatObjectOptions
+	CreateObjects int
 }
 
 // MixedDistribution keeps track of operation distribution
@@ -48,9 +48,10 @@ type Mixed struct {
 type MixedDistribution struct {
 	// Operation -> distribution.
 	Distribution map[string]float64
-	ops          []string
 	objects      map[string]generator.Object
 	rng          *rand.Rand
+
+	ops []string
 
 	current int
 	mu      sync.Mutex

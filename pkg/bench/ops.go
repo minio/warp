@@ -37,26 +37,26 @@ import (
 type Operations []Operation
 
 type Operation struct {
-	OpType    string     `json:"type"`
-	ObjPerOp  int        `json:"ops"`
 	Start     time.Time  `json:"start"`
-	FirstByte *time.Time `json:"first_byte"`
 	End       time.Time  `json:"end"`
+	FirstByte *time.Time `json:"first_byte"`
+	OpType    string     `json:"type"`
 	Err       string     `json:"err"`
-	Size      int64      `json:"size"`
 	File      string     `json:"file,omitempty"`
-	Thread    uint16     `json:"thread"`
 	ClientID  string     `json:"client_id"`
 	Endpoint  string     `json:"endpoint"`
+	ObjPerOp  int        `json:"ops"`
+	Size      int64      `json:"size"`
+	Thread    uint16     `json:"thread"`
 }
 
 type Collector struct {
-	ops Operations
+	rcv   chan Operation
+	ops   Operations
+	rcvWg sync.WaitGroup
 	// The mutex protects the ops above.
 	// Once ops have been added, they should no longer be modified.
 	opsMu sync.Mutex
-	rcv   chan Operation
-	rcvWg sync.WaitGroup
 }
 
 func NewCollector() *Collector {
@@ -649,11 +649,11 @@ func (o Operations) StdDev() time.Duration {
 
 // SizeSegment is a size segment.
 type SizeSegment struct {
+	Ops           Operations
 	Smallest      int64
 	SmallestLog10 int
 	Biggest       int64
 	BiggestLog10  int
-	Ops           Operations
 }
 
 // SizeString returns the size as a string.

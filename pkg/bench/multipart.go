@@ -35,16 +35,17 @@ import (
 
 // Multipart benchmarks multipart upload+download speed.
 type Multipart struct {
-	CreateParts int
-	PartStart   int
-	ObjName     string
-	Collector   *Collector
-	objects     generator.Objects
-	UploadID    string
+	Common
+	Collector *Collector
 
 	// Default Get options.
-	GetOpts minio.GetObjectOptions
-	Common
+	GetOpts  minio.GetObjectOptions
+	ObjName  string
+	UploadID string
+
+	objects     generator.Objects
+	CreateParts int
+	PartStart   int
 }
 
 // InitOnce will be run once
