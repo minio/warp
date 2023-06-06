@@ -62,18 +62,9 @@ FLAGS:
 // mainSelect is the entry point for select command.
 func mainSelect(ctx *cli.Context) error {
 	checkSelectSyntax(ctx)
-	src := newGenSourceCSV(ctx)
 	sse := newSSE(ctx)
 	b := bench.Select{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:        getCommon(ctx, newGenSourceCSV(ctx)),
 		CreateObjects: ctx.Int("objects"),
 		SelectOpts: minio.SelectObjectOptions{
 			Expression:     ctx.String("query"),

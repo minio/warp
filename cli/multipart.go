@@ -78,22 +78,14 @@ FLAGS:
 // mainPut is the entry point for cp command.
 func mainMultipart(ctx *cli.Context) error {
 	checkMultipartSyntax(ctx)
-	src := newGenSource(ctx, "part.size")
 	b := bench.Multipart{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     multipartOpts(ctx),
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:      getCommon(ctx, newGenSource(ctx, "obj.size")),
 		ObjName:     ctx.String("obj.name"),
 		PartStart:   ctx.Int("_part-start"),
 		UploadID:    ctx.String("_upload-id"),
 		CreateParts: ctx.Int("parts"),
 	}
+	b.PutOpts = multipartOpts(ctx)
 	if b.UploadID == "" {
 		err := b.InitOnce(context.Background())
 		if err != nil {

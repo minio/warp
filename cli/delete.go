@@ -63,18 +63,9 @@ FLAGS:
 // mainDelete is the entry point for get command.
 func mainDelete(ctx *cli.Context) error {
 	checkDeleteSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 
 	b := bench.Delete{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateObjects: ctx.Int("objects"),
 		BatchSize:     ctx.Int("batch"),
 	}

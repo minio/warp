@@ -74,7 +74,7 @@ func (d *List) Prepare(ctx context.Context) error {
 	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.Collector = NewCollector()
+	d.addCollector()
 	d.objects = make([]generator.Objects, d.Concurrency)
 	var mu sync.Mutex
 	objsCreated := 0
@@ -117,9 +117,6 @@ func (d *List) Prepare(ctx context.Context) error {
 						File:     obj.Name,
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
-					}
-					if d.Terse {
-						op.File = ""
 					}
 
 					opts.ContentType = obj.ContentType
@@ -209,9 +206,6 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					Thread:   uint16(i),
 					Size:     0,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if d.Terse {
-					op.File = ""
 				}
 
 				op.Start = time.Now()

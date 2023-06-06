@@ -67,21 +67,12 @@ FLAGS:
 func mainZip(ctx *cli.Context) error {
 	checkZipSyntax(ctx)
 	ctx.Set("noprefix", "true")
-	src := newGenSource(ctx, "obj.size")
 	b := bench.S3Zip{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Locking:     true,
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:      getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateFiles: ctx.Int("files"),
 		ZipObjName:  fmt.Sprintf("%d.zip", time.Now().UnixNano()),
 	}
+	b.Locking = true
 	return runBench(ctx, &b)
 }
 

@@ -41,7 +41,8 @@ func (u *Put) Prepare(ctx context.Context) error {
 func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
-	c := NewCollector()
+	u.addCollector()
+	c := u.Collector
 	if u.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
@@ -76,9 +77,6 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					ObjPerOp: 1,
 					File:     obj.Name,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if u.Terse {
-					op.File = ""
 				}
 
 				op.Start = time.Now()

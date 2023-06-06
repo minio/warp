@@ -34,7 +34,6 @@ import (
 // Get benchmarks download speed.
 type Get struct {
 	Common
-	Collector *Collector
 
 	// Default Get options.
 	GetOpts    minio.GetObjectOptions
@@ -142,7 +141,8 @@ func (g *Get) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
+
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -179,9 +179,6 @@ func (g *Get) Prepare(ctx context.Context) error {
 						File:     obj.Name,
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
-					}
-					if g.Terse {
-						op.File = ""
 					}
 
 					opts.ContentType = obj.ContentType
@@ -281,7 +278,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
-				if g.Terse {
+				if g.DiscardOutput {
 					op.File = ""
 				}
 

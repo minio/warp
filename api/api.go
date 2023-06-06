@@ -56,7 +56,6 @@ type Operations struct {
 
 // Server contains the state of the running server.
 type Server struct {
-
 	// Shutting down
 	ctx    context.Context
 	agrr   *aggregate.Aggregated

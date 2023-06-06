@@ -81,7 +81,6 @@ FLAGS:
 // mainVersioned is the entry point for mixed command.
 func mainVersioned(ctx *cli.Context) error {
 	checkVersionedSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	dist := bench.VersionedDistribution{
 		Distribution: map[string]float64{
@@ -94,15 +93,7 @@ func mainVersioned(ctx *cli.Context) error {
 	err := dist.Generate(ctx.Int("objects") * 2)
 	fatalIf(probe.NewError(err), "Invalid distribution")
 	b := bench.Versioned{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 		StatOpts: minio.StatObjectOptions{

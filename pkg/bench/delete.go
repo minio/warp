@@ -33,8 +33,7 @@ import (
 // Delete benchmarks delete speed.
 type Delete struct {
 	Common
-	Collector *Collector
-	objects   generator.Objects
+	objects generator.Objects
 
 	CreateObjects int
 	BatchSize     int
@@ -51,7 +50,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", d.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.Collector = NewCollector()
+	d.addCollector()
 	obj := make(chan struct{}, d.CreateObjects)
 	for i := 0; i < d.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -82,9 +81,6 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if d.Terse {
-					op.File = ""
 				}
 
 				opts.ContentType = obj.ContentType
@@ -190,7 +186,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					ObjPerOp: len(objs),
 					Endpoint: client.EndpointURL().String(),
 				}
-				if d.Terse {
+				if d.DiscardOutput {
 					op.File = ""
 				}
 

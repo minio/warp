@@ -26,7 +26,6 @@ import (
 
 // SingleSizedRequests contains statistics when all objects have the same size.
 type SingleSizedRequests struct {
-
 	// Request times by host.
 	ByHost     map[string]SingleSizedRequests `json:"by_host,omitempty"`
 	LastAccess *SingleSizedRequests           `json:"last_access,omitempty"`
@@ -107,7 +106,6 @@ func (a *SingleSizedRequests) fillFirstLast(ops bench.Operations) {
 }
 
 type RequestSizeRange struct {
-
 	// Time to first byte if applicable.
 	FirstByte *TTFB `json:"first_byte,omitempty"`
 
@@ -174,7 +172,6 @@ func (r *RequestSizeRange) fillFirst(s bench.SizeSegment) {
 
 // MultiSizedRequests contains statistics when objects have the same different size.
 type MultiSizedRequests struct {
-
 	// ByHost contains request information by host.
 	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
 

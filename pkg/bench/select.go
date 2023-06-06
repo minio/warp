@@ -54,7 +54,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -85,9 +85,6 @@ func (g *Select) Prepare(ctx context.Context) error {
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if g.Terse {
-					op.File = ""
 				}
 
 				opts.ContentType = obj.ContentType
@@ -167,9 +164,6 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if g.Terse {
-					op.File = ""
 				}
 
 				op.Start = time.Now()

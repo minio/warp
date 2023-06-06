@@ -62,21 +62,12 @@ FLAGS:
 // mainGet is the entry point for get command.
 func mainRetention(ctx *cli.Context) error {
 	checkRetentionSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	b := bench.Retention{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Locking:     true,
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateObjects: ctx.Int("objects"),
 		Versions:      ctx.Int("versions"),
 	}
+	b.Locking = true
 	return runBench(ctx, &b)
 }
 

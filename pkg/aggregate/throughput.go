@@ -84,7 +84,6 @@ func (t *Throughput) fill(total bench.Segment) {
 
 // ThroughputSegmented contains time segmented throughput statics.
 type ThroughputSegmented struct {
-
 	// Start time of fastest time segment.
 	FastestStart time.Time `json:"fastest_start"`
 	// 50% Median....
@@ -121,7 +120,6 @@ func BPSorOPS(bps, ops float64) string {
 // SegmentSmall represents a time segment of the run.
 // Length of the segment is defined elsewhere.
 type SegmentSmall struct {
-
 	// Start time of the segment.
 	Start time.Time `json:"start"`
 	// Bytes per second during the time segment.

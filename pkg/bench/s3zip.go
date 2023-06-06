@@ -36,7 +36,6 @@ import (
 // S3Zip benchmarks download from a zip file.
 type S3Zip struct {
 	Common
-	Collector  *Collector
 	ZipObjName string
 	objects    generator.Objects
 
@@ -50,7 +49,7 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 		return err
 	}
 
-	g.Collector = NewCollector()
+	g.addCollector()
 	src := g.Source()
 	console.Eraseline()
 	console.Info("\rUploading", g.ZipObjName, "with ", g.CreateFiles, " files each of ", src.String())
@@ -161,9 +160,6 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					File:     path.Join(g.ZipObjName, obj.Name),
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if g.Terse {
-					op.File = ""
 				}
 
 				op.Start = time.Now()

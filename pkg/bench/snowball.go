@@ -35,8 +35,7 @@ import (
 // Snowball benchmarks snowball upload speed.
 type Snowball struct {
 	Common
-	Collector *Collector
-	prefixes  map[string]struct{}
+	prefixes map[string]struct{}
 
 	enc        []*zstd.Encoder
 	NumObjs    int // Number objects in each snowball.
@@ -58,6 +57,7 @@ func (s *Snowball) Prepare(ctx context.Context) error {
 			}
 		}
 	}
+	s.addCollector()
 	s.prefixes = make(map[string]struct{}, s.Concurrency)
 	return s.createEmptyBucket(ctx)
 }
@@ -67,7 +67,7 @@ func (s *Snowball) Prepare(ctx context.Context) error {
 func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(s.Concurrency)
-	c := NewCollector()
+	c := s.Collector
 	if s.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodPut, s.AutoTermScale, autoTermCheck, autoTermSamples, s.AutoTermDur)
 	}
@@ -106,9 +106,6 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, e
 					Thread:   uint16(i),
 					File:     path.Join(obj.Prefix, "snowball.tar"),
 					ObjPerOp: s.NumObjs,
-				}
-				if s.Terse {
-					op.File = ""
 				}
 
 				{

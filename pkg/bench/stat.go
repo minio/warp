@@ -33,7 +33,6 @@ import (
 // Stat benchmarks HEAD speed.
 type Stat struct {
 	Common
-	Collector *Collector
 
 	// Default Stat options.
 	StatOpts      minio.StatObjectOptions
@@ -68,7 +67,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -105,9 +104,6 @@ func (g *Stat) Prepare(ctx context.Context) error {
 						File:     obj.Name,
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
-					}
-					if g.Terse {
-						op.File = ""
 					}
 
 					opts.ContentType = obj.ContentType
@@ -186,9 +182,6 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					File:     obj.Name,
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
-				}
-				if g.Terse {
-					op.File = ""
 				}
 
 				op.Start = time.Now()

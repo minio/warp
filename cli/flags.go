@@ -23,6 +23,8 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/pkg/console"
+	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/pkg/generator"
 )
 
 // Collection of warp flags currently supported
@@ -52,10 +54,6 @@ var globalFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "autocompletion",
 		Usage: "install auto-completion for your shell",
-	},
-	cli.BoolFlag{
-		Name:  "terse",
-		Usage: "generate terse output",
 	},
 }
 
@@ -231,4 +229,20 @@ var ioFlags = []cli.Flag{
 		Usage:  "enable HTTP2 support if server supports it",
 		Hidden: true,
 	},
+	cli.BoolFlag{
+		Name:  "stress",
+		Usage: "stress test only and discard output",
+	},
+}
+
+func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
+	return bench.Common{
+		Client:        newClient(ctx),
+		Concurrency:   ctx.Int("concurrent"),
+		Source:        src,
+		Bucket:        ctx.String("bucket"),
+		Location:      ctx.String("region"),
+		PutOpts:       putOpts(ctx),
+		DiscardOutput: ctx.Bool("stress"),
+	}
 }

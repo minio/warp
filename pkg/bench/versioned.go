@@ -36,8 +36,7 @@ import (
 // Versioned benchmarks mixed operations all inclusive.
 type Versioned struct {
 	Common
-	Collector *Collector
-	Dist      *VersionedDistribution
+	Dist *VersionedDistribution
 
 	GetOpts       minio.GetObjectOptions
 	StatOpts      minio.StatObjectOptions
@@ -67,7 +66,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -166,9 +165,6 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
-					if g.Terse {
-						op.File = ""
-					}
 
 					op.Start = time.Now()
 					var err error
@@ -208,9 +204,6 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						File:     obj.Name,
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
-					}
-					if g.Terse {
-						op.File = ""
 					}
 
 					op.Start = time.Now()

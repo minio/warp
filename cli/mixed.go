@@ -81,7 +81,6 @@ FLAGS:
 // mainMixed is the entry point for mixed command.
 func mainMixed(ctx *cli.Context) error {
 	checkMixedSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	dist := bench.MixedDistribution{
 		Distribution: map[string]float64{
@@ -94,15 +93,7 @@ func mainMixed(ctx *cli.Context) error {
 	err := dist.Generate(ctx.Int("objects") * 2)
 	fatalIf(probe.NewError(err), "Invalid distribution")
 	b := bench.Mixed{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-			Terse:       ctx.Bool("terse"),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 		StatOpts: minio.StatObjectOptions{
