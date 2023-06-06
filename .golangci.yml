@@ -1,29 +1,36 @@
 linters-settings:
-  golint:
-    min-confidence: 0
+  gofumpt:
+    simplify: true
 
   misspell:
     locale: US
 
+  staticcheck:
+    checks: ['all', '-ST1005', '-ST1000', '-SA4000', '-SA9004', '-SA1019', '-SA1008', '-U1000', '-ST1016']
+
 linters:
   disable-all: true
   enable:
-    - typecheck
-    - goimports
-    - misspell
-    - govet
-    - revive
-    - ineffassign
-    - gosimple
-    - unused
+    - durationcheck
+    - gocritic
+    - gofmt
     - gofumpt
+    - goimports
+    - gomodguard
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - tenv
+    - typecheck
+    - unconvert
+    - unused
+    - prealloc
 
 issues:
   exclude-use-default: false
   exclude:
-      - should have a package comment
-      - comment on exported method
-      - should have comment or be unexported
-      - error strings should not be capitalized or end with punctuation or a newline
-service:
-  golangci-lint-version: 1.51.2 # use the fixed version to not introduce new linters unexpectedly
+    - should have comment or be unexported
+    - should have a package comment
+    - error strings should not be capitalized or end with punctuation or a newline

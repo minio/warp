@@ -41,7 +41,8 @@ func (u *Put) Prepare(ctx context.Context) error {
 func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
-	c := NewCollector()
+	u.addCollector()
+	c := u.Collector
 	if u.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
@@ -73,10 +74,11 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					OpType:   http.MethodPut,
 					Thread:   uint16(i),
 					Size:     obj.Size,
-					File:     obj.Name,
 					ObjPerOp: 1,
+					File:     obj.Name,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
 				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
@@ -105,7 +107,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 // Cleanup deletes everything uploaded to the bucket.
 func (u *Put) Cleanup(ctx context.Context) {
-	var pf []string
+	pf := make([]string, 0, len(u.prefixes))
 	for p := range u.prefixes {
 		pf = append(pf, p)
 	}

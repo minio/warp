@@ -35,13 +35,12 @@ import (
 
 // Versioned benchmarks mixed operations all inclusive.
 type Versioned struct {
-	CreateObjects int
-	Collector     *Collector
-	Dist          *VersionedDistribution
-
-	GetOpts  minio.GetObjectOptions
-	StatOpts minio.StatObjectOptions
 	Common
+	Dist *VersionedDistribution
+
+	GetOpts       minio.GetObjectOptions
+	StatOpts      minio.StatObjectOptions
+	CreateObjects int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -67,7 +66,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -166,6 +165,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
@@ -205,6 +205,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					op.Start = time.Now()
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
@@ -300,9 +301,10 @@ type versionedObj struct {
 type VersionedDistribution struct {
 	// Operation -> distribution.
 	Distribution map[string]float64
-	ops          []string
 	objects      map[string]versionedObj
 	rng          *rand.Rand
+
+	ops []string
 
 	current int
 	mu      sync.Mutex

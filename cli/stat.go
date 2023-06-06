@@ -63,18 +63,10 @@ FLAGS:
 // mainDelete is the entry point for get command.
 func mainStat(ctx *cli.Context) error {
 	checkStatSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 
 	b := bench.Stat{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		Versions:      ctx.Int("versions"),
 		CreateObjects: ctx.Int("objects"),
 		StatOpts: minio.StatObjectOptions{

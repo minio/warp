@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2020 MinIO, Inc.
+ * Warp (C) 2023 MinIO, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -62,17 +62,9 @@ FLAGS:
 // mainSelect is the entry point for select command.
 func mainSelect(ctx *cli.Context) error {
 	checkSelectSyntax(ctx)
-	src := newGenSourceCSV(ctx)
 	sse := newSSE(ctx)
 	b := bench.Select{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-		},
+		Common:        getCommon(ctx, newGenSourceCSV(ctx)),
 		CreateObjects: ctx.Int("objects"),
 		SelectOpts: minio.SelectObjectOptions{
 			Expression:     ctx.String("query"),

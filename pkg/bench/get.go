@@ -33,18 +33,18 @@ import (
 
 // Get benchmarks download speed.
 type Get struct {
-	CreateObjects int
-	RandomRanges  bool
-	Collector     *Collector
-	objects       generator.Objects
-	Versions      int
-	ListExisting  bool
-	ListFlat      bool
-	ListPrefix    string
+	Common
 
 	// Default Get options.
-	GetOpts minio.GetObjectOptions
-	Common
+	GetOpts    minio.GetObjectOptions
+	ListPrefix string
+
+	objects       generator.Objects
+	CreateObjects int
+	Versions      int
+	RandomRanges  bool
+	ListExisting  bool
+	ListFlat      bool
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -141,7 +141,8 @@ func (g *Get) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
+
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -179,6 +180,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -276,6 +278,10 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.DiscardOutput {
+					op.File = ""
+				}
+
 				if g.RandomRanges && op.Size > 2 {
 					// Randomize length similar to --obj.randsize
 					size := generator.GetExpRandSize(rng, 0, op.Size-2)

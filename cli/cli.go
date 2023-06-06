@@ -104,7 +104,7 @@ func init() {
 		mergeCmd,
 		clientCmd,
 	}
-	appCmds = append(a, b...)
+	appCmds = append(append(appCmds, a...), b...)
 	benchCmds = a
 }
 
@@ -265,7 +265,7 @@ func getSystemData() map[string]string {
 }
 
 // Function invoked when invalid command is passed.
-func commandNotFound(ctx *cli.Context, command string) {
+func commandNotFound(_ *cli.Context, command string) {
 	msg := fmt.Sprintf("`%s` is not a %s command. See `m3 --help`.", command, appName)
 	closestCommands := findClosestCommands(command)
 	if len(closestCommands) > 0 {

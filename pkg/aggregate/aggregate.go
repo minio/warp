@@ -27,57 +27,57 @@ import (
 
 // Aggregated contains aggregated data for a single benchmark run.
 type Aggregated struct {
-	Type       string      `json:"type"`
-	Mixed      bool        `json:"mixed"`
-	Operations []Operation `json:"operations,omitempty"`
 	// MixedServerStats and MixedThroughputByHost is populated only when data is mixed.
 	MixedServerStats      *Throughput           `json:"mixed_server_stats,omitempty"`
 	MixedThroughputByHost map[string]Throughput `json:"mixed_throughput_by_host,omitempty"`
+	Type                  string                `json:"type"`
+	Operations            []Operation           `json:"operations,omitempty"`
+	Mixed                 bool                  `json:"mixed"`
 }
 
 // Operation returns statistics for a single operation type.
 type Operation struct {
-	// Operation type
-	Type string `json:"type"`
-	// N is the number of operations.
-	N int `json:"n"`
-	// Skipped if too little data
-	Skipped bool `json:"skipped"`
+	// Throughput information.
+	Throughput Throughput `json:"throughput"`
 	// Unfiltered start time of this operation segment.
 	StartTime time.Time `json:"start_time"`
 	// Unfiltered end time of this operation segment.
 	EndTime time.Time `json:"end_time"`
-	// Objects per operation.
-	ObjectsPerOperation int `json:"objects_per_operation"`
-	// Concurrency - total number of threads running.
-	Concurrency int `json:"concurrency"`
-	// Number of warp clients.
-	Clients int `json:"clients"`
-	// Numbers of hosts
-	Hosts int `json:"hosts"`
-	// HostNames are sorted names of hosts
-	HostNames []string `json:"host_names"`
-	// Populated if requests are all of same object size.
-	SingleSizedRequests *SingleSizedRequests `json:"single_sized_requests,omitempty"`
-	// Populated if requests are of difference object sizes.
-	MultiSizedRequests *MultiSizedRequests `json:"multi_sized_requests,omitempty"`
-	// Total errors recorded.
-	Errors int `json:"errors"`
-	// Subset of errors.
-	FirstErrors []string `json:"first_errors"`
-	// Throughput information.
-	Throughput Throughput `json:"throughput"`
 	// Throughput by host.
 	ThroughputByHost map[string]Throughput `json:"throughput_by_host"`
+	// Populated if requests are of difference object sizes.
+	MultiSizedRequests *MultiSizedRequests `json:"multi_sized_requests,omitempty"`
+	// Populated if requests are all of same object size.
+	SingleSizedRequests *SingleSizedRequests `json:"single_sized_requests,omitempty"`
+	// Operation type
+	Type string `json:"type"`
+	// HostNames are sorted names of hosts
+	HostNames []string `json:"host_names"`
+	// Subset of errors.
+	FirstErrors []string `json:"first_errors"`
+	// Numbers of hosts
+	Hosts int `json:"hosts"`
+	// Number of warp clients.
+	Clients int `json:"clients"`
+	// Concurrency - total number of threads running.
+	Concurrency int `json:"concurrency"`
+	// Total errors recorded.
+	Errors int `json:"errors"`
+	// Objects per operation.
+	ObjectsPerOperation int `json:"objects_per_operation"`
+	// N is the number of operations.
+	N int `json:"n"`
+	// Skipped if too little data
+	Skipped bool `json:"skipped"`
 }
 
 // SegmentDurFn accepts a total time and should return the duration used for each segment.
 type SegmentDurFn func(total time.Duration) time.Duration
 
 type Options struct {
-	Prefiltered bool
 	DurFunc     SegmentDurFn
 	SkipDur     time.Duration
+	Prefiltered bool
 }
 
 // Aggregate returns statistics when only a single operation was running concurrently.

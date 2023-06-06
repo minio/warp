@@ -19,7 +19,6 @@ package bench
 
 import (
 	"bufio"
-	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -27,7 +26,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -37,129 +35,17 @@ import (
 type Operations []Operation
 
 type Operation struct {
-	OpType    string     `json:"type"`
-	ObjPerOp  int        `json:"ops"`
 	Start     time.Time  `json:"start"`
-	FirstByte *time.Time `json:"first_byte"`
 	End       time.Time  `json:"end"`
+	FirstByte *time.Time `json:"first_byte"`
+	OpType    string     `json:"type"`
 	Err       string     `json:"err"`
-	Size      int64      `json:"size"`
-	File      string     `json:"file"`
-	Thread    uint16     `json:"thread"`
+	File      string     `json:"file,omitempty"`
 	ClientID  string     `json:"client_id"`
 	Endpoint  string     `json:"endpoint"`
-}
-
-type Collector struct {
-	ops Operations
-	// The mutex protects the ops above.
-	// Once ops have been added, they should no longer be modified.
-	opsMu sync.Mutex
-	rcv   chan Operation
-	rcvWg sync.WaitGroup
-}
-
-func NewCollector() *Collector {
-	r := &Collector{
-		ops: make(Operations, 0, 10000),
-		rcv: make(chan Operation, 1000),
-	}
-	r.rcvWg.Add(1)
-	go func() {
-		defer r.rcvWg.Done()
-		for op := range r.rcv {
-			r.opsMu.Lock()
-			r.ops = append(r.ops, op)
-			r.opsMu.Unlock()
-		}
-	}()
-	return r
-}
-
-// AutoTerm will check if throughput is within 'threshold' (0 -> ) for wantSamples,
-// when the current operations are split into 'splitInto' segments.
-// The minimum duration for the calculation can be set as well.
-// Segment splitting may cause less than this duration to be used.
-func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
-	if wantSamples >= splitInto {
-		panic("wantSamples >= splitInto")
-	}
-	if splitInto == 0 {
-		panic("splitInto == 0 ")
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		defer cancel()
-		ticker := time.NewTicker(time.Second)
-
-	checkloop:
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case <-ticker.C:
-			}
-			// Time to check if we should terminate.
-			c.opsMu.Lock()
-			// copies
-			ops := c.ops.FilterByOp(op)
-			c.opsMu.Unlock()
-			start, end := ops.ActiveTimeRange(true)
-			if end.Sub(start) <= minDur*time.Duration(splitInto)/time.Duration(wantSamples) {
-				// We don't have enough.
-				continue
-			}
-			segs := ops.Segment(SegmentOptions{
-				From:           start,
-				PerSegDuration: end.Sub(start) / time.Duration(splitInto),
-				AllThreads:     true,
-			})
-			if len(segs) < wantSamples {
-				continue
-			}
-			// Use last segment as our base.
-			mb, _, objs := segs[len(segs)-1].SpeedPerSec()
-			// Only use the segments we are interested in.
-			segs = segs[len(segs)-wantSamples : len(segs)-1]
-			for _, seg := range segs {
-				segMB, _, segObjs := seg.SpeedPerSec()
-				if mb > 0 {
-					if math.Abs(mb-segMB) > threshold*mb {
-						continue checkloop
-					}
-					continue
-				}
-				if math.Abs(objs-segObjs) > threshold*objs {
-					continue checkloop
-				}
-			}
-			// All checks passed.
-			if mb > 0 {
-				console.Eraseline()
-				console.Printf("\rThroughput %0.01fMiB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
-					mb, threshold*100,
-					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
-			} else {
-				console.Eraseline()
-				console.Printf("\rThroughput %0.01f objects/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
-					objs, threshold*100,
-					segs[0].Duration().Round(time.Millisecond)*time.Duration(len(segs)+1))
-			}
-			return
-		}
-	}()
-	return ctx
-}
-
-func (c *Collector) Receiver() chan<- Operation {
-	return c.rcv
-}
-
-func (c *Collector) Close() Operations {
-	close(c.rcv)
-	c.rcvWg.Wait()
-	return c.ops
+	ObjPerOp  int        `json:"ops"`
+	Size      int64      `json:"size"`
+	Thread    uint16     `json:"thread"`
 }
 
 // Duration returns the duration o.End-o.Start
@@ -649,11 +535,11 @@ func (o Operations) StdDev() time.Duration {
 
 // SizeSegment is a size segment.
 type SizeSegment struct {
+	Ops           Operations
 	Smallest      int64
 	SmallestLog10 int
 	Biggest       int64
 	BiggestLog10  int
-	Ops           Operations
 }
 
 // SizeString returns the size as a string.
@@ -1038,6 +924,7 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 	if err != nil {
 		return err
 	}
+
 	for i, op := range o {
 		var ttfb string
 		if op.FirstByte != nil {

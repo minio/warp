@@ -27,22 +27,22 @@ import (
 
 // Throughput contains throughput.
 type Throughput struct {
-	// Errors recorded.
-	Errors int `json:"errors"`
-	// Time period of the throughput measurement.
-	MeasureDurationMillis int `json:"measure_duration_millis"`
 	// Start time of the measurement.
 	StartTime time.Time `json:"start_time"`
 	// End time of the measurement.
 	EndTime time.Time `json:"end_time"`
+	// Time segmented throughput summary.
+	Segmented *ThroughputSegmented `json:"segmented,omitempty"`
+	// Errors recorded.
+	Errors int `json:"errors"`
+	// Time period of the throughput measurement.
+	MeasureDurationMillis int `json:"measure_duration_millis"`
 	// Average bytes per second. Can be 0.
 	AverageBPS float64 `json:"average_bps"`
 	// Average operations per second.
 	AverageOPS float64 `json:"average_ops"`
 	// Number of full operations
 	Operations int `json:"operations"`
-	// Time segmented throughput summary.
-	Segmented *ThroughputSegmented `json:"segmented,omitempty"`
 }
 
 // String returns a string representation of the segment
@@ -56,7 +56,7 @@ func (t Throughput) StringDuration() string {
 }
 
 // StringDetails returns a detailed string representation of the segment
-func (t Throughput) StringDetails(details bool) string {
+func (t Throughput) StringDetails(_ bool) string {
 	speed := ""
 	if t.AverageBPS > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
@@ -84,8 +84,12 @@ func (t *Throughput) fill(total bench.Segment) {
 
 // ThroughputSegmented contains time segmented throughput statics.
 type ThroughputSegmented struct {
-	// Time of each segment.
-	SegmentDurationMillis int `json:"segment_duration_millis"`
+	// Start time of fastest time segment.
+	FastestStart time.Time `json:"fastest_start"`
+	// 50% Median....
+	MedianStart time.Time `json:"median_start"`
+	// Slowest ...
+	SlowestStart time.Time `json:"slowest_start"`
 	// Will contain how segments are sorted.
 	// Will be 'bps' (bytes per second) or 'ops' (objects per second).
 	SortedBy string `json:"sorted_by"`
@@ -93,20 +97,16 @@ type ThroughputSegmented struct {
 	// All segments, sorted
 	Segments []SegmentSmall `json:"segments"`
 
-	// Start time of fastest time segment.
-	FastestStart time.Time `json:"fastest_start"`
+	// Time of each segment.
+	SegmentDurationMillis int `json:"segment_duration_millis"`
 	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by operations per second.
 	FastestBPS float64 `json:"fastest_bps"`
 	// Fastest segment in terms of operations per second.
 	FastestOPS float64 `json:"fastest_ops"`
-	// 50% Median....
-	MedianStart time.Time `json:"median_start"`
-	MedianBPS   float64   `json:"median_bps"`
-	MedianOPS   float64   `json:"median_ops"`
-	// Slowest ...
-	SlowestStart time.Time `json:"slowest_start"`
-	SlowestBPS   float64   `json:"slowest_bps"`
-	SlowestOPS   float64   `json:"slowest_ops"`
+	MedianBPS  float64 `json:"median_bps"`
+	MedianOPS  float64 `json:"median_ops"`
+	SlowestBPS float64 `json:"slowest_bps"`
+	SlowestOPS float64 `json:"slowest_ops"`
 }
 
 // BPSorOPS returns bytes per second if non zero otherwise operations per second as human readable string.
@@ -120,6 +120,8 @@ func BPSorOPS(bps, ops float64) string {
 // SegmentSmall represents a time segment of the run.
 // Length of the segment is defined elsewhere.
 type SegmentSmall struct {
+	// Start time of the segment.
+	Start time.Time `json:"start"`
 	// Bytes per second during the time segment.
 	BPS float64 `json:"bytes_per_sec"`
 
@@ -128,9 +130,6 @@ type SegmentSmall struct {
 
 	// Errors logged during the time segment.
 	Errors int `json:"errors,omitempty"`
-
-	// Start time of the segment.
-	Start time.Time `json:"start"`
 }
 
 // cloneBenchSegments clones benchmark segments to the simpler representation.

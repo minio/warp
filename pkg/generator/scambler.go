@@ -29,12 +29,12 @@ import (
 )
 
 type scrambler struct {
+	// Data source
+	stream *sio.EncReader
 	// The total number of bytes to return
 	want int64
 	// Number of bytes read
 	read int64
-	// Data source
-	stream *sio.EncReader
 }
 
 // Reset will reset the scrambler.

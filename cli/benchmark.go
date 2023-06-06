@@ -278,21 +278,21 @@ var (
 )
 
 type clientBenchmark struct {
-	sync.Mutex
 	ctx       context.Context
-	cancel    context.CancelFunc
-	results   bench.Operations
 	err       error
-	stage     benchmarkStage
+	cancel    context.CancelFunc
 	info      map[benchmarkStage]stageInfo
+	stage     benchmarkStage
+	results   bench.Operations
 	clientIdx int
+	sync.Mutex
 }
 
 type stageInfo struct {
-	startRequested bool
 	start          chan struct{}
 	done           chan struct{}
 	custom         map[string]string
+	startRequested bool
 }
 
 func (c *clientBenchmark) init(ctx context.Context) {
@@ -476,7 +476,7 @@ func startProfiling(ctx2 context.Context, ctx *cli.Context) (*runningProfiles, e
 	return &r, nil
 }
 
-func (rp *runningProfiles) stop(ctx2 context.Context, ctx *cli.Context, fileName string) {
+func (rp *runningProfiles) stop(ctx2 context.Context, _ *cli.Context, fileName string) {
 	if rp == nil || rp.client == nil {
 		return
 	}

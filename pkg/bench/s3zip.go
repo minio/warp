@@ -35,12 +35,11 @@ import (
 
 // S3Zip benchmarks download from a zip file.
 type S3Zip struct {
-	CreateFiles int
-	ZipObjName  string
-	Collector   *Collector
-	objects     generator.Objects
-
 	Common
+	ZipObjName string
+	objects    generator.Objects
+
+	CreateFiles int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -50,7 +49,7 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 		return err
 	}
 
-	g.Collector = NewCollector()
+	g.addCollector()
 	src := g.Source()
 	console.Eraseline()
 	console.Info("\rUploading", g.ZipObjName, "with ", g.CreateFiles, " files each of ", src.String())

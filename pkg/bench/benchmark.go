@@ -47,41 +47,51 @@ type Benchmark interface {
 
 // Common contains common benchmark parameters.
 type Common struct {
-	Client func() (cl *minio.Client, done func())
-
-	Concurrency int
-	Source      func() generator.Source
-	Bucket      string
-	Location    string
-	Locking     bool
-
-	// Running in client mode.
-	ClientMode bool
-	// Clear bucket before benchmark
-	Clear           bool
-	PrepareProgress chan float64
-	// Does destination support versioning?
-	Versioned bool
-
-	// Auto termination is set when this is > 0.
-	AutoTermDur   time.Duration
-	AutoTermScale float64
-
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
+
+	PrepareProgress chan float64
 
 	// Custom is returned to server if set by clients.
 	Custom map[string]string
 
+	// ExtraFlags contains extra flags to add to remote clients.
+	ExtraFlags map[string]string
+	Source     func() generator.Source
+
 	// Error should log an error similar to fmt.Print(data...)
 	Error func(data ...interface{})
+
+	Client func() (cl *minio.Client, done func())
+
+	Collector *Collector
+
+	Location string
+	Bucket   string
+
+	// Auto termination is set when this is > 0.
+	AutoTermDur time.Duration
 
 	// ClientIdx is the client index.
 	// Will be 0 if single client.
 	ClientIdx int
 
-	// ExtraFlags contains extra flags to add to remote clients.
-	ExtraFlags map[string]string
+	AutoTermScale float64
+
+	Concurrency int
+
+	// Running in client mode.
+	ClientMode bool
+	Locking    bool
+
+	// Clear bucket before benchmark
+	Clear bool
+
+	// DiscardOutput output.
+	DiscardOutput bool // indicates if we prefer a terse output useful in lengthy runs
+
+	// Does destination support versioning?
+	Versioned bool
 }
 
 const (
@@ -222,5 +232,13 @@ func (c *Common) prepareProgress(progress float64) {
 	select {
 	case c.PrepareProgress <- progress:
 	default:
+	}
+}
+
+func (c *Common) addCollector() {
+	if c.DiscardOutput {
+		c.Collector = NewNullCollector()
+	} else {
+		c.Collector = NewCollector()
 	}
 }

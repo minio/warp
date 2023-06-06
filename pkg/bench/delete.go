@@ -32,12 +32,11 @@ import (
 
 // Delete benchmarks delete speed.
 type Delete struct {
+	Common
+	objects generator.Objects
+
 	CreateObjects int
 	BatchSize     int
-	Collector     *Collector
-	objects       generator.Objects
-
-	Common
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -51,7 +50,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", d.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.Collector = NewCollector()
+	d.addCollector()
 	obj := make(chan struct{}, d.CreateObjects)
 	for i := 0; i < d.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -83,6 +82,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
 				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -186,6 +186,10 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					ObjPerOp: len(objs),
 					Endpoint: client.EndpointURL().String(),
 				}
+				if d.DiscardOutput {
+					op.File = ""
+				}
+
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
 				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})

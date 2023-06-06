@@ -35,16 +35,16 @@ import (
 
 // Multipart benchmarks multipart upload+download speed.
 type Multipart struct {
-	CreateParts int
-	PartStart   int
-	ObjName     string
-	Collector   *Collector
-	objects     generator.Objects
-	UploadID    string
+	Common
 
 	// Default Get options.
-	GetOpts minio.GetObjectOptions
-	Common
+	GetOpts  minio.GetObjectOptions
+	ObjName  string
+	UploadID string
+
+	objects     generator.Objects
+	CreateParts int
+	PartStart   int
 }
 
 // InitOnce will be run once
@@ -79,7 +79,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan int, g.CreateParts)
 	for i := 0; i < g.CreateParts; i++ {
 		obj <- i + g.PartStart
@@ -118,6 +118,10 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+				if g.DiscardOutput {
+					op.File = ""
+				}
+
 				opts.ContentType = obj.ContentType
 				mpopts := minio.PutObjectPartOptions{
 					SSE: g.Common.PutOpts.ServerSideEncryption,
@@ -222,6 +226,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
 				opts.PartNumber = part
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)

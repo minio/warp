@@ -26,13 +26,13 @@ import (
 // Use WithXXX functions to set them.
 type Options struct {
 	src          func(o Options) (Source, error)
+	customPrefix string
+	random       RandomOpts
+	csv          CsvOpts
 	minSize      int64
 	totalSize    int64
-	randSize     bool
-	customPrefix string
-	csv          CsvOpts
-	random       RandomOpts
 	randomPrefix int
+	randSize     bool
 }
 
 // OptionApplier allows to abstract generator options.

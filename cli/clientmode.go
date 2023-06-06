@@ -75,5 +75,5 @@ func mainClient(ctx *cli.Context) error {
 	return nil
 }
 
-func checkClientSyntax(ctx *cli.Context) {
+func checkClientSyntax(_ *cli.Context) {
 }

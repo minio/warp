@@ -83,10 +83,10 @@ func (o CsvOpts) RngSeed(s int64) CsvOpts {
 // CsvOpts provides options for CSV generation.
 type CsvOpts struct {
 	err            error
-	cols, rows     int
-	comma          byte
 	seed           *int64
+	cols, rows     int
 	minLen, maxLen int
+	comma          byte
 }
 
 func csvOptsDefaults() CsvOpts {
@@ -102,13 +102,14 @@ func csvOptsDefaults() CsvOpts {
 }
 
 type csvSource struct {
-	o       Options
-	buf     *circularBuffer
-	builder []byte
-	obj     Object
+	buf *circularBuffer
 
 	// We may need a faster RNG for this...
 	rng *rand.Rand
+	obj Object
+
+	o       Options
+	builder []byte
 }
 
 func newCsv(o Options) (Source, error) {

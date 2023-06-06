@@ -54,12 +54,12 @@ type Object struct {
 	// Corresponding mime type
 	ContentType string
 
-	// Size of the object to expect.
-	Size int64
-
 	Prefix string
 
 	VersionID string
+
+	// Size of the object to expect.
+	Size int64
 }
 
 // Objects is a slice of objects.

@@ -33,13 +33,14 @@ import (
 
 // Select benchmarks download speed.
 type Select struct {
-	CreateObjects int
-	Collector     *Collector
-	objects       generator.Objects
+	Common
+	Collector *Collector
 
 	// Default Select options.
 	SelectOpts minio.SelectObjectOptions
-	Common
+	objects    generator.Objects
+
+	CreateObjects int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -53,7 +54,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -85,6 +86,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
 				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -163,6 +165,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
 				var err error
 				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)

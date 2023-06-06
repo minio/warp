@@ -33,14 +33,14 @@ import (
 
 // List benchmarks listing speed.
 type List struct {
-	CreateObjects int
-	NoPrefix      bool
-	Collector     *Collector
-	Metadata      bool
-	Versions      int
-	objects       []generator.Objects
-
 	Common
+	Collector *Collector
+	objects   []generator.Objects
+
+	CreateObjects int
+	Versions      int
+	NoPrefix      bool
+	Metadata      bool
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -74,7 +74,7 @@ func (d *List) Prepare(ctx context.Context) error {
 	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.Collector = NewCollector()
+	d.addCollector()
 	d.objects = make([]generator.Objects, d.Concurrency)
 	var mu sync.Mutex
 	objsCreated := 0
@@ -118,6 +118,7 @@ func (d *List) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -206,6 +207,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					Size:     0,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
 
 				// List all objects with prefix

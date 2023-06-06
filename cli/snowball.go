@@ -63,20 +63,13 @@ FLAGS:
 // mainPut is the entry point for cp command.
 func mainSnowball(ctx *cli.Context) error {
 	checkSnowballSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	b := bench.Snowball{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     snowballOpts(ctx),
-		},
+		Common:    getCommon(ctx, newGenSource(ctx, "obj.size")),
 		Compress:  ctx.Bool("compress"),
 		Duplicate: ctx.Bool("compress"),
 		NumObjs:   ctx.Int("objs.per"),
 	}
+	b.PutOpts = snowballOpts(ctx)
 	if b.Compress {
 		sz, err := toSize(ctx.String("obj.size"))
 		if err != nil {

@@ -74,15 +74,15 @@ func (s serverInfo) validate() error {
 
 // serverRequest requests an operation from the client and expects a response.
 type serverRequest struct {
-	Operation serverRequestOp `json:"op"`
 	Benchmark struct {
+		Flags   map[string]string `json:"flags"`
 		Command string            `json:"command"`
 		Args    cli.Args          `json:"args"`
-		Flags   map[string]string `json:"flags"`
 	}
-	Stage     benchmarkStage `json:"stage"`
-	StartTime time.Time      `json:"start_time"`
-	ClientIdx int            `json:"client_idx"`
+	StartTime time.Time       `json:"start_time"`
+	Operation serverRequestOp `json:"op"`
+	Stage     benchmarkStage  `json:"stage"`
+	ClientIdx int             `json:"client_idx"`
 }
 
 // runServerBenchmark will run a benchmark server if requested.
@@ -236,11 +236,11 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 // connections keeps track of connections to clients.
 type connections struct {
+	info  func(data ...interface{})
+	errLn func(data ...interface{})
 	hosts []string
 	ws    []*websocket.Conn
 	si    serverInfo
-	info  func(data ...interface{})
-	errLn func(data ...interface{})
 }
 
 // newConnections creates connections (but does not connect) to clients.

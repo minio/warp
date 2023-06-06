@@ -75,17 +75,9 @@ FLAGS:
 // mainGet is the entry point for get command.
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
-	src := newGenSource(ctx, "obj.size")
 	sse := newSSE(ctx)
 	b := bench.Get{
-		Common: bench.Common{
-			Client:      newClient(ctx),
-			Concurrency: ctx.Int("concurrent"),
-			Source:      src,
-			Bucket:      ctx.String("bucket"),
-			Location:    "",
-			PutOpts:     putOpts(ctx),
-		},
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		Versions:      ctx.Int("versions"),
 		RandomRanges:  ctx.Bool("range"),
 		CreateObjects: ctx.Int("objects"),

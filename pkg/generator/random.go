@@ -76,11 +76,11 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	counter uint64
-	o       Options
 	buf     *scrambler
 	rng     *rand.Rand
 	obj     Object
+	o       Options
+	counter uint64
 }
 
 func newRandom(o Options) (Source, error) {

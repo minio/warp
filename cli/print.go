@@ -31,17 +31,17 @@ import (
 
 // causeMessage container for golang error messages
 type causeMessage struct {
-	Message string `json:"message"`
 	Error   error  `json:"error"`
+	Message string `json:"message"`
 }
 
 // errorMessage container for error messages
 type errorMessage struct {
-	Message   string             `json:"message"`
 	Cause     causeMessage       `json:"cause"`
+	SysInfo   map[string]string  `json:"sysinfo"`
+	Message   string             `json:"message"`
 	Type      string             `json:"type"`
 	CallTrace []probe.TracePoint `json:"trace,omitempty"`
-	SysInfo   map[string]string  `json:"sysinfo"`
 }
 
 var printMu sync.Mutex
@@ -93,8 +93,8 @@ func fatal(err *probe.Error, msg string, data ...interface{}) {
 			errorMsg.CallTrace = err.CallTrace
 		}
 		json, e := json.MarshalIndent(struct {
-			Status string       `json:"status"`
 			Error  errorMessage `json:"error"`
+			Status string       `json:"status"`
 		}{
 			Status: "error",
 			Error:  errorMsg,
@@ -155,8 +155,8 @@ func errorIf(err *probe.Error, msg string, data ...interface{}) {
 			errorMsg.CallTrace = err.CallTrace
 		}
 		json, e := json.MarshalIndent(struct {
-			Status string       `json:"status"`
 			Error  errorMessage `json:"error"`
+			Status string       `json:"status"`
 		}{
 			Status: "error",
 			Error:  errorMsg,

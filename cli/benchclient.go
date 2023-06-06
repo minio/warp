@@ -43,16 +43,16 @@ const (
 
 // clientReply contains the response to a server request.
 type clientReply struct {
-	Type      clientReplyType  `json:"type"`
-	Time      time.Time        `json:"time"`
-	Err       string           `json:"err,omitempty"`
-	Ops       bench.Operations `json:"ops,omitempty"`
+	Time      time.Time `json:"time"`
 	StageInfo struct {
+		Custom   map[string]string `json:"custom,omitempty"`
+		Progress float64           `json:"progress"`
 		Started  bool              `json:"started"`
 		Finished bool              `json:"finished"`
-		Progress float64           `json:"progress"`
-		Custom   map[string]string `json:"custom,omitempty"`
 	} `json:"stage_info"`
+	Type clientReplyType  `json:"type"`
+	Err  string           `json:"err,omitempty"`
+	Ops  bench.Operations `json:"ops,omitempty"`
 }
 
 // executeBenchmark will execute the benchmark and return any error.

@@ -41,11 +41,11 @@ type BenchmarkStatus = struct {
 	// Any non-fatal error during the run.
 	Error string `json:"error"`
 
-	// Will be true when benchmark has finished and data is ready.
-	DataReady bool `json:"data_ready"`
-
 	// Base filename of the
 	Filename string `json:"filename,omitempty"`
+
+	// Will be true when benchmark has finished and data is ready.
+	DataReady bool `json:"data_ready"`
 }
 
 // Operations contains raw benchmark operations.
@@ -56,22 +56,23 @@ type Operations struct {
 
 // Server contains the state of the running server.
 type Server struct {
-	status  BenchmarkStatus
-	ops     bench.Operations
-	agrr    *aggregate.Aggregated
-	aggrDur time.Duration
-	server  *http.Server
-	cmdLine string
-
 	// Shutting down
 	ctx    context.Context
+	agrr   *aggregate.Aggregated
+	server *http.Server
 	cancel context.CancelFunc
 
-	// lock for Server
-	mu sync.Mutex
 	// Parent loggers
 	infoln  func(data ...interface{})
 	errorln func(data ...interface{})
+	status  BenchmarkStatus
+	cmdLine string
+
+	ops     bench.Operations
+	aggrDur time.Duration
+
+	// lock for Server
+	mu sync.Mutex
 }
 
 // OperationsReady can be used to send benchmark data to the server.

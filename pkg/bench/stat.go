@@ -32,14 +32,13 @@ import (
 
 // Stat benchmarks HEAD speed.
 type Stat struct {
-	CreateObjects int
-	Collector     *Collector
-	objects       generator.Objects
-	Versions      int
+	Common
 
 	// Default Stat options.
-	StatOpts minio.StatObjectOptions
-	Common
+	StatOpts      minio.StatObjectOptions
+	objects       generator.Objects
+	CreateObjects int
+	Versions      int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -68,7 +67,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -106,6 +105,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
@@ -183,6 +183,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
+
 				op.Start = time.Now()
 				var err error
 				if g.Versions > 1 {

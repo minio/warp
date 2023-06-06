@@ -34,13 +34,13 @@ import (
 
 // Mixed benchmarks mixed operations all inclusive.
 type Mixed struct {
-	CreateObjects int
-	Collector     *Collector
-	Dist          *MixedDistribution
-
-	GetOpts  minio.GetObjectOptions
-	StatOpts minio.StatObjectOptions
 	Common
+	Collector *Collector
+	Dist      *MixedDistribution
+
+	GetOpts       minio.GetObjectOptions
+	StatOpts      minio.StatObjectOptions
+	CreateObjects int
 }
 
 // MixedDistribution keeps track of operation distribution
@@ -48,9 +48,10 @@ type Mixed struct {
 type MixedDistribution struct {
 	// Operation -> distribution.
 	Distribution map[string]float64
-	ops          []string
 	objects      map[string]generator.Object
 	rng          *rand.Rand
+
+	ops []string
 
 	current int
 	mu      sync.Mutex
@@ -161,7 +162,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.Collector = NewCollector()
+	g.addCollector()
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
 		obj <- struct{}{}
@@ -261,6 +262,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
@@ -335,6 +337,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						ObjPerOp: 1,
 						Endpoint: client.EndpointURL().String(),
 					}
+
 					op.Start = time.Now()
 					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
