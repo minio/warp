@@ -735,7 +735,7 @@ Warp allows realtime statistics to be pushed to InfluxDB v2 or later.
 
 This can be combined with the `--stress` parameter, which will allow to have long-running tests without consuming memory and still get access to performance numbers.
 
-Warp does not provide any analysis on the data send to InfluxDB. 
+Warp does not provide any analysis on the data sent to InfluxDB. 
 
 ### Configuring
 
@@ -767,7 +767,7 @@ For distributed benchmarking all clients will be sending data, so hosts like loc
 
 ### Data
 
-All measurements are of type `warp`.
+All in-run measurements are of type `warp`.
 
 | Tag        | Value                                                                                                                                                         |
 |------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -792,7 +792,23 @@ This means that bigger objects (meaning less requests) will create bigger fluctu
 
 The statistics provided means that to get "rates over time" the numbers must be calculated as differences (increase/positive derivatives). 
 
-Currently, we do not provide any analysis tools.
+### Summary
+
+When a run has finished a summary will be sent. This will be a `warp_run_summary` measurement type. 
+In addition to the fields above it will contain:
+
+| Field                   | Value                             |
+|-------------------------|-----------------------------------|
+| `request_avg_secs`      | Average Request Time              |
+| `request_max_secs`      | Longest Request Time              |
+| `request_min_secs`      | Shortest Request Time             |
+| `request_ttfb_avg_secs` | Average Time To First Byte (TTFB) |
+| `request_ttfb_max_secs` | Longest TTFB                      |
+| `request_ttfb_min_secs` | Shortest TTFB                     |
+
+All times are in float point seconds.
+
+The summary will be sent for each host and operation type. 
 
 # Server Profiling
 

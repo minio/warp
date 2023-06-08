@@ -112,6 +112,27 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 			writeAPI.WritePoint(pHost)
 			writeAPI.WritePoint(pTot)
 		}
+		// Send summaries
+		for host, ops := range hosts {
+			for op, stats := range ops {
+				p := stats.summary(op)
+
+				for key, tag := range tags {
+					p.AddTag(key, tag)
+				}
+				p.AddTag("endpoint", host)
+				writeAPI.WritePoint(p)
+			}
+		}
+		for op, stats := range totalOp {
+			p := stats.summary(op)
+
+			for key, tag := range tags {
+				p.AddTag(key, tag)
+			}
+			p.AddTag("endpoint", "")
+			writeAPI.WritePoint(p)
+		}
 	}()
 	return ch
 }
@@ -152,25 +173,50 @@ func parseInfluxURL(ctx *cli.Context) (*url.URL, error) {
 }
 
 type aggregatedStats struct {
-	bytes      int64
-	objects    int
-	ops        int
-	errors     int
-	requestDur time.Duration
-	ttfb       time.Duration
+	bytes   int64
+	objects int
+	ops     int
+	errors  int
+
+	// requests
+	reqDur time.Duration
+	reqMin time.Duration
+	reqMax time.Duration
+
+	// time to first byte
+	ttfb    time.Duration
+	ttfbMin time.Duration
+	ttfbMax time.Duration
 }
 
 func (a *aggregatedStats) add(o bench.Operation) {
-	a.bytes += o.Size
 	a.ops++
-	a.requestDur += o.End.Sub(o.Start)
 	if o.Err != "" {
+		// Do not add more
 		a.errors++
-	} else {
-		a.objects += o.ObjPerOp
+		return
+	}
+
+	a.bytes += o.Size
+	a.objects += o.ObjPerOp
+
+	dur := o.End.Sub(o.Start)
+	a.reqDur += dur
+	if dur > a.reqMax {
+		a.reqMax = dur
+	}
+	if a.reqMin == 0 || dur < a.reqMin {
+		a.reqMin = dur
 	}
 	if o.FirstByte != nil {
-		a.ttfb += o.FirstByte.Sub(o.Start)
+		ttfb := o.FirstByte.Sub(o.Start)
+		a.ttfb += ttfb
+		if ttfb > a.ttfbMax {
+			a.ttfbMax = ttfb
+		}
+		if a.ttfbMin == 0 || dur < a.ttfbMin {
+			a.ttfbMin = dur
+		}
 	}
 }
 
@@ -181,19 +227,33 @@ func (a aggregatedStats) point(op bench.Operation) *write.Point {
 	p.AddField("objects", a.objects)
 	p.AddField("bytes_total", a.bytes)
 	p.AddField("errors", a.errors)
-	p.AddField("request_total_secs", float64(a.requestDur)/float64(time.Second))
-	if false && a.ops > 0 {
-		// This can be derived from data already sent and doesn't provide good information.
-		// since it is a complete average for the entire run.
-		// Therefore disabled.
-		p.AddField("request_avg_secs", float64(a.requestDur)/float64(time.Second)/float64(a.ops))
-	}
+	p.AddField("request_total_secs", float64(a.reqDur)/float64(time.Second))
 	if a.ttfb > 0 {
 		p.AddField("request_ttfb_total_secs", float64(a.ttfb)/float64(time.Second))
-		if false && a.ops > 0 {
-			// Same as above.
-			p.AddField("request_ttfb_avg_secs", float64(a.ttfb)/float64(time.Second)/float64(a.ops))
+	}
+	return p
+}
+
+func (a aggregatedStats) summary(opType string) *write.Point {
+	p := influxdb2.NewPointWithMeasurement("warp_run_summary")
+	p.AddTag("op", opType)
+	p.AddField("requests", a.ops)
+	p.AddField("objects", a.objects)
+	p.AddField("bytes_total", a.bytes)
+	p.AddField("errors", a.errors)
+	p.AddField("request_total_secs", float64(a.reqDur)/float64(time.Second))
+	if a.ops-a.errors > 0 {
+		p.AddField("request_avg_secs", float64(a.reqDur)/float64(time.Second)/float64(a.ops-a.errors))
+	}
+	p.AddField("request_min_secs", float64(a.reqMin)/float64(time.Second))
+	p.AddField("request_max_secs", float64(a.reqMax)/float64(time.Second))
+	if a.ttfb > 0 {
+		p.AddField("request_ttfb_total_secs", float64(a.ttfb)/float64(time.Second))
+		if a.ops-a.errors > 0 {
+			p.AddField("request_ttfb_avg_secs", float64(a.ttfb)/float64(time.Second)/float64(a.ops-a.errors))
 		}
+		p.AddField("request_ttfb_min_secs", float64(a.ttfbMin)/float64(time.Second))
+		p.AddField("request_ttfb_max_secs", float64(a.ttfbMax)/float64(time.Second))
 	}
 	return p
 }
