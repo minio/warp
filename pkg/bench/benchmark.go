@@ -242,6 +242,5 @@ func (c *Common) addCollector() {
 	} else {
 		c.Collector = NewCollector()
 	}
-	fmt.Println("extra:", len(c.ExtraOut))
 	c.Collector.extra = c.ExtraOut
 }

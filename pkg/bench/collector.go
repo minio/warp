@@ -19,7 +19,6 @@ package bench
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -157,10 +156,9 @@ func (c *Collector) Receiver() chan<- Operation {
 
 func (c *Collector) Close() Operations {
 	close(c.rcv)
+	c.rcvWg.Wait()
 	for _, ch := range c.extra {
-		fmt.Println("closing extra")
 		close(ch)
 	}
-	c.rcvWg.Wait()
 	return c.ops
 }

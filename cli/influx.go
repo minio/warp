@@ -28,6 +28,7 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/http"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/warp/pkg/bench"
@@ -42,11 +43,18 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 	if u.User != nil {
 		token = u.User.Username()
 	}
-	var tags url.Values
+	var tagValues url.Values
 	if len(u.RawQuery) > 0 {
-		tags, err = url.ParseQuery(u.RawQuery)
+		tagValues, err = url.ParseQuery(u.RawQuery)
 		errorIf(probe.NewError(err), "unable to parse tags")
 	}
+	tags := make(map[string]string, len(tagValues)+1)
+	for key, tag := range tagValues {
+		if len(tag) > 0 && len(key) > 0 {
+			tags[key] = tag[0]
+		}
+	}
+	tags["warp_id"] = pRandASCII(8)
 
 	// Create a new client using an InfluxDB server base URL and an authentication token
 	serverURL := u.Scheme + "://" + u.Host
@@ -69,35 +77,40 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 	ch := make(chan bench.Operation, 10000)
 	wg.Add(1)
 	go func() {
-		n := 0
 		defer func() {
 			writeAPI.Flush()
 			wg.Done()
 		}()
+		hosts := make(map[string]map[string]aggregatedStats, 100)
+		totalOp := make(map[string]aggregatedStats, 5)
 		for op := range ch {
-			p := influxdb2.NewPointWithMeasurement("request")
-			p.SetTime(op.Start)
+			host := hosts[op.Endpoint]
+			var hostStats aggregatedStats
+			if host == nil {
+				host = make(map[string]aggregatedStats, 5)
+				hosts[op.Endpoint] = host
+			} else {
+				hostStats = host[op.OpType]
+			}
+			total := totalOp[op.OpType]
+			hostStats.add(op)
+			total.add(op)
+
+			// Store
+			totalOp[op.OpType] = total
+			host[op.OpType] = hostStats
+
+			// Send
+			pTot := total.point(op)
+			pHost := hostStats.point(op)
+
 			for key, tag := range tags {
-				if len(tag) > 0 && len(key) > 0 {
-					p.AddTag(key, tag[0])
-				}
+				pTot.AddTag(key, tag)
+				pHost.AddTag(key, tag)
 			}
-			dur := op.End.Sub(op.Start)
-			p.AddTag("op", op.OpType)
-			p.AddTag("client_id", op.ClientID)
-			p.AddTag("endpoint", op.Endpoint)
-			p.AddTag("file", op.File)
-			p.AddField("thread", op.Thread)
-			p.AddField("n_objects", op.ObjPerOp)
-			p.AddField("bytes_sec", op.Size*int64(time.Second)/int64(dur))
-			p.AddField("start", op.Start)
-			p.AddField("end", op.End)
-			p.AddField("dur_nanos", int64(dur/time.Nanosecond))
-			if op.Err != "" {
-				p.AddField("error", op.Err)
-			}
-			writeAPI.WritePoint(p)
-			n++
+			pHost.AddTag("endpoint", op.Endpoint)
+			writeAPI.WritePoint(pHost)
+			writeAPI.WritePoint(pTot)
 		}
 	}()
 	return ch
@@ -136,4 +149,51 @@ func parseInfluxURL(ctx *cli.Context) (*url.URL, error) {
 	// org can be empty
 	// token can be empty
 	return u, nil
+}
+
+type aggregatedStats struct {
+	bytes      int64
+	objects    int
+	ops        int
+	errors     int
+	requestDur time.Duration
+	ttfb       time.Duration
+}
+
+func (a *aggregatedStats) add(o bench.Operation) {
+	a.bytes += o.Size
+	a.ops++
+	a.requestDur += o.End.Sub(o.Start)
+	if o.Err != "" {
+		a.errors++
+	} else {
+		a.objects += o.ObjPerOp
+	}
+	if o.FirstByte != nil {
+		a.ttfb += o.FirstByte.Sub(o.Start)
+	}
+}
+
+func (a aggregatedStats) point(op bench.Operation) *write.Point {
+	p := influxdb2.NewPointWithMeasurement("warp")
+	p.AddTag("op", op.OpType)
+	p.AddField("requests", a.ops)
+	p.AddField("objects", a.objects)
+	p.AddField("bytes_total", a.bytes)
+	p.AddField("errors", a.errors)
+	p.AddField("request_total_secs", float64(a.requestDur)/float64(time.Second))
+	if false && a.ops > 0 {
+		// This can be derived from data already sent and doesn't provide good information.
+		// since it is a complete average for the entire run.
+		// Therefore disabled.
+		p.AddField("request_avg_secs", float64(a.requestDur)/float64(time.Second)/float64(a.ops))
+	}
+	if a.ttfb > 0 {
+		p.AddField("request_ttfb_total_secs", float64(a.ttfb)/float64(time.Second))
+		if false && a.ops > 0 {
+			// Same as above.
+			p.AddField("request_ttfb_avg_secs", float64(a.ttfb)/float64(time.Second)/float64(a.ops))
+		}
+	}
+	return p
 }

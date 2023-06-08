@@ -238,8 +238,9 @@ var ioFlags = []cli.Flag{
 		Usage: "stress test only and discard output",
 	},
 	cli.StringFlag{
-		Name:  "influxdb",
-		Usage: "Send operations to InfluxDB. Specify as 'http://<token>@<hostname>:<port>/<bucket>/<org>'",
+		Name:   "influxdb",
+		EnvVar: appNameUC + "_INFLUXDB_CONNECT",
+		Usage:  "Send operations to InfluxDB. Specify as 'http://<token>@<hostname>:<port>/<bucket>/<org>'",
 	},
 }
 
