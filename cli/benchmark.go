@@ -93,6 +93,7 @@ var benchFlags = []cli.Flag{
 
 // runBench will run the supplied benchmark and save/print the analysis.
 func runBench(ctx *cli.Context, b bench.Benchmark) error {
+	defer globalWG.Wait()
 	activeBenchmarkMu.Lock()
 	ab := activeBenchmark
 	activeBenchmarkMu.Unlock()
@@ -246,21 +247,23 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	ops.SetClientID(cID)
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
 
-	f, err := os.Create(fileName + ".csv.zst")
-	if err != nil {
-		monitor.Errorln("Unable to write benchmark data:", err)
-	} else {
-		func() {
-			defer f.Close()
-			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	if len(ops) > 0 {
+		f, err := os.Create(fileName + ".csv.zst")
+		if err != nil {
+			monitor.Errorln("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-			defer enc.Close()
-			err = ops.CSV(enc, commandLine(ctx))
-			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+				defer enc.Close()
+				err = ops.CSV(enc, commandLine(ctx))
+				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
-		}()
+				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+			}()
+		}
 	}
 	monitor.OperationsReady(ops, fileName, commandLine(ctx))
 	printAnalysis(ctx, ops)
@@ -425,21 +428,23 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	ops.SetClientID(cID)
 	ops.SortByStartTime()
 
-	f, err := os.Create(fileName + ".csv.zst")
-	if err != nil {
-		console.Error("Unable to write benchmark data:", err)
-	} else {
-		func() {
-			defer f.Close()
-			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	if len(ops) > 0 {
+		f, err := os.Create(fileName + ".csv.zst")
+		if err != nil {
+			console.Error("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-			defer enc.Close()
-			err = ops.CSV(enc, commandLine(ctx))
-			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+				defer enc.Close()
+				err = ops.CSV(enc, commandLine(ctx))
+				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
-		}()
+				console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			}()
+		}
 	}
 
 	err = cb.waitForStage(stageCleanup)
@@ -511,6 +516,9 @@ func checkBenchmark(ctx *cli.Context) {
 		madmin.ProfilerMutex,
 		madmin.ProfilerTrace,
 	}
+
+	_, err := parseInfluxURL(ctx)
+	fatalIf(probe.NewError(err), "invalid influx config")
 
 	profs := strings.Split(ctx.String("serverprof"), ",")
 	for _, profilerType := range profs {

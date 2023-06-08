@@ -728,6 +728,88 @@ The main reason for running the benchmark on several clients would be to help el
 
 It is important to note that only data that strictly overlaps in absolute time will be considered for analysis.
 
+
+## InfluxDB Output
+
+Warp allows realtime statistics to be pushed to InfluxDB v2 or later.
+
+This can be combined with the `--stress` parameter, which will allow to have long-running tests without consuming memory and still get access to performance numbers.
+
+Warp does not provide any analysis on the data sent to InfluxDB. 
+
+### Configuring
+
+InfluxDB is enabled via a the `--influxdb` parameter. Alternatively the parameter can be set in the `WARP_INFLUXDB_CONNECT` environment variable.
+
+The value must be formatted like a URL: `<schema>://<token>@<hostname>:<port>/<bucket>/<org>?<tag=value>`
+
+| Part          |                                                                               |
+|---------------|-------------------------------------------------------------------------------|
+| `<schema>`    | Connection type. Replace with `http` or `https`                               |
+| `<token>`     | Replace with the token needed to access the server                            |
+| `<hostname>`  | Replace with the host name or IP address of your server                       |
+| `<port>`      | Replace with the port of your server                                          |
+| `<bucket>`    | Replace with the bucket in which to place the data                            |
+| `<org>`       | Replace with the organization to which the data should be associated (if any) |
+| `<tag=value>` | One or more tags to add to each data point                                    |
+
+Each parameter can be URL encoded.
+
+Example:
+
+`--influxdb "http://shmRUvVjk0Ig2J9qU0_g349PF6l-GB1dmwXUXDh5qd19n1Nda_K7yvSIi9tGpax9jyOsmP2dUd-md8yPOoDNHg==@127.0.0.1:8086/mybucket/myorg?mytag=myvalue"`
+
+This will connect to port 8086 on 127.0.0.1 using the provided token `shmRU...`.
+
+Data will be placed in `mybucket` and associated with `myorg`. An additional tag `mytag` will be set to `myvalue` on all data points.
+
+For distributed benchmarking all clients will be sending data, so hosts like localhost and 127.0.0.1 should not be used.
+
+### Data
+
+All in-run measurements are of type `warp`.
+
+| Tag        | Value                                                                                                                                                         |
+|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `warp_id`  | Contains a random string value, unique per client.<br/>This can be used to identify individual runs or single warp clients when using distributed benchmarks. |
+| `op`       | Contains the operation type, for example GET, PUT, DELETE, etc.                                                                                               |
+| `endpoint` | Endpoint is the endpoint to which the operation was sent.<br/>Measurements without this value is total for the warp client.                                   |
+
+
+Fields are sent as accumulated totals per run per operation type.
+
+New metrics are sent as each operation (request) completes. There is no inter-operation progress logged.
+This means that bigger objects (meaning less requests) will create bigger fluctuations. That is important to note when analyzing. 
+
+| Field                     | Value                                                                          |
+|---------------------------|--------------------------------------------------------------------------------|
+| `requests`                | Total number of requests performed                                             |
+| `objects`                 | Total number of objects affected                                               |
+| `bytes_total`             | Total number of bytes affected                                                 |
+| `errors`                  | Total errors encountered                                                       |
+| `request_total_secs`      | Total request time in seconds                                                  |
+| `request_ttfb_total_secs` | Total time to first byte in seconds for relevant operations                    |
+
+The statistics provided means that to get "rates over time" the numbers must be calculated as differences (increase/positive derivatives). 
+
+### Summary
+
+When a run has finished a summary will be sent. This will be a `warp_run_summary` measurement type. 
+In addition to the fields above it will contain:
+
+| Field                   | Value                             |
+|-------------------------|-----------------------------------|
+| `request_avg_secs`      | Average Request Time              |
+| `request_max_secs`      | Longest Request Time              |
+| `request_min_secs`      | Shortest Request Time             |
+| `request_ttfb_avg_secs` | Average Time To First Byte (TTFB) |
+| `request_ttfb_max_secs` | Longest TTFB                      |
+| `request_ttfb_min_secs` | Shortest TTFB                     |
+
+All times are in float point seconds.
+
+The summary will be sent for each host and operation type. 
+
 # Server Profiling
 
 When running against a MinIO server it is possible to enable profiling while the benchmark is running.
@@ -735,13 +817,13 @@ When running against a MinIO server it is possible to enable profiling while the
 This is done by adding `--serverprof=type` parameter with the type of profile you would like. 
 This requires that the credentials allows admin access for the first host.
 
-| Type  | Description                                                                                                                                |
-|-------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| cpu   | CPU profile determines where a program spends its time while actively consuming CPU cycles (as opposed while sleeping or waiting for I/O). |
-| mem   | Heap profile reports the currently live allocations; used to monitor current memory usage or check for memory leaks.                       |
-| block | Block profile show where goroutines block waiting on synchronization primitives (including timer channels).                                |
-| mutex | Mutex profile reports the lock contentions. When you think your CPU is not fully utilized due to a mutex contention, use this profile.     |
-| trace | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.     |
+| Type    | Description                                                                                                                                |
+|---------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `cpu`   | CPU profile determines where a program spends its time while actively consuming CPU cycles (as opposed while sleeping or waiting for I/O). |
+| `mem`   | Heap profile reports the currently live allocations; used to monitor current memory usage or check for memory leaks.                       |
+| `block` | Block profile show where goroutines block waiting on synchronization primitives (including timer channels).                                |
+| `mutex` | Mutex profile reports the lock contentions. When you think your CPU is not fully utilized due to a mutex contention, use this profile.     |
+| `trace` | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.     |
 
 Profiles for all cluster members will be downloaded as a zip file. 
 

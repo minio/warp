@@ -30,6 +30,7 @@ type Collector struct {
 	rcv   chan Operation
 	ops   Operations
 	rcvWg sync.WaitGroup
+	extra []chan<- Operation
 	// The mutex protects the ops above.
 	// Once ops have been added, they should no longer be modified.
 	opsMu sync.Mutex
@@ -44,6 +45,9 @@ func NewCollector() *Collector {
 	go func() {
 		defer r.rcvWg.Done()
 		for op := range r.rcv {
+			for _, ch := range r.extra {
+				ch <- op
+			}
 			r.opsMu.Lock()
 			r.ops = append(r.ops, op)
 			r.opsMu.Unlock()
@@ -61,10 +65,10 @@ func NewNullCollector() *Collector {
 	r.rcvWg.Add(1)
 	go func() {
 		defer r.rcvWg.Done()
-		// https://github.com/mgechev/revive/issues/386
-		//nolint:revive
-		for range r.rcv {
-			// Just dump them
+		for op := range r.rcv {
+			for _, ch := range r.extra {
+				ch <- op
+			}
 		}
 	}()
 	return r
@@ -153,5 +157,8 @@ func (c *Collector) Receiver() chan<- Operation {
 func (c *Collector) Close() Operations {
 	close(c.rcv)
 	c.rcvWg.Wait()
+	for _, ch := range c.extra {
+		close(ch)
+	}
 	return c.ops
 }

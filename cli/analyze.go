@@ -463,7 +463,6 @@ func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool)
 		console.SetColor("Print", color.New(color.FgWhite))
 
 		if reqs.Skipped {
-			fmt.Println(reqs)
 			console.Println("Not enough requests")
 			return
 		}

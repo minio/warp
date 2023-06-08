@@ -20,8 +20,10 @@ package cli
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/generator"
@@ -97,6 +99,8 @@ var profileFlags = []cli.Flag{
 	},
 }
 
+var globalWG sync.WaitGroup
+
 // Set global states. NOTE: It is deliberately kept monolithic to ensure we dont miss out any flags.
 func setGlobalsFromContext(ctx *cli.Context) error {
 	quiet := ctx.IsSet("quiet")
@@ -130,7 +134,7 @@ func commandLine(ctx *cli.Context) string {
 		}
 		name := flag.GetName()
 		switch name {
-		case "access-key", "secret-key":
+		case "access-key", "secret-key", "influxdb":
 			val = "*REDACTED*"
 		}
 		s += " --" + flag.GetName() + "=" + val
@@ -233,9 +237,24 @@ var ioFlags = []cli.Flag{
 		Name:  "stress",
 		Usage: "stress test only and discard output",
 	},
+	cli.StringFlag{
+		Name:   "influxdb",
+		EnvVar: appNameUC + "_INFLUXDB_CONNECT",
+		Usage:  "Send operations to InfluxDB. Specify as 'http://<token>@<hostname>:<port>/<bucket>/<org>'",
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
+	var extra []chan<- bench.Operation
+	u, err := parseInfluxURL(ctx)
+	if err != nil {
+		fatalIf(probe.NewError(err), "invalid influx config")
+	}
+	if u != nil {
+		if in := newInfluxDB(ctx, &globalWG); in != nil {
+			extra = append(extra, in)
+		}
+	}
 	return bench.Common{
 		Client:        newClient(ctx),
 		Concurrency:   ctx.Int("concurrent"),
@@ -244,5 +263,6 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts(ctx),
 		DiscardOutput: ctx.Bool("stress"),
+		ExtraOut:      extra,
 	}
 }
