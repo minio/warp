@@ -35,8 +35,7 @@ import (
 // Mixed benchmarks mixed operations all inclusive.
 type Mixed struct {
 	Common
-	Collector *Collector
-	Dist      *MixedDistribution
+	Dist *MixedDistribution
 
 	GetOpts       minio.GetObjectOptions
 	StatOpts      minio.StatObjectOptions

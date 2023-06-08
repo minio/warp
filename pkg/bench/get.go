@@ -141,7 +141,6 @@ func (g *Get) Prepare(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.addCollector()
 
 	obj := make(chan struct{}, g.CreateObjects)
 	for i := 0; i < g.CreateObjects; i++ {
