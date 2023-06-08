@@ -34,7 +34,6 @@ import (
 // Select benchmarks download speed.
 type Select struct {
 	Common
-	Collector *Collector
 
 	// Default Select options.
 	SelectOpts minio.SelectObjectOptions
