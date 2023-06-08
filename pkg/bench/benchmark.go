@@ -58,6 +58,7 @@ type Common struct {
 	// ExtraFlags contains extra flags to add to remote clients.
 	ExtraFlags map[string]string
 	Source     func() generator.Source
+	ExtraOut   []chan<- Operation
 
 	// Error should log an error similar to fmt.Print(data...)
 	Error func(data ...interface{})
@@ -241,4 +242,6 @@ func (c *Common) addCollector() {
 	} else {
 		c.Collector = NewCollector()
 	}
+	fmt.Println("extra:", len(c.ExtraOut))
+	c.Collector.extra = c.ExtraOut
 }

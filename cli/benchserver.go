@@ -201,22 +201,24 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		}
 	}
 
-	allOps.SortByStartTime()
-	f, err := os.Create(fileName + ".csv.zst")
-	if err != nil {
-		errorLn("Unable to write benchmark data:", err)
-	} else {
-		func() {
-			defer f.Close()
-			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	if len(allOps) > 0 {
+		allOps.SortByStartTime()
+		f, err := os.Create(fileName + ".csv.zst")
+		if err != nil {
+			errorLn("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-			defer enc.Close()
-			err = allOps.CSV(enc, commandLine(ctx))
-			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+				defer enc.Close()
+				err = allOps.CSV(enc, commandLine(ctx))
+				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
-		}()
+				infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+			}()
+		}
 	}
 	monitor.OperationsReady(allOps, fileName, commandLine(ctx))
 	printAnalysis(ctx, allOps)

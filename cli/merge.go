@@ -90,22 +90,24 @@ func mainMerge(ctx *cli.Context) error {
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
 	}
-	allOps.SortByStartTime()
-	f, err := os.Create(fileName + ".csv.zst")
-	if err != nil {
-		console.Error("Unable to write benchmark data:", err)
-	} else {
-		func() {
-			defer f.Close()
-			enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-			fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	if len(allOps) > 0 {
+		allOps.SortByStartTime()
+		f, err := os.Create(fileName + ".csv.zst")
+		if err != nil {
+			console.Error("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-			defer enc.Close()
-			err = allOps.CSV(enc, commandLine(ctx))
-			fatalIf(probe.NewError(err), "Unable to write benchmark output")
+				defer enc.Close()
+				err = allOps.CSV(enc, commandLine(ctx))
+				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-			console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
-		}()
+				console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			}()
+		}
 	}
 	for typ, ops := range allOps.ByOp() {
 		start, end := ops.ActiveTimeRange(true)

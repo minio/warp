@@ -113,7 +113,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 			return (fmt.Errorf("no objects found for bucket %s", g.Bucket))
 		}
 		done()
-		g.Collector = NewCollector()
+		g.addCollector()
 		return nil
 	}
 
