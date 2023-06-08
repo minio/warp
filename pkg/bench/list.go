@@ -34,8 +34,7 @@ import (
 // List benchmarks listing speed.
 type List struct {
 	Common
-	Collector *Collector
-	objects   []generator.Objects
+	objects []generator.Objects
 
 	CreateObjects int
 	Versions      int
