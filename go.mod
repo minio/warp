@@ -7,6 +7,7 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.14.1
+	github.com/influxdata/influxdb-client-go/v2 v2.12.3
 	github.com/klauspost/compress v1.16.4
 	github.com/minio/cli v1.24.2
 	github.com/minio/madmin-go/v2 v2.0.14
@@ -28,7 +29,6 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/influxdata/influxdb-client-go/v2 v2.12.3 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
