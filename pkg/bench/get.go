@@ -51,6 +51,7 @@ type Get struct {
 // and upload a number of objects.
 func (g *Get) Prepare(ctx context.Context) error {
 	// prepare the bench by listing object from the bucket
+	g.addCollector()
 	if g.ListExisting {
 		cl, done := g.Client()
 
@@ -113,7 +114,6 @@ func (g *Get) Prepare(ctx context.Context) error {
 			return (fmt.Errorf("no objects found for bucket %s", g.Bucket))
 		}
 		done()
-		g.addCollector()
 		return nil
 	}
 
