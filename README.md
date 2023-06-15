@@ -528,6 +528,40 @@ The analysis throughput represents the object count and sizes as they are writte
 
 Request times shown with `--analyze.v` represents request time for each snowball.
 
+## FANOUT
+
+The Fanout benchmark will test uploading a single object that is copied to multiple individual objects.
+This feature is only available on a recent MinIO server.
+
+Parameters:
+
+* `--obj.size=N` controls the size of each object that is uploaded. Default is 1MiB.
+* `--copies=N` controls the number of object copies per request. Default is 100.
+
+Size is calculated as `--obj.size` * `--copies`.
+
+Example: Use 8 concurrent uploads to copy a 512KB objects to 50 locations. 
+
+```
+λ warp fanout --copies=50 --obj.size=512KiB --concurrent=8
+warp: Benchmark data written to "warp-fanout-2023-06-15[105151]-j3qb.csv.zst"
+
+----------------------------------------
+Operation: POST
+* Average: 113.06 MiB/s, 226.12 obj/s
+
+Throughput, split into 57 x 1s:
+ * Fastest: 178.4MiB/s, 356.74 obj/s
+ * 50% Median: 113.9MiB/s, 227.76 obj/s
+ * Slowest: 56.3MiB/s, 112.53 obj/s
+warp: Cleanup Done.
+```
+
+The analysis throughput represents the object count and sizes as they are written when extracted.
+
+Request times shown with `--analyze.v` represents request time for each fan-out call.
+
+
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
