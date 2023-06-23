@@ -105,6 +105,20 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					op.Err = err.Error()
 				}
 
+				var firstErr string
+				nErrs := 0
+				for _, r := range res {
+					if r.Error != "" {
+						if firstErr == "" {
+							firstErr = r.Error
+						}
+						nErrs++
+					}
+				}
+				if op.Err == "" && nErrs > 0 {
+					op.Err = fmt.Sprintf("%d copies failed. First error: %v", nErrs, firstErr)
+				}
+
 				if len(res) != u.Copies && op.Err == "" {
 					err := fmt.Sprint("short upload. want:", u.Copies, " copies, got:", len(res))
 					if op.Err == "" {
@@ -112,6 +126,7 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					}
 					u.Error(err)
 				}
+
 				cldone()
 				rcv <- op
 			}
