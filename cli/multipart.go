@@ -79,7 +79,7 @@ FLAGS:
 func mainMultipart(ctx *cli.Context) error {
 	checkMultipartSyntax(ctx)
 	b := bench.Multipart{
-		Common:      getCommon(ctx, newGenSource(ctx, "obj.size")),
+		Common:      getCommon(ctx, newGenSource(ctx, "part.size")),
 		ObjName:     ctx.String("obj.name"),
 		PartStart:   ctx.Int("_part-start"),
 		UploadID:    ctx.String("_upload-id"),
