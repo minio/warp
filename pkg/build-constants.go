@@ -19,13 +19,13 @@ package pkg
 
 var (
 	// Version - the version being released (v prefix stripped)
-	Version = "(dev)"
+	Version = "v0.7.4-without-analyze"
 	// ReleaseTag - the current git tag
-	ReleaseTag = "(no tag)"
+	ReleaseTag = ""
 	// ReleaseTime - current UTC date in RFC3339 format.
-	ReleaseTime = "(no release)"
+	ReleaseTime = ""
 	// CommitID - latest commit id.
-	CommitID = "(dev)"
+	CommitID = ""
 	// ShortCommitID - first 12 characters from CommitID.
-	ShortCommitID = "(dev)"
+	ShortCommitID = ""
 )
