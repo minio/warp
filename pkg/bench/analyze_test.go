@@ -41,7 +41,7 @@ func TestOperations_Segment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for typ, ops := range ops.ByOp() {
+	for typ, ops := range ops.SortSplitByOpType() {
 		segs := ops.Segment(SegmentOptions{
 			From:           time.Time{},
 			PerSegDuration: time.Second,
