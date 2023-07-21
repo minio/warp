@@ -200,7 +200,7 @@ var ioFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "concurrent",
 		Value: 20,
-		Usage: "Run this many concurrent operations",
+		Usage: "Run this many concurrent operations per warp client",
 	},
 	cli.BoolFlag{
 		Name:  "noprefix",
