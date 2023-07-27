@@ -182,6 +182,10 @@ var ioFlags = []cli.Flag{
 		Name:  "encrypt",
 		Usage: "encrypt/decrypt objects (using server-side encryption with random keys)",
 	},
+	cli.BoolFlag{
+		Name:  "sse-s3-encrypt",
+		Usage: "server-side sse-s3 encrypt/decrypt objects",
+	},
 	cli.StringFlag{
 		Name:  "bucket",
 		Value: appName + "-benchmark-bucket",
