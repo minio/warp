@@ -10,11 +10,11 @@ spec:
       restartPolicy: Never
       containers:
       - name: {{ include "warp.fullname" . }}
-        image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+        image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
           - "{{ .Values.warpConfiguration.operationToBenchmark }}"
-          - "--warp-client=warp-{0...{{ sub .Values.replicaCount 1 }}}.warp.{{ .Release.Namespace }}"
+          - "--warp-client={{ include "warp.fullname" . }}-{0...{{ sub .Values.replicaCount 1 }}}.{{ include "warp.fullname" . }}.{{ .Release.Namespace }}"
         {{- range $k, $v := .Values.warpJobArgs }}
           - --{{ $k }}={{ $v }}
         {{- end }}
@@ -28,10 +28,34 @@ spec:
           - name: WARP_REGION
             value: {{ .Values.warpConfiguration.s3ServerRegion | quote }}
           - name: WARP_ACCESS_KEY
-            value: {{ .Values.warpConfiguration.s3AccessKey | quote }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "warp.fullname" . }}-credentials
+                key: access_key
           - name: WARP_SECRET_KEY
-            value: {{ .Values.warpConfiguration.s3SecretKey | quote }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "warp.fullname" . }}-credentials
+                key: secret_key
+      {{- if .Values.serverResources }}
+        resources: {{- toYaml .Values.serverResources | nindent 12 }}
+      {{- end }}
+      {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- end }}
+    {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "warp.serviceAccountName" . }}
+    {{- end }}
+    {{- if .Values.podSecurityContext }}
+      securityContext: {{- .Values.podSecurityContext | toYaml | nindent 8 }}
+    {{- end }}
+    {{- if .Values.affinity }}
+      affinity: {{- .Values.affinity | toYaml | nindent 8 }}
+    {{- end }}
     {{- if .Values.nodeSelector }}
       nodeSelector: {{- .Values.nodeSelector | toYaml | nindent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations: {{- .Values.tolerations | toYaml | nindent 8 }}
     {{- end }}
   backoffLimit: 4
