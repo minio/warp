@@ -37,11 +37,68 @@ type Delete struct {
 
 	CreateObjects int
 	BatchSize     int
+	ListExisting  bool
+	ListFlat      bool
+	ListPrefix    string
 }
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
 func (d *Delete) Prepare(ctx context.Context) error {
+	var groupErr error
+
+	// prepare the bench by listing object from the bucket
+	if d.ListExisting {
+		cl, done := d.Client()
+
+		// ensure the bucket exist
+		found, err := cl.BucketExists(ctx, d.Bucket)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("bucket %s does not exist and --list-existing has been set", d.Bucket)
+		}
+
+		// list all objects
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		objectCh := cl.ListObjects(ctx, d.Bucket, minio.ListObjectsOptions{
+			Prefix:    d.ListPrefix,
+			Recursive: !d.ListFlat,
+		})
+
+		for object := range objectCh {
+			if object.Err != nil {
+				return object.Err
+			}
+			obj := generator.Object{
+				Name: object.Key,
+				Size: object.Size,
+			}
+
+			d.objects = append(d.objects, obj)
+
+			// limit to ListingMaxObjects
+			if d.CreateObjects > 0 && len(d.objects) >= d.CreateObjects {
+				break
+			}
+		}
+		if len(d.objects) == 0 {
+			return (fmt.Errorf("no objects found for bucket %s", d.Bucket))
+		}
+		done()
+		d.Collector = NewCollector()
+
+		// Shuffle objects.
+		// Benchmark will pick from slice in order.
+		a := d.objects
+		rand.Shuffle(len(a), func(i, j int) {
+			a[i], a[j] = a[j], a[i]
+		})
+		return groupErr
+	}
+
 	if err := d.createEmptyBucket(ctx); err != nil {
 		return err
 	}
@@ -57,7 +114,6 @@ func (d *Delete) Prepare(ctx context.Context) error {
 	}
 	close(obj)
 	var mu sync.Mutex
-	var groupErr error
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -217,7 +273,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 // Cleanup deletes everything uploaded to the bucket.
 func (d *Delete) Cleanup(ctx context.Context) {
-	if len(d.objects) > 0 {
+	if len(d.objects) > 0 && !d.ListExisting {
 		d.deleteAllInBucket(ctx, d.objects.Prefixes()...)
 	}
 }
