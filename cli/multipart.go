@@ -101,6 +101,7 @@ func multipartOpts(ctx *cli.Context) minio.PutObjectOptions {
 	return minio.PutObjectOptions{
 		ServerSideEncryption: newSSE(ctx),
 		DisableMultipart:     false,
+		DisableContentSha256: ctx.Bool("disable-sha256-payload"),
 		SendContentMd5:       ctx.Bool("md5"),
 		StorageClass:         ctx.String("storage-class"),
 	}
