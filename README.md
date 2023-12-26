@@ -25,6 +25,7 @@ so it should *not* contain any data.
 If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), 
 you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) 
 of objects using `--encrypt`. A random key will be generated and used for objects.
+To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) encryption use the `--sse-s3-encrypt` flag.
 
 # Usage
 

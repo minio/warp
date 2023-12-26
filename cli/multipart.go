@@ -22,7 +22,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/console"
+	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -101,6 +101,7 @@ func multipartOpts(ctx *cli.Context) minio.PutObjectOptions {
 	return minio.PutObjectOptions{
 		ServerSideEncryption: newSSE(ctx),
 		DisableMultipart:     false,
+		DisableContentSha256: ctx.Bool("disable-sha256-payload"),
 		SendContentMd5:       ctx.Bool("md5"),
 		StorageClass:         ctx.String("storage-class"),
 	}

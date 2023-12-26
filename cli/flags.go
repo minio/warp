@@ -24,7 +24,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
-	"github.com/minio/pkg/console"
+	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/generator"
 )
@@ -182,6 +182,10 @@ var ioFlags = []cli.Flag{
 		Name:  "encrypt",
 		Usage: "encrypt/decrypt objects (using server-side encryption with random keys)",
 	},
+	cli.BoolFlag{
+		Name:  "sse-s3-encrypt",
+		Usage: "server-side sse-s3 encrypt/decrypt objects",
+	},
 	cli.StringFlag{
 		Name:  "bucket",
 		Value: appName + "-benchmark-bucket",
@@ -200,7 +204,7 @@ var ioFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "concurrent",
 		Value: 20,
-		Usage: "Run this many concurrent operations",
+		Usage: "Run this many concurrent operations per warp client",
 	},
 	cli.BoolFlag{
 		Name:  "noprefix",
@@ -213,6 +217,10 @@ var ioFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "disable-multipart",
 		Usage: "disable multipart uploads",
+	},
+	cli.BoolFlag{
+		Name:  "disable-sha256-payload",
+		Usage: "disable calculating sha256 on client side for uploads",
 	},
 	cli.BoolFlag{
 		Name:  "md5",

@@ -29,12 +29,18 @@ var sseKey encrypt.ServerSide
 // newSSE returns a randomly generated key if SSE is requested.
 // Only one key will be generated.
 func newSSE(ctx *cli.Context) encrypt.ServerSide {
-	if !ctx.Bool("encrypt") {
+	if !ctx.Bool("encrypt") && !ctx.Bool("sse-s3-encrypt") {
 		return nil
 	}
 	if sseKey != nil {
 		return sseKey
 	}
+
+	if ctx.Bool("sse-s3-encrypt") {
+		sseKey = encrypt.NewSSE()
+		return sseKey
+	}
+
 	var key [32]byte
 	_, err := rand.Read(key[:])
 	if err != nil {

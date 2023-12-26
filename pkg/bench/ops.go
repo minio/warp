@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/minio/pkg/console"
+	"github.com/minio/pkg/v2/console"
 )
 
 type Operations []Operation
@@ -222,6 +222,25 @@ func (o Operations) SortByEndpoint() {
 	})
 }
 
+// SortByOpType will sort the operations by operation type.
+// Earliest operations first.
+func (o Operations) SortByOpType() {
+	if sort.SliceIsSorted(o, func(i, j int) bool {
+		if o[i].OpType == o[j].OpType {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].OpType < o[j].OpType
+	}) {
+		return
+	}
+	sort.Slice(o, func(i, j int) bool {
+		if o[i].OpType == o[j].OpType {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].OpType < o[j].OpType
+	})
+}
+
 // SortByDuration will sort the operations by duration taken to complete.
 // Fastest operations first.
 func (o Operations) SortByDuration() {
@@ -347,12 +366,26 @@ func (o Operations) SortSplitByEndpoint() map[string]Operations {
 	return dst
 }
 
-// ByOp separates the operations by op.
-func (o Operations) ByOp() map[string]Operations {
-	dst := make(map[string]Operations, 1)
-	for _, o := range o {
-		dst[o.OpType] = append(dst[o.OpType], o)
+// SortSplitByOpType will sort operations by op + start time and split by op.
+func (o Operations) SortSplitByOpType() map[string]Operations {
+	o.SortByOpType()
+	dst := make(map[string]Operations, 5)
+	lastOp := ""
+	start := 0
+	for i, op := range o {
+		if op.OpType == lastOp {
+			continue
+		}
+		if lastOp != "" {
+			dst[lastOp] = o[start:i]
+		}
+		lastOp = op.OpType
+		start = i
 	}
+	if lastOp != "" {
+		dst[lastOp] = o[start:]
+	}
+
 	return dst
 }
 
@@ -827,6 +860,17 @@ func (o Operations) Errors() []string {
 		}
 	}
 	return errs
+}
+
+// NErrors returns the number of errors found.
+func (o Operations) NErrors() int {
+	var n int
+	for _, op := range o {
+		if len(op.Err) != 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // FilterSuccessful returns the successful requests.

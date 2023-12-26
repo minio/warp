@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/console"
+	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -215,7 +215,13 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 		}
 	}()
 
-	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, minio.RemoveObjectsOptions{GovernanceBypass: true})
+	delOpts := minio.RemoveObjectsOptions{}
+	_, _, _, errLock := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
+	if errLock == nil {
+		delOpts.GovernanceBypass = true
+	}
+
+	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, delOpts)
 	for err := range errCh {
 		if err.Err != nil {
 			c.Error(err.Err)

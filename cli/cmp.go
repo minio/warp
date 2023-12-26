@@ -26,7 +26,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
-	"github.com/minio/pkg/console"
+	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -98,15 +98,15 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 		start, end := ops.ActiveTimeRange(!isMultiOp)
 		return end.Sub(start).Round(time.Second)
 	}
-
-	for _, typ := range before.OpTypes() {
+	afterOps := after.SortSplitByOpType()
+	for typ, before := range before.SortSplitByOpType() {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
 			if wantOp != typ {
 				continue
 			}
 		}
-		before := before.FilterByOp(typ)
-		after := after.FilterByOp(typ)
+
+		after := afterOps[typ]
 		console.Println("-------------------")
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Println("Operation:", typ)
@@ -117,7 +117,11 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 			console.Println(err)
 			continue
 		}
-
+		if bErrs, aErrs := before.NErrors(), after.NErrors(); bErrs+aErrs > 0 {
+			console.SetColor("Print", color.New(color.FgHiRed))
+			console.Println("Errors:", bErrs, "->", aErrs)
+			console.SetColor("Print", color.New(color.FgWhite))
+		}
 		if len(before) != len(after) {
 			console.Println("Operations:", len(before), "->", len(after))
 		}
