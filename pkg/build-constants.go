@@ -19,7 +19,7 @@ package pkg
 
 var (
 	// Version - the version being released (v prefix stripped)
-	Version = "v0.7.4-without-analyze"
+	Version = "v0.7.7-without-analyze"
 	// ReleaseTag - the current git tag
 	ReleaseTag = ""
 	// ReleaseTime - current UTC date in RFC3339 format.

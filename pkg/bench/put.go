@@ -23,12 +23,42 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/minio/pkg/console"
+	"github.com/minio/warp/pkg/generator"
 )
 
 // Put benchmarks upload speed.
 type Put struct {
 	Common
-	prefixes map[string]struct{}
+	prefixes      map[string]struct{}
+	CreateObjects int
+}
+
+// PutOpts are options for PutObject.
+type PutOpts struct {
+	objects map[string]generator.Object
+}
+
+func (m *PutOpts) Generate(allocObjs int) error {
+
+	m.objects = make(map[string]generator.Object, allocObjs)
+	for i := 0; i < allocObjs; i++ {
+		obj := generator.Object{
+			Name:        fmt.Sprintf("obj-%d", i),
+			ContentType: "application/octet-stream",
+		}
+		m.objects[obj.Name] = obj
+	}
+	return nil
+}
+
+func (m *PutOpts) Objects() generator.Objects {
+	res := make(generator.Objects, 0, len(m.objects))
+	for _, v := range m.objects {
+		res = append(res, v)
+	}
+	return res
 }
 
 // Prepare will create an empty bucket ot delete any content already there.
@@ -39,7 +69,11 @@ func (u *Put) Prepare(ctx context.Context) error {
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
 func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+	src := u.Source()
 	var wg sync.WaitGroup
+	if u.CreateObjects != 2500 && ctx.Value("duration") != 5*time.Minute {
+		console.Info("\rUploading ", u.CreateObjects*u.Concurrency, " objects of ", src.String())
+	}
 	wg.Add(u.Concurrency)
 	u.addCollector()
 	c := u.Collector
@@ -47,10 +81,14 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
-
+	obj := make(chan struct{}, u.CreateObjects)
+	for i := 0; i < u.CreateObjects; i++ {
+		obj <- struct{}{}
+	}
+	close(obj)
 	// Non-terminating context.
 	nonTerm := context.Background()
-
+	objectcount := 0
 	for i := 0; i < u.Concurrency; i++ {
 		src := u.Source()
 		u.prefixes[src.Prefix()] = struct{}{}
@@ -98,6 +136,10 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				op.Size = res.Size
 				cldone()
 				rcv <- op
+				objectcount++
+				if ctx.Value("duration") != 5*time.Minute && u.CreateObjects != 2500 && objectcount >= u.CreateObjects {
+					return
+				}
 			}
 		}(i)
 	}

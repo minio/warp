@@ -36,6 +36,11 @@ var putFlags = []cli.Flag{
 		Usage:  "Multipart part size. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		Hidden: true,
 	},
+	cli.IntFlag{
+		Name:  "objects",
+		Value: 2500,
+		Usage: "Number of objects to upload.",
+	},
 }
 
 // Put command.
@@ -60,8 +65,10 @@ FLAGS:
 // mainPut is the entry point for cp command.
 func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
+	//err := Generate(ctx.Int("objects") * 2)
 	b := bench.Put{
-		Common: getCommon(ctx, newGenSource(ctx, "obj.size")),
+		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
+		CreateObjects: ctx.Int("objects"),
 	}
 	return runBench(ctx, &b)
 }
