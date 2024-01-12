@@ -114,9 +114,49 @@ func (c *Common) ErrorF(format string, data ...interface{}) {
 	c.Error(fmt.Sprintf(format, data...))
 }
 
+// checkBukectIsEmpty will check if a bucket is empty.
+// If not empty it will ask the user if it should be cleared.
+func (c *Common) checkBucketIsEmpty(ctx context.Context) error {
+	cl, done := c.Client()
+	defer done()
+	listCh := cl.ListObjects(ctx, c.Bucket, minio.ListObjectsOptions{Recursive: true})
+	isEmpty := true
+
+	for obj := range listCh {
+		if obj.Err != nil {
+			return obj.Err
+		}
+		isEmpty = false
+
+		if !isEmpty {
+			break
+		}
+	}
+
+	if !isEmpty {
+		fmt.Printf("\nbucket: %s is not empty. Do you want to continue with cleaning bucket? (y/n)", c.Bucket)
+		var input string
+		_, err := fmt.Scanln(&input)
+		if err != nil {
+			return err
+		}
+		if input == "y" || input == "Y" {
+			return nil
+		}
+		return fmt.Errorf("%s is not empty", c.Bucket)
+	}
+
+	return nil
+}
+
 // createEmptyBucket will create an empty bucket
 // or delete all content if it already exists.
 func (c *Common) createEmptyBucket(ctx context.Context) error {
+	err := c.checkBucketIsEmpty(ctx)
+	if err != nil {
+		return err
+	}
+
 	cl, done := c.Client()
 	defer done()
 	x, err := cl.BucketExists(ctx, c.Bucket)
