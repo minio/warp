@@ -78,6 +78,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 		go func(i int) {
 			defer wg.Done()
 			src := g.Source()
+
 			for range obj {
 				opts := g.PutOpts
 				done := ctx.Done()
@@ -87,6 +88,11 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
@@ -151,6 +157,11 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				operation := g.Dist.getOp()
 				switch operation {
 				case http.MethodGet:

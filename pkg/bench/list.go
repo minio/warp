@@ -93,6 +93,11 @@ func (d *List) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if d.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				// Assure we don't have duplicates
 				for {
@@ -195,6 +200,10 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				case <-done:
 					return
 				default:
+				}
+
+				if d.rpsLimit(ctx) != nil {
+					return
 				}
 
 				prefix := objs[0].Prefix

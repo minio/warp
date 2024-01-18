@@ -104,6 +104,11 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				name := g.ObjName
 				// New input for each version
 				obj := src.Object()
@@ -213,6 +218,11 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				fbr := firstByteRecorder{}
 				part := rng.Intn(len(g.objects))
 				obj := g.objects[part]
