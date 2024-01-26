@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -88,11 +89,27 @@ type serverRequest struct {
 // runServerBenchmark will run a benchmark server if requested.
 // Returns a bool whether clients were specified.
 func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
-	if ctx.String("warp-client") == "" {
-		return false, nil
+	warpClient := ctx.String("warp-client")
+	var hosts []string
+	if warpClient == "" {
+		file := ctx.String("warp-client-file")
+		if file == "" {
+			return false, nil
+		}
+		f, err := os.Open(file)
+		if err != nil {
+			return false, err
+		}
+		scn := bufio.NewScanner(f)
+		for scn.Scan() {
+			hosts = append(hosts, scn.Text())
+		}
+		f.Close()
+	} else {
+		hosts = parseHosts(warpClient, false)
 	}
 
-	conns := newConnections(parseHosts(ctx.String("warp-client"), false))
+	conns := newConnections(hosts)
 	if len(conns.hosts) == 0 {
 		return true, errors.New("no hosts")
 	}
@@ -110,6 +127,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	// Serialize parameters
 	excludeFlags := map[string]struct{}{
 		"warp-client":        {},
+		"warp-client-file":   {},
 		"warp-client-server": {},
 		"serverprof":         {},
 		"autocompletion":     {},

@@ -89,6 +89,10 @@ var benchFlags = []cli.Flag{
 		EnvVar: "",
 		Value:  "",
 	},
+	cli.StringFlag{
+		Name:  "warp-client-file",
+		Usage: "Connect to warp clients from a file",
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
