@@ -252,7 +252,6 @@ func parseHosts(h string, resolveDNS bool) []string {
 				patterns, perr := ellipses.FindEllipsesPatterns(host)
 				if perr != nil {
 					fatalIf(probe.NewError(perr), fmt.Sprintf("Unable to parse host parameter: %s", host))
-					log.Fatal(perr.Error())
 				}
 				for _, lbls := range patterns.Expand() {
 					dst = append(dst, strings.Join(lbls, ""))
@@ -266,7 +265,6 @@ func parseHosts(h string, resolveDNS bool) []string {
 		patterns, perr := ellipses.FindEllipsesPatterns(host)
 		if perr != nil {
 			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
-
 			log.Fatal(perr.Error())
 		}
 		for _, lbls := range patterns.Expand() {
