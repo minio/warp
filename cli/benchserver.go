@@ -117,6 +117,20 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		"syncstart":          {},
 		"analyze.out":        {},
 	}
+	transformFlags := map[string]func(flag cli.Flag) (string, error){
+		// Special handling for hosts, we read files and expand it.
+		"host": func(flag cli.Flag) (string, error) {
+			hostsIn := flag.String()
+			if !strings.Contains(hostsIn, "file:") {
+				return flagToJSON(ctx, flag)
+			}
+			// This is a file, we will read it locally and expand.
+			hosts := parseHosts(hostsIn, false)
+			// Rejoin
+			return strings.Join(hosts, ","), nil
+		},
+	}
+
 	req := serverRequest{
 		Operation: serverReqBenchmark,
 	}
@@ -130,7 +144,11 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		}
 		if ctx.IsSet(flag.GetName()) {
 			var err error
-			req.Benchmark.Flags[flag.GetName()], err = flagToJSON(ctx, flag)
+			if t := transformFlags[flag.GetName()]; t != nil {
+				req.Benchmark.Flags[flag.GetName()], err = t(flag)
+			} else {
+				req.Benchmark.Flags[flag.GetName()], err = flagToJSON(ctx, flag)
+			}
 			if err != nil {
 				return true, err
 			}

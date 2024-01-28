@@ -18,10 +18,11 @@
 package cli
 
 import (
+	"bufio"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"log"
+	"fmt"
 	"math"
 	"math/rand"
 	"net"
@@ -227,14 +228,42 @@ func parseHosts(h string, resolveDNS bool) []string {
 	var dst []string
 	for _, host := range hosts {
 		if !ellipses.HasEllipses(host) {
-			dst = append(dst, host)
+			if !strings.HasPrefix(host, "file:") {
+				dst = append(dst, host)
+				continue
+			}
+			// If host starts with file:, then it is a file containing hosts.
+			f, err := os.Open(strings.TrimPrefix(host, "file:"))
+			if err != nil {
+				fatalIf(probe.NewError(err), "Unable to open host file")
+			}
+			defer f.Close()
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				host := strings.TrimSpace(scanner.Text())
+				if len(host) == 0 {
+					continue
+				}
+				if !ellipses.HasEllipses(host) {
+					dst = append(dst, host)
+					continue
+				}
+				patterns, perr := ellipses.FindEllipsesPatterns(host)
+				if perr != nil {
+					fatalIf(probe.NewError(perr), fmt.Sprintf("Unable to parse host parameter: %s", host))
+				}
+				for _, lbls := range patterns.Expand() {
+					dst = append(dst, strings.Join(lbls, ""))
+				}
+			}
+			if err := scanner.Err(); err != nil {
+				fatalIf(probe.NewError(err), "Unable to read host file")
+			}
 			continue
 		}
 		patterns, perr := ellipses.FindEllipsesPatterns(host)
 		if perr != nil {
 			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
-
-			log.Fatal(perr.Error())
 		}
 		for _, lbls := range patterns.Expand() {
 			dst = append(dst, strings.Join(lbls, ""))
@@ -254,7 +283,6 @@ func parseHosts(h string, resolveDNS bool) []string {
 		ips, err := net.LookupIP(host)
 		if err != nil {
 			fatalIf(probe.NewError(err), "Could not get IPs for "+hostport)
-			log.Fatal(err.Error())
 		}
 		for _, ip := range ips {
 			if port == "" {

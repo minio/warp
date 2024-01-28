@@ -58,6 +58,9 @@ Multiple S3 hosts can be specified as comma-separated values, for instance
 Alternatively numerical ranges can be specified using `--host=10.0.0.{1...10}:9000` which will add 
 `10.0.0.1` through `10.0.0.10`. This syntax can be used for any part of the host name and port.
 
+A file with newline separated hosts can also be specified using `file:` prefix and a file name.
+For distributed tests the file will be read locally and sent to each client.
+
 By default a host is chosen between the hosts that have the least number of requests running 
 and with the longest time since the last request finished. This will ensure that in cases where 
 hosts operate at different speeds that the fastest servers will get the most requests. 
@@ -112,6 +115,7 @@ Each client will also save its own data locally.
 
 Enabling server mode is done by adding `--warp-client=client-{1...10}:7761` 
 or a comma separated list of warp client hosts.
+Finally, a file with newline separated hosts can also be specified using `file:` prefix and a file name.
 If no host port is specified the default is added.
 
 Example:
