@@ -219,6 +219,10 @@ var ioFlags = []cli.Flag{
 		Usage: "disable multipart uploads",
 	},
 	cli.BoolFlag{
+		Name:  "disable-sha256-payload",
+		Usage: "disable calculating sha256 on client side for uploads",
+	},
+	cli.BoolFlag{
 		Name:  "md5",
 		Usage: "Add MD5 sum to uploads",
 	},
