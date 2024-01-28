@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net"
@@ -265,7 +264,6 @@ func parseHosts(h string, resolveDNS bool) []string {
 		patterns, perr := ellipses.FindEllipsesPatterns(host)
 		if perr != nil {
 			fatalIf(probe.NewError(perr), "Unable to parse host parameter")
-			log.Fatal(perr.Error())
 		}
 		for _, lbls := range patterns.Expand() {
 			dst = append(dst, strings.Join(lbls, ""))
@@ -285,7 +283,6 @@ func parseHosts(h string, resolveDNS bool) []string {
 		ips, err := net.LookupIP(host)
 		if err != nil {
 			fatalIf(probe.NewError(err), "Could not get IPs for "+hostport)
-			log.Fatal(err.Error())
 		}
 		for _, ip := range ips {
 			if port == "" {
