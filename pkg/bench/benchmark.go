@@ -28,6 +28,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
+
+	"golang.org/x/time/rate"
 )
 
 type Benchmark interface {
@@ -93,6 +95,9 @@ type Common struct {
 
 	// Does destination support versioning?
 	Versioned bool
+
+	// ratelimiting
+	RpsLimiter *rate.Limiter
 }
 
 const (
@@ -249,4 +254,12 @@ func (c *Common) addCollector() {
 		c.Collector = NewCollector()
 	}
 	c.Collector.extra = c.ExtraOut
+}
+
+func (c *Common) rpsLimit(ctx context.Context) error {
+	if c.RpsLimiter == nil {
+		return nil
+	}
+
+	return c.RpsLimiter.Wait(ctx)
 }

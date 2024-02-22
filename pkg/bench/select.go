@@ -75,6 +75,11 @@ func (g *Select) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				client, cldone := g.Client()
 				op := Operation{
@@ -153,6 +158,11 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()

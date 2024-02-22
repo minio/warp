@@ -73,6 +73,7 @@ func (g *Retention) Prepare(ctx context.Context) error {
 		go func(i int) {
 			defer wg.Done()
 			src := g.Source()
+
 			for range obj {
 				opts := g.PutOpts
 				rcv := g.Collector.Receiver()
@@ -83,6 +84,11 @@ func (g *Retention) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				name := obj.Name
 				for ver := 0; ver < g.Versions; ver++ {
@@ -168,6 +174,11 @@ func (g *Retention) Start(ctx context.Context, wait chan struct{}) (Operations, 
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
