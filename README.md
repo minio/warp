@@ -328,12 +328,17 @@ It is possible by forcing md5 checksums on data by using the `--md5` option.
 
 ## DELETE
 
-Benchmarking delete operations will upload `--objects` objects of size `--obj.size` and attempt to
-delete as many it can within `--duration`.
+Benchmarking delete operations will attempt to delete as many objects it can within `--duration`.
+
+By default, `--objects` objects of size `--obj.size` are uploaded beforing doin the actual bench.
 
 The delete operations are done in `--batch` objects per request in `--concurrent` concurrently running requests.
 
 If there are no more objects left the benchmark will end.
+
+Using `--list-existing` will list at most `--objects` from the bucket and delete them instead of
+deleting random objects (set it to 0 to use all objects from the lsiting).
+Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`.
 
 The analysis will include the upload stats as `PUT` operations and the `DELETE` operations.
 

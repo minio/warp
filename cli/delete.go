@@ -39,6 +39,14 @@ var deleteFlags = []cli.Flag{
 		Value: 100,
 		Usage: "Number of DELETE operations per batch.",
 	},
+	cli.BoolFlag{
+		Name:  "list-existing",
+		Usage: "Instead of preparing the bench by PUTing some objects, only use objects already in the bucket",
+	},
+	cli.BoolFlag{
+		Name:  "list-flat",
+		Usage: "When using --list-existing, do not use recursive listing",
+	},
 }
 
 var deleteCmd = cli.Command{
@@ -68,6 +76,9 @@ func mainDelete(ctx *cli.Context) error {
 		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		CreateObjects: ctx.Int("objects"),
 		BatchSize:     ctx.Int("batch"),
+		ListExisting:  ctx.Bool("list-existing"),
+		ListFlat:      ctx.Bool("list-flat"),
+		ListPrefix:    ctx.String("prefix"),
 	}
 	return runBench(ctx, &b)
 }
