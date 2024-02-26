@@ -94,6 +94,11 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, e
 					return
 				default:
 				}
+
+				if s.rpsLimit(ctx) != nil {
+					return
+				}
+
 				buf.Reset()
 				w := io.Writer(&buf)
 				if s.Compress {

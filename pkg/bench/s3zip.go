@@ -69,6 +69,7 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 				return
 			default:
 			}
+
 			obj := src.Object()
 
 			opts.ContentType = obj.ContentType
@@ -150,6 +151,11 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()

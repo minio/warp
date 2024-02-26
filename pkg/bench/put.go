@@ -67,6 +67,11 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					return
 				default:
 				}
+
+				if u.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				opts.ContentType = obj.ContentType
 				client, cldone := u.Client()

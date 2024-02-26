@@ -118,6 +118,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		go func(i int) {
 			defer wg.Done()
 			src := d.Source()
+
 			for range obj {
 				opts := d.PutOpts
 				rcv := d.Collector.Receiver()
@@ -128,6 +129,11 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if d.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				client, cldone := d.Client()
 				op := Operation{
@@ -211,6 +217,10 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 				case <-done:
 					return
 				default:
+				}
+
+				if d.rpsLimit(ctx) != nil {
+					return
 				}
 
 				// Fetch d.BatchSize objects

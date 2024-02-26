@@ -163,6 +163,11 @@ func (g *Get) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 
 				name := obj.Name
@@ -266,6 +271,11 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					return
 				default:
 				}
+
+				if g.rpsLimit(ctx) != nil {
+					return
+				}
+
 				fbr := firstByteRecorder{}
 				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
