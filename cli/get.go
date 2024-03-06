@@ -43,6 +43,10 @@ var getFlags = []cli.Flag{
 		Value: "10MiB",
 		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 	},
+	cli.StringFlag{
+		Name:  "obj.name",
+		Usage: "Specify an object name",
+	},
 	cli.BoolFlag{
 		Name:  "range",
 		Usage: "Do ranged get operations. Will request with random offset and length.",
@@ -51,7 +55,6 @@ var getFlags = []cli.Flag{
 		Name:  "range-size",
 		Usage: "Use a fixed range size while doing random range offsets with --range",
 	},
-
 	cli.IntFlag{
 		Name:  "versions",
 		Value: 1,

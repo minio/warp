@@ -81,6 +81,7 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 	}
 	opts := []generator.Option{
 		generator.WithCustomPrefix(ctx.String("prefix")),
+		generator.WithCustomName(ctx.String("obj.name")),
 		generator.WithPrefixSize(prefixSize),
 	}
 	tokens := strings.Split(ctx.String(sizeField), ",")
