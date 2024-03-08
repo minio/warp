@@ -24,7 +24,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -75,7 +74,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	var groupErr error
 	var mu sync.Mutex
 	for i := 0; i < g.Concurrency; i++ {
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			src := g.Source()
 
@@ -123,7 +122,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				g.Dist.addObj(*obj)
 				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
 			}
-		}(i)
+		}()
 	}
 	wg.Wait()
 	return groupErr
@@ -339,8 +338,8 @@ func (m *VersionedDistribution) Generate(allocObjs int) error {
 		}
 	}
 	m.rng = rand.New(rand.NewSource(0xabad1dea))
-	sort.Slice(m.ops, func(i, j int) bool {
-		return m.rng.Int63()&1 == 0
+	m.rng.Shuffle(len(m.ops), func(i, j int) {
+		m.ops[i], m.ops[j] = m.ops[j], m.ops[i]
 	})
 	return nil
 }

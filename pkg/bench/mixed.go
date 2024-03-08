@@ -170,7 +170,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 	var groupErr error
 	var mu sync.Mutex
 	for i := 0; i < g.Concurrency; i++ {
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			src := g.Source()
 
@@ -218,7 +218,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				g.Dist.addObj(*obj)
 				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
 			}
-		}(i)
+		}()
 	}
 	wg.Wait()
 	return groupErr
