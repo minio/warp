@@ -70,8 +70,8 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 	// Use blocking write client for writes to desired bucket
 	path := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
 	writeAPI := client.WriteAPI(path[1], path[0])
-	writeAPI.SetWriteFailedCallback(func(batch string, error http.Error, retryAttempts uint) bool {
-		errorIf(probe.NewError(err), "unable to write to influxdb")
+	writeAPI.SetWriteFailedCallback(func(_ string, err http.Error, _ uint) bool {
+		errorIf(probe.NewError(&err), "unable to write to influxdb")
 		return false
 	})
 	ch := make(chan bench.Operation, 10000)

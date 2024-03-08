@@ -167,7 +167,7 @@ func (s *Server) handleAggregated(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	durFn := func(total time.Duration) time.Duration {
+	durFn := func(time.Duration) time.Duration {
 		return segmentDur
 	}
 	s.mu.Lock()
