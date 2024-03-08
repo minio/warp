@@ -193,7 +193,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 			return nil
 		}
 
-		afterExec = func(ctx *cli.Context) error {
+		afterExec = func(_ *cli.Context) error {
 			for _, profile := range profiles {
 				profile.Stop()
 			}
