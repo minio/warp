@@ -43,9 +43,17 @@ var getFlags = []cli.Flag{
 		Value: "10MiB",
 		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 	},
+	cli.StringFlag{
+		Name:  "obj.name",
+		Usage: "Specify an object name",
+	},
 	cli.BoolFlag{
 		Name:  "range",
 		Usage: "Do ranged get operations. Will request with random offset and length.",
+	},
+	cli.StringFlag{
+		Name:  "range-size",
+		Usage: "Use a fixed range size while doing random range offsets with --range",
 	},
 	cli.IntFlag{
 		Name:  "versions",
@@ -75,11 +83,22 @@ FLAGS:
 // mainGet is the entry point for get command.
 func mainGet(ctx *cli.Context) error {
 	checkGetSyntax(ctx)
+
+	var rangeSize int64
+	if rs := ctx.String("range-size"); rs != "" {
+		s, err := toSize(rs)
+		if err != nil {
+			return err
+		}
+		rangeSize = int64(s)
+	}
+
 	sse := newSSE(ctx)
 	b := bench.Get{
 		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		Versions:      ctx.Int("versions"),
 		RandomRanges:  ctx.Bool("range"),
+		RangeSize:     rangeSize,
 		CreateObjects: ctx.Int("objects"),
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 		ListExisting:  ctx.Bool("list-existing"),

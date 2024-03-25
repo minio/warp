@@ -19,6 +19,7 @@ package generator
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 )
 
@@ -27,6 +28,7 @@ import (
 type Options struct {
 	src          func(o Options) (Source, error)
 	customPrefix string
+	customName   string
 	random       RandomOpts
 	csv          CsvOpts
 	minSize      int64
@@ -46,6 +48,16 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 		return o.totalSize
 	}
 	return GetExpRandSize(rng, o.minSize, o.totalSize)
+}
+
+// getSize will return a size for an object.
+func (o Options) getName(counter uint64, rng *rand.Rand) string {
+	if o.customName != "" {
+		return o.customName
+	}
+	var nBuf [16]byte
+	randASCIIBytes(nBuf[:], rng)
+	return fmt.Sprintf("%d.%s.rnd", counter, string(nBuf[:]))
 }
 
 func defaultOptions() Options {
@@ -111,6 +123,14 @@ func WithRandomSize(b bool) Option {
 func WithCustomPrefix(prefix string) Option {
 	return func(o *Options) error {
 		o.customPrefix = prefix
+		return nil
+	}
+}
+
+// WithCustomName adds custom object name
+func WithCustomName(name string) Option {
+	return func(o *Options) error {
+		o.customName = name
 		return nil
 	}
 }
