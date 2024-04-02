@@ -208,6 +208,11 @@ var ioFlags = []cli.Flag{
 		Value: 20,
 		Usage: "Run this many concurrent operations per warp client",
 	},
+	cli.IntFlag{
+		Name:  "sndbuf",
+		Value: 32 * 1024, // 32KiB up from 4KiB default
+		Usage: "specify custom read/write socket buffer size in bytes",
+	},
 	cli.BoolFlag{
 		Name:  "noprefix",
 		Usage: "Do not use separate prefix for each thread",
