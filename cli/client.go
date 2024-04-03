@@ -186,6 +186,8 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 			KeepAlive: 10 * time.Second,
 		}).DialContext,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
+		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
+		ReadBufferSize:        ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   15 * time.Second,
 		ExpectContinueTimeout: 10 * time.Second,
@@ -201,17 +203,14 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 	}
 	if ctx.Bool("tls") {
 		// Keep TLS config.
-		tlsConfig := &tls.Config{
+		tr.TLSClientConfig = &tls.Config{
 			RootCAs: mustGetSystemCertPool(),
 			// Can't use SSLv3 because of POODLE and BEAST
 			// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
 			// Can't use TLSv1.1 because of RC4 cipher usage
-			MinVersion: tls.VersionTLS12,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: ctx.Bool("insecure"),
 		}
-		if ctx.Bool("insecure") {
-			tlsConfig.InsecureSkipVerify = true
-		}
-		tr.TLSClientConfig = tlsConfig
 
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
@@ -312,9 +311,13 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	if len(hosts) == 0 {
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO admin client")
 	}
-	cl, err := madmin.New(hosts[0], ctx.String("access-key"), ctx.String("secret-key"), ctx.Bool("tls"))
+
+	cl, err := madmin.NewWithOptions(hosts[0], &madmin.Options{
+		Creds:     credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ""),
+		Secure:    ctx.Bool("tls"),
+		Transport: clientTransport(ctx),
+	})
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
-	cl.SetCustomTransport(clientTransport(ctx))
 	cl.SetAppInfo(appName, pkg.Version)
 	return cl
 }
