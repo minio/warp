@@ -244,7 +244,7 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		} else {
 			f, err := os.Create(fn)
 			fatalIf(probe.NewError(err), "Unable to create create analysis output")
-			defer console.Println("Aggregated data saved to", fn)
+			defer console.Println("Aggregated data saved to ", fn)
 			defer f.Close()
 			wrSegs = f
 		}
