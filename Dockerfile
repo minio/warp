@@ -1,4 +1,4 @@
-FROM golang:1.18
+FROM golang:1.21
 
 ADD go.mod /go/src/github.com/minio/warp/go.mod
 ADD go.sum /go/src/github.com/minio/warp/go.sum
