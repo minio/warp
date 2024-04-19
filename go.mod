@@ -18,7 +18,7 @@ require (
 	github.com/minio/websocket v1.6.0
 	github.com/posener/complete v1.2.3
 	github.com/secure-io/sio-go v0.3.1
-	golang.org/x/net v0.22.0
+	golang.org/x/net v0.23.0
 	golang.org/x/time v0.5.0
 )
 
