@@ -22,7 +22,7 @@ cd warp && go build
 ```
 - To run a test, please run
 ```
-go run main.go command [options]
+./warp [options]
 ```
 # Configuration
 
