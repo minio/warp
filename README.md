@@ -4,8 +4,26 @@ S3 benchmarking tool.
 
 # Download
 
+## From binary
 [Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
 
+## Build with source
+
+Warp require minimum version is `go1.22`, please ensure you have compatible version for this build. 
+
+You can follow easy step below to build project
+- Clone project
+```
+git clone https://github.com/minio/warp.git
+```
+- Change directory and build
+```
+cd warp && go run main.go
+```
+- To run a test, please run
+```
+go run main.go command [options]
+```
 # Configuration
 
 Warp can be configured either using commandline parameters or environment variables. 
@@ -26,6 +44,8 @@ If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-
 you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) 
 of objects using `--encrypt`. A random key will be generated and used for objects.
 To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) encryption use the `--sse-s3-encrypt` flag.
+
+`S3V4` is default signature to create connect to S3 server. If it not same yours, change it to `S3V2` by `--signature` flag.
 
 # Usage
 
