@@ -45,7 +45,7 @@ you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/lat
 of objects using `--encrypt`. A random key will be generated and used for objects.
 To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) encryption use the `--sse-s3-encrypt` flag.
 
-`S3V4` is default signature to create connect to S3 server. If it not same yours, change it to `S3V2` by `--signature` flag.
+If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) the older v2 signatures can be used with `--signature=S3V2`.
 
 # Usage
 
