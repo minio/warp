@@ -18,7 +18,7 @@ git clone https://github.com/minio/warp.git
 ```
 - Change directory and build
 ```
-cd warp && go run main.go
+cd warp && go build
 ```
 - To run a test, please run
 ```
