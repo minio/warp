@@ -182,19 +182,19 @@ func BenchmarkWithRandomData(b *testing.B) {
 		args args
 	}{
 		{
-			name: "64KB",
+			name: "64KiB",
 			args: args{opts: []Option{WithSize(1 << 16), WithRandomData().Apply()}},
 		},
 		{
-			name: "1MB",
+			name: "1MiB",
 			args: args{opts: []Option{WithSize(1 << 20), WithRandomData().Apply()}},
 		},
 		{
-			name: "10MB",
+			name: "10MiB",
 			args: args{opts: []Option{WithSize(10 << 20), WithRandomData().Apply()}},
 		},
 		{
-			name: "1GB",
+			name: "10GiB",
 			args: args{opts: []Option{WithSize(10 << 30), WithRandomData().Apply()}},
 		},
 	}
