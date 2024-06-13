@@ -43,6 +43,12 @@ var getFlags = []cli.Flag{
 		Value: "10MiB",
 		Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 	},
+	cli.StringFlag{
+		Name:   "part.size",
+		Value:  "",
+		Usage:  "Multipart part size. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+		Hidden: true,
+	},
 	cli.BoolFlag{
 		Name:  "range",
 		Usage: "Do ranged get operations. Will request with random offset and length.",
