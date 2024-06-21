@@ -166,8 +166,8 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 
 	objs := splitObjs(g.CreateObjects, g.Concurrency)
 	var mu sync.Mutex
-	for i, obj := range objs {
-		go func(i int, obj []struct{}) {
+	for _, obj := range objs {
+		go func(obj []struct{}) {
 			defer wg.Done()
 			src := g.Source()
 
@@ -215,7 +215,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				g.Dist.addObj(*obj)
 				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
 			}
-		}(i, obj)
+		}(obj)
 	}
 	wg.Wait()
 	return groupErr
