@@ -27,7 +27,7 @@ var listFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "objects",
 		Value: 10000,
-		Usage: "Number of objects to upload. Rounded to have equal concurrent objects.",
+		Usage: "Number of objects to upload. Rounded up to have equal concurrent objects.",
 	},
 	cli.IntFlag{
 		Name:  "versions",
@@ -83,6 +83,9 @@ func checkListSyntax(ctx *cli.Context) {
 	}
 	if ctx.Int("versions") < 1 {
 		console.Fatal("At least one version must be tested")
+	}
+	if ctx.Int("objects") < 1 {
+		console.Fatal("At least one object must be tested")
 	}
 
 	checkAnalyze(ctx)

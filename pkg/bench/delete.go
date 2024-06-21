@@ -108,14 +108,11 @@ func (d *Delete) Prepare(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	d.addCollector()
-	obj := make(chan struct{}, d.CreateObjects)
-	for i := 0; i < d.CreateObjects; i++ {
-		obj <- struct{}{}
-	}
-	close(obj)
+	objs := splitObjs(d.CreateObjects, d.Concurrency)
+
 	var mu sync.Mutex
-	for i := 0; i < d.Concurrency; i++ {
-		go func(i int) {
+	for i, obj := range objs {
+		go func(i int, obj []struct{}) {
 			defer wg.Done()
 			src := d.Source()
 
@@ -179,7 +176,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				mu.Unlock()
 				rcv <- op
 			}
-		}(i)
+		}(i, obj)
 	}
 	wg.Wait()
 

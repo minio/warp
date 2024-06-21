@@ -125,6 +125,7 @@ func checkMultipartSyntax(ctx *cli.Context) {
 			console.Fatal("part.size must be >= 5MiB")
 		}
 	}
+
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

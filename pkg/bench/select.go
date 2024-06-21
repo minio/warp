@@ -54,15 +54,12 @@ func (g *Select) Prepare(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.addCollector()
-	obj := make(chan struct{}, g.CreateObjects)
-	for i := 0; i < g.CreateObjects; i++ {
-		obj <- struct{}{}
-	}
-	close(obj)
+	objs := splitObjs(g.CreateObjects, g.Concurrency)
+
 	var groupErr error
 	var mu sync.Mutex
-	for i := 0; i < g.Concurrency; i++ {
-		go func(i int) {
+	for i, obj := range objs {
+		go func(i int, obj []struct{}) {
 			defer wg.Done()
 			src := g.Source()
 			for range obj {
@@ -124,7 +121,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 				mu.Unlock()
 				rcv <- op
 			}
-		}(i)
+		}(i, obj)
 	}
 	wg.Wait()
 	return groupErr

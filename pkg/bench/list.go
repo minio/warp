@@ -60,7 +60,7 @@ func (d *List) Prepare(ctx context.Context) error {
 		done()
 	}
 
-	objPerPrefix := d.CreateObjects / d.Concurrency
+	objPerPrefix := (d.CreateObjects + d.Concurrency - 1) / d.Concurrency
 	console.Eraseline()
 	x := ""
 	if d.Versions > 1 {
@@ -224,6 +224,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					Prefix:       objs[0].Prefix,
 					Recursive:    true,
 					WithVersions: d.Versions > 1,
+					MaxKeys:      100,
 				})
 
 				// Wait for errCh to close.

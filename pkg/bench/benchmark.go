@@ -263,3 +263,13 @@ func (c *Common) rpsLimit(ctx context.Context) error {
 
 	return c.RpsLimiter.Wait(ctx)
 }
+
+func splitObjs(objects, concurrency int) [][]struct{} {
+	res := make([][]struct{}, concurrency)
+	// Round up if not cleanly divisible
+	inEach := (objects + concurrency - 1) / concurrency
+	for i := range res {
+		res[i] = make([]struct{}, inEach)
+	}
+	return res
+}
