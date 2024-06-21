@@ -66,15 +66,12 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.addCollector()
-	obj := make(chan struct{}, g.CreateObjects)
-	for i := 0; i < g.CreateObjects; i++ {
-		obj <- struct{}{}
-	}
-	close(obj)
+	objs := splitObjs(g.CreateObjects, g.Concurrency)
+
 	var groupErr error
 	var mu sync.Mutex
-	for i := 0; i < g.Concurrency; i++ {
-		go func() {
+	for _, obj := range objs {
+		go func(obj []struct{}) {
 			defer wg.Done()
 			src := g.Source()
 
@@ -122,7 +119,7 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				g.Dist.addObj(*obj)
 				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
 			}
-		}()
+		}(obj)
 	}
 	wg.Wait()
 	return groupErr

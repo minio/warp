@@ -108,7 +108,9 @@ func checkMixedSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
+	if ctx.Int("objects") < 1 {
+		console.Fatal("At least one object must be tested")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }
