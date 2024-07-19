@@ -55,7 +55,7 @@ var mixedFlags = []cli.Flag{
 	},
 	cli.Float64Flag{
 		Name:  "delete-distrib",
-		Usage: "The amount of DELETE operations. Must be at least the same as PUT.",
+		Usage: "The amount of DELETE operations. Must be same or lower than -put-distrib",
 		Value: 10,
 	},
 }

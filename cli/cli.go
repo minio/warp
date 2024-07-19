@@ -104,6 +104,7 @@ func init() {
 		cmpCmd,
 		mergeCmd,
 		clientCmd,
+		runCmd,
 	}
 	appCmds = append(append(appCmds, a...), b...)
 	benchCmds = a
@@ -214,7 +215,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 	app.Commands = commands
 	app.Author = "MinIO, Inc."
 	app.Version = pkg.Version + " - " + pkg.ShortCommitID
-	app.Copyright = "(c) 2020-2023 MinIO, Inc."
+	app.Copyright = "(c) 2020-2024 MinIO, Inc."
 	app.Compiled, _ = time.Parse(time.RFC3339, pkg.ReleaseTime)
 	app.Flags = append(app.Flags, profileFlags...)
 	app.Flags = append(app.Flags, globalFlags...)

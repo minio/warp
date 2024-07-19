@@ -1,0 +1,192 @@
+warp:
+  api: v1
+
+  # Benchmark to run.
+  # Corresponds to warp [benchmark] command.
+  benchmark: list
+
+  # Do not print any output.
+  quiet: false
+
+  # Disable terminal color output.
+  no-color: false
+
+  # Print results and errors as JSON.
+  json: false
+
+  # Output benchmark+profile data to this file.
+  # By default a unique filename is generated.
+  bench-data:
+
+  # Connect to warp clients and run benchmarks there.
+  # See https://github.com/minio/warp?tab=readme-ov-file#distributed-benchmarking
+  # Can be a single value or a list.
+  warp-client:
+
+  # Run MinIO server profiling during benchmark;
+  # possible values are 'cpu', 'cpuio', 'mem', 'block', 'mutex', 'threads' and 'trace'.
+  # Can be single value or a list.
+  server-profile:
+
+  # Remote host parameters and connection info.
+  remote:
+    # Specify custom region
+    region: us-east-1
+
+    # Access key and Secret key
+    access-key: 'Q3AM3UQ867SPQQA43P2F'
+    secret-key: 'zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG'
+
+    # Specify one or more hosts.
+    # The benchmark will be run against all hosts concurrently.
+    # Multiple servers can be specified with elipsis notation;
+    # for example '10.0.0.{1...10}:9000' specifies 10 hosts.
+    # See more at https://github.com/minio/warp?tab=readme-ov-file#multiple-hosts
+    host:
+      - 'play.min.io'
+
+    # Use TLS for calls.
+    tls: true
+
+    # Allow TLS with unverified certificates.
+    insecure: false
+
+    # Stream benchmark statistics to Influx DB instance.
+    # See more at https://github.com/minio/warp?tab=readme-ov-file#influxdb-output
+    influxdb: ''
+
+    # Bucket to use for benchmark data.
+    #
+    #  CAREFUL:    ALL DATA WILL BE DELETED IN BUCKET!
+    #
+    # By default, 'warp-benchmark-bucket' will be created or used.
+    bucket:
+
+  # params specifies the benchmark parameters.
+  # The fields here depend on the benchmark type.
+  params:
+    # Duration to run the benchmark.
+    # Use 's' and 'm' to specify seconds and minutes.
+    duration: 1m
+
+    # Concurrent operations to run per warp instance.
+    concurrent: 8
+
+    # The number of objects to upload before starting the benchmark.
+    # Upload enough objects to ensure that any remote caching is bypassed.
+    objects: 10000
+
+    # Enable extended MinIO ListObjects with metadata,
+    # by default this benchmarking uses ListObjectsV2 API
+    metadata: false
+
+    # Properties of uploaded objects.
+    obj:
+      # Size of each uploaded object
+      size: 1B
+
+      # Number of versions to upload of each object
+      versions: 2
+
+      # Randomize the size of each object within certain constraints.
+      # See https://github.com/minio/warp?tab=readme-ov-file#random-file-sizes
+      rand-size: false
+
+      # Force specific size of each multipart part.
+      # Must be '5MB' or bigger.
+      part-size:
+
+    # Use automatic termination when traffic stabilizes.
+    # Can not be used with distributed warp setup.
+    # See https://github.com/minio/warp?tab=readme-ov-file#automatic-termination
+    autoterm:
+      enabled: false
+      dur: 10s
+      pct: 7.5
+
+    # Do not clear bucket before or after running benchmarks.
+    no-clear: false
+
+    # Leave benchmark data. Do not run cleanup after benchmark.
+    # Bucket will still be cleaned prior to benchmark.
+    keep-data: false
+
+
+  # The io section specifies custom IO properties for uploaded objects.
+  io:
+    # Use a custom prefix
+    prefix:
+
+    # Do not use separate prefix for each thread
+    no-prefix: false
+
+    # Add MD5 sum to uploads
+    md5: false
+
+    # Disable multipart uploads
+    disable-multipart: false
+
+    # Disable calculating sha256 on client side for uploads
+    disable-sha256-payload: false
+
+    # Server-side sse-s3 encrypt/decrypt objects
+    sse-s3-encrypt: false
+
+    # Encrypt/decrypt objects (using server-side encryption with random keys)
+    sse-c-encrypt: false
+
+    # Override storage class.
+    # Default storage class will be used unless specified.
+    storage-class:
+
+  analyze:
+    # Display additional analysis data.
+    verbose: false
+    # Only output for this host.
+    host: ''
+    # Only output for this operation. Can be 'GET', 'PUT', 'DELETE', etc.
+    filter-op: ''
+    # Split analysis into durations of this length.
+    # Can be '1s', '5s', '1m', etc.
+    segment-duration:
+    # Output aggregated data as to file.
+    out:
+    # Additional time duration to skip when analyzing data.
+    skip-duration:
+    # Max operations to load for analysis.
+    limit:
+    # Skip this number of operations before starting analysis.
+    offset:
+
+  advanced:
+    # Stress test only and discard output.
+    stress: false
+
+    # Print requests.
+    debug: false
+
+    # Disable HTTP Keep-Alive
+    disable-http-keepalive: false
+
+    # Enable HTTP2 support if server supports it
+    http2: false
+
+    # Rate limit each instance to this number of requests per second
+    rps-limit:
+
+    # Host selection algorithm.
+    # Can be 'weighed' or 'roundrobin'
+    host-select: weighed
+
+    # "Resolve the host(s) ip(s) (including multiple A/AAAA records).
+    # This can break SSL certificates, use --insecure if so
+    resolve-host: false
+
+    # Specify custom write socket buffer size in bytes
+    sndbuf: 32768
+
+    # Specify custom read socket buffer size in bytes
+    rcvbuf: 32768
+
+    # When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762
+    serve:
