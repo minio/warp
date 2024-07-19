@@ -78,6 +78,9 @@ func mainExec(ctx *cli.Context) error {
 		replacements := make(map[string]string)
 		for _, v := range vars {
 			idx := strings.Index(v, "=")
+			if idx <= 0 {
+				fatal(probe.NewError(fmt.Errorf("unable to parse %q", v)), "unable to parse --var")
+			}
 			name := v[:idx]
 			replacements[name] = v[idx+1:]
 		}
@@ -153,7 +156,7 @@ func mainExec(ctx *cli.Context) error {
 
 	var prefixStack []string
 	var currDept []string
-	var flags = map[string]string{}
+	flags := map[string]string{}
 	setFlag := func(key string, value any) {
 		name := strings.Join(append(prefixStack, key), ".")
 		ogName := strings.Join(append(currDept, key), ".")
