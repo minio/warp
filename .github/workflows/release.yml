@@ -27,21 +27,21 @@ jobs:
           args: release --clean --skip=publish --snapshot
       -
         name: Upload Win64 Binaries
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-Win64
           path: dist/warp_windows_amd64_v1
       -
         name: Upload Linux Binaries
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-Linux-amd64
           path: dist/warp_linux_amd64_v1
       -
         name: Upload MacOS Binaries
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-MacOSX-amd64
