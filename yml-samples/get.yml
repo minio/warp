@@ -109,6 +109,7 @@ warp:
 
     # Instead of preparing the bench by PUTing some objects,
     # only use objects already in the bucket.
+    # If 'objects' is set > 0 this will limit the number of objects.
     # Does not perform any deletes before or after benchmark.
     list-existing: false
 
