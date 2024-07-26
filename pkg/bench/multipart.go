@@ -80,8 +80,11 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	g.addCollector()
-	objs := splitObjs(g.CreateParts, g.Concurrency)
-
+	obj := make(chan int, g.CreateParts)
+	for i := 0; i < g.CreateParts; i++ {
+		obj <- i + g.PartStart
+	}
+	close(obj)
 	rcv := g.Collector.rcv
 	var groupErr error
 	var mu sync.Mutex
@@ -89,8 +92,8 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 	if g.Custom == nil {
 		g.Custom = make(map[string]string, g.CreateParts)
 	}
-	for i, obj := range objs {
-		go func(i int, obj []struct{}) {
+	for i := 0; i < g.Concurrency; i++ {
+		go func(i int) {
 			defer wg.Done()
 			src := g.Source()
 			opts := g.PutOpts
@@ -161,7 +164,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 				mu.Unlock()
 				rcv <- op
 			}
-		}(i, obj)
+		}(i)
 	}
 	wg.Wait()
 	return groupErr

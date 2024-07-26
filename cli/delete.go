@@ -80,6 +80,9 @@ func mainDelete(ctx *cli.Context) error {
 		ListFlat:      ctx.Bool("list-flat"),
 		ListPrefix:    ctx.String("prefix"),
 	}
+	if b.ListExisting && !ctx.IsSet("objects") {
+		b.CreateObjects = 0
+	}
 	return runBench(ctx, &b)
 }
 

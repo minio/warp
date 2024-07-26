@@ -134,6 +134,12 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 		}
 
 		eps := o.SortSplitByEndpoint()
+		if len(eps) == 1 {
+			cl := ops.SortSplitByClient()
+			if len(cl) > 1 {
+				eps = cl
+			}
+		}
 		a.MixedThroughputByHost = make(map[string]Throughput, len(eps))
 		var wg sync.WaitGroup
 		var mu sync.Mutex
@@ -229,6 +235,12 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			}
 
 			eps := allOps.SortSplitByEndpoint()
+			if len(eps) == 1 {
+				cl := ops.SortSplitByClient()
+				if len(cl) > 1 {
+					eps = cl
+				}
+			}
 			a.ThroughputByHost = make(map[string]Throughput, len(eps))
 			var epMu sync.Mutex
 			var epWg sync.WaitGroup

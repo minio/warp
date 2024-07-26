@@ -99,7 +99,7 @@ func WithSize(n int64) Option {
 // WithRandomSize will randomize the size from 1 byte to the total size set.
 func WithRandomSize(b bool) Option {
 	return func(o *Options) error {
-		if o.totalSize > 0 && o.totalSize < 256 {
+		if b && o.totalSize > 0 && o.totalSize < 256 {
 			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
 		}
 		o.randSize = b

@@ -233,13 +233,21 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 	res.fillFirstLast(o)
 	res.HostNames = o.Endpoints()
 	res.ByHost = RequestAnalysisHostsSingleSized(o)
-
+	if len(res.HostNames) != len(res.ByHost) {
+		res.HostNames = o.ClientIDs()
+	}
 	return &res
 }
 
 // RequestAnalysisHostsSingleSized performs host analysis where all objects have equal size.
 func RequestAnalysisHostsSingleSized(o bench.Operations) map[string]SingleSizedRequests {
 	eps := o.SortSplitByEndpoint()
+	if len(eps) == 1 {
+		cl := o.SortSplitByClient()
+		if len(cl) > 1 {
+			eps = cl
+		}
+	}
 	res := make(map[string]SingleSizedRequests, len(eps))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -276,6 +284,9 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 	res.fill(active)
 	res.ByHost = RequestAnalysisHostsMultiSized(active)
 	res.HostNames = active.Endpoints()
+	if len(res.HostNames) != len(res.ByHost) {
+		res.HostNames = o.ClientIDs()
+	}
 	return &res
 }
 
@@ -283,6 +294,12 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 func RequestAnalysisHostsMultiSized(o bench.Operations) map[string]RequestSizeRange {
 	start, end := o.TimeRange()
 	eps := o.SortSplitByEndpoint()
+	if len(eps) == 1 {
+		cl := o.SortSplitByClient()
+		if len(cl) > 1 {
+			eps = cl
+		}
+	}
 	res := make(map[string]RequestSizeRange, len(eps))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
