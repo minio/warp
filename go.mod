@@ -13,7 +13,7 @@ require (
 	github.com/minio/madmin-go/v3 v3.0.51
 	github.com/minio/mc v0.0.0-20240513163111-b46cf3c417f6
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.70
+	github.com/minio/minio-go/v7 v7.0.75-0.20240805152911-fd0e50784915
 	github.com/minio/pkg/v2 v2.0.19
 	github.com/minio/websocket v1.6.0
 	github.com/posener/complete v1.2.3
@@ -71,5 +71,3 @@ require (
 	golang.org/x/text v0.16.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 )
-
-replace github.com/minio/minio-go/v7 => github.com/klauspost/minio-go/v7 v7.0.0-20240805091306-15b5b5441312
