@@ -187,7 +187,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		}).DialContext,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
-		ReadBufferSize:        ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
+		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   15 * time.Second,
 		ExpectContinueTimeout: 10 * time.Second,

@@ -222,6 +222,25 @@ func (o Operations) SortByEndpoint() {
 	})
 }
 
+// SortByClient will sort the operations by client.
+// Earliest operations first.
+func (o Operations) SortByClient() {
+	if sort.SliceIsSorted(o, func(i, j int) bool {
+		if o[i].ClientID == o[j].ClientID {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].ClientID < o[j].ClientID
+	}) {
+		return
+	}
+	sort.Slice(o, func(i, j int) bool {
+		if o[i].ClientID == o[j].ClientID {
+			return o[i].Start.Before(o[j].Start)
+		}
+		return o[i].ClientID < o[j].ClientID
+	})
+}
+
 // SortByOpType will sort the operations by operation type.
 // Earliest operations first.
 func (o Operations) SortByOpType() {
@@ -361,6 +380,30 @@ func (o Operations) SortSplitByEndpoint() map[string]Operations {
 	}
 	if ep != "" {
 		dst[ep] = o[start:]
+	}
+
+	return dst
+}
+
+// SortSplitByClient will sort operations by endpoint and split by host.
+func (o Operations) SortSplitByClient() map[string]Operations {
+	clients := o.Clients()
+	o.SortByClient()
+	dst := make(map[string]Operations, clients)
+	cl := ""
+	start := 0
+	for i, op := range o {
+		if op.ClientID == cl {
+			continue
+		}
+		if cl != "" {
+			dst[cl] = o[start:i]
+		}
+		cl = op.ClientID
+		start = i
+	}
+	if cl != "" {
+		dst[cl] = o[start:]
 	}
 
 	return dst
@@ -842,6 +885,22 @@ func (o Operations) Endpoints() []string {
 	}
 	dst := make([]string, 0, len(endpoints))
 	for k := range endpoints {
+		dst = append(dst, k)
+	}
+	sort.Strings(dst)
+	return dst
+}
+
+func (o Operations) ClientIDs() []string {
+	if len(o) == 0 {
+		return nil
+	}
+	found := make(map[string]struct{}, 1)
+	for _, op := range o {
+		found[op.ClientID] = struct{}{}
+	}
+	dst := make([]string, 0, len(found))
+	for k := range found {
 		dst = append(dst, k)
 	}
 	sort.Strings(dst)

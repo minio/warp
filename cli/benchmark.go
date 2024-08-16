@@ -515,6 +515,8 @@ func checkBenchmark(ctx *cli.Context) {
 		madmin.ProfilerBlock,
 		madmin.ProfilerMutex,
 		madmin.ProfilerTrace,
+		madmin.ProfilerCPUIO,
+		madmin.ProfilerThreads,
 	}
 
 	_, err := parseInfluxURL(ctx)

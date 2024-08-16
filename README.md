@@ -9,20 +9,20 @@ S3 benchmarking tool.
 
 ## Build with source
 
-Warp require minimum version is `go1.22`, please ensure you have compatible version for this build. 
+Warp requires minimum Go `go1.21`, please ensure you have compatible version for this build. 
 
 You can follow easy step below to build project
 - Clone project
 ```
-git clone https://github.com/minio/warp.git
+λ git clone https://github.com/minio/warp.git
 ```
 - Change directory and build
 ```
-cd warp && go build
+λ cd warp && go build
 ```
 - To run a test, please run
 ```
-./warp [options]
+λ ./warp [options]
 ```
 # Configuration
 
@@ -49,14 +49,27 @@ If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.
 
 # Usage
 
-`warp command [options]`
+`λ warp command [options]`
 
 Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8` 
 on port 9000 with the provided keys: 
 
-`warp mixed --host=s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
+`λ warp mixed --host=s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
 
 This will run the benchmark for up to 5 minutes and print the results.
+
+## YAML configuration
+
+As an alternative configuration option you can use an on-disk YAML configuration file.
+
+See [yml-samples](https://github.com/minio/warp/tree/master/yml-samples) for a collection of
+configuration files for each benchmark type.
+
+To run a benchmark use `λ warp run <file.yml>`.
+
+Values can be injected from the commandline using one or multiple `-var VarName=Value`. 
+These values can be referenced inside YAML files with `{{.VarName}}`. 
+Go [text templates](https://pkg.go.dev/text/template) are used for this.
 
 # Benchmarks
 
@@ -110,7 +123,7 @@ WARNING: Never run warp clients on a publicly exposed port. Clients have the pot
 Clients are started with
 
 ```
-warp client [listenaddress:port]
+λ warp client [listenaddress:port]
 ```
 
 `warp client` Only accepts an optional host/ip to listen on, but otherwise no specific parameters.
@@ -141,7 +154,7 @@ If no host port is specified the default is added.
 Example:
 
 ```
-warp get --duration=3m --warp-client=client-{1...10} --host=minio-server-{1...16} --access-key=minio --secret-key=minio123
+λ warp get --duration=3m --warp-client=client-{1...10} --host=minio-server-{1...16} --access-key=minio --secret-key=minio123
 ```
 
 Note that parameters apply to *each* client. 
@@ -309,8 +322,6 @@ will attempt to run `--concurrent` concurrent downloads.
 
 The analysis will include the upload stats as `PUT` operations and the `GET` operations.
 
-
-
 ```
 Operation: GET
 * Average: 94.10 MiB/s, 9866.97 obj/s
@@ -407,7 +418,7 @@ Since the object size is of little importance, only objects per second is report
 
 Example:
 ```
-$ warp stat --autoterm
+λ warp stat --autoterm
 [...]
 -------------------
 Operation: STAT
@@ -735,7 +746,7 @@ These are the data fields exported:
 | `ops_started`       | Operations started within segment                                                                 |
 | `ops_ended`         | Operations ended within the segment                                                               |
 | `errors`            | Errors logged on operations ending within the segment                                             |
-| `mb_per_sec`        | MiB/s of operations within the segment (*distributed*)                                             |
+| `mb_per_sec`        | MiB/s of operations within the segment (*distributed*)                                            |
 | `ops_ended_per_sec` | Operations that ended within the segment per second                                               |
 | `objs_per_sec`      | Objects per second processed in the segment (*distributed*)                                       |
 | `start_time`        | Absolute start time of the segment                                                                |
@@ -783,7 +794,7 @@ The usual analysis parameters can be applied to define segment lengths.
 
 ## Merging Benchmarks
 
-It is possible to merge runs from several clients using the `warp merge (file1) (file2) [additional files...]` command.
+It is possible to merge runs from several clients using the `λ warp merge (file1) (file2) [additional files...]` command.
 
 The command will output a combined data file with all data that overlap in time.
 

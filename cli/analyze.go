@@ -424,6 +424,12 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 
 	// Write segments per endpoint
 	eps := ops.SortSplitByEndpoint()
+	if len(eps) == 1 {
+		cl := ops.SortSplitByClient()
+		if len(cl) > 1 {
+			eps = cl
+		}
+	}
 	epsSorted := stringKeysSorted(eps)
 	if details && len(eps) > 1 {
 		for _, ep := range epsSorted {

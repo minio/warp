@@ -105,10 +105,10 @@ var globalWG sync.WaitGroup
 
 // Set global states. NOTE: It is deliberately kept monolithic to ensure we dont miss out any flags.
 func setGlobalsFromContext(ctx *cli.Context) error {
-	quiet := ctx.IsSet("quiet")
-	debug := ctx.IsSet("debug")
-	json := ctx.IsSet("json")
-	noColor := ctx.IsSet("no-color")
+	quiet := ctx.Bool("quiet")
+	debug := ctx.Bool("debug")
+	json := ctx.Bool("json")
+	noColor := ctx.Bool("no-color")
 	setGlobals(quiet, debug, json, noColor)
 	return nil
 }
@@ -209,9 +209,16 @@ var ioFlags = []cli.Flag{
 		Usage: "Run this many concurrent operations per warp client",
 	},
 	cli.IntFlag{
-		Name:  "sndbuf",
-		Value: 32 * 1024, // 32KiB up from 4KiB default
-		Usage: "specify custom read/write socket buffer size in bytes",
+		Name:   "sndbuf",
+		Value:  32 * 1024, // 32KiB up from 4KiB default
+		Usage:  "specify custom write socket buffer size in bytes",
+		Hidden: true,
+	},
+	cli.IntFlag{
+		Name:   "rcvbuf",
+		Value:  32 * 1024, // 32KiB up from 4KiB default
+		Usage:  "specify custom read socket buffer size in bytes",
+		Hidden: true,
 	},
 	cli.BoolFlag{
 		Name:  "noprefix",
