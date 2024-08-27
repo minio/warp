@@ -80,7 +80,6 @@ dockers:
     dockerfile: Dockerfile.release
   - image_templates:
       - "quay.io/minio/warp:{{ .Tag }}-amd64"
-      - "minio/warp:{{ .Tag }}-amd64"
     use: buildx
     goarch: amd64
     ids:
@@ -90,7 +89,6 @@ dockers:
       - "--platform=linux/amd64"
   - image_templates:
       - "quay.io/minio/warp:{{ .Tag }}-arm64"
-      - "minio/warp:{{ .Tag }}-arm64"
     use: buildx
     goarch: arm64
     ids:
@@ -100,7 +98,6 @@ dockers:
       - "--platform=linux/arm64"
   - image_templates:
       - "quay.io/minio/warp:latest-amd64"
-      - "minio/warp:latest-amd64"
     use: buildx
     goarch: amd64
     ids:
@@ -110,7 +107,6 @@ dockers:
       - "--platform=linux/amd64"
   - image_templates:
       - "quay.io/minio/warp:latest-arm64"
-      - "minio/warp:latest-arm64"
     use: buildx
     goarch: arm64
     ids:
@@ -119,7 +115,42 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
 
-
+  - image_templates:
+      - "minio/warp:{{ .Tag }}-amd64"
+    use: buildx
+    goarch: amd64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "minio/warp:{{ .Tag }}-arm64"
+    use: buildx
+    goarch: arm64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/arm64"
+  - image_templates:
+      - "minio/warp:latest-amd64"
+    use: buildx
+    goarch: amd64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "minio/warp:latest-arm64"
+    use: buildx
+    goarch: arm64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/arm64"
 docker_manifests:
   - name_template: minio/warp:{{ .Tag }}
     image_templates:
