@@ -72,6 +72,15 @@ nfpms:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
 dockers:
+  -
+    # GOOS of the built binary that should be used.
+    goos: linux
+    # GOARCH of the built binary that should be used.
+    goarch: amd64
+    dockerfile: Dockerfile.release
+    image_templates:
+      - "minio/warp:{{ .Tag }}"
+      - "minio/warp:latest"
   - image_templates:
       - "quay.io/minio/warp:{{ .Tag }}-amd64"
     use: buildx
