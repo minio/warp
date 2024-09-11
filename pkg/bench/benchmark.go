@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"time"
 
@@ -98,6 +99,9 @@ type Common struct {
 
 	// ratelimiting
 	RpsLimiter *rate.Limiter
+
+	// Transport used.
+	Transport http.RoundTripper
 }
 
 const (

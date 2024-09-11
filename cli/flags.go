@@ -300,5 +300,6 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		DiscardOutput: ctx.Bool("stress"),
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
+		Transport:     clientTransport(ctx),
 	}
 }

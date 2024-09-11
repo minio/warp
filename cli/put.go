@@ -36,6 +36,10 @@ var putFlags = []cli.Flag{
 		Usage:  "Multipart part size. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
 		Hidden: true,
 	},
+	cli.BoolFlag{
+		Name:  "post",
+		Usage: "Use PostObject for upload. Will force single part upload",
+	},
 }
 
 // Put command.
@@ -61,7 +65,8 @@ FLAGS:
 func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
 	b := bench.Put{
-		Common: getCommon(ctx, newGenSource(ctx, "obj.size")),
+		Common:     getCommon(ctx, newGenSource(ctx, "obj.size")),
+		PostObject: ctx.Bool("post"),
 	}
 	return runBench(ctx, &b)
 }
