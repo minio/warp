@@ -129,7 +129,8 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 
 				opts.ContentType = obj.ContentType
 				mpopts := minio.PutObjectPartOptions{
-					SSE: g.Common.PutOpts.ServerSideEncryption,
+					SSE:                  g.Common.PutOpts.ServerSideEncryption,
+					DisableContentSha256: g.PutOpts.DisableContentSha256,
 				}
 				op.Start = time.Now()
 				res, err := core.PutObjectPart(ctx, g.Bucket, obj.Name, g.UploadID, partN, obj.Reader, obj.Size, mpopts)

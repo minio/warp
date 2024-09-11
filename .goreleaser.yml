@@ -78,6 +78,56 @@ dockers:
     # GOARCH of the built binary that should be used.
     goarch: amd64
     dockerfile: Dockerfile.release
+  - image_templates:
+      - "quay.io/minio/warp:{{ .Tag }}-amd64"
+    use: buildx
+    goarch: amd64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "quay.io/minio/warp:{{ .Tag }}-arm64"
+    use: buildx
+    goarch: arm64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/arm64"
+  - image_templates:
+      - "minio/warp:{{ .Tag }}-amd64"
+    use: buildx
+    goarch: amd64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "minio/warp:{{ .Tag }}-arm64"
+    use: buildx
+    goarch: arm64
+    ids:
+      - warp
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/arm64"
+docker_manifests:
+  - name_template: minio/warp:{{ .Tag }}
     image_templates:
-      - "minio/warp:{{ .Tag }}"
-      - "minio/warp:latest"
+      - minio/warp:{{ .Tag }}-amd64
+      - minio/warp:{{ .Tag }}-arm64
+  - name_template: minio/warp:latest
+    image_templates:
+      - minio/warp:{{ .Tag }}-amd64
+      - minio/warp:{{ .Tag }}-arm64
+  - name_template: quay.io/minio/warp:{{ .Tag }}
+    image_templates:
+      - quay.io/minio/warp:{{ .Tag }}-amd64
+      - quay.io/minio/warp:{{ .Tag }}-arm64
+  - name_template: quay.io/minio/warp:latest
+    image_templates:
+      - quay.io/minio/warp:{{ .Tag }}-amd64
+      - quay.io/minio/warp:{{ .Tag }}-arm64
