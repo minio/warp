@@ -19,20 +19,33 @@ package bench
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/warp/pkg/generator"
 )
 
 // Put benchmarks upload speed.
 type Put struct {
 	Common
-	prefixes map[string]struct{}
+	PostObject bool
+	prefixes   map[string]struct{}
+	cl         *http.Client
 }
 
 // Prepare will create an empty bucket ot delete any content already there.
 func (u *Put) Prepare(ctx context.Context) error {
+	if u.PostObject {
+		u.cl = &http.Client{
+			Transport: u.Transport,
+		}
+	}
 	return u.createEmptyBucket(ctx)
 }
 
@@ -85,7 +98,19 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 
 				op.Start = time.Now()
-				res, err := client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				var err error
+				var res minio.UploadInfo
+				if !u.PostObject {
+					res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				} else {
+					op.OpType = http.MethodPost
+					var verID string
+					verID, err = u.postPolicy(ctx, client, u.Bucket, obj)
+					if err == nil {
+						res.Size = obj.Size
+						res.VersionID = verID
+					}
+				}
 				op.End = time.Now()
 				if err != nil {
 					u.Error("upload error: ", err)
@@ -117,4 +142,66 @@ func (u *Put) Cleanup(ctx context.Context) {
 		pf = append(pf, p)
 	}
 	u.deleteAllInBucket(ctx, pf...)
+}
+
+// postPolicy will upload using https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html API.
+func (u *Put) postPolicy(ctx context.Context, c *minio.Client, bucket string, obj *generator.Object) (versionID string, err error) {
+	pp := minio.NewPostPolicy()
+	pp.SetEncryption(u.PutOpts.ServerSideEncryption)
+	err = errors.Join(
+		pp.SetContentType(obj.ContentType),
+		pp.SetBucket(bucket),
+		pp.SetKey(obj.Name),
+		pp.SetContentLengthRange(obj.Size, obj.Size),
+		pp.SetExpires(time.Now().Add(24*time.Hour)),
+	)
+	if err != nil {
+		return "", err
+	}
+	url, form, err := c.PresignedPostPolicy(ctx, pp)
+	if err != nil {
+		return "", err
+	}
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	writer := multipart.NewWriter(pw)
+	go func() {
+		for k, v := range form {
+			if err := writer.WriteField(k, v); err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
+		ff, err := writer.CreateFormFile("file", obj.Name)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		_, err = io.Copy(ff, obj.Reader)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		pw.CloseWithError(writer.Close())
+	}()
+
+	req, err := http.NewRequest(http.MethodPost, url.String(), pr)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// make POST request with form data
+	resp, err := u.cl.Do(req)
+	if err != nil {
+		return "", err
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: (%d) %s", resp.StatusCode, resp.Status)
+	}
+
+	return resp.Header.Get("x-amz-version-id"), nil
 }

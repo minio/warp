@@ -72,6 +72,9 @@ warp:
     # Concurrent operations to run per warp instance.
     concurrent: 8
 
+    # Use POST Object operations for upload.
+    post: false
+
     # Properties of uploaded objects.
     obj:
       # Size of each uploaded object

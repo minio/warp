@@ -357,6 +357,8 @@ Throughput, split into 59 x 1s:
 
 It is possible by forcing md5 checksums on data by using the `--md5` option. 
 
+To test [POST Object](https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html) operations use `-post` parameter.
+
 ## DELETE
 
 Benchmarking delete operations will attempt to delete as many objects it can within `--duration`.
