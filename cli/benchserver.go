@@ -21,6 +21,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -321,6 +323,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 	for {
 		req.ClientIdx = i
 		conn := c.ws[i]
+		conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		err := conn.WriteJSON(req)
 		if err != nil {
 			c.errLn(err)
@@ -329,6 +332,8 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 			}
 			return nil, err
 		}
+		// Replies can be bigger, use longer deadline.
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		var resp clientReply
 		err = conn.ReadJSON(&resp)
 		if err != nil {
@@ -345,6 +350,13 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 // connect to a client.
 func (c *connections) connect(i int) error {
 	tries := 0
+	dialer := &websocket.Dialer{
+		NetDial: func(network, addr string) (net.Conn, error) {
+			return net.DialTimeout(network, addr, time.Second)
+		},
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: 2 * time.Second,
+	}
 	for {
 		err := func() error {
 			host := c.hosts[i]
@@ -354,7 +366,7 @@ func (c *connections) connect(i int) error {
 			u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
 			c.info("Connecting to ", u.String())
 			var err error
-			c.ws[i], _, err = websocket.DefaultDialer.Dial(u.String(), nil)
+			c.ws[i], _, err = dialer.Dial(u.String(), nil)
 			if err != nil {
 				return err
 			}
