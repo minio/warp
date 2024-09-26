@@ -20,8 +20,10 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 	"strings"
 	"sync"
+	"os/exec"
 	"unicode"
 
 	"github.com/cheggaaa/pb"
@@ -67,7 +69,28 @@ func printError(data ...interface{}) {
 	} else {
 		data = append(data, "\n")
 	}
-	console.Errorln(data...)
+	//put the timestamp in an interface so we can combine it with the actual error message
+	timestamp := []interface{}{time.Now().Format(time.DateTime)}
+	data = append(timestamp, data)
+	console.Errorln( data...)
+	if len(globalFailCmd) > 0 {
+		console.Info(fmt.Sprintf("Executing %s\r", globalFailCmd))
+
+		//cmd := exec.Command( globalExitOnFailCmd)
+		//err := cmd.Run()
+		out, err := exec.Command( globalFailCmd).Output()
+		if err != nil {
+			console.Info(fmt.Sprintf("Unable to run %s: err %s\r", globalFailCmd, err))
+		} else {
+			console.Info(fmt.Sprintf("Successfully ran %s: output\n %s\r", globalFailCmd, out))
+		}
+
+	}
+
+	if globalExitOnFailure {
+		console.Fatalln(fmt.Sprintf("Exiting on first error due to cli request"))
+	}
+
 }
 
 // fatalIf wrapper function which takes error and selectively prints stack frames if available on debug

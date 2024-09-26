@@ -59,6 +59,18 @@ var globalFlags = []cli.Flag{
 		Name:  "autocompletion",
 		Usage: "install auto-completion for your shell",
 	},
+	cli.BoolFlag{
+		Name:   "exitonfail",
+		Usage:  "exit the program immediately on any failure",
+		Hidden: false,
+	},
+	cli.StringFlag{
+		Name:   "failcmd",
+		Usage:  "A command to execute when a failure is detected. Generally this is 'cut traces'",
+		Value:  "",
+		Hidden: false,
+	},
+
 }
 
 var profileFlags = []cli.Flag{
@@ -109,17 +121,20 @@ func setGlobalsFromContext(ctx *cli.Context) error {
 	debug := ctx.Bool("debug")
 	json := ctx.Bool("json")
 	noColor := ctx.Bool("no-color")
-	setGlobals(quiet, debug, json, noColor)
+	exitonfail := ctx.IsSet("exitonfail")
+	failcmd := ctx.String("failcmd")
+	setGlobals(quiet, debug, json, noColor, exitonfail, failcmd)
 	return nil
 }
 
 // Set global states. NOTE: It is deliberately kept monolithic to ensure we dont miss out any flags.
-func setGlobals(quiet, debug, json, noColor bool) {
+func setGlobals(quiet, debug, json, noColor, exitOnFail bool, failCmd string) {
 	globalQuiet = globalQuiet || quiet
 	globalDebug = globalDebug || debug
 	globalJSON = globalJSON || json
 	globalNoColor = globalNoColor || noColor
-
+	globalExitOnFailure = globalExitOnFailure || exitOnFail
+	globalFailCmd = failCmd
 	// Disable colorified messages if requested.
 	if globalNoColor || globalQuiet {
 		console.SetColorOff()

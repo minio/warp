@@ -43,6 +43,9 @@ var (
 	globalJSON    = false // Json flag set via command line
 	globalDebug   = false // Debug flag set via command line
 	globalNoColor = false // No Color flag set via command line
+	globalExitOnFailure   = false // exit on first failure, set via command line
+	globalFailCmd = "" // script to run on a failure, set via command line
+
 )
 
 const (
