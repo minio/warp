@@ -147,7 +147,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
-					err := fmt.Errorf("upload error: %w", err)
+					err := fmt.Errorf("upload error in PutObject: %w, filename %s bucket %s", err, obj.Name, d.Bucket)
 					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -159,7 +159,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 				obj.VersionID = res.VersionID
 
 				if res.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
+					err := fmt.Errorf("short upload. want: %d, got %d. filename %s bucket %s", obj.Size, res.Size, obj.Name, d.Bucket)
 					d.Error(err)
 					mu.Lock()
 					if groupErr == nil {
@@ -264,7 +264,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 						break
 					}
 					if err.Err != nil {
-						d.Error(err.Err)
+						d.Error( fmt.Sprintf("Error removing objects from bucket %s. Error %w", d.Bucket, err))
 						op.Err = err.Err.Error()
 					}
 				}
