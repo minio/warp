@@ -90,7 +90,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, g.Bucket(), obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -174,7 +174,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 				op.Start = time.Now()
 				var err error
-				o, err := client.SelectObjectContent(nonTerm, g.Bucket, obj.Name, opts)
+				o, err := client.SelectObjectContent(nonTerm, g.Bucket(), obj.Name, opts)
 				fbr.r = o
 				if err != nil {
 					g.Error("download error: ", err)

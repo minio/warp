@@ -188,7 +188,7 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
-				res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, g.Bucket(), obj.Name, obj.Reader, obj.Size, opts)
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					g.Error(err)
@@ -273,7 +273,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					op.Start = time.Now()
 					var err error
 					getOpts.VersionID = obj.VersionID
-					o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, getOpts)
+					o, err := client.GetObject(nonTerm, g.Bucket(), obj.Name, getOpts)
 					fbr.r = o
 					if err != nil {
 						g.Error("download error:", err)
@@ -313,7 +313,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 						Endpoint: client.EndpointURL().String(),
 					}
 					op.Start = time.Now()
-					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
+					res, err := client.PutObject(nonTerm, g.Bucket(), obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
 					if err != nil {
 						g.Error("upload error:", err)
@@ -346,7 +346,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 
 					op.Start = time.Now()
-					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
+					err := client.RemoveObject(nonTerm, g.Bucket(), obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
 					op.End = time.Now()
 					clDone()
 					if err != nil {
@@ -367,7 +367,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 					}
 					op.Start = time.Now()
 					var err error
-					objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, statOpts)
+					objI, err := client.StatObject(nonTerm, g.Bucket(), obj.Name, statOpts)
 					if err != nil {
 						g.Error("stat error: ", err)
 						op.Err = err.Error()
