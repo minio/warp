@@ -52,18 +52,18 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		cl, done := d.Client()
 
 		// ensure the bucket exist
-		found, err := cl.BucketExists(ctx, d.Bucket)
+		found, err := cl.BucketExists(ctx, d.Bucket())
 		if err != nil {
 			return err
 		}
 		if !found {
-			return fmt.Errorf("bucket %s does not exist and --list-existing has been set", d.Bucket)
+			return fmt.Errorf("bucket %s does not exist and --list-existing has been set", d.Bucket())
 		}
 
 		// list all objects
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		objectCh := cl.ListObjects(ctx, d.Bucket, minio.ListObjectsOptions{
+		objectCh := cl.ListObjects(ctx, d.Bucket(), minio.ListObjectsOptions{
 			Prefix:    d.ListPrefix,
 			Recursive: !d.ListFlat,
 		})
@@ -85,7 +85,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 			}
 		}
 		if len(d.objects) == 0 {
-			return (fmt.Errorf("no objects found for bucket %s", d.Bucket))
+			return (fmt.Errorf("no objects found for bucket %s", d.Bucket()))
 		}
 		done()
 		d.Collector = NewCollector()
@@ -144,7 +144,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 
 				opts.ContentType = obj.ContentType
 				op.Start = time.Now()
-				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+				res, err := client.PutObject(ctx, d.Bucket(), obj.Name, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error in PutObject: %w, filename %s bucket %s", err, obj.Name, d.Bucket)
@@ -255,7 +255,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 
 				op.Start = time.Now()
 				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
+				errCh := client.RemoveObjects(nonTerm, d.Bucket(), objects, minio.RemoveObjectsOptions{})
 
 				// Wait for errCh to close.
 				for {

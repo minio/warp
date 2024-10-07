@@ -208,6 +208,10 @@ var ioFlags = []cli.Flag{
 		Value: appName + "-benchmark-bucket",
 		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
 	},
+	cli.BoolFlag{
+		Name:  "bucket-per-client",
+		Usage: "For distributed benchmarking, give each client a unique bucket",
+	},
 	cli.StringFlag{
 		Name:  "host-select",
 		Value: string(hostSelectTypeWeighed),
@@ -305,11 +309,29 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
 	}
 
+	var bucketFunc func() string
+	if ctx.Bool("bucket-per-client") {
+		host, err := os.Hostname()
+		if err != nil {
+			fatalIf(probe.NewError(err), "unable to get client hostname")
+		}
+		bucketName := fmt.Sprintf("%s-%s", ctx.String("bucket"), host)
+
+		bucketFunc = func() string {
+			return bucketName
+		}
+	} else {
+		bucketName := ctx.String("bucket")
+		bucketFunc = func() string {
+			return bucketName
+		}
+	}
+
 	return bench.Common{
 		Client:        newClient(ctx),
 		Concurrency:   ctx.Int("concurrent"),
 		Source:        src,
-		Bucket:        ctx.String("bucket"),
+		Bucket:        bucketFunc,
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts(ctx),
 		DiscardOutput: ctx.Bool("stress"),

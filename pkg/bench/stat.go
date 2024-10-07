@@ -50,7 +50,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 	if g.Versions > 1 {
 		cl, done := g.Client()
 		if !g.Versioned {
-			err := cl.EnableVersioning(ctx, g.Bucket)
+			err := cl.EnableVersioning(ctx, g.Bucket())
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 
 					opts.ContentType = obj.ContentType
 					op.Start = time.Now()
-					res, err := client.PutObject(ctx, g.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					res, err := client.PutObject(ctx, g.Bucket(), obj.Name, obj.Reader, obj.Size, opts)
 					op.End = time.Now()
 					if err != nil {
 						err := fmt.Errorf("upload error: %w", err)
@@ -195,7 +195,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				if g.Versions > 1 {
 					opts.VersionID = obj.VersionID
 				}
-				objI, err := client.StatObject(nonTerm, g.Bucket, obj.Name, opts)
+				objI, err := client.StatObject(nonTerm, g.Bucket(), obj.Name, opts)
 				if err != nil {
 					g.Error("StatObject error: ", err)
 					op.Err = err.Error()

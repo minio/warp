@@ -102,13 +102,13 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 
 	// TODO: Add header to index.
 	// g.PutOpts.Set("x-minio-extract", "true")
-	_, err := client.PutObject(ctx, g.Bucket, g.ZipObjName, pr, -1, g.PutOpts)
+	_, err := client.PutObject(ctx, g.Bucket(), g.ZipObjName, pr, -1, g.PutOpts)
 	pr.CloseWithError(err)
 	if err == nil {
 		var opts minio.GetObjectOptions
 		opts.Set("x-minio-extract", "true")
 
-		oi, err2 := client.GetObject(ctx, g.Bucket, path.Join(g.ZipObjName, g.objects[0].Name), opts)
+		oi, err2 := client.GetObject(ctx, g.Bucket(), path.Join(g.ZipObjName, g.objects[0].Name), opts)
 		if err2 != nil {
 			err = err2
 		}
@@ -171,7 +171,7 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 				op.Start = time.Now()
 				opts.Set("x-minio-extract", "true")
 
-				o, err := client.GetObject(nonTerm, g.Bucket, op.File, opts)
+				o, err := client.GetObject(nonTerm, g.Bucket(), op.File, opts)
 				if err != nil {
 					g.Error("download error:", err)
 					op.Err = err.Error()

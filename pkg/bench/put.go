@@ -101,11 +101,11 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				var err error
 				var res minio.UploadInfo
 				if !u.PostObject {
-					res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					res, err = client.PutObject(nonTerm, u.Bucket(), obj.Name, obj.Reader, obj.Size, opts)
 				} else {
 					op.OpType = http.MethodPost
 					var verID string
-					verID, err = u.postPolicy(ctx, client, u.Bucket, obj)
+					verID, err = u.postPolicy(ctx, client, u.Bucket(), obj)
 					if err == nil {
 						res.Size = obj.Size
 						res.VersionID = verID
