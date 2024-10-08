@@ -236,7 +236,7 @@ func (a aggregatedStats) point(op bench.Operation, noAggregate bool) *write.Poin
 	p := influxdb2.NewPointWithMeasurement("warp")
 	p.AddTag("op", op.OpType)
 
-	if !noAggregate {
+	if noAggregate {
 		p.AddField("requests", 1)
 		p.AddField("objects", op.ObjPerOp)
 		p.AddField("bytes_total", op.Size)
@@ -249,6 +249,7 @@ func (a aggregatedStats) point(op bench.Operation, noAggregate bool) *write.Poin
 			errs = 1
 		}
 		p.AddField("errors", errs)
+		p.SetTime(op.End)
 	} else {
 		p.AddField("requests", a.ops)
 		p.AddField("objects", a.objects)
