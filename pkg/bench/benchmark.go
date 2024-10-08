@@ -71,7 +71,8 @@ type Common struct {
 	Collector *Collector
 
 	Location string
-	Bucket   string
+	// Function to return the bucket name
+	Bucket func() string
 
 	// Auto termination is set when this is > 0.
 	AutoTermDur time.Duration
@@ -128,24 +129,24 @@ func (c *Common) ErrorF(format string, data ...interface{}) {
 func (c *Common) createEmptyBucket(ctx context.Context) error {
 	cl, done := c.Client()
 	defer done()
-	x, err := cl.BucketExists(ctx, c.Bucket)
+	x, err := cl.BucketExists(ctx, c.Bucket())
 	if err != nil {
 		return err
 	}
 
 	if x && c.Locking {
-		_, _, _, err := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
+		_, _, _, err := cl.GetBucketObjectLockConfig(ctx, c.Bucket())
 		if err != nil {
 			if !c.Clear {
 				return errors.New("not allowed to clear bucket to re-create bucket with locking")
 			}
-			if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
+			if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket()); err == nil {
 				c.Versioned = bvc.Status == "Enabled"
 			}
 			console.Eraseline()
-			console.Infof("\rClearing Bucket %q to enable locking...", c.Bucket)
+			console.Infof("\rClearing Bucket %q to enable locking...", c.Bucket())
 			c.deleteAllInBucket(ctx)
-			err = cl.RemoveBucket(ctx, c.Bucket)
+			err = cl.RemoveBucket(ctx, c.Bucket())
 			if err != nil {
 				return err
 			}
@@ -156,8 +157,8 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 
 	if !x {
 		console.Eraseline()
-		console.Infof("\rCreating Bucket %q...", c.Bucket)
-		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
+		console.Infof("\rCreating Bucket %q...", c.Bucket())
+		err := cl.MakeBucket(ctx, c.Bucket(), minio.MakeBucketOptions{
 			Region:        c.Location,
 			ObjectLocking: c.Locking,
 		})
@@ -165,7 +166,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 		// Check if it exists now.
 		// We don't test against a specific error since we might run against many different servers.
 		if err != nil {
-			x, err2 := cl.BucketExists(ctx, c.Bucket)
+			x, err2 := cl.BucketExists(ctx, c.Bucket())
 			if err2 != nil {
 				return err2
 			}
@@ -175,13 +176,13 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 			}
 		}
 	}
-	if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
+	if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket()); err == nil {
 		c.Versioned = bvc.Status == "Enabled"
 	}
 
 	if c.Clear {
 		console.Eraseline()
-		console.Infof("\rClearing Bucket %q...", c.Bucket)
+		console.Infof("\rClearing Bucket %q...", c.Bucket())
 		c.deleteAllInBucket(ctx)
 	}
 	return nil
@@ -212,7 +213,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			if prefix != "" {
 				opts.Prefix = prefix + "/"
 			}
-			for object := range cl.ListObjects(ctx, c.Bucket, opts) {
+			for object := range cl.ListObjects(ctx, c.Bucket(), opts) {
 				if object.Err != nil {
 					c.Error(object.Err)
 					return
@@ -220,17 +221,17 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 				objectsCh <- object
 			}
 			console.Eraseline()
-			console.Infof("\rClearing Prefix %q...", strings.Join([]string{c.Bucket, opts.Prefix}, "/"))
+			console.Infof("\rClearing Prefix %q...", strings.Join([]string{c.Bucket(), opts.Prefix}, "/"))
 		}
 	}()
 
 	delOpts := minio.RemoveObjectsOptions{}
-	_, _, _, errLock := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
+	_, _, _, errLock := cl.GetBucketObjectLockConfig(ctx, c.Bucket())
 	if errLock == nil {
 		delOpts.GovernanceBypass = true
 	}
 
-	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, delOpts)
+	errCh := cl.RemoveObjects(ctx, c.Bucket(), objectsCh, delOpts)
 	for err := range errCh {
 		if err.Err != nil {
 			c.Error(err.Err)

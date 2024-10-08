@@ -58,7 +58,7 @@ func (g *Multipart) InitOnce(ctx context.Context) error {
 	cl, done := g.Client()
 	c := minio.Core{Client: cl}
 	defer done()
-	uploadID, err := c.NewMultipartUpload(ctx, g.Bucket, g.ObjName, g.PutOpts)
+	uploadID, err := c.NewMultipartUpload(ctx, g.Bucket(), g.ObjName, g.PutOpts)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 					DisableContentSha256: g.PutOpts.DisableContentSha256,
 				}
 				op.Start = time.Now()
-				res, err := core.PutObjectPart(ctx, g.Bucket, obj.Name, g.UploadID, partN, obj.Reader, obj.Size, mpopts)
+				res, err := core.PutObjectPart(ctx, g.Bucket(), obj.Name, g.UploadID, partN, obj.Reader, obj.Size, mpopts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
@@ -187,7 +187,7 @@ func (g *Multipart) AfterPrepare(ctx context.Context) error {
 	}
 	console.Eraseline()
 	console.Infof("\rCompleting Object with %d parts...", len(parts))
-	_, err := c.CompleteMultipartUpload(ctx, g.Bucket, g.ObjName, g.UploadID, parts, g.PutOpts)
+	_, err := c.CompleteMultipartUpload(ctx, g.Bucket(), g.ObjName, g.UploadID, parts, g.PutOpts)
 	return err
 }
 
@@ -240,7 +240,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 
 				op.Start = time.Now()
 				opts.PartNumber = part
-				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
+				o, err := client.GetObject(nonTerm, g.Bucket(), obj.Name, opts)
 				if err != nil {
 					g.Error("download error:", err)
 					op.Err = err.Error()
