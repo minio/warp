@@ -102,7 +102,12 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		b.GetCommon().ClientIdx = ab.clientIdx
 		return runClientBenchmark(ctx, b, ab)
 	}
+
 	if done, err := runServerBenchmark(ctx, b); done || err != nil {
+		// Close all extra output channels so the benchmark will terminate
+		for _, out := range b.GetCommon().ExtraOut {
+			close(out)
+		}
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
