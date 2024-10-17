@@ -417,7 +417,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	}
 
 	segs.SortByTime()
-	err := segs.CSV(wrSegs)
+	err := segs.CSV(wrSegs, "")
 	errorIf(probe.NewError(err), "Error writing analysis")
 	start := segs[0].Start
 	wantSegs := len(segs)
@@ -425,7 +425,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 	// Write segments per endpoint
 	eps := ops.SortSplitByEndpoint()
 	if len(eps) == 1 {
-		cl := ops.SortSplitByClient()
+		cl := ops.SortSplitByClient("client_")
 		if len(cl) > 1 {
 			eps = cl
 		}
@@ -452,7 +452,7 @@ func writeSegs(ctx *cli.Context, wrSegs io.Writer, ops bench.Operations, allThre
 				segs.SortByObjsPerSec()
 			}
 			segs.SortByTime()
-			err := segs.CSV(wrSegs)
+			err := segs.CSV(wrSegs, ep)
 			errorIf(probe.NewError(err), "Error writing analysis")
 		}
 	}

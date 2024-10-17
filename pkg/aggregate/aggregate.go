@@ -25,6 +25,9 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+// Prefix used, when all host names are the same, but multiple clients were used.
+var clientAsHostPrefix = "Client_"
+
 // Aggregated contains aggregated data for a single benchmark run.
 type Aggregated struct {
 	// MixedServerStats and MixedThroughputByHost is populated only when data is mixed.
@@ -135,7 +138,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 
 		eps := o.SortSplitByEndpoint()
 		if len(eps) == 1 {
-			cl := ops.SortSplitByClient()
+			cl := ops.SortSplitByClient(clientAsHostPrefix)
 			if len(cl) > 1 {
 				eps = cl
 			}
@@ -236,8 +239,9 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 
 			eps := allOps.SortSplitByEndpoint()
 			if len(eps) == 1 {
-				cl := ops.SortSplitByClient()
+				cl := ops.SortSplitByClient(clientAsHostPrefix)
 				if len(cl) > 1 {
+					a.HostNames = ops.ClientIDs(clientAsHostPrefix)
 					eps = cl
 				}
 			}
