@@ -27,6 +27,8 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/warp/pkg/generator"
+
+	hist "github.com/jfsmig/prng/histogram"
 )
 
 var genFlags = []cli.Flag{
@@ -83,28 +85,38 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		generator.WithCustomPrefix(ctx.String("prefix")),
 		generator.WithPrefixSize(prefixSize),
 	}
-	tokens := strings.Split(ctx.String(sizeField), ",")
-	switch len(tokens) {
-	case 1:
-		size, err := toSize(tokens[0])
-		if err != nil {
-			fatalIf(probe.NewError(err), "Invalid obj.size specified")
+	if strings.IndexRune(ctx.String(sizeField), ':') > 0 {
+		if _, err := hist.ParseCSV(ctx.String(sizeField)); err != nil {
+			fatalIf(probe.NewError(err), "Invalid histogram format for the size parameter")
+		} else {
+			opts = append(opts, generator.WithSizeHistograms(ctx.String(sizeField)))
 		}
-		opts = append(opts, generator.WithSize(int64(size)))
-	case 2:
-		minSize, err := toSize(tokens[0])
-		if err != nil {
-			fatalIf(probe.NewError(err), "Invalid min obj.size specified")
+	} else {
+		tokens := strings.Split(ctx.String(sizeField), ",")
+		switch len(tokens) {
+		case 1:
+			size, err := toSize(tokens[0])
+			if err != nil {
+				fatalIf(probe.NewError(err), "Invalid obj.size specified")
+			}
+			opts = append(opts, generator.WithSize(int64(size)))
+		case 2:
+			minSize, err := toSize(tokens[0])
+			if err != nil {
+				fatalIf(probe.NewError(err), "Invalid min obj.size specified")
+			}
+			maxSize, err := toSize(tokens[1])
+			if err != nil {
+				fatalIf(probe.NewError(err), "Invalid max obj.size specified")
+			}
+			opts = append(opts, generator.WithMinMaxSize(int64(minSize), int64(maxSize)))
+		default:
+			fatalIf(probe.NewError(fmt.Errorf("unexpected obj.size specified: %s", ctx.String(sizeField))), "Invalid obj.size parameter")
 		}
-		maxSize, err := toSize(tokens[1])
-		if err != nil {
-			fatalIf(probe.NewError(err), "Invalid max obj.size specified")
-		}
-		opts = append(opts, generator.WithMinMaxSize(int64(minSize), int64(maxSize)))
-	default:
-		fatalIf(probe.NewError(fmt.Errorf("unexpected obj.size specified: %s", ctx.String(sizeField))), "Invalid obj.size parameter")
+
+		opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
 	}
-	opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
+
 	src, err := generator.NewFn(opts...)
 	fatalIf(probe.NewError(err), "Unable to create data generator")
 	return src

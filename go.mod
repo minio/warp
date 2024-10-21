@@ -8,6 +8,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.17.0
 	github.com/influxdata/influxdb-client-go/v2 v2.13.0
+	github.com/jfsmig/prng v0.0.2
 	github.com/klauspost/compress v1.17.9
 	github.com/minio/cli v1.24.2
 	github.com/minio/madmin-go/v3 v3.0.51
