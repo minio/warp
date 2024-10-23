@@ -189,6 +189,8 @@ By default warp uploads random data.
 
 ### Object Size
 
+#### Fixed File Size
+
 Most benchmarks use the `--obj.size` parameter to decide the size of objects to upload.
 
 Different benchmark types will have different default values.
@@ -240,6 +242,20 @@ Throughput, split into 29 x 1s:
 The average object size will be close to `--obj.size` multiplied by 0.179151. 
 
 To get a value for `--obj.size` multiply the desired average object size by 5.582 to get a maximum value. 
+
+#### Bucketed File Size
+
+The `--obj.size` parameter accepts a string value whose format can describe size buckets.
+The usage of that format activates the options of bucketed file sizes and preempts a possible activation
+of random files sizes via `--obj.randsize`.
+
+The format of the string is a coma-separated of colon-separated pairs, describing buckets and their respective weights.
+Within each bucket, the size distribution is uniform.
+
+E.g.: the value `4096:10740,8192:1685,16384:1623` will trigger objects whose size will be chosen
+between 0 and 4096 with a weight of 10740, between 4096 and 8192 with a weight of 1685,
+or between 8192 and 16384 with a weight of 1623.
+
 
 ## Automatic Termination
 Adding `--autoterm` parameter will enable automatic termination when results are considered stable. 
