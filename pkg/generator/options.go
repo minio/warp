@@ -20,6 +20,8 @@ package generator
 import (
 	"errors"
 	"math/rand"
+
+	hist "github.com/jfsmig/prng/histogram"
 )
 
 // Options provides options.
@@ -33,6 +35,10 @@ type Options struct {
 	totalSize    int64
 	randomPrefix int
 	randSize     bool
+
+	// Activates the use of a distribution of sizes
+	flagSizesDistribution bool
+	sizesDistribution     hist.Int64Distribution
 }
 
 // OptionApplier allows to abstract generator options.
@@ -42,6 +48,9 @@ type OptionApplier interface {
 
 // getSize will return a size for an object.
 func (o Options) getSize(rng *rand.Rand) int64 {
+	if o.flagSizesDistribution {
+		return o.sizesDistribution.Poll(rng)
+	}
 	if !o.randSize {
 		return o.totalSize
 	}
@@ -59,20 +68,32 @@ func defaultOptions() Options {
 	return o
 }
 
+func WithSizeHistograms(encoded string) Option {
+	return func(o *Options) error {
+		var err error
+		o.sizesDistribution, err = hist.ParseCSV(encoded)
+		if err != nil {
+			return err
+		}
+		o.flagSizesDistribution = true
+		return nil
+	}
+}
+
 // WithMinMaxSize sets the min and max size of the generated data.
 func WithMinMaxSize(min, max int64) Option {
 	return func(o *Options) error {
 		if min <= 0 {
-			return errors.New("WithSize: minSize must be >= 0")
+			return errors.New("WithMinMaxSize: minSize must be >= 0")
 		}
 		if max < 0 {
-			return errors.New("WithSize: maxSize must be > 0")
+			return errors.New("WithMinMaxSize: maxSize must be > 0")
 		}
 		if min > max {
-			return errors.New("WithSize: minSize must be < maxSize")
+			return errors.New("WithMinMaxSize: minSize must be < maxSize")
 		}
 		if o.randSize && max < 256 {
-			return errors.New("WithSize: random sized objects should be at least 256 bytes")
+			return errors.New("WithMinMaxSize: random sized objects should be at least 256 bytes")
 		}
 
 		o.totalSize = max

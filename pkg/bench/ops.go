@@ -386,7 +386,7 @@ func (o Operations) SortSplitByEndpoint() map[string]Operations {
 }
 
 // SortSplitByClient will sort operations by endpoint and split by host.
-func (o Operations) SortSplitByClient() map[string]Operations {
+func (o Operations) SortSplitByClient(prefix string) map[string]Operations {
 	clients := o.Clients()
 	o.SortByClient()
 	dst := make(map[string]Operations, clients)
@@ -404,6 +404,13 @@ func (o Operations) SortSplitByClient() map[string]Operations {
 	}
 	if cl != "" {
 		dst[cl] = o[start:]
+	}
+	if prefix != "" {
+		dst2 := make(map[string]Operations, len(dst))
+		for k, v := range dst {
+			dst2[prefix+k] = v
+		}
+		return dst2
 	}
 
 	return dst
@@ -891,7 +898,7 @@ func (o Operations) Endpoints() []string {
 	return dst
 }
 
-func (o Operations) ClientIDs() []string {
+func (o Operations) ClientIDs(prefix string) []string {
 	if len(o) == 0 {
 		return nil
 	}
@@ -901,7 +908,7 @@ func (o Operations) ClientIDs() []string {
 	}
 	dst := make([]string, 0, len(found))
 	for k := range found {
-		dst = append(dst, k)
+		dst = append(dst, prefix+k)
 	}
 	sort.Strings(dst)
 	return dst
