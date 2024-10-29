@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,14 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 	}
 	tags["warp_id"] = pRandASCII(8)
 
+	// Tag with the hostname of the client.
+	// Useful to ensure clients are performing the same.
+	hostname, err := os.Hostname()
+	if err != nil {
+		fatalIf(probe.NewError(err), "unable to determine hostname")
+	}
+	tags["client"] = hostname
+
 	// Create a new client using an InfluxDB server base URL and an authentication token
 	serverURL := u.Scheme + "://" + u.Host
 	client := influxdb2.NewClientWithOptions(serverURL, token, influxdb2.DefaultOptions().SetMaxRetryTime(1000).SetMaxRetries(2))
@@ -74,6 +83,9 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 		errorIf(probe.NewError(&err), "unable to write to influxdb")
 		return false
 	})
+
+	noAggregate := ctx.Bool("no-aggregate")
+
 	ch := make(chan bench.Operation, 10000)
 	wg.Add(1)
 	go func() {
@@ -101,8 +113,8 @@ func newInfluxDB(ctx *cli.Context, wg *sync.WaitGroup) chan<- bench.Operation {
 			host[op.OpType] = hostStats
 
 			// Send
-			pTot := total.point(op)
-			pHost := hostStats.point(op)
+			pTot := total.point(op, noAggregate)
+			pHost := hostStats.point(op, noAggregate)
 
 			for key, tag := range tags {
 				pTot.AddTag(key, tag)
@@ -220,16 +232,33 @@ func (a *aggregatedStats) add(o bench.Operation) {
 	}
 }
 
-func (a aggregatedStats) point(op bench.Operation) *write.Point {
+func (a aggregatedStats) point(op bench.Operation, noAggregate bool) *write.Point {
 	p := influxdb2.NewPointWithMeasurement("warp")
 	p.AddTag("op", op.OpType)
-	p.AddField("requests", a.ops)
-	p.AddField("objects", a.objects)
-	p.AddField("bytes_total", a.bytes)
-	p.AddField("errors", a.errors)
-	p.AddField("request_total_secs", float64(a.reqDur)/float64(time.Second))
-	if a.ttfb > 0 {
-		p.AddField("request_ttfb_total_secs", float64(a.ttfb)/float64(time.Second))
+
+	if noAggregate {
+		p.AddField("requests", 1)
+		p.AddField("objects", op.ObjPerOp)
+		p.AddField("bytes_total", op.Size)
+		p.AddField("request_total_secs", float64(op.End.Sub(op.Start))/float64(time.Second))
+		if op.FirstByte != nil {
+			p.AddField("request_ttfb_avg_secs", float64(op.FirstByte.Sub(op.Start))/float64(time.Second))
+		}
+		errs := 0
+		if op.Err != "" {
+			errs = 1
+		}
+		p.AddField("errors", errs)
+		p.SetTime(op.End)
+	} else {
+		p.AddField("requests", a.ops)
+		p.AddField("objects", a.objects)
+		p.AddField("bytes_total", a.bytes)
+		p.AddField("errors", a.errors)
+		p.AddField("request_total_secs", float64(a.reqDur)/float64(time.Second))
+		if a.ttfb > 0 {
+			p.AddField("request_ttfb_total_secs", float64(a.ttfb)/float64(time.Second))
+		}
 	}
 	return p
 }

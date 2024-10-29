@@ -70,7 +70,6 @@ var globalFlags = []cli.Flag{
 		Value:  "",
 		Hidden: false,
 	},
-
 }
 
 var profileFlags = []cli.Flag{
@@ -282,6 +281,10 @@ var ioFlags = []cli.Flag{
 		Name:   "influxdb",
 		EnvVar: appNameUC + "_INFLUXDB_CONNECT",
 		Usage:  "Send operations to InfluxDB. Specify as 'http://<token>@<hostname>:<port>/<bucket>/<org>'",
+	},
+	cli.BoolFlag{
+		Name:  "no-aggregate",
+		Usage: "disable aggregation of results when sending to InfluxDB",
 	},
 	cli.Float64Flag{
 		Name:  "rps-limit",
