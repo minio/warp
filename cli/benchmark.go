@@ -246,32 +246,38 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	<-pgDone
 
 	// Previous context is canceled, create a new...
-	monitor.InfoLn("Saving benchmark data...")
 	ctx2 = context.Background()
 	ops.SortByStartTime()
 	ops.SetClientID(cID)
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
 
+	var wg sync.WaitGroup
 	if len(ops) > 0 {
-		f, err := os.Create(fileName + ".csv.zst")
-		if err != nil {
-			monitor.Errorln("Unable to write benchmark data:", err)
-		} else {
-			func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			f, err := os.Create(fileName + ".csv.zst")
+			if err != nil {
+				monitor.Errorln("Unable to write benchmark data:", err)
+			} else {
 				defer f.Close()
+
 				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
-
 				defer enc.Close()
-				err = ops.CSV(enc, commandLine(ctx))
-				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
-			}()
-		}
+				fatalIf(probe.NewError(ops.CSV(enc, commandLine(ctx))), "Unable to write benchmark output")
+			}
+		}()
 	}
+
 	monitor.OperationsReady(ops, fileName, commandLine(ctx))
 	printAnalysis(ctx, ops)
+
+	monitor.InfoLn(fmt.Sprintf("Saving benchmark data to... '%q'\n", fileName+".csv.zst"))
+	wg.Wait()
+	monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		monitor.InfoLn("Starting cleanup...")
 		b.Cleanup(context.Background())
