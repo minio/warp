@@ -97,10 +97,8 @@ func (g *Get) Prepare(ctx context.Context) error {
 					if version >= g.Versions {
 						continue
 					}
-					versions[object.Key]++
-				} else {
-					versions[object.Key] = 1
 				}
+				versions[object.Key]++
 				obj.VersionID = object.VersionID
 			}
 
