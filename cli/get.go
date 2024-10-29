@@ -25,14 +25,6 @@ import (
 )
 
 var getFlags = []cli.Flag{
-	cli.BoolFlag{
-		Name:  "list-existing",
-		Usage: "Instead of preparing the bench by PUTing some objects, only use objects already in the bucket",
-	},
-	cli.BoolFlag{
-		Name:  "list-flat",
-		Usage: "When using --list-existing, do not use recursive listing",
-	},
 	cli.IntFlag{
 		Name:  "objects",
 		Value: 2500,
@@ -61,6 +53,14 @@ var getFlags = []cli.Flag{
 		Name:  "versions",
 		Value: 1,
 		Usage: "Number of versions to upload. If more than 1, versioned listing will be benchmarked",
+	},
+	cli.BoolFlag{
+		Name:  "list-existing",
+		Usage: "Instead of preparing the bench by PUTing some objects, only use objects already in the bucket",
+	},
+	cli.BoolFlag{
+		Name:  "list-flat",
+		Usage: "When using --list-existing, do not use recursive listing",
 	},
 }
 
@@ -106,9 +106,6 @@ func mainGet(ctx *cli.Context) error {
 		ListExisting:  ctx.Bool("list-existing"),
 		ListFlat:      ctx.Bool("list-flat"),
 		ListPrefix:    ctx.String("prefix"),
-	}
-	if b.ListExisting && !ctx.IsSet("objects") {
-		b.CreateObjects = 0
 	}
 	return runBench(ctx, &b)
 }
