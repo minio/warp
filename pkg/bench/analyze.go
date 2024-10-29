@@ -235,7 +235,7 @@ func (s Segments) Print(w io.Writer) error {
 }
 
 // CSV writes segments to a supplied writer as CSV data.
-func (s Segments) CSV(w io.Writer) error {
+func (s Segments) CSV(w io.Writer, hostOvr string) error {
 	cw := csv.NewWriter(w)
 	cw.Comma = '\t'
 	err := cw.Write([]string{
@@ -261,7 +261,7 @@ func (s Segments) CSV(w io.Writer) error {
 		return err
 	}
 	for i, seg := range s {
-		err := seg.CSV(cw, i)
+		err := seg.CSV(cw, i, hostOvr)
 		if err != nil {
 			return err
 		}
@@ -271,12 +271,15 @@ func (s Segments) CSV(w io.Writer) error {
 }
 
 // CSV writes a CSV representation of the segment to the supplied writer.
-func (s Segment) CSV(w *csv.Writer, idx int) error {
+func (s Segment) CSV(w *csv.Writer, idx int, host string) error {
 	mib, ops, objs := s.SpeedPerSec()
+	if host == "" {
+		host = s.Host
+	}
 	return w.Write([]string{
 		fmt.Sprint(idx),
 		s.OpType,
-		s.Host,
+		host,
 		fmt.Sprint(float64(s.EndsBefore.Sub(s.Start)) / float64(time.Second)),
 		fmt.Sprint(s.ObjsPerOp),
 		fmt.Sprint(s.TotalBytes),
