@@ -282,10 +282,6 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_INFLUXDB_CONNECT",
 		Usage:  "Send operations to InfluxDB. Specify as 'http://<token>@<hostname>:<port>/<bucket>/<org>'",
 	},
-	cli.BoolFlag{
-		Name:  "no-aggregate",
-		Usage: "disable aggregation of results when sending to InfluxDB",
-	},
 	cli.Float64Flag{
 		Name:  "rps-limit",
 		Value: 0,
