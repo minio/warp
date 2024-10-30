@@ -76,6 +76,8 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		g = generator.WithRandomData()
 	case "csv":
 		g = generator.WithCSV().Size(25, 1000)
+	case "randomLite":
+		g = generator.WithCircularRandomData()
 	default:
 		err := errors.New("unknown generator type:" + ctx.String("obj.generator"))
 		fatal(probe.NewError(err), "Invalid -generator parameter")
