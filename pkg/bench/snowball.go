@@ -57,14 +57,13 @@ func (s *Snowball) Prepare(ctx context.Context) error {
 			}
 		}
 	}
-	s.addCollector()
 	s.prefixes = make(map[string]struct{}, s.Concurrency)
 	return s.createEmptyBucket(ctx)
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (s *Snowball) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(s.Concurrency)
 	c := s.Collector
@@ -186,7 +185,7 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) (Operations, e
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

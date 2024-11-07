@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -49,11 +48,9 @@ func (g *Select) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := g.Source()
-	console.Eraseline()
-	console.Info("\rUploading ", g.CreateObjects, " objects of ", src.String())
+	g.UpdateStatus(fmt.Sprint("Uploading ", g.CreateObjects, " objects of ", src.String()))
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.addCollector()
 	objs := splitObjs(g.CreateObjects, g.Concurrency)
 
 	var groupErr error
@@ -129,7 +126,7 @@ func (g *Select) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Select) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
@@ -198,7 +195,7 @@ func (g *Select) Start(ctx context.Context, wait chan struct{}) (Operations, err
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

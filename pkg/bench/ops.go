@@ -35,17 +35,18 @@ import (
 type Operations []Operation
 
 type Operation struct {
-	Start     time.Time  `json:"start"`
-	End       time.Time  `json:"end"`
-	FirstByte *time.Time `json:"first_byte"`
-	OpType    string     `json:"type"`
-	Err       string     `json:"err"`
-	File      string     `json:"file,omitempty"`
-	ClientID  string     `json:"client_id"`
-	Endpoint  string     `json:"endpoint"`
-	ObjPerOp  int        `json:"ops"`
-	Size      int64      `json:"size"`
-	Thread    uint16     `json:"thread"`
+	Start      time.Time  `json:"start"`
+	End        time.Time  `json:"end"`
+	FirstByte  *time.Time `json:"first_byte"`
+	OpType     string     `json:"type"`
+	Err        string     `json:"err"`
+	File       string     `json:"file,omitempty"`
+	ClientID   string     `json:"client_id"`
+	Endpoint   string     `json:"endpoint"`
+	ObjPerOp   int        `json:"ops"`
+	Size       int64      `json:"size"`
+	Thread     uint16     `json:"thread"`
+	Categories Categories `json:"cat"`
 }
 
 // Duration returns the duration o.End-o.Start
@@ -1030,18 +1031,13 @@ func (o Operations) FilterErrors() Operations {
 // The comment, if any, is written at the end of the file, each line prefixed with '# '.
 func (o Operations) CSV(w io.Writer, comment string) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\tcat\n")
 	if err != nil {
 		return err
 	}
 
 	for i, op := range o {
-		var ttfb string
-		if op.FirstByte != nil {
-			ttfb = op.FirstByte.Format(time.RFC3339Nano)
-		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
-		if err != nil {
+		if err := op.WriteCSV(bw, i); err != nil {
 			return err
 		}
 	}
@@ -1056,6 +1052,15 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 	}
 
 	return bw.Flush()
+}
+
+func (op Operation) WriteCSV(w io.Writer, i int) error {
+	var ttfb string
+	if op.FirstByte != nil {
+		ttfb = op.FirstByte.Format(time.RFC3339Nano)
+	}
+	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond, op.Categories)
+	return err
 }
 
 // OperationsFromCSV will load operations from CSV.
@@ -1145,6 +1150,14 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		if err != nil {
 			return nil, err
 		}
+		var cat Categories
+		if idx, ok := fieldIdx["cat"]; ok {
+			c, err := strconv.ParseUint(values[idx], 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			cat = Categories(c)
+		}
 		var endpoint, clientID string
 		if idx, ok := fieldIdx["endpoint"]; ok {
 			endpoint = values[idx]
@@ -1155,17 +1168,18 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		file := fileMap(values[fieldIdx["file"]])
 
 		ops = append(ops, Operation{
-			OpType:    values[fieldIdx["op"]],
-			ObjPerOp:  int(objs),
-			Start:     start,
-			FirstByte: ttfb,
-			End:       end,
-			Err:       values[fieldIdx["error"]],
-			Size:      size,
-			File:      file,
-			Thread:    uint16(thread),
-			Endpoint:  endpoint,
-			ClientID:  getClient(clientID),
+			OpType:     values[fieldIdx["op"]],
+			ObjPerOp:   int(objs),
+			Start:      start,
+			FirstByte:  ttfb,
+			End:        end,
+			Err:        values[fieldIdx["error"]],
+			Size:       size,
+			File:       file,
+			Thread:     uint16(thread),
+			Endpoint:   endpoint,
+			ClientID:   getClient(clientID),
+			Categories: cat,
 		})
 		if log != nil && len(ops)%1000000 == 0 {
 			console.Eraseline()

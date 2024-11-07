@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
 
 	"golang.org/x/time/rate"
@@ -39,7 +38,7 @@ type Benchmark interface {
 
 	// Start will execute the main benchmark.
 	// Operations should begin executing when the start channel is closed.
-	Start(ctx context.Context, wait chan struct{}) (Operations, error)
+	Start(ctx context.Context, wait chan struct{}) error
 
 	// Clean up after the benchmark run.
 	Cleanup(ctx context.Context)
@@ -68,7 +67,7 @@ type Common struct {
 
 	Client func() (cl *minio.Client, done func())
 
-	Collector *Collector
+	Collector Collector
 
 	Location string
 	Bucket   string
@@ -102,6 +101,9 @@ type Common struct {
 
 	// Transport used.
 	Transport http.RoundTripper
+
+	// UpdateStatus
+	UpdateStatus func(s string)
 }
 
 const (
@@ -142,8 +144,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 			if bvc, err := cl.GetBucketVersioning(ctx, c.Bucket); err == nil {
 				c.Versioned = bvc.Status == "Enabled"
 			}
-			console.Eraseline()
-			console.Infof("\rClearing Bucket %q to enable locking...", c.Bucket)
+			c.UpdateStatus(fmt.Sprintf("Clearing Bucket %q to enable locking", c.Bucket))
 			c.deleteAllInBucket(ctx)
 			err = cl.RemoveBucket(ctx, c.Bucket)
 			if err != nil {
@@ -155,8 +156,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 
 	if !x {
-		console.Eraseline()
-		console.Infof("\rCreating Bucket %q...", c.Bucket)
+		c.UpdateStatus(fmt.Sprintf("Creating Bucket %q", c.Bucket))
 		err := cl.MakeBucket(ctx, c.Bucket, minio.MakeBucketOptions{
 			Region:        c.Location,
 			ObjectLocking: c.Locking,
@@ -180,8 +180,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 	}
 
 	if c.Clear {
-		console.Eraseline()
-		console.Infof("\rClearing Bucket %q...", c.Bucket)
+		c.UpdateStatus(fmt.Sprintf("Clearing Bucket %q", c.Bucket))
 		c.deleteAllInBucket(ctx)
 	}
 	return nil
@@ -212,15 +211,19 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			if prefix != "" {
 				opts.Prefix = prefix + "/"
 			}
+			removed := 0
+			c.UpdateStatus(fmt.Sprintf("Clearing Prefix %q", strings.Join([]string{c.Bucket, opts.Prefix}, "/")))
 			for object := range cl.ListObjects(ctx, c.Bucket, opts) {
 				if object.Err != nil {
 					c.Error(object.Err)
 					return
 				}
+				removed++
 				objectsCh <- object
+				if removed%1000 == 0 {
+					c.UpdateStatus(fmt.Sprintf("Clearing Prefix %q. Deleted %d objects", strings.Join([]string{c.Bucket, opts.Prefix}, "/"), removed))
+				}
 			}
-			console.Eraseline()
-			console.Infof("\rClearing Prefix %q...", strings.Join([]string{c.Bucket, opts.Prefix}, "/"))
 		}
 	}()
 
@@ -237,6 +240,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 			continue
 		}
 	}
+	c.UpdateStatus("Cleanup Done")
 }
 
 // prepareProgress updates preparation progess with the value 0->1.
@@ -249,15 +253,6 @@ func (c *Common) prepareProgress(progress float64) {
 	case c.PrepareProgress <- progress:
 	default:
 	}
-}
-
-func (c *Common) addCollector() {
-	if c.DiscardOutput {
-		c.Collector = NewNullCollector()
-	} else {
-		c.Collector = NewCollector()
-	}
-	c.Collector.extra = c.ExtraOut
 }
 
 func (c *Common) rpsLimit(ctx context.Context) error {

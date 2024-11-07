@@ -38,10 +38,10 @@ type SingleSizedRequests struct {
 	FirstByte *TTFB `json:"first_byte,omitempty"`
 
 	// Host names, sorted.
-	HostNames []string
+	HostNames []string `json:"host_names,omitempty"`
 
-	// DurPct is duration percentiles.
-	DurPct [101]int `json:"dur_percentiles_millis"`
+	// DurPct is duration percentiles (milliseconds).
+	DurPct *[101]int `json:"dur_percentiles_millis,omitempty"`
 
 	// Median request duration.
 	DurMedianMillis int `json:"dur_median_millis"`
@@ -71,7 +71,7 @@ type SingleSizedRequests struct {
 	ObjSize int64 `json:"obj_size"`
 
 	// Skipped if too little data.
-	Skipped bool `json:"skipped"`
+	Skipped bool `json:"skipped,omitempty"`
 }
 
 func (a *SingleSizedRequests) fill(ops bench.Operations) {
@@ -87,6 +87,7 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	a.SlowestMillis = durToMillis(ops.Median(1).Duration())
 	a.FastestMillis = durToMillis(ops.Median(0).Duration())
 	a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
+	a.DurPct = &[101]int{}
 	for i := range a.DurPct[:] {
 		a.DurPct[i] = durToMillis(ops.Median(float64(i) / 100).Duration())
 	}
@@ -117,7 +118,7 @@ type RequestSizeRange struct {
 	MaxSizeString string `json:"max_size_string"`
 
 	// BpsPct is BPS percentiles.
-	BpsPct [101]float64 `json:"bps_percentiles"`
+	BpsPct *[101]float64 `json:"bps_percentiles,omitempty"`
 
 	BpsMedian         float64 `json:"bps_median"`
 	AvgDurationMillis int     `json:"avg_duration_millis"`
@@ -153,6 +154,7 @@ func (r *RequestSizeRange) fill(s bench.SizeSegment) {
 	r.Bps99 = s.Ops.Median(0.99).BytesPerSec().Float()
 	r.BpsFastest = s.Ops.Median(0.0).BytesPerSec().Float()
 	r.BpsSlowest = s.Ops.Median(1).BytesPerSec().Float()
+	r.BpsPct = &[101]float64{}
 	for i := range r.BpsPct[:] {
 		r.BpsPct[i] = s.Ops.Median(float64(i) / 100).BytesPerSec().Float()
 	}
@@ -187,7 +189,7 @@ type MultiSizedRequests struct {
 	AvgObjSize int64 `json:"avg_obj_size"`
 
 	// Skipped if too little data.
-	Skipped bool `json:"skipped"`
+	Skipped bool `json:"skipped,omitempty"`
 }
 
 func (a *MultiSizedRequests) fill(ops bench.Operations) {

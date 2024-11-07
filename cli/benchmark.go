@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
@@ -29,13 +30,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cheggaaa/pb"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/madmin-go/v3"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/api"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -97,81 +98,48 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	activeBenchmarkMu.Lock()
 	ab := activeBenchmark
 	activeBenchmarkMu.Unlock()
-	b.GetCommon().Error = printError
+	c := b.GetCommon()
+	c.Error = printError
 	if ab != nil {
-		b.GetCommon().ClientIdx = ab.clientIdx
+		c.ClientIdx = ab.clientIdx
 		return runClientBenchmark(ctx, b, ab)
 	}
-
 	if done, err := runServerBenchmark(ctx, b); done || err != nil {
 		// Close all extra output channels so the benchmark will terminate
-		for _, out := range b.GetCommon().ExtraOut {
+		for _, out := range c.ExtraOut {
 			close(out)
 		}
 		fatalIf(probe.NewError(err), "Error running remote benchmark")
 		return nil
 	}
+	var ui ui
+	if !globalQuiet && !globalJSON {
+		go ui.Run()
+	}
+
+	retrieveOps, updates := addCollector(ctx, b)
+	c.UpdateStatus = ui.SetSubText
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
-	monitor.SetLnLoggers(printInfo, printError)
+	monitor.SetLnLoggers(func(data ...interface{}) {
+		ui.SetSubText(strings.TrimRight(fmt.Sprintln(data...), "\r\n."))
+	}, printError)
 	defer monitor.Done()
 
-	monitor.InfoLn("Preparing server.")
-	pgDone := make(chan struct{})
-	c := b.GetCommon()
+	monitor.InfoLn("Preparing server")
 	c.Clear = !ctx.Bool("noclear")
 	if ctx.Bool("autoterm") {
 		// TODO: autoterm cannot be used when in client/server mode
 		c.AutoTermDur = ctx.Duration("autoterm.dur")
 		c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
 	}
-	if !globalQuiet && !globalJSON {
-		c.PrepareProgress = make(chan float64, 1)
-		const pgScale = 10000
-		pg := newProgressBar(pgScale, pb.U_NO)
-		pg.ShowCounters = false
-		pg.ShowElapsedTime = false
-		pg.ShowSpeed = false
-		pg.ShowTimeLeft = false
-		pg.ShowFinalTime = true
-		go func() {
-			defer close(pgDone)
-			defer pg.Finish()
-			tick := time.NewTicker(time.Millisecond * 125)
-			defer tick.Stop()
-			pg.Set(-1)
-			pg.SetCaption("Preparing: ")
-			newVal := int64(-1)
-			for {
-				select {
-				case <-tick.C:
-					current := pg.Get()
-					if current != newVal {
-						pg.Set64(newVal)
-						pg.Update()
-					}
-					monitor.InfoQuietln(fmt.Sprintf("Preparation: %0.0f%% done...", float64(newVal)/float64(100)))
-				case pct, ok := <-c.PrepareProgress:
-					if !ok {
-						pg.Set64(pgScale)
-						if newVal > 0 {
-							pg.Update()
-						}
-						return
-					}
-					newVal = int64(pct * pgScale)
-				}
-			}
-		}()
-	} else {
-		close(pgDone)
-	}
+	c.PrepareProgress = make(chan float64, 1)
+	ui.StartPrepare("Preparing", c.PrepareProgress, updates)
 
 	err := b.Prepare(context.Background())
 	fatalIf(probe.NewError(err), "Error preparing server")
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
-		<-pgDone
 	}
 
 	if ap, ok := b.(AfterPreparer); ok {
@@ -191,14 +159,18 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			tStart = startTime
 		}
 	}
-
+	if u := ui.updates.Load(); u != nil {
+		*u <- aggregate.UpdateReq{Reset: true}
+	}
 	benchDur := ctx.Duration("duration")
+	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
 	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(benchDur))
 	defer cancel()
 	start := make(chan struct{})
 	go func() {
+		monitor.InfoLn("Pausing before benchmark")
 		<-time.After(time.Until(tStart))
-		monitor.InfoLn("Benchmark starting...")
+		monitor.InfoLn("Running")
 		close(start)
 	}()
 
@@ -210,73 +182,52 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
-	monitor.InfoLn("Starting benchmark in ", time.Until(tStart).Round(time.Second), "...")
-	pgDone = make(chan struct{})
-	if !globalQuiet && !globalJSON {
-		pg := newProgressBar(int64(benchDur), pb.U_DURATION)
-		go func() {
-			defer close(pgDone)
-			defer pg.Finish()
-			pg.SetCaption("Benchmarking:")
-			tick := time.NewTicker(time.Millisecond * 125)
-			defer tick.Stop()
-			done := ctx2.Done()
-			for {
-				select {
-				case t := <-tick.C:
-					elapsed := t.Sub(tStart)
-					if elapsed < 0 {
-						continue
-					}
-					pg.Set64(int64(elapsed))
-					pg.Update()
-					monitor.InfoQuietln(fmt.Sprintf("Running benchmark: %0.0f%%...", 100*float64(elapsed)/float64(benchDur)))
-				case <-done:
-					pg.Set64(int64(benchDur))
-					pg.Update()
-					return
-				}
-			}
-		}()
-	} else {
-		close(pgDone)
-	}
-	ops, _ := b.Start(ctx2, start)
+	monitor.InfoLn("Starting benchmark in", time.Until(tStart).Round(time.Second))
+	b.Start(ctx2, start)
 	cancel()
-	<-pgDone
 
-	// Previous context is canceled, create a new...
-	monitor.InfoLn("Saving benchmark data...")
 	ctx2 = context.Background()
-	ops.SortByStartTime()
-	ops.SetClientID(cID)
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
 
-	if len(ops) > 0 {
-		f, err := os.Create(fileName + ".csv.zst")
-		if err != nil {
-			monitor.Errorln("Unable to write benchmark data:", err)
-		} else {
-			func() {
-				defer f.Close()
-				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	// Previous context is canceled, create a new...
+	monitor.InfoLn("Saving benchmark data")
+	if ops := retrieveOps(); len(ops) > 0 {
+		ops.SortByStartTime()
+		ops.SetClientID(cID)
 
-				defer enc.Close()
-				err = ops.CSV(enc, commandLine(ctx))
-				fatalIf(probe.NewError(err), "Unable to write benchmark output")
+		if len(ops) > 0 {
+			f, err := os.Create(fileName + ".csv.zst")
+			if err != nil {
+				monitor.Errorln("Unable to write benchmark data:", err)
+			} else {
+				func() {
+					defer f.Close()
+					enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+					fatalIf(probe.NewError(err), "Unable to compress benchmark output")
 
-				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
-			}()
+					defer enc.Close()
+					err = ops.CSV(enc, commandLine(ctx))
+					fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+					monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+				}()
+			}
 		}
+		monitor.OperationsReady(ops, fileName, commandLine(ctx))
+		ui.Pause(true)
+		var buf bytes.Buffer
+		printAnalysis(ctx, &buf, ops)
+		ui.ShowReport(&buf)
+		ui.Pause(false)
 	}
-	monitor.OperationsReady(ops, fileName, commandLine(ctx))
-	printAnalysis(ctx, ops)
+
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
+		ui.SetPhase("Cleanup")
 		monitor.InfoLn("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
 	monitor.InfoLn("Cleanup Done.")
+	time.Sleep(60 * time.Minute)
 	return nil
 }
 
@@ -292,6 +243,7 @@ type clientBenchmark struct {
 	info      map[benchmarkStage]stageInfo
 	stage     benchmarkStage
 	results   bench.Operations
+	updates   chan<- aggregate.UpdateReq
 	clientIdx int
 	sync.Mutex
 }
@@ -379,12 +331,15 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
+	retrieveOps, updates := addCollector(ctx, b)
 	common := b.GetCommon()
 	cb.Lock()
 	start := cb.info[stageBenchmark].start
 	ctx2, cancel := context.WithCancel(cb.ctx)
 	defer cancel()
+	cb.updates = updates
 	cb.Unlock()
+
 	err = b.Prepare(ctx2)
 
 	cb.stageDone(stagePrepare, err, common.Custom)
@@ -422,7 +377,8 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
 
-	ops, err := b.Start(ctx2, start)
+	err = b.Start(ctx2, start)
+	ops := retrieveOps()
 	cb.Lock()
 	cb.results = ops
 	cb.Unlock()
@@ -463,6 +419,28 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	cb.stageDone(stageCleanup, nil, common.Custom)
 
 	return nil
+}
+
+func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
+	// Add collectors
+	common := b.GetCommon()
+
+	var retrieveOps = bench.EmptyOpsCollector
+	if ctx.Bool("aggregate") {
+		updates := make(chan aggregate.UpdateReq, 1000)
+		c := aggregate.LiveCollector(context.Background(), updates)
+		c.AddOutput(common.ExtraOut...)
+		common.Collector = c
+		return bench.EmptyOpsCollector, updates
+	}
+	if common.DiscardOutput {
+		common.Collector = bench.NewNullCollector()
+		common.Collector.AddOutput(common.ExtraOut...)
+		return bench.EmptyOpsCollector, nil
+	}
+	common.Collector, retrieveOps = bench.NewOpsCollector()
+	common.Collector.AddOutput(common.ExtraOut...)
+	return retrieveOps, nil
 }
 
 type runningProfiles struct {

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -52,8 +51,7 @@ func (g *Multipart) InitOnce(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
-	console.Eraseline()
-	console.Info("\rCreating Object...")
+	g.UpdateStatus(fmt.Sprint("Creating Object..."))
 
 	cl, done := g.Client()
 	c := minio.Core{Client: cl}
@@ -73,19 +71,16 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 	if g.PartStart+g.CreateParts > 10001 {
 		return errors.New("10000 part limit exceeded")
 	}
-	console.Println("")
-	console.Eraseline()
-	console.Info("Uploading ", g.CreateParts, " object parts")
+	g.UpdateStatus(fmt.Sprint("Uploading ", g.CreateParts, " object parts"))
 
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
-	g.addCollector()
 	obj := make(chan int, g.CreateParts)
 	for i := 0; i < g.CreateParts; i++ {
 		obj <- i + g.PartStart
 	}
 	close(obj)
-	rcv := g.Collector.rcv
+	rcv := g.Collector.Receiver()
 	var groupErr error
 	var mu sync.Mutex
 
@@ -185,15 +180,14 @@ func (g *Multipart) AfterPrepare(ctx context.Context) error {
 		parts = append(parts, minio.CompletePart{PartNumber: i, ETag: etag})
 		i++
 	}
-	console.Eraseline()
-	console.Infof("\rCompleting Object with %d parts...", len(parts))
+	g.UpdateStatus(fmt.Sprint("Completing Object with %d parts...", len(parts)))
 	_, err := c.CompleteMultipartUpload(ctx, g.Bucket, g.ObjName, g.UploadID, parts, g.PutOpts)
 	return err
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *Multipart) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
@@ -268,7 +262,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) (Operations, 
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

@@ -269,6 +269,16 @@ var ioFlags = []cli.Flag{
 		Value: 0,
 		Usage: "Rate limit each instance to this number of requests per second (0 to disable)",
 	},
+	cli.BoolFlag{
+		Name:   "stdout",
+		Usage:  "Send operations to stdout",
+		Hidden: true,
+	},
+	cli.BoolFlag{
+		Name:   "aggregate,a",
+		Usage:  "Aggregate operations instead of collecting each individually",
+		Hidden: true,
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
@@ -282,6 +292,32 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 			extra = append(extra, in)
 		}
 	}
+	statusln := func(s string) {
+		console.Eraseline()
+		console.Print(s)
+	}
+	if globalQuiet {
+		statusln = func(s string) {}
+	}
+
+	if ctx.Bool("stdout") {
+		globalQuiet = true
+		statusln = func(s string) {}
+		so := make(chan bench.Operation, 1000)
+		go func() {
+			i := 0
+			var errState bool
+			for op := range so {
+				if errState {
+					continue
+				}
+				errState = op.WriteCSV(os.Stdout, i) != nil
+				i++
+			}
+		}()
+		extra = append(extra, so)
+	}
+	noOps := ctx.Bool("stress")
 
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
@@ -297,9 +333,10 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Bucket:        ctx.String("bucket"),
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts(ctx),
-		DiscardOutput: ctx.Bool("stress"),
+		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
 		Transport:     clientTransport(ctx),
+		UpdateStatus:  statusln,
 	}
 }

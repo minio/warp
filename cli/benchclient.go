@@ -28,6 +28,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/pkg/v2/console"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/websocket"
 )
@@ -50,9 +51,10 @@ type clientReply struct {
 		Started  bool              `json:"started"`
 		Finished bool              `json:"finished"`
 	} `json:"stage_info"`
-	Type clientReplyType  `json:"type"`
-	Err  string           `json:"err,omitempty"`
-	Ops  bench.Operations `json:"ops,omitempty"`
+	Type   clientReplyType     `json:"type"`
+	Err    string              `json:"err,omitempty"`
+	Ops    bench.Operations    `json:"ops,omitempty"`
+	Update *aggregate.Realtime `json:"update,omitempty"`
 }
 
 // executeBenchmark will execute the benchmark and return any error.
@@ -249,6 +251,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			ab.Lock()
 			err := ab.err
 			stageInfo := ab.info
+			updates := ab.updates
 			ab.Unlock()
 			if err != nil {
 				resp.Err = err.Error()
@@ -269,6 +272,12 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.StageInfo.Finished = true
 				resp.StageInfo.Custom = info.custom
 			default:
+			}
+			if req.UpdateReq != nil && updates != nil {
+				u := make(chan *aggregate.Realtime, 1)
+				req.UpdateReq.C = u
+				updates <- *req.UpdateReq
+				resp.Update = <-u
 			}
 		case serverReqSendOps:
 			activeBenchmarkMu.Lock()

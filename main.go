@@ -23,6 +23,12 @@ import (
 	"github.com/minio/warp/cli"
 )
 
+var (
+	version string
+	commit  string
+	date    string
+)
+
 func main() {
 	cli.Main(os.Args)
 }

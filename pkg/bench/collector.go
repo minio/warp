@@ -26,7 +26,30 @@ import (
 	"github.com/minio/pkg/v2/console"
 )
 
-type Collector struct {
+type Collector interface {
+	// AutoTerm will check if throughput is within 'threshold' (0 -> ) for wantSamples,
+	// when the current operations are split into 'splitInto' segments.
+	// The minimum duration for the calculation can be set as well.
+	// Segment splitting may cause less than this duration to be used.
+	AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context
+
+	// Receiver returns the receiver of input
+	Receiver() chan<- Operation
+
+	// AddOutput allows to add additional inputs.
+	AddOutput(...chan<- Operation)
+
+	// Close the collector
+	Close()
+}
+
+type OpsCollector func() Operations
+
+func EmptyOpsCollector() Operations {
+	return Operations{}
+}
+
+type collector struct {
 	rcv   chan Operation
 	ops   Operations
 	rcvWg sync.WaitGroup
@@ -36,8 +59,10 @@ type Collector struct {
 	opsMu sync.Mutex
 }
 
-func NewCollector() *Collector {
-	r := &Collector{
+// NewOpsCollector returns a collector that will collect all operations in memory.
+// After calling Close the returned function can be used to retrieve the operations.
+func NewOpsCollector() (Collector, OpsCollector) {
+	r := &collector{
 		ops: make(Operations, 0, 10000),
 		rcv: make(chan Operation, 1000),
 	}
@@ -53,12 +78,15 @@ func NewCollector() *Collector {
 			r.opsMu.Unlock()
 		}
 	}()
-	return r
+	return r, func() Operations {
+		r.Close()
+		return r.ops
+	}
 }
 
 // NewNullCollector collects operations, but discards them.
-func NewNullCollector() *Collector {
-	r := &Collector{
+func NewNullCollector() Collector {
+	r := &collector{
 		ops: make(Operations, 0),
 		rcv: make(chan Operation, 1000),
 	}
@@ -78,7 +106,7 @@ func NewNullCollector() *Collector {
 // when the current operations are split into 'splitInto' segments.
 // The minimum duration for the calculation can be set as well.
 // Segment splitting may cause less than this duration to be used.
-func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
+func (c *collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
 	if wantSamples >= splitInto {
 		panic("wantSamples >= splitInto")
 	}
@@ -150,15 +178,78 @@ func (c *Collector) AutoTerm(ctx context.Context, op string, threshold float64, 
 	return ctx
 }
 
-func (c *Collector) Receiver() chan<- Operation {
+func (c *collector) Receiver() chan<- Operation {
 	return c.rcv
 }
 
-func (c *Collector) Close() Operations {
-	close(c.rcv)
-	c.rcvWg.Wait()
-	for _, ch := range c.extra {
-		close(ch)
+func (c *collector) Close() {
+	if c.rcv != nil {
+		close(c.rcv)
+		c.rcvWg.Wait()
+		c.rcv = nil
+		for _, ch := range c.extra {
+			close(ch)
+		}
+		c.extra = nil
 	}
-	return c.ops
+	return
 }
+
+func (c *collector) AddOutput(x ...chan<- Operation) {
+	c.extra = append(c.extra, x...)
+}
+
+/*
+// aCollector is an aggregate Collector.
+type aCollector struct {
+	rcv   chan Operation
+	wg    sync.WaitGroup
+	extra []chan<- Operation
+	res   *aggregate.RTAggregate
+}
+
+func NewAggregateCollector() Collector {
+	a := make(chan Operation, 1000)
+	r := &aCollector{
+		rcv:   make(chan Operation, 1000),
+		extra: []chan<- Operation{a},
+	}
+	r.wg.Add(2)
+	go func() {
+		defer r.wg.Done()
+		for op := range r.rcv {
+			for _, ch := range r.extra {
+				ch <- op
+			}
+		}
+		for _, ch := range r.extra {
+			close(ch)
+		}
+	}()
+
+	go func() {
+		defer r.wg.Done()
+		r.res = aggregate.Live(a)
+	}()
+	return r
+}
+
+// Receiver returns the receiver.
+func (c *aCollector) Receiver() chan<- Operation {
+	return c.rcv
+}
+
+func (c *aCollector) Close() Operations {
+	close(c.rcv)
+	return nil
+}
+
+func (c *aCollector) AddOutput(x ...chan<- Operation) {
+	c.extra = append(c.extra, x...)
+}
+
+func (c *aCollector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
+	// TODO:
+	return ctx
+}
+*/

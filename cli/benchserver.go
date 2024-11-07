@@ -26,12 +26,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/warp/api"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/websocket"
 )
@@ -79,10 +81,12 @@ type serverRequest struct {
 		Command string            `json:"command"`
 		Args    cli.Args          `json:"args"`
 	}
-	StartTime time.Time       `json:"start_time"`
-	Operation serverRequestOp `json:"op"`
-	Stage     benchmarkStage  `json:"stage"`
-	ClientIdx int             `json:"client_idx"`
+	StartTime time.Time            `json:"start_time"`
+	Operation serverRequestOp      `json:"op"`
+	Stage     benchmarkStage       `json:"stage"`
+	ClientIdx int                  `json:"client_idx"`
+	Aggregate bool                 `json:"aggregate"`
+	UpdateReq *aggregate.UpdateReq `json:"update_req,omitempty"`
 }
 
 // runServerBenchmark will run a benchmark server if requested.
@@ -172,7 +176,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 	common := b.GetCommon()
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(stagePrepare, true, common)
+	err := conns.waitForStage(stagePrepare, true, common, nil)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
@@ -194,7 +198,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		errorLn("Failed to start all clients", err)
 	}
 	infoLn("Running benchmark on all clients...")
-	err = conns.waitForStage(stageBenchmark, false, common)
+	err = conns.waitForStage(stageBenchmark, false, common, nil)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -239,13 +243,13 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		}
 	}
 	monitor.OperationsReady(allOps, fileName, commandLine(ctx))
-	printAnalysis(ctx, allOps)
+	printAnalysis(ctx, os.Stdout, allOps)
 
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)
 	}
-	err = conns.waitForStage(stageCleanup, false, common)
+	err = conns.waitForStage(stageCleanup, false, common, nil)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -485,9 +489,23 @@ func (c *connections) downloadOps() []bench.Operations {
 }
 
 // waitForStage will wait for stage completion on all clients.
-func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common *bench.Common) error {
+func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common *bench.Common, updates <-chan aggregate.UpdateReq) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	var lastUpdate atomic.Pointer[aggregate.Realtime]
+	var done chan struct{}
+	if updates != nil {
+		done = make(chan struct{})
+		defer close(done)
+		go func() {
+			select {
+			case <-done:
+				return
+			case r := <-updates:
+				r.C <- lastUpdate.Load()
+			}
+		}()
+	}
 	for i, conn := range c.ws {
 		if conn == nil {
 			// log?
@@ -500,6 +518,9 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common 
 				req := serverRequest{
 					Operation: serverReqStageStatus,
 					Stage:     stage,
+				}
+				if updates != nil {
+					req.UpdateReq = &aggregate.UpdateReq{}
 				}
 				resp, err := c.roundTrip(i, req)
 				if err != nil {

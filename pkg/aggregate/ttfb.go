@@ -26,16 +26,16 @@ import (
 
 // TTFB contains times to first byte if applicable.
 type TTFB struct {
-	AverageMillis     int      `json:"average_millis"`
-	FastestMillis     int      `json:"fastest_millis"`
-	P25Millis         int      `json:"p25_millis"`
-	MedianMillis      int      `json:"median_millis"`
-	P75Millis         int      `json:"p75_millis"`
-	P90Millis         int      `json:"p90_millis"`
-	P99Millis         int      `json:"p99_millis"`
-	SlowestMillis     int      `json:"slowest_millis"`
-	StdDevMillis      int      `json:"std_dev_millis"`
-	PercentilesMillis [101]int `json:"percentiles_millis"`
+	AverageMillis     int       `json:"average_millis"`
+	FastestMillis     int       `json:"fastest_millis"`
+	P25Millis         int       `json:"p25_millis"`
+	MedianMillis      int       `json:"median_millis"`
+	P75Millis         int       `json:"p75_millis"`
+	P90Millis         int       `json:"p90_millis"`
+	P99Millis         int       `json:"p99_millis"`
+	SlowestMillis     int       `json:"slowest_millis"`
+	StdDevMillis      int       `json:"std_dev_millis"`
+	PercentilesMillis *[101]int `json:"percentiles_millis,omitempty"`
 }
 
 // String returns a human printable version of the time to first byte.
@@ -71,6 +71,7 @@ func TtfbFromBench(t bench.TTFB) *TTFB {
 		StdDevMillis:  durToMillis(t.StdDev),
 		FastestMillis: durToMillis(t.Best),
 	}
+	t2.PercentilesMillis = &[101]int{}
 	for i, v := range t.Percentiles[:] {
 		t2.PercentilesMillis[i] = durToMillis(v)
 	}

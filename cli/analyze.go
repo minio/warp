@@ -137,11 +137,16 @@ func mainAnalyze(ctx *cli.Context) error {
 		}
 		err := zstdDec.Reset(input)
 		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
-		fatalIf(probe.NewError(err), "Unable to parse input")
+		if ctx.Bool("aggregate") {
 
-		printAnalysis(ctx, ops)
-		monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"), commandLine(ctx))
+		} else {
+			ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+			fatalIf(probe.NewError(err), "Unable to parse input")
+
+			// FIXME: Aggregate possibly...
+			printAnalysis(ctx, os.Stdout, ops)
+			monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"), commandLine(ctx))
+		}
 	}
 	return nil
 }
@@ -234,7 +239,7 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 	}
 }
 
-func printAnalysis(ctx *cli.Context, o bench.Operations) {
+func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer
 	prefiltered := false
@@ -293,6 +298,12 @@ func printAnalysis(ctx *cli.Context, o bench.Operations) {
 		os.Stdout.Write(b)
 		return
 	}
+
+	preOutput := color.Output
+	color.Output = w
+	defer func() {
+		color.Output = preOutput
+	}()
 
 	if aggr.Mixed {
 		printMixedOpAnalysis(ctx, aggr, details)

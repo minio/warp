@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -88,7 +87,6 @@ func (d *Delete) Prepare(ctx context.Context) error {
 			return (fmt.Errorf("no objects found for bucket %s", d.Bucket))
 		}
 		done()
-		d.Collector = NewCollector()
 
 		// Shuffle objects.
 		// Benchmark will pick from slice in order.
@@ -103,11 +101,10 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		return err
 	}
 	src := d.Source()
-	console.Eraseline()
-	console.Info("\rUploading ", d.CreateObjects, " objects of ", src.String())
+
+	d.UpdateStatus(fmt.Sprint("\rUploading ", d.CreateObjects, " objects of ", src.String()))
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.addCollector()
 	objs := splitObjs(d.CreateObjects, d.Concurrency)
 
 	var mu sync.Mutex
@@ -191,7 +188,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (d *Delete) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
@@ -275,7 +272,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) (Operations, err
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

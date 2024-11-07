@@ -51,10 +51,9 @@ func (u *Put) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(u.Concurrency)
-	u.addCollector()
 	c := u.Collector
 	if u.AutoTermDur > 0 {
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
@@ -132,7 +131,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.
