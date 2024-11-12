@@ -85,6 +85,11 @@ var analyzeFlags = []cli.Flag{
 		Name:  serverFlagName,
 		Usage: "When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762",
 	},
+	cli.BoolFlag{
+		Name:   "aggregate,a",
+		Usage:  "Aggregate operations instead of collecting each individually",
+		Hidden: true,
+	},
 }
 
 var analyzeCmd = cli.Command{
@@ -121,7 +126,10 @@ func mainAnalyze(ctx *cli.Context) error {
 	defer zstdDec.Close()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
-	log := console.Printf
+	log := func(format string, data ...interface{}) {
+		console.Eraseline()
+		console.Printf("\r"+format, data...)
+	}
 	if globalQuiet {
 		log = nil
 	}
@@ -138,12 +146,35 @@ func mainAnalyze(ctx *cli.Context) error {
 		err := zstdDec.Reset(input)
 		fatalIf(probe.NewError(err), "Unable to read input")
 		if ctx.Bool("aggregate") {
-
+			var ui ui
+			if !globalQuiet && !globalJSON {
+				go ui.Run()
+				ui.SetPhase("Loading")
+				log = func(format string, data ...interface{}) {
+					ui.SetSubText(fmt.Sprintf(format, data...))
+				}
+			}
+			var opCh = make(chan bench.Operation, 10000)
+			go func() {
+				err := bench.StreamOperationsFromCSV(zstdDec, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
+				fatalIf(probe.NewError(err), "Unable to parse input")
+			}()
+			final := aggregate.Live(opCh, nil, "")
+			rep := final.Report(true, !globalNoColor)
+			if globalJSON {
+				b, err := json.MarshalIndent(final, "", "  ")
+				fatalIf(probe.NewError(err), "Unable to parse input")
+				fmt.Println(string(b))
+			} else if globalQuiet {
+				fmt.Println(rep.String())
+			} else {
+				ui.ShowReport(rep)
+				ui.Wait()
+			}
 		} else {
 			ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 			fatalIf(probe.NewError(err), "Unable to parse input")
-
-			// FIXME: Aggregate possibly...
+			console.Println("")
 			printAnalysis(ctx, os.Stdout, ops)
 			monitor.OperationsReady(ops, strings.TrimSuffix(filepath.Base(arg), ".csv.zst"), commandLine(ctx))
 		}
@@ -533,7 +564,7 @@ func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool)
 			console.SetColor("Print", color.New(color.FgHiWhite))
 			console.Println("\nRequests by host:")
 
-			for _, ep := range reqs.HostNames {
+			for _, ep := range reqs.HostNames.Slice() {
 				reqs := eps[ep]
 				if reqs.Requests <= 1 {
 					continue

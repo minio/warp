@@ -26,10 +26,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/minio/pkg/v2/console"
 )
 
 type Operations []Operation
@@ -265,7 +265,7 @@ func (o Operations) SortByOpType() {
 // Fastest operations first.
 func (o Operations) SortByDuration() {
 	sort.Slice(o, func(i, j int) bool {
-		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
+		a, b := o[i].End.UnixNano()-o[i].Start.UnixNano(), o[j].End.UnixNano()-o[j].Start.UnixNano()
 		return a < b
 	})
 }
@@ -275,11 +275,12 @@ func (o Operations) SortByDuration() {
 func (o Operations) SortByThroughput() {
 	sort.Slice(o, func(i, j int) bool {
 		a, b := &o[i], &o[j]
-		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
+		aDur, bDur := a.End.UnixNano()-a.Start.UnixNano(), b.End.UnixNano()-b.Start.UnixNano()
 		if a.Size == 0 || b.Size == 0 {
 			return aDur < bDur
 		}
 		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
+
 	})
 }
 
@@ -303,7 +304,7 @@ func (o Operations) SortByTTFB() {
 		if a.FirstByte == nil || b.FirstByte == nil {
 			return a.Start.Before(b.Start)
 		}
-		return a.FirstByte.Sub(a.Start) < b.FirstByte.Sub(b.Start)
+		return a.FirstByte.UnixNano()-a.Start.UnixNano() < b.FirstByte.UnixNano()-b.Start.UnixNano()
 	})
 }
 
@@ -696,6 +697,7 @@ func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	if !o.MultipleSizes() {
 		return []SizeSegment{o.SingleSizeSegment()}
 	}
+	// FIXME: This allocs like crazy...
 	var res []SizeSegment
 	minSz, maxSz := o.MinMaxSize()
 	if minSz == 0 {
@@ -1065,14 +1067,33 @@ func (op Operation) WriteCSV(w io.Writer, i int) error {
 
 // OperationsFromCSV will load operations from CSV.
 func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{})) (Operations, error) {
+	var opCh = make(chan Operation, 1000)
 	var ops Operations
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for op := range opCh {
+			ops = append(ops, op)
+		}
+	}()
+	if err := StreamOperationsFromCSV(r, analyzeOnly, offset, limit, log, opCh); err != nil {
+		return nil, err
+	}
+	wg.Wait()
+	return ops, nil
+}
+
+// StreamOperationsFromCSV will load operations from CSV.
+func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{}), out chan<- Operation) error {
+	defer close(out)
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
 	cr.ReuseRecord = true
 	cr.Comment = '#'
 	header, err := cr.Read()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	fieldIdx := make(map[string]int)
 	for i, s := range header {
@@ -1107,13 +1128,14 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 			return strconv.Itoa(i)
 		}
 	}
+	n := 0
 	for {
 		values, err := cr.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(values) == 0 {
 			continue
@@ -1124,37 +1146,37 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		}
 		start, err := time.Parse(time.RFC3339Nano, values[fieldIdx["start"]])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var ttfb *time.Time
 		if fb := values[fieldIdx["first_byte"]]; fb != "" {
 			t, err := time.Parse(time.RFC3339Nano, fb)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			ttfb = &t
 		}
 		end, err := time.Parse(time.RFC3339Nano, values[fieldIdx["end"]])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		size, err := strconv.ParseInt(values[fieldIdx["bytes"]], 10, 64)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		thread, err := strconv.ParseUint(values[fieldIdx["thread"]], 10, 16)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		objs, err := strconv.ParseInt(values[fieldIdx["n_objects"]], 10, 64)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var cat Categories
 		if idx, ok := fieldIdx["cat"]; ok {
 			c, err := strconv.ParseUint(values[idx], 10, 64)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			cat = Categories(c)
 		}
@@ -1167,7 +1189,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		}
 		file := fileMap(values[fieldIdx["file"]])
 
-		ops = append(ops, Operation{
+		out <- Operation{
 			OpType:     values[fieldIdx["op"]],
 			ObjPerOp:   int(objs),
 			Start:      start,
@@ -1180,18 +1202,17 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 			Endpoint:   endpoint,
 			ClientID:   getClient(clientID),
 			Categories: cat,
-		})
-		if log != nil && len(ops)%1000000 == 0 {
-			console.Eraseline()
-			log("\r%d operations loaded...", len(ops))
 		}
-		if limit > 0 && len(ops) >= limit {
+		n++
+		if log != nil && n%100000 == 0 {
+			log("%d operations loaded. Timestamp: %v", n, start.Round(time.Second).Local())
+		}
+		if limit > 0 && n >= limit {
 			break
 		}
 	}
 	if log != nil {
-		console.Eraseline()
-		log("\r%d operations loaded... Done!\n", len(ops))
+		log("%d operations loaded... Done!", n)
 	}
-	return ops, nil
+	return nil
 }

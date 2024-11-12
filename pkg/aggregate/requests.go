@@ -27,18 +27,21 @@ import (
 // SingleSizedRequests contains statistics when all objects have the same size.
 type SingleSizedRequests struct {
 	// Request times by host.
-	ByHost     map[string]SingleSizedRequests `json:"by_host,omitempty"`
-	LastAccess *SingleSizedRequests           `json:"last_access,omitempty"`
+	ByHost map[string]SingleSizedRequests `json:"by_host,omitempty"`
 
 	// FirstAccess is filled if the same object is accessed multiple times.
-	// This records the first touch of the object.
+	// This records the first access of the object.
 	FirstAccess *SingleSizedRequests `json:"first_access,omitempty"`
+
+	// FirstAccess is filled if the same object is accessed multiple times.
+	// This records the last access of the object.
+	LastAccess *SingleSizedRequests `json:"last_access,omitempty"`
 
 	// Time to first byte if applicable.
 	FirstByte *TTFB `json:"first_byte,omitempty"`
 
 	// Host names, sorted.
-	HostNames []string `json:"host_names,omitempty"`
+	HostNames MapAsSlice `json:"host_names,omitempty"`
 
 	// DurPct is duration percentiles (milliseconds).
 	DurPct *[101]int `json:"dur_percentiles_millis,omitempty"`
@@ -160,15 +163,13 @@ func (r *RequestSizeRange) fill(s bench.SizeSegment) {
 	}
 }
 
-func (r *RequestSizeRange) fillFirst(s bench.SizeSegment) {
+func (r *RequestSizeRange) fillFirstAccess(s bench.SizeSegment) {
 	if !s.Ops.IsMultiTouch() {
 		return
 	}
 	s.Ops = s.Ops.FilterFirst()
 	a := RequestSizeRange{}
 	a.fill(s)
-	a.FirstByte = TtfbFromBench(s.Ops.TTFB(s.Ops.TimeRange()))
-
 	r.FirstAccess = &a
 }
 
@@ -192,7 +193,7 @@ type MultiSizedRequests struct {
 	Skipped bool `json:"skipped,omitempty"`
 }
 
-func (a *MultiSizedRequests) fill(ops bench.Operations) {
+func (a *MultiSizedRequests) fill(ops bench.Operations, fillFirstAccess bool) {
 	start, end := ops.TimeRange()
 	a.Requests = len(ops)
 	if len(ops) == 0 {
@@ -210,7 +211,9 @@ func (a *MultiSizedRequests) fill(ops bench.Operations) {
 			s := sizes[i]
 			var r RequestSizeRange
 			r.fill(s)
-			r.fillFirst(s)
+			if fillFirstAccess {
+				r.fillFirstAccess(s)
+			}
 			r.FirstByte = TtfbFromBench(s.Ops.TTFB(start, end))
 			// Store
 			a.BySize[i] = r
@@ -233,10 +236,10 @@ func RequestAnalysisSingleSized(o bench.Operations, allThreads bool) *SingleSize
 	}
 	res.fill(active)
 	res.fillFirstLast(o)
-	res.HostNames = o.Endpoints()
+	res.HostNames.SetSlice(o.Endpoints())
 	res.ByHost = RequestAnalysisHostsSingleSized(o)
 	if len(res.HostNames) != len(res.ByHost) {
-		res.HostNames = o.ClientIDs(clientAsHostPrefix)
+		res.HostNames.SetSlice(o.ClientIDs(clientAsHostPrefix))
 	}
 	return &res
 }
@@ -286,7 +289,7 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 		res.Skipped = true
 		return &res
 	}
-	res.fill(active)
+	res.fill(active, true)
 	res.ByHost = RequestAnalysisHostsMultiSized(active)
 	res.HostNames = active.Endpoints()
 	if len(res.HostNames) != len(res.ByHost) && len(res.ByHost) > 0 {

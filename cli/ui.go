@@ -47,6 +47,7 @@ type ui struct {
 	showProgress  bool
 	gotWindowSize bool
 	quit          bool
+	quitCh        chan struct{}
 	viewport      viewport.Model
 }
 
@@ -62,6 +63,7 @@ func tickCmd() tea.Cmd {
 
 func (u *ui) Init() tea.Cmd {
 	u.progress = progress.New(progress.WithScaledGradient("#c72e49", "#edf7f7"), progress.WithSolidFill("#c72e49"))
+	u.quitCh = make(chan struct{})
 	return tickCmd()
 }
 
@@ -70,7 +72,13 @@ func (u *ui) Run() {
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("UI: %v", err)
 	}
-	os.Exit(0)
+	if u.quit {
+		os.Exit(0)
+	}
+}
+
+func (u *ui) Wait() {
+	<-u.quitCh
 }
 
 const (
@@ -85,7 +93,10 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case "ctrl+c", "q":
-			m.quit = true
+			if !m.quit {
+				close(m.quitCh)
+				m.quit = true
+			}
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
@@ -190,7 +201,7 @@ func (u *ui) View() string {
 		case <-time.After(time.Second):
 		}
 		if resp != nil {
-			res += fmt.Sprintf("\nReqs: %d, Errs:%d, Bytes: %d\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalBytes)
+			res += fmt.Sprintf("\nReqs: %d, Errs:%d, Objs:%d, Bytes: %d\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalObjects, resp.Total.TotalBytes)
 			ops := stringKeysSorted(resp.ByOpType)
 			for _, op := range ops {
 				tp := resp.ByOpType[op].Throughput
@@ -201,17 +212,23 @@ func (u *ui) View() string {
 				res += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s; ", op, tp.ObjectsPS(), tp.BytesPS().String())
 				lastOps := segs.Segments[len(segs.Segments)-1]
 				res += fmt.Sprintf("Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
-				if len(resp.ByOpType[op].Requests) > 0 {
-					reqs := resp.ByOpType[op].Requests[len(resp.ByOpType[op].Requests)-1]
-					if reqs.Single != nil {
-						res += fmt.Sprintf(", %d ms/req", reqs.Single.DurAvgMillis)
-						if reqs.Single.FirstByte != nil {
-							res += fmt.Sprintf(", ttfb: %vms", reqs.Single.FirstByte.AverageMillis)
+				for _, reqs := range resp.ByOpType[op].Requests {
+					if len(reqs) > 0 {
+						reqs := reqs[len(resp.ByOpType[op].Requests)-1]
+						if reqs.Single != nil {
+							res += fmt.Sprintf(", %d ms/req", reqs.Single.DurAvgMillis)
+							if reqs.Single.FirstByte != nil {
+								res += fmt.Sprintf(", ttfb: %vms", reqs.Single.FirstByte.AverageMillis)
+							}
 						}
+						res += ".\n"
+					} else {
+						res += "\n"
 					}
-					res += ".\n"
-				} else {
-					res += "\n"
+					if len(resp.ByOpType[op].Requests) > 1 {
+						// Maybe handle more clients better...
+						break
+					}
 				}
 			}
 		}

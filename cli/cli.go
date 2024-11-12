@@ -166,7 +166,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 		cfg := &mprofile.Config{
 			Path:           ctx.String("pprofdir"),
 			UseTempPath:    false,
-			Quiet:          false,
+			Quiet:          ctx.Bool("quiet") || ctx.Bool("json"),
 			MemProfileRate: 4096,
 			MemProfileType: "heap",
 			CloserHook:     nil,

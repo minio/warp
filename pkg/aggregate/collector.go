@@ -27,7 +27,7 @@ import (
 
 // LiveCollector return a collector, and a channel that will return the
 // current aggregate on the channel whenever it is requested.
-func LiveCollector(ctx context.Context, updates chan UpdateReq) bench.Collector {
+func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string) bench.Collector {
 	c := collector{
 		rcv: make(chan bench.Operation, 1000),
 	}
@@ -37,11 +37,10 @@ func LiveCollector(ctx context.Context, updates chan UpdateReq) bench.Collector 
 	}
 	c.updates = updates
 	go func() {
-		final := Live(c.rcv, updates)
+		final := Live(c.rcv, updates, clientID)
 		for {
 			select {
 			case <-ctx.Done():
-				close(c.rcv)
 				return
 			case req := <-updates:
 				select {
@@ -60,6 +59,7 @@ func LiveCollector(ctx context.Context, updates chan UpdateReq) bench.Collector 
 type UpdateReq struct {
 	C     chan<- *Realtime `json:"-"`
 	Reset bool             `json:"reset"`
+	Final bool             `json:"final"`
 }
 
 type collector struct {
@@ -89,8 +89,9 @@ func (c *collector) AddOutput(operations ...chan<- bench.Operation) {
 func (c *collector) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.rcv == nil {
+	if c.rcv != nil {
 		close(c.rcv)
+		c.rcv = nil
 	}
 	for _, cancel := range c.doneFn {
 		cancel()

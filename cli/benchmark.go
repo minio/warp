@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -184,6 +185,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	fatalIf(probe.NewError(err), "Unable to start profile.")
 	monitor.InfoLn("Starting benchmark in", time.Until(tStart).Round(time.Second))
 	b.Start(ctx2, start)
+	c.Collector.Close()
 	cancel()
 
 	ctx2 = context.Background()
@@ -219,15 +221,37 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		printAnalysis(ctx, &buf, ops)
 		ui.ShowReport(&buf)
 		ui.Pause(false)
-	}
+	} else if updates != nil {
+		finalCh := make(chan *aggregate.Realtime, 1)
+		updates <- aggregate.UpdateReq{Final: true, C: finalCh}
+		final := <-finalCh
+		f, err := os.Create(fileName + ".json.zst")
+		if err != nil {
+			monitor.Errorln("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+				defer enc.Close()
+				js := json.NewEncoder(enc)
+				js.SetIndent("", "  ")
+				err = js.Encode(final)
+				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
+				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
+			}()
+		}
+		rep := final.Report(true, !globalNoColor)
+		ui.ShowReport(rep)
+	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		ui.SetPhase("Cleanup")
 		monitor.InfoLn("Starting cleanup...")
 		b.Cleanup(context.Background())
 	}
 	monitor.InfoLn("Cleanup Done.")
-	time.Sleep(60 * time.Minute)
+	ui.Wait()
 	return nil
 }
 
@@ -428,7 +452,7 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 	var retrieveOps = bench.EmptyOpsCollector
 	if ctx.Bool("aggregate") {
 		updates := make(chan aggregate.UpdateReq, 1000)
-		c := aggregate.LiveCollector(context.Background(), updates)
+		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4))
 		c.AddOutput(common.ExtraOut...)
 		common.Collector = c
 		return bench.EmptyOpsCollector, updates

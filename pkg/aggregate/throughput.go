@@ -46,6 +46,23 @@ type Throughput struct {
 	Operations int `json:"ops"`
 }
 
+func (t Throughput) Add(o bench.Operation) Throughput {
+	if t.StartTime.IsZero() || t.StartTime.After(o.Start) {
+		t.StartTime = o.Start
+	}
+	if t.EndTime.IsZero() || t.EndTime.Before(o.End) {
+		t.EndTime = o.End
+	}
+	t.MeasureDurationMillis = int(t.EndTime.Sub(t.StartTime).Milliseconds())
+	t.Operations++
+	if o.Err != "" {
+		t.Errors++
+	}
+	t.Bytes += float64(o.Size)
+	t.Objects += float64(o.ObjPerOp)
+	return t
+}
+
 // BytesPS returns the bytes per second throughput for the time segment.
 func (t Throughput) BytesPS() bench.Throughput {
 	return bench.Throughput(1000 * t.Bytes / float64(t.MeasureDurationMillis))
