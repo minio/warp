@@ -40,10 +40,10 @@ type Benchmark interface {
 	// Operations should begin executing when the start channel is closed.
 	Start(ctx context.Context, wait chan struct{}) error
 
-	// Clean up after the benchmark run.
+	// Cleanup up after the benchmark run.
 	Cleanup(ctx context.Context)
 
-	// Common returns the common parameters.
+	// GetCommon returns the common parameters.
 	GetCommon() *Common
 }
 
@@ -59,8 +59,12 @@ type Common struct {
 
 	// ExtraFlags contains extra flags to add to remote clients.
 	ExtraFlags map[string]string
-	Source     func() generator.Source
-	ExtraOut   []chan<- Operation
+
+	// A source is a source that can be used for a single goroutine.
+	// It will have a shared prefix, if configured so.
+	Source func() generator.Source
+
+	ExtraOut []chan<- Operation
 
 	// Error should log an error similar to fmt.Print(data...)
 	Error func(data ...interface{})
