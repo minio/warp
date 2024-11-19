@@ -68,9 +68,9 @@ func (o CsvOpts) Comma(c byte) CsvOpts {
 }
 
 // FieldLen sets the length of each field.
-func (o CsvOpts) FieldLen(min, max int) CsvOpts {
-	o.minLen = min
-	o.maxLen = max
+func (o CsvOpts) FieldLen(minSize, maxSize int) CsvOpts {
+	o.minLen = minSize
+	o.maxLen = maxSize
 	return o
 }
 
