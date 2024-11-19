@@ -157,12 +157,17 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	default:
 		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
 	}
-
+	lookup := minio.BucketLookupAuto
+	if ctx.String("lookup") == "host" {
+		lookup = minio.BucketLookupDNS
+	} else if ctx.String("lookup") == "path" {
+		lookup = minio.BucketLookupPath
+	}
 	cl, err := minio.New(host, &minio.Options{
 		Creds:        creds,
 		Secure:       ctx.Bool("tls"),
 		Region:       ctx.String("region"),
-		BucketLookup: minio.BucketLookupAuto,
+		BucketLookup: lookup,
 		CustomMD5:    md5simd.NewServer().NewHash,
 		Transport:    clientTransport(ctx),
 	})

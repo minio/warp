@@ -269,6 +269,10 @@ var ioFlags = []cli.Flag{
 		Value: 0,
 		Usage: "Rate limit each instance to this number of requests per second (0 to disable)",
 	},
+	cli.StringFlag{
+		Name:  "lookup",
+		Usage: "Force requests to be 'host' for host-style or 'path' for path-style lookup. Default will attempt autodetect based on remote host name.",
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
