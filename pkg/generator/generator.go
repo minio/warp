@@ -176,24 +176,24 @@ func randASCIIBytes(dst []byte, rng *rand.Rand) {
 // GetExpRandSize will return an exponential random size from 1 to and including max.
 // Minimum size: 127 bytes, max scale is 256 times smaller than max size.
 // Average size will be max_size * 0.179151.
-func GetExpRandSize(rng *rand.Rand, min, max int64) int64 {
-	if max-min < 10 {
-		if max-min <= 0 {
+func GetExpRandSize(rng *rand.Rand, minSize, maxSize int64) int64 {
+	if maxSize-minSize < 10 {
+		if maxSize-minSize <= 0 {
 			return 0
 		}
-		return 1 + min + rng.Int63n(max-min)
+		return 1 + minSize + rng.Int63n(maxSize-minSize)
 	}
-	logSizeMax := math.Log2(float64(max - 1))
-	logSizeMin := math.Max(7, logSizeMax-8)
-	if min > 0 {
-		logSizeMin = math.Log2(float64(min - 1))
+	logSizeMaxSize := math.Log2(float64(maxSize - 1))
+	logSizeMinSize := math.Max(7, logSizeMaxSize-8)
+	if minSize > 0 {
+		logSizeMinSize = math.Log2(float64(minSize - 1))
 	}
-	lsDelta := logSizeMax - logSizeMin
+	lsDelta := logSizeMaxSize - logSizeMinSize
 	random := rng.Float64()
 	logSize := random * lsDelta
 	if logSize > 1 {
-		return 1 + int64(math.Pow(2, logSize+logSizeMin))
+		return 1 + int64(math.Pow(2, logSize+logSizeMinSize))
 	}
 	// For lowest part, do equal distribution
-	return 1 + min + int64(random*math.Pow(2, logSizeMin+1))
+	return 1 + minSize + int64(random*math.Pow(2, logSizeMinSize+1))
 }

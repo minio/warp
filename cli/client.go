@@ -105,16 +105,16 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 			}
 		}
 		find := func() int {
-			min := math.MaxInt32
+			minSize := math.MaxInt32
 			for _, n := range running {
-				if n < min {
-					min = n
+				if n < minSize {
+					minSize = n
 				}
 			}
 			earliest := time.Now().Add(time.Second)
 			earliestIdx := 0
 			for i, n := range running {
-				if n == min {
+				if n == minSize {
 					if lastFinished[i].Before(earliest) {
 						earliest = lastFinished[i]
 						earliestIdx = i

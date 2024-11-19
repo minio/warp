@@ -81,23 +81,23 @@ func WithSizeHistograms(encoded string) Option {
 }
 
 // WithMinMaxSize sets the min and max size of the generated data.
-func WithMinMaxSize(min, max int64) Option {
+func WithMinMaxSize(minSize, maxSize int64) Option {
 	return func(o *Options) error {
-		if min <= 0 {
+		if minSize <= 0 {
 			return errors.New("WithMinMaxSize: minSize must be >= 0")
 		}
-		if max < 0 {
+		if maxSize < 0 {
 			return errors.New("WithMinMaxSize: maxSize must be > 0")
 		}
-		if min > max {
+		if minSize > maxSize {
 			return errors.New("WithMinMaxSize: minSize must be < maxSize")
 		}
-		if o.randSize && max < 256 {
+		if o.randSize && maxSize < 256 {
 			return errors.New("WithMinMaxSize: random sized objects should be at least 256 bytes")
 		}
 
-		o.totalSize = max
-		o.minSize = min
+		o.totalSize = maxSize
+		o.minSize = minSize
 		return nil
 	}
 }
