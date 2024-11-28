@@ -45,12 +45,14 @@ var listFlags = []cli.Flag{
 	},
 }
 
+var ListCombinedFlags = combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags)
+
 var listCmd = cli.Command{
 	Name:   "list",
 	Usage:  "benchmark list objects",
 	Action: mainList,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  ListCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

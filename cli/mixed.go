@@ -60,12 +60,14 @@ var mixedFlags = []cli.Flag{
 	},
 }
 
+var MixedCombinedFlags = combineFlags(globalFlags, ioFlags, mixedFlags, genFlags, benchFlags, analyzeFlags)
+
 var mixedCmd = cli.Command{
 	Name:   "mixed",
 	Usage:  "benchmark mixed objects",
 	Action: mainMixed,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, mixedFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  MixedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

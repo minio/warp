@@ -42,13 +42,15 @@ var putFlags = []cli.Flag{
 	},
 }
 
+var PutCombinedFlags = combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags)
+
 // Put command.
 var putCmd = cli.Command{
 	Name:   "put",
 	Usage:  "benchmark put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  PutCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
