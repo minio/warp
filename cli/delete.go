@@ -49,12 +49,14 @@ var deleteFlags = []cli.Flag{
 	},
 }
 
+var DeletedCombinedFlags = combineFlags(globalFlags, ioFlags, deleteFlags, genFlags, benchFlags, analyzeFlags)
+
 var deleteCmd = cli.Command{
 	Name:   "delete",
 	Usage:  "benchmark delete objects",
 	Action: mainDelete,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, deleteFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  DeletedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

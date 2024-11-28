@@ -56,13 +56,15 @@ var multipartFlags = []cli.Flag{
 	},
 }
 
-// Put command.
+var MultiPartCombinedFlags = combineFlags(globalFlags, ioFlags, multipartFlags, genFlags, benchFlags, analyzeFlags)
+
+// MultiPart command.
 var multipartCmd = cli.Command{
 	Name:   "multipart",
 	Usage:  "benchmark multipart object",
 	Action: mainMultipart,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, multipartFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  MultiPartCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -75,7 +77,7 @@ FLAGS:
   {{end}}`,
 }
 
-// mainPut is the entry point for cp command.
+// mainMultipart is the entry point for put command.
 func mainMultipart(ctx *cli.Context) error {
 	checkMultipartSyntax(ctx)
 	b := bench.Multipart{
@@ -96,7 +98,7 @@ func mainMultipart(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-// putOpts retrieves put options from the context.
+// multipartOpts retrieves put options from the context.
 func multipartOpts(ctx *cli.Context) minio.PutObjectOptions {
 	return minio.PutObjectOptions{
 		ServerSideEncryption: newSSE(ctx),

@@ -64,12 +64,14 @@ var getFlags = []cli.Flag{
 	},
 }
 
+var GetCombinedFlags = combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags)
+
 var getCmd = cli.Command{
 	Name:   "get",
 	Usage:  "benchmark get objects",
 	Action: mainGet,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, getFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  GetCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

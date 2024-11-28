@@ -60,12 +60,14 @@ var versionedFlags = []cli.Flag{
 	},
 }
 
+var VersionedCombinedFlags = combineFlags(globalFlags, ioFlags, versionedFlags, genFlags, benchFlags, analyzeFlags)
+
 var versionedCmd = cli.Command{
 	Name:   "versioned",
 	Usage:  "benchmark mixed versioned objects",
 	Action: mainVersioned,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, versionedFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  VersionedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

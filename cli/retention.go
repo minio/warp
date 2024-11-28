@@ -41,12 +41,14 @@ var retentionFlags = []cli.Flag{
 	},
 }
 
+var RetentionCombinedFlags = combineFlags(globalFlags, ioFlags, retentionFlags, genFlags, benchFlags, analyzeFlags)
+
 var retentionCmd = cli.Command{
 	Name:   "retention",
 	Usage:  "benchmark PutObjectRetention",
 	Action: mainRetention,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, retentionFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  RetentionCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
