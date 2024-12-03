@@ -27,14 +27,15 @@ import (
 // Options provides options.
 // Use WithXXX functions to set them.
 type Options struct {
-	src          func(o Options) (Source, error)
-	customPrefix string
-	random       RandomOpts
-	csv          CsvOpts
-	minSize      int64
-	totalSize    int64
-	randomPrefix int
-	randSize     bool
+	src            func(o Options) (Source, error)
+	customPrefix   string
+	random         RandomOpts
+	circularRandom CircularRandomOpts
+	csv            CsvOpts
+	minSize        int64
+	totalSize      int64
+	randomPrefix   int
+	randSize       bool
 
 	// Activates the use of a distribution of sizes
 	flagSizesDistribution bool
@@ -59,11 +60,12 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 
 func defaultOptions() Options {
 	o := Options{
-		src:          newRandom,
-		totalSize:    1 << 20,
-		csv:          csvOptsDefaults(),
-		random:       randomOptsDefaults(),
-		randomPrefix: 0,
+		src:            newRandom,
+		totalSize:      1 << 20,
+		csv:            csvOptsDefaults(),
+		random:         randomOptsDefaults(),
+		circularRandom: WithCircularRandomData(),
+		randomPrefix:   0,
 	}
 	return o
 }
