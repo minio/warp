@@ -238,6 +238,8 @@ type aggregatedStats struct {
 		errors  int
 		reqDur  time.Duration
 		ttfb    time.Duration
+		reqMin  time.Duration
+		reqMax  time.Duration
 	}
 
 	// Total stats (accumulated over the entire run)
@@ -285,6 +287,14 @@ func (a *aggregatedStats) add(o bench.Operation) {
 		a.reqMin = dur
 	}
 
+	if dur > a.incr.reqMax {
+		a.incr.reqMax = dur
+	}
+
+	if a.incr.reqMin == 0 || dur < a.incr.reqMin {
+		a.incr.reqMin = dur
+	}
+
 	if o.FirstByte != nil {
 		ttfb := o.FirstByte.Sub(o.Start)
 		a.incr.ttfb += ttfb
@@ -313,6 +323,8 @@ func (a aggregatedStats) point(op bench.Operation) *write.Point {
 		// Average
 		p.AddField("request_ttfb_total_secs", (float64(a.incr.ttfb)/float64(time.Second))/float64(a.incr.ops))
 	}
+	p.AddField("request_min_secs", float64(a.incr.reqMin)/float64(time.Second))
+	p.AddField("request_max_secs", float64(a.incr.reqMax)/float64(time.Second))
 
 	return p
 }
