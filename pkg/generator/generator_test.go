@@ -41,14 +41,6 @@ func TestNew(t *testing.T) {
 			wantErr:  false,
 			wantSize: 1 << 20,
 		},
-		{
-			name: "CSV",
-			args: args{
-				opts: []Option{WithCSV().Apply()},
-			},
-			wantErr:  false,
-			wantSize: 1 << 20,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,64 +102,14 @@ func TestNew(t *testing.T) {
 				t.Errorf("New() size = %v, wantSize = %v", len(b), tt.wantSize)
 				return
 			}
-			n, err = obj.Reader.Seek(10, 1)
-			if err != io.EOF {
-				t.Errorf("Expected io.EOF, got %v", err)
+			n, err = obj.Reader.Seek(10, io.SeekCurrent)
+			if err != io.ErrUnexpectedEOF {
+				t.Errorf("Expected io.ErrUnexpectedEOF, got %v", err)
 				return
 			}
 			if n != 0 {
 				t.Errorf("Expected 0, got %v", n)
 				return
-			}
-		})
-	}
-}
-
-func BenchmarkWithCSV(b *testing.B) {
-	type args struct {
-		opts []Option
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "64KiB-5x100",
-			args: args{opts: []Option{WithSize(1 << 16), WithCSV().Size(5, 100).Apply()}},
-		},
-		{
-			name: "1MiB-10x500",
-			args: args{opts: []Option{WithSize(1 << 20), WithCSV().Size(10, 500).Apply()}},
-		},
-		{
-			name: "10MiB-50x1000",
-			args: args{opts: []Option{WithSize(10 << 20), WithCSV().Size(50, 1000).Apply()}},
-		},
-	}
-	for _, tt := range tests {
-		b.Run(tt.name, func(b *testing.B) {
-			got, err := New(tt.args.opts...)
-			if err != nil {
-				b.Errorf("New() error = %v", err)
-				return
-			}
-			obj := got.Object()
-			payload, err := io.ReadAll(obj.Reader)
-			if err != nil {
-				b.Errorf("ioutil error = %v", err)
-				return
-			}
-			b.SetBytes(int64(len(payload)))
-			// ioutil.WriteFile(tt.name+".csv", payload, os.ModePerm)
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				obj := got.Object()
-				_, err := io.Copy(io.Discard, obj.Reader)
-				if err != nil {
-					b.Errorf("New() error = %v", err)
-					return
-				}
 			}
 		})
 	}

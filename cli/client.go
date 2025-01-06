@@ -38,9 +38,9 @@ import (
 	md5simd "github.com/minio/md5-simd"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/minio/pkg/v2/certs"
-	"github.com/minio/pkg/v2/console"
-	"github.com/minio/pkg/v2/ellipses"
+	"github.com/minio/pkg/v3/certs"
+	"github.com/minio/pkg/v3/console"
+	"github.com/minio/pkg/v3/ellipses"
 	"github.com/minio/warp/pkg"
 	"golang.org/x/net/http2"
 )
