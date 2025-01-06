@@ -32,6 +32,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/muesli/termenv"
 )
 
 type ui struct {
@@ -72,9 +73,7 @@ func (u *ui) Run() {
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("UI: %v", err)
 	}
-	if u.quit {
-		os.Exit(0)
-	}
+	fmt.Println("UI EXIT...")
 }
 
 func (u *ui) Wait() {
@@ -132,8 +131,9 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		batch := []tea.Cmd{tickCmd(), viewport.Sync(m.viewport)}
 		m.showProgress = false
-		if m.reportBuf.Load() != nil {
-			return m, nil
+		if rep := m.reportBuf.Load(); rep != nil {
+			m.viewport.SetContent(rep.String())
+			return m, viewport.Sync(m.viewport)
 		}
 		if p := m.pct.Load(); p != nil {
 			m.showProgress = true
@@ -156,14 +156,16 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Batch(batch...)
 
-	// FrameMsg is sent when the progress bar wants to animate itself
 	case progress.FrameMsg:
+		// FrameMsg is sent when the progress bar wants to animate itself
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
 		return m, cmd
 	}
 	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
+	if !m.quit {
+		m.viewport, cmd = m.viewport.Update(msg)
+	}
 	return m, cmd
 }
 
@@ -179,13 +181,14 @@ func (u *ui) View() string {
 	}
 
 	pad := strings.Repeat(" ", padding)
-	res := "\nWarp S3 Benchmark Tool by MinIO\n"
+	res := "\nWARP S3 Benchmark Tool by MinIO\n"
 	if ph := u.phase.Load(); ph != nil {
-		res += "\n" + *ph
+		status := "\n" + *ph
 		if ph := u.phaseTxt.Load(); ph != nil {
-			res += ": " + *ph
+			status += ": " + *ph
 		}
-		res += "...\n\n"
+		status += "...\n\n"
+		res += statusStyle.Render(status)
 	}
 
 	if u.showProgress {
@@ -246,7 +249,6 @@ func (u *ui) SetPhase(caption string) {
 }
 
 func (u *ui) ShowReport(buf *bytes.Buffer) {
-	u.viewport.SetContent(buf.String())
 	u.reportBuf.Store(buf)
 }
 
@@ -282,11 +284,13 @@ func (m *ui) Pause(b bool) {
 	m.pause.Store(b)
 }
 
+const borderCol = lipgloss.ANSIColor(termenv.ANSICyan)
+
 var (
 	titleStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
 		b.Right = "├"
-		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1).Foreground(lipgloss.ANSIColor(termenv.ANSIYellow)).BorderForeground(borderCol)
 	}()
 
 	infoStyle = func() lipgloss.Style {
@@ -294,23 +298,32 @@ var (
 		b.Left = "┤"
 		return titleStyle.BorderStyle(b)
 	}()
+
+	lineStyle = func() lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(borderCol)
+	}()
+	statusStyle = func() lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIGreen))
+	}()
 )
 
 func (m *ui) headerView() string {
 	title := titleStyle.Render("Warp S3 Benchmark Tool by MinIO - Result View")
-	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
+	line := lineStyle.Render(strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title))))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
 }
 
 func (m *ui) footerView() string {
 	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
-	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
+	line := lineStyle.Render(strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info))))
 	joined := lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+	status := ""
 	if ph := m.phase.Load(); ph != nil {
-		joined += "\n" + *ph
+		status = "\n" + *ph
 		if ph := m.phaseTxt.Load(); ph != nil {
-			joined += ": " + *ph
+			status += ": " + *ph
 		}
+		joined += statusStyle.Render(status)
 	}
 	return joined
 }

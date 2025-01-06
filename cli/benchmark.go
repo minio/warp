@@ -242,7 +242,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
 			}()
 		}
-		rep := final.Report(true, !globalNoColor)
+		rep := final.Report(aggregate.ReportOptions{
+			Details: true,
+			Color:   !globalNoColor,
+		})
 		ui.ShowReport(rep)
 	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {

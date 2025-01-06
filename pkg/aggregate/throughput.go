@@ -75,6 +75,9 @@ func (t Throughput) ObjectsPS() float64 {
 
 // Merge currently running measurements.
 func (t *Throughput) Merge(other Throughput) {
+	if other.Operations == 0 {
+		return
+	}
 	t.Errors += other.Errors
 	t.Bytes += other.Bytes
 	t.Objects += other.Objects
@@ -86,6 +89,7 @@ func (t *Throughput) Merge(other Throughput) {
 	if other.EndTime.After(t.EndTime) {
 		t.EndTime = other.EndTime
 	}
+	t.MeasureDurationMillis = int(t.EndTime.Sub(t.StartTime).Milliseconds())
 	if t.Segmented == nil {
 		t.Segmented = other.Segmented
 	} else if t.Segmented != nil && other.Segmented != nil {
@@ -105,27 +109,30 @@ func (t Throughput) StringDuration() string {
 
 // StringDetails returns a detailed string representation of the segment
 func (t Throughput) StringDetails(_ bool) string {
+	if t.Bytes == 0 && t.Objects == 0 {
+		return ""
+	}
 	speed := ""
 	if t.Bytes > 0 {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.BytesPS()/(1<<20))
 	}
 	errs := ""
-	if t.Errors > 0 {
+	if false && t.Errors > 0 {
 		errs = fmt.Sprintf(", %d errors", t.Errors)
 	}
-	return fmt.Sprintf("%s%.02f obj/s%s",
-		speed, t.ObjectsPS(), errs)
+	//speed = fmt.Sprintf("O: %.0f, B:%.0f, D: %v - %s", t.Objects, t.Bytes, time.Duration(t.MeasureDurationMillis)*time.Millisecond, speed)
+	return fmt.Sprintf("%s%.02f obj/s%s (%vs)",
+		speed, t.ObjectsPS(), errs, (t.MeasureDurationMillis+500)/1000)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
-	mib, _, objs := total.SpeedPerSec()
 	*t = Throughput{
 		Operations:            total.FullOps,
 		MeasureDurationMillis: durToMillis(total.EndsBefore.Sub(total.Start)),
 		StartTime:             total.Start,
 		EndTime:               total.EndsBefore,
-		Bytes:                 mib,
-		Objects:               objs,
+		Bytes:                 float64(total.TotalBytes),
+		Objects:               total.Objects,
 		Errors:                total.Errors,
 	}
 }

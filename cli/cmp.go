@@ -18,12 +18,12 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v2/console"
@@ -55,19 +55,17 @@ func mainCmp(ctx *cli.Context) error {
 	checkAnalyze(ctx)
 	checkCmp(ctx)
 	args := ctx.Args()
-	zstdDec, _ := zstd.NewReader(nil)
-	defer zstdDec.Close()
 	log := console.Printf
 	if globalQuiet {
 		log = nil
 	}
 	readOps := func(s string) bench.Operations {
-		f, err := os.Open(s)
-		fatalIf(probe.NewError(err), "Unable to open input file")
-		defer f.Close()
-		err = zstdDec.Reset(f)
-		fatalIf(probe.NewError(err), "Unable to read input")
-		ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+		rc, isAggreated := openInput(s)
+		defer rc.Close()
+		if isAggreated {
+			fatalIf(probe.NewError(errors.New("aggregated compare not available yet")), "Aggregated compare not available yet")
+		}
+		ops, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 		fatalIf(probe.NewError(err), "Unable to parse input")
 		return ops
 	}

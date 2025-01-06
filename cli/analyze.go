@@ -18,6 +18,8 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,8 +124,6 @@ func mainAnalyze(ctx *cli.Context) error {
 	if len(args) > 1 {
 		console.Fatal("Only one benchmark file can be given")
 	}
-	zstdDec, _ := zstd.NewReader(nil)
-	defer zstdDec.Close()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	defer monitor.Done()
 	log := func(format string, data ...interface{}) {
@@ -134,18 +134,9 @@ func mainAnalyze(ctx *cli.Context) error {
 		log = nil
 	}
 	for _, arg := range args {
-		var input io.Reader
-		if arg == "-" {
-			input = os.Stdin
-		} else {
-			f, err := os.Open(arg)
-			fatalIf(probe.NewError(err), "Unable to open input file")
-			defer f.Close()
-			input = f
-		}
-		err := zstdDec.Reset(input)
-		fatalIf(probe.NewError(err), "Unable to read input")
-		if ctx.Bool("aggregate") {
+		rc, isAggregate := openInput(arg)
+		defer rc.Close()
+		if ctx.Bool("aggregate") || isAggregate {
 			var ui ui
 			if !globalQuiet && !globalJSON {
 				go ui.Run()
@@ -154,13 +145,23 @@ func mainAnalyze(ctx *cli.Context) error {
 					ui.SetSubText(fmt.Sprintf(format, data...))
 				}
 			}
-			var opCh = make(chan bench.Operation, 10000)
-			go func() {
-				err := bench.StreamOperationsFromCSV(zstdDec, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
-				fatalIf(probe.NewError(err), "Unable to parse input")
-			}()
-			final := aggregate.Live(opCh, nil, "")
-			rep := final.Report(true, !globalNoColor)
+			var final aggregate.Realtime
+			if isAggregate {
+				if err := json.NewDecoder(rc).Decode(&final); err != nil {
+					fatalIf(probe.NewError(err), "Unable to parse input")
+				}
+			} else {
+				var opCh = make(chan bench.Operation, 10000)
+				go func() {
+					err := bench.StreamOperationsFromCSV(rc, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
+					fatalIf(probe.NewError(err), "Unable to parse input")
+				}()
+				final = *aggregate.Live(opCh, nil, "")
+			}
+			rep := final.Report(aggregate.ReportOptions{
+				Details: true,
+				Color:   !globalNoColor,
+			})
 			if globalJSON {
 				b, err := json.MarshalIndent(final, "", "  ")
 				fatalIf(probe.NewError(err), "Unable to parse input")
@@ -168,11 +169,15 @@ func mainAnalyze(ctx *cli.Context) error {
 			} else if globalQuiet {
 				fmt.Println(rep.String())
 			} else {
+				ui.Pause(true)
+				ui.SetPhase("Report")
+				ui.SetSubText("Use Arrow keys to navigate. Press q to quit")
 				ui.ShowReport(rep)
+				ui.Pause(false)
 				ui.Wait()
 			}
 		} else {
-			ops, err := bench.OperationsFromCSV(zstdDec, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+			ops, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 			fatalIf(probe.NewError(err), "Unable to parse input")
 			console.Println("")
 			printAnalysis(ctx, os.Stdout, ops)
@@ -270,6 +275,44 @@ func printMixedOpAnalysis(ctx *cli.Context, aggr aggregate.Aggregated, details b
 	}
 }
 
+func openInput(arg string) (rc io.ReadCloser, isJSON bool) {
+	var input io.Reader
+	var fileClose func() error
+	if arg == "-" {
+		input = os.Stdin
+	} else {
+		f, err := os.Open(arg)
+		fatalIf(probe.NewError(err), "Unable to open input file")
+		fileClose = f.Close
+		input = f
+	}
+	z, err := zstd.NewReader(input)
+	fatalIf(probe.NewError(err), "could not read from input")
+
+	buf := bufio.NewReader(z)
+	v, err := buf.Peek(1)
+	fatalIf(probe.NewError(err), "could not read from input")
+
+	return readCloser{
+		Reader: buf,
+		closeFn: func() error {
+			z.Close()
+			if fileClose != nil {
+				return fileClose()
+			}
+			return nil
+		},
+	}, bytes.Equal(v, []byte("{"))
+}
+
+type readCloser struct {
+	io.Reader
+	closeFn func() error
+}
+
+func (rc readCloser) Close() error {
+	return rc.closeFn()
+}
 func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer

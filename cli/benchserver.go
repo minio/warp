@@ -488,6 +488,40 @@ func (c *connections) downloadOps() []bench.Operations {
 	return res
 }
 
+// downloadOps will download operations from all connected clients.
+// If an error is encountered the result will be ignored.
+func (c *connections) downloadAggr() aggregate.Realtime {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	c.info("Downloading operations...")
+	var res aggregate.Realtime
+	for i, conn := range c.ws {
+		if conn == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps, Aggregate: true})
+			if err != nil {
+				c.errorF("Client %v download returned error: %v\n", c.hostName(i), resp.Err)
+				return
+			}
+			if resp.Err != "" {
+				c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
+				return
+			}
+			c.info("Client ", c.hostName(i), ": Operations downloaded.")
+
+			mu.Lock()
+			res.Merge(resp.Update)
+			mu.Unlock()
+		}(i)
+	}
+	wg.Wait()
+	return res
+}
+
 // waitForStage will wait for stage completion on all clients.
 func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common *bench.Common, updates <-chan aggregate.UpdateReq) error {
 	var wg sync.WaitGroup

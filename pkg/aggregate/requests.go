@@ -18,6 +18,8 @@
 package aggregate
 
 import (
+	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -75,6 +77,84 @@ type SingleSizedRequests struct {
 
 	// Skipped if too little data.
 	Skipped bool `json:"skipped,omitempty"`
+
+	// Internal counter
+	n int
+}
+
+func (a SingleSizedRequests) StringByN() string {
+	n := a.n
+	if a.Requests == 0 || n == 0 {
+		return ""
+	}
+	// rounder...
+	round := n / 2
+	reqs := a
+
+	return fmt.Sprint(
+		"Avg: ", time.Duration((reqs.DurAvgMillis+round)/n)*time.Millisecond,
+		", 50%: ", time.Duration((reqs.DurMedianMillis+round)/n)*time.Millisecond,
+		", 90%: ", time.Duration((reqs.Dur90Millis+round)/n)*time.Millisecond,
+		", 99%: ", time.Duration((reqs.Dur99Millis+round)/n)*time.Millisecond,
+		", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
+		", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
+		", StdDev: ", time.Duration((reqs.StdDev+round)/n)*time.Millisecond,
+	)
+}
+
+func (a *SingleSizedRequests) add(b SingleSizedRequests) {
+	if b.Skipped {
+		return
+	}
+	a.Requests += b.Requests
+	a.ObjSize += b.ObjSize
+	a.DurAvgMillis += b.DurAvgMillis
+	a.DurMedianMillis += b.DurMedianMillis
+	if a.n == 0 {
+		a.FastestMillis = b.FastestMillis
+	} else {
+		a.FastestMillis = min(a.FastestMillis, b.FastestMillis)
+	}
+	a.SlowestMillis = max(a.SlowestMillis, b.SlowestMillis)
+	a.Dur99Millis += b.Dur99Millis
+	a.Dur90Millis += b.Dur90Millis
+	a.StdDev += b.StdDev
+	a.n += b.n
+	a.HostNames.AddMap(b.HostNames)
+	if a.ByHost == nil && len(b.ByHost) > 0 {
+		a.ByHost = make(map[string]SingleSizedRequests, len(b.ByHost))
+	}
+	for k, v := range b.ByHost {
+		x := a.ByHost[k]
+		x.add(v)
+		a.ByHost[k] = x
+	}
+	if a.DurPct == nil && b.DurPct == nil {
+		a.DurPct = &[101]int{}
+	}
+	if b.DurPct != nil {
+		for i := range b.DurPct {
+			a.DurPct[i] += b.DurPct[i]
+		}
+	}
+	if b.FirstAccess != nil {
+		if a.FirstAccess == nil {
+			a.FirstAccess = &SingleSizedRequests{}
+		}
+		a.FirstAccess.add(*b.FirstAccess)
+	}
+	if b.LastAccess != nil {
+		if a.LastAccess == nil {
+			a.LastAccess = &SingleSizedRequests{}
+		}
+		a.LastAccess.add(*b.LastAccess)
+	}
+	if b.FirstByte != nil {
+		if a.FirstByte == nil {
+			a.FirstByte = &TTFB{}
+		}
+		a.FirstByte.add(*b.FirstByte)
+	}
 }
 
 func (a *SingleSizedRequests) fill(ops bench.Operations) {
@@ -91,6 +171,7 @@ func (a *SingleSizedRequests) fill(ops bench.Operations) {
 	a.FastestMillis = durToMillis(ops.Median(0).Duration())
 	a.FirstByte = TtfbFromBench(ops.TTFB(start, end))
 	a.DurPct = &[101]int{}
+	a.n = 1
 	for i := range a.DurPct[:] {
 		a.DurPct[i] = durToMillis(ops.Median(float64(i) / 100).Duration())
 	}
@@ -141,6 +222,34 @@ type RequestSizeRange struct {
 	MaxSize int `json:"max_size"`
 	// Minimum size in request size range.
 	MinSize int `json:"min_size"`
+	n       int
+}
+
+func (s RequestSizeRange) String() string {
+	if s.n <= 0 || s.Requests == 0 {
+		return ""
+	}
+	return fmt.Sprint("Average: ", bench.Throughput(s.BpsAverage),
+		", 50%: ", bench.Throughput(s.BpsMedian),
+		", 90%: ", bench.Throughput(s.Bps90),
+		", 99%: ", bench.Throughput(s.Bps99),
+		", Fastest: ", bench.Throughput(s.BpsFastest),
+		", Slowest: ", bench.Throughput(s.BpsSlowest),
+	)
+}
+
+func (s RequestSizeRange) StringByN() string {
+	if s.n <= 0 || s.Requests == 0 {
+		return ""
+	}
+	mul := 1 / float64(s.n)
+	return fmt.Sprint("Avg: ", bench.Throughput(s.BpsAverage*mul),
+		", 50%: ", bench.Throughput(s.BpsMedian*mul),
+		", 90%: ", bench.Throughput(s.Bps90*mul),
+		", 99%: ", bench.Throughput(s.Bps99*mul),
+		", Fastest: ", bench.Throughput(s.BpsFastest*mul),
+		", Slowest: ", bench.Throughput(s.BpsSlowest*mul),
+	)
 }
 
 func (r *RequestSizeRange) fill(s bench.SizeSegment) {
@@ -161,6 +270,33 @@ func (r *RequestSizeRange) fill(s bench.SizeSegment) {
 	for i := range r.BpsPct[:] {
 		r.BpsPct[i] = s.Ops.Median(float64(i) / 100).BytesPerSec().Float()
 	}
+	r.n = 1
+}
+
+func (a *RequestSizeRange) add(b RequestSizeRange) {
+	a.Requests += b.Requests
+	if b.FirstByte != nil {
+		if a.FirstByte == nil {
+			a.FirstByte = &TTFB{}
+		}
+		a.FirstByte.add(*b.FirstByte)
+	}
+	// Min/Max should be set
+	a.AvgObjSize += b.AvgObjSize
+	a.AvgDurationMillis += b.AvgDurationMillis
+	a.BpsAverage += b.BpsAverage
+	a.BpsMedian += b.BpsMedian
+	a.BpsFastest += b.BpsFastest
+	a.BpsSlowest += b.BpsSlowest
+	if b.BpsPct != nil {
+		if a.BpsPct == nil {
+			a.BpsPct = &[101]float64{}
+		}
+		for i, v := range b.BpsPct[:] {
+			a.BpsPct[i] = v
+		}
+	}
+	a.n += b.n
 }
 
 func (r *RequestSizeRange) fillFirstAccess(s bench.SizeSegment) {
@@ -173,24 +309,81 @@ func (r *RequestSizeRange) fillFirstAccess(s bench.SizeSegment) {
 	r.FirstAccess = &a
 }
 
+// RequestSizeRanges is an array of RequestSizeRange
+type RequestSizeRanges []RequestSizeRange
+
+// SortbySize will sort the ranges by size.
+func (r RequestSizeRanges) SortbySize() {
+	sort.Slice(r, func(i, j int) bool {
+		return r[i].MinSize < r[j].MinSize
+	})
+}
+
+// FindMatching will find a matching range, or create a new range.
+// New entries will not me added to r.
+func (r RequestSizeRanges) FindMatching(want RequestSizeRange) (v *RequestSizeRange, found bool) {
+	for i := range r {
+		if want.MinSize >= r[i].MinSize && want.MaxSize <= r[i].MaxSize {
+			return &r[i], true
+		}
+	}
+	return &RequestSizeRange{
+		MinSizeString: want.MinSizeString,
+		MaxSizeString: want.MaxSizeString,
+		MaxSize:       want.MaxSize,
+		MinSize:       want.MinSize,
+	}, false
+}
+
 // MultiSizedRequests contains statistics when objects have the same different size.
 type MultiSizedRequests struct {
 	// ByHost contains request information by host.
+	// This data is not segmented.
 	ByHost map[string]RequestSizeRange `json:"by_host,omitempty"`
 
 	// BySize contains request times separated by sizes
-	BySize []RequestSizeRange `json:"by_size"`
+	BySize RequestSizeRanges `json:"by_size"`
 
 	// HostNames are the host names, sorted.
-	HostNames []string
+	HostNames MapAsSlice
 
 	// Total number of requests.
 	Requests int `json:"requests"`
+
 	// Average object size
 	AvgObjSize int64 `json:"avg_obj_size"`
 
 	// Skipped if too little data.
 	Skipped bool `json:"skipped,omitempty"`
+
+	// internal counter
+	n int
+}
+
+func (a *MultiSizedRequests) add(b MultiSizedRequests) {
+	if b.Skipped {
+		return
+	}
+	if a.ByHost == nil {
+		a.ByHost = make(map[string]RequestSizeRange)
+	}
+	for ep, v := range b.ByHost {
+		av := a.ByHost[ep]
+		av.add(v)
+		a.ByHost[ep] = av
+	}
+	a.HostNames.AddMap(b.HostNames)
+	a.Requests += b.Requests
+	a.AvgObjSize += b.AvgObjSize
+	for _, toMerge := range b.BySize {
+		dst, found := a.BySize.FindMatching(toMerge)
+		dst.add(toMerge)
+		if !found {
+			a.BySize = append(a.BySize, toMerge)
+			a.BySize.SortbySize()
+		}
+	}
+	a.n += b.n
 }
 
 func (a *MultiSizedRequests) fill(ops bench.Operations, fillFirstAccess bool) {
@@ -203,6 +396,7 @@ func (a *MultiSizedRequests) fill(ops bench.Operations, fillFirstAccess bool) {
 	a.AvgObjSize = ops.AvgSize()
 	sizes := ops.SplitSizes(0.05)
 	a.BySize = make([]RequestSizeRange, len(sizes))
+	a.n = 1
 	var wg sync.WaitGroup
 	wg.Add(len(sizes))
 	for i := range sizes {
@@ -291,10 +485,11 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 	}
 	res.fill(active, true)
 	res.ByHost = RequestAnalysisHostsMultiSized(active)
-	res.HostNames = active.Endpoints()
+	res.HostNames.AddSlice(active.Endpoints())
 	if len(res.HostNames) != len(res.ByHost) && len(res.ByHost) > 0 {
-		res.HostNames = o.ClientIDs(clientAsHostPrefix)
+		res.HostNames.AddSlice(o.ClientIDs(clientAsHostPrefix))
 	}
+	res.n = 1
 	return &res
 }
 

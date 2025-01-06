@@ -274,11 +274,6 @@ var ioFlags = []cli.Flag{
 		Usage:  "Send operations to stdout",
 		Hidden: true,
 	},
-	cli.BoolFlag{
-		Name:   "aggregate,a",
-		Usage:  "Aggregate operations instead of collecting each individually",
-		Hidden: true,
-	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {

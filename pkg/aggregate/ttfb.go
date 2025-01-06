@@ -55,6 +55,42 @@ func (t TTFB) String() string {
 		time.Duration(t.StdDevMillis)*time.Millisecond)
 }
 
+func (t *TTFB) add(other TTFB) {
+	t.AverageMillis += other.AverageMillis
+	t.MedianMillis += other.MedianMillis
+	if other.FastestMillis != 0 {
+		// Deal with 0 value being the best always.
+		t.FastestMillis = min(t.FastestMillis, other.FastestMillis)
+		if t.FastestMillis == 0 {
+			t.FastestMillis = other.FastestMillis
+		}
+	}
+	t.SlowestMillis = max(t.SlowestMillis, other.SlowestMillis)
+	t.P25Millis += other.P25Millis
+	t.P75Millis += other.P75Millis
+	t.P90Millis += other.P90Millis
+	t.P99Millis += other.P99Millis
+	t.StdDevMillis += other.StdDevMillis
+}
+
+func (t TTFB) StringByN(n int) string {
+	if t.AverageMillis == 0 || n == 0 {
+		return ""
+	}
+	// rounder...
+	hN := n / 2
+	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
+		time.Duration((hN+t.AverageMillis)/n)*time.Millisecond,
+		time.Duration(t.FastestMillis)*time.Millisecond,
+		time.Duration((hN+t.P25Millis)/n)*time.Millisecond,
+		time.Duration((hN+t.MedianMillis)/n)*time.Millisecond,
+		time.Duration((hN+t.P75Millis)/n)*time.Millisecond,
+		time.Duration((hN+t.P90Millis)/n)*time.Millisecond,
+		time.Duration((hN+t.P99Millis)/n)*time.Millisecond,
+		time.Duration(t.SlowestMillis)*time.Millisecond,
+		time.Duration((hN+t.StdDevMillis)/n)*time.Millisecond)
+}
+
 // TtfbFromBench converts from bench.TTFB
 func TtfbFromBench(t bench.TTFB) *TTFB {
 	if t.Average <= 0 {
