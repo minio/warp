@@ -40,7 +40,7 @@ var listFlags = []cli.Flag{
 		Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
 	},
 	cli.BoolFlag{
-		Name:  "metadata",
+		Name:  "extended-metadata",
 		Usage: "Enable extended MinIO ListObjects with metadata, by default this benchmarking uses ListObjectsV2 API.",
 	},
 }
@@ -72,7 +72,7 @@ func mainList(ctx *cli.Context) error {
 	b := bench.List{
 		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
 		Versions:      ctx.Int("versions"),
-		Metadata:      ctx.Bool("metadata"),
+		Metadata:      ctx.Bool("extended-metadata"),
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),
 	}
