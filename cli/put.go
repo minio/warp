@@ -91,7 +91,7 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 		PartSize:             pSize,
 	}
 
-	for _, flag := range []string{"metadata", "tag"} {
+	for _, flag := range []string{"add-metadata", "tag"} {
 		values := make(map[string]string)
 
 		for _, v := range ctx.StringSlice(flag) {

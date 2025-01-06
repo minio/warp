@@ -274,8 +274,8 @@ var ioFlags = []cli.Flag{
 		Usage: "Force requests to be 'host' for host-style or 'path' for path-style lookup. Default will attempt autodetect based on remote host name.",
 	},
 	cli.StringSliceFlag{
-		Name:   "metadata",
-		Usage:  "Add user metada to all objects using the format <key>=<value>. Random value can be set with 'rand:%length'. Can be used multiple times. Example: --metadata foo=bar --metadata randomValue=rand:1024.",
+		Name:   "add-metadata",
+		Usage:  "Add user metadata to all objects using the format <key>=<value>. Random value can be set with 'rand:%length'. Can be used multiple times. Example: --add-metadata foo=bar --add-metadata randomValue=rand:1024.",
 		Hidden: true,
 	},
 	cli.StringSliceFlag{
