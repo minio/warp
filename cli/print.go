@@ -26,7 +26,7 @@ import (
 
 	"github.com/cheggaaa/pb"
 	"github.com/minio/mc/pkg/probe"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 )
 
 // causeMessage container for golang error messages

@@ -30,7 +30,6 @@ type Options struct {
 	src          func(o Options) (Source, error)
 	customPrefix string
 	random       RandomOpts
-	csv          CsvOpts
 	minSize      int64
 	totalSize    int64
 	randomPrefix int
@@ -61,7 +60,6 @@ func defaultOptions() Options {
 	o := Options{
 		src:          newRandom,
 		totalSize:    1 << 20,
-		csv:          csvOptsDefaults(),
 		random:       randomOptsDefaults(),
 		randomPrefix: 0,
 	}
