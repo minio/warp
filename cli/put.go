@@ -18,9 +18,13 @@
 package cli
 
 import (
+	"fmt"
+	"math/rand"
+	"strings"
+
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -42,13 +46,15 @@ var putFlags = []cli.Flag{
 	},
 }
 
+var PutCombinedFlags = combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags)
+
 // Put command.
 var putCmd = cli.Command{
 	Name:   "put",
 	Usage:  "benchmark put objects",
 	Action: mainPut,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  PutCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -71,10 +77,12 @@ func mainPut(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
+const metadataChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_."
+
 // putOpts retrieves put options from the context.
 func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 	pSize, _ := toSize(ctx.String("part.size"))
-	return minio.PutObjectOptions{
+	options := minio.PutObjectOptions{
 		ServerSideEncryption: newSSE(ctx),
 		DisableMultipart:     ctx.Bool("disable-multipart"),
 		DisableContentSha256: ctx.Bool("disable-sha256-payload"),
@@ -82,6 +90,40 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 		StorageClass:         ctx.String("storage-class"),
 		PartSize:             pSize,
 	}
+
+	for _, flag := range []string{"add-metadata", "tag"} {
+		values := make(map[string]string)
+
+		for _, v := range ctx.StringSlice(flag) {
+			idx := strings.Index(v, "=")
+			if idx <= 0 {
+				console.Fatalf("--%s takes `key=value` argument", flag)
+			}
+			key := v[:idx]
+			value := v[idx+1:]
+			if len(value) == 0 {
+				console.Fatal("--%s value can't be empty", flag)
+			}
+			var randN int
+			if _, err := fmt.Sscanf(value, "rand:%d", &randN); err == nil {
+				rng := rand.New(rand.NewSource(int64(rand.Uint64())))
+				value = ""
+				for i := 0; i < randN; i++ {
+					value += string(metadataChars[rng.Int()%len(metadataChars)])
+				}
+			}
+			values[key] = value
+		}
+
+		switch flag {
+		case "metadata":
+			options.UserMetadata = values
+		case "tag":
+			options.UserTags = values
+		}
+	}
+
+	return options
 }
 
 func checkPutSyntax(ctx *cli.Context) {

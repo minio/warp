@@ -23,7 +23,7 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -60,12 +60,14 @@ var versionedFlags = []cli.Flag{
 	},
 }
 
+var VersionedCombinedFlags = combineFlags(globalFlags, ioFlags, versionedFlags, genFlags, benchFlags, analyzeFlags)
+
 var versionedCmd = cli.Command{
 	Name:   "versioned",
 	Usage:  "benchmark mixed versioned objects",
 	Action: mainVersioned,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, versionedFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  VersionedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

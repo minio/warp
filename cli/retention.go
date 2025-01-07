@@ -19,7 +19,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -41,12 +41,14 @@ var retentionFlags = []cli.Flag{
 	},
 }
 
+var RetentionCombinedFlags = combineFlags(globalFlags, ioFlags, retentionFlags, genFlags, benchFlags, analyzeFlags)
+
 var retentionCmd = cli.Command{
 	Name:   "retention",
 	Usage:  "benchmark PutObjectRetention",
 	Action: mainRetention,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, retentionFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  RetentionCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

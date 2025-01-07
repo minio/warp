@@ -20,9 +20,10 @@ package generator
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"sync/atomic"
+
+	"github.com/minio/pkg/v3/rng"
 )
 
 func WithRandomData() RandomOpts {
@@ -76,7 +77,7 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	buf     *scrambler
+	source  *rng.Reader
 	rng     *rand.Rand
 	obj     Object
 	o       Options
@@ -88,7 +89,6 @@ func newRandom(o Options) (Source, error) {
 	if o.random.seed != nil {
 		rndSrc = rand.NewSource(*o.random.seed)
 	}
-	rng := rand.New(rndSrc)
 
 	size := o.random.size
 	if int64(size) > o.totalSize {
@@ -98,16 +98,14 @@ func newRandom(o Options) (Source, error) {
 		return nil, fmt.Errorf("size must be >= 0, got %d", size)
 	}
 
-	// Seed with random data.
-	data := make([]byte, size)
-	_, err := io.ReadFull(rng, data)
+	input, err := rng.NewReader(rng.WithRNG(rand.New(rndSrc)), rng.WithSize(o.totalSize))
 	if err != nil {
 		return nil, err
 	}
 	r := randomSrc{
-		o:   o,
-		rng: rng,
-		buf: newScrambler(data, o.totalSize, rng),
+		o:      o,
+		rng:    rand.New(rndSrc),
+		source: input,
 		obj: Object{
 			Reader:      nil,
 			Name:        "",
@@ -127,7 +125,8 @@ func (r *randomSrc) Object() *Object {
 	r.obj.setName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
 
 	// Reset scrambler
-	r.obj.Reader = r.buf.Reset(r.obj.Size)
+	r.source.ResetSize(r.obj.Size)
+	r.obj.Reader = r.source
 	return &r.obj
 }
 
@@ -135,7 +134,7 @@ func (r *randomSrc) String() string {
 	if r.o.randSize {
 		return fmt.Sprintf("Random data; random size up to %d bytes", r.o.totalSize)
 	}
-	return fmt.Sprintf("Random data; %d bytes total", r.buf.want)
+	return fmt.Sprintf("Random data; %d bytes total", r.o.totalSize)
 }
 
 func (r *randomSrc) Prefix() string {

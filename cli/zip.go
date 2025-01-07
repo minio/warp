@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/minio/cli"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -45,12 +45,14 @@ var zipFlags = []cli.Flag{
 	},
 }
 
+var ZipCombinedFlags = combineFlags(globalFlags, ioFlags, zipFlags, genFlags, benchFlags, analyzeFlags)
+
 var zipCmd = cli.Command{
 	Name:   "zip",
 	Usage:  "benchmark minio s3zip",
 	Action: mainZip,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, zipFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  ZipCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

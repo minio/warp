@@ -69,7 +69,18 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 		go func(i int) {
 			rcv := c.Receiver()
 			defer wg.Done()
+
+			// Copy usermetadata and usertags per concurrent thread.
 			opts := u.PutOpts
+			opts.UserMetadata = make(map[string]string, len(u.PutOpts.UserMetadata))
+			opts.UserTags = make(map[string]string, len(u.PutOpts.UserTags))
+			for k, v := range u.PutOpts.UserMetadata {
+				opts.UserMetadata[k] = v
+			}
+			for k, v := range u.PutOpts.UserTags {
+				opts.UserTags[k] = v
+			}
+
 			done := ctx.Done()
 
 			<-wait

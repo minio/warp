@@ -19,7 +19,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -45,12 +45,14 @@ var listFlags = []cli.Flag{
 	},
 }
 
+var ListCombinedFlags = combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags)
+
 var listCmd = cli.Command{
 	Name:   "list",
 	Usage:  "benchmark list objects",
 	Action: mainList,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  ListCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

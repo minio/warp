@@ -20,7 +20,7 @@ package cli
 import (
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -50,12 +50,14 @@ var statFlags = []cli.Flag{
 	},
 }
 
+var StatCombinedFlags = combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags, analyzeFlags)
+
 var statCmd = cli.Command{
 	Name:   "stat",
 	Usage:  "benchmark stat objects (get file info)",
 	Action: mainStat,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, statFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  StatCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

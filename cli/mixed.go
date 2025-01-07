@@ -23,7 +23,7 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v2/console"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -60,12 +60,14 @@ var mixedFlags = []cli.Flag{
 	},
 }
 
+var MixedCombinedFlags = combineFlags(globalFlags, ioFlags, mixedFlags, genFlags, benchFlags, analyzeFlags)
+
 var mixedCmd = cli.Command{
 	Name:   "mixed",
 	Usage:  "benchmark mixed objects",
 	Action: mainMixed,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, mixedFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  MixedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 

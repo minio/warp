@@ -562,22 +562,22 @@ func (o Operations) MultipleSizes() bool {
 }
 
 // MinMaxSize returns the minimum and maximum operation sizes.
-func (o Operations) MinMaxSize() (min, max int64) {
+func (o Operations) MinMaxSize() (minSize, maxSize int64) {
 	if len(o) == 0 {
 		return 0, 0
 	}
 
-	min = o[0].Size
-	max = o[0].Size
+	minSize = o[0].Size
+	maxSize = o[0].Size
 	for _, op := range o {
-		if op.Size < min {
-			min = op.Size
+		if op.Size < minSize {
+			minSize = op.Size
 		}
-		if op.Size > max {
-			max = op.Size
+		if op.Size > maxSize {
+			maxSize = op.Size
 		}
 	}
-	return min, max
+	return minSize, maxSize
 }
 
 // AvgSize returns the average operation size.
@@ -674,18 +674,18 @@ var log10ToLog2Size = map[int]int64{
 }
 
 func (o Operations) SingleSizeSegment() SizeSegment {
-	min, max := o.MinMaxSize()
+	minSize, maxSize := o.MinMaxSize()
 	var minL10, maxL10 int
-	for min > log10ToLog2Size[minL10+1] {
+	for minSize > log10ToLog2Size[minL10+1] {
 		minL10++
 	}
-	for max >= log10ToLog2Size[maxL10] {
+	for maxSize >= log10ToLog2Size[maxL10] {
 		maxL10++
 	}
 	return SizeSegment{
-		Smallest:      min,
+		Smallest:      minSize,
 		SmallestLog10: minL10,
-		Biggest:       max,
+		Biggest:       maxSize,
 		BiggestLog10:  maxL10,
 		Ops:           o,
 	}
