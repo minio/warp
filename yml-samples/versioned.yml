@@ -39,7 +39,7 @@ warp:
 
     # Specify one or more hosts.
     # The benchmark will be run against all hosts concurrently.
-    # Multiple servers can be specified with elipsis notation;
+    # Multiple servers can be specified with ellipsis notation;
     # for example '10.0.0.{1...10}:9000' specifies 10 hosts.
     # See more at https://github.com/minio/warp?tab=readme-ov-file#multiple-hosts
     host:
