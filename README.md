@@ -379,14 +379,14 @@ To test [POST Object](https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObject
 
 Benchmarking delete operations will attempt to delete as many objects it can within `--duration`.
 
-By default, `--objects` objects of size `--obj.size` are uploaded beforing doin the actual bench.
+By default, `--objects` objects of size `--obj.size` are uploaded before doing the actual bench.
 
 The delete operations are done in `--batch` objects per request in `--concurrent` concurrently running requests.
 
 If there are no more objects left the benchmark will end.
 
 Using `--list-existing` will list at most `--objects` from the bucket and delete them instead of
-deleting random objects (set it to 0 to use all objects from the lsiting).
+deleting random objects (set it to 0 to use all objects from the listing).
 Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`.
 
 The analysis will include the upload stats as `PUT` operations and the `DELETE` operations.
