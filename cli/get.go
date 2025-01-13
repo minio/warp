@@ -62,6 +62,10 @@ var getFlags = []cli.Flag{
 		Value: 1,
 		Usage: "Number of versions to upload. If more than 1, versioned listing will be benchmarked",
 	},
+	cli.BoolFlag{
+		Name:  "extra-head",
+		Usage: "Many apps HEAD before GET. Add an extra HEAD operation to emulate this behavior.",
+	},
 }
 
 var getCmd = cli.Command{
@@ -106,6 +110,7 @@ func mainGet(ctx *cli.Context) error {
 		ListExisting:  ctx.Bool("list-existing"),
 		ListFlat:      ctx.Bool("list-flat"),
 		ListPrefix:    ctx.String("prefix"),
+		ExtraHead:     ctx.Bool("extra-head"),
 	}
 	if b.ListExisting && !ctx.IsSet("objects") {
 		b.CreateObjects = 0

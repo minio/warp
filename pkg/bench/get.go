@@ -46,6 +46,7 @@ type Get struct {
 	RangeSize     int64
 	ListExisting  bool
 	ListFlat      bool
+	ExtraHead     bool
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -272,9 +273,48 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				if g.rpsLimit(ctx) != nil {
 					return
 				}
+				obj := g.objects[rng.Intn(len(g.objects))]
+
+				if g.ExtraHead {
+					client, cldone := g.Client()
+					op := Operation{
+						OpType:   http.MethodHead,
+						Thread:   uint16(i),
+						Size:     0,
+						File:     obj.Name,
+						ObjPerOp: 1,
+						Endpoint: client.EndpointURL().String(),
+					}
+
+					op.Start = time.Now()
+
+					var err error
+					if g.Versions > 1 {
+						opts.VersionID = obj.VersionID
+					}
+					statResult, err := client.StatObject(nonTerm, g.Bucket(), obj.Name, opts)
+					if err != nil {
+						g.Error("stat error:", err)
+						op.Err = err.Error()
+						op.End = time.Now()
+						rcv <- op
+						cldone()
+						continue
+					}
+					if statResult.Size != obj.Size && op.Err == "" {
+						op.Err = fmt.Sprint("unexpected stat size. want:", obj.Size, ", got:", statResult.Size)
+						g.Error(op.Err)
+						op.End = time.Now()
+						rcv <- op
+						cldone()
+						continue
+					}
+					op.End = time.Now()
+					rcv <- op
+					cldone()
+				}
 
 				fbr := firstByteRecorder{}
-				obj := g.objects[rng.Intn(len(g.objects))]
 				client, cldone := g.Client()
 				op := Operation{
 					OpType:   http.MethodGet,
