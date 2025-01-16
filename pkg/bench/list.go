@@ -40,6 +40,7 @@ type List struct {
 	Versions      int
 	NoPrefix      bool
 	Metadata      bool
+	MaxKeys       int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -217,6 +218,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				}
 
 				op.Start = time.Now()
+				totalKeys := 0
 
 				// List all objects with prefix
 				listCh := client.ListObjects(nonTerm, d.Bucket(), minio.ListObjectsOptions{
@@ -224,7 +226,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					Prefix:       objs[0].Prefix,
 					Recursive:    true,
 					WithVersions: d.Versions > 1,
-					MaxKeys:      100,
+					MaxKeys:      d.MaxKeys,
 				})
 
 				// Wait for errCh to close.
@@ -238,12 +240,27 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 						op.Err = err.Err.Error()
 					}
 					op.ObjPerOp++
+					totalKeys++
 					if op.FirstByte == nil {
 						now := time.Now()
 						op.FirstByte = &now
 					}
+
+					if totalKeys%d.MaxKeys == 0 {
+						// The ListObjects API internally paginates, but we want stats reported per page
+						op.End = time.Now()
+						rcv <- op
+						op = Operation{
+							File:     prefix,
+							OpType:   "LIST",
+							Thread:   uint16(i),
+							Size:     0,
+							Endpoint: client.EndpointURL().String(),
+						}
+						op.Start = time.Now()
+					}
 				}
-				if op.ObjPerOp != wantN {
+				if totalKeys != wantN {
 					if op.Err == "" {
 						op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
 					}
