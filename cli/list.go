@@ -43,6 +43,11 @@ var listFlags = []cli.Flag{
 		Name:  "metadata",
 		Usage: "Enable extended MinIO ListObjects with metadata, by default this benchmarking uses ListObjectsV2 API.",
 	},
+	cli.IntFlag{
+		Name:  "max-keys",
+		Value: 1000,
+		Usage: "Max keys to list per request",
+	},
 }
 
 var listCmd = cli.Command{
@@ -73,6 +78,7 @@ func mainList(ctx *cli.Context) error {
 		Metadata:      ctx.Bool("metadata"),
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),
+		MaxKeys:       ctx.Int("max-keys"),
 	}
 	return runBench(ctx, &b)
 }
