@@ -43,6 +43,20 @@ var listFlags = []cli.Flag{
 		Name:  "metadata",
 		Usage: "Enable extended MinIO ListObjects with metadata, by default this benchmarking uses ListObjectsV2 API.",
 	},
+	cli.BoolFlag{
+		Name:  "nested",
+		Usage: "Enable nested",
+	},
+	cli.IntFlag{
+		Name:  "branchingFactor",
+		Value: 1,
+		Usage: "branchingFactor, makes sense only when --nested",
+	},
+	cli.IntFlag{
+		Name:  "depth",
+		Value: 1,
+		Usage: "depth, makes sense only when --nested",
+	},
 }
 
 var ListCombinedFlags = combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags)
@@ -70,11 +84,14 @@ func mainList(ctx *cli.Context) error {
 	checkListSyntax(ctx)
 
 	b := bench.List{
-		Common:        getCommon(ctx, newGenSource(ctx, "obj.size")),
-		Versions:      ctx.Int("versions"),
-		Metadata:      ctx.Bool("metadata"),
-		CreateObjects: ctx.Int("objects"),
-		NoPrefix:      ctx.Bool("noprefix"),
+		Common:          getCommon(ctx, newGenSource(ctx, "obj.size")),
+		Versions:        ctx.Int("versions"),
+		Metadata:        ctx.Bool("metadata"),
+		CreateObjects:   ctx.Int("objects"),
+		NoPrefix:        ctx.Bool("noprefix"),
+		Nested:          ctx.Bool("nested"),
+		BranchingFactor: ctx.Int("branchingFactor"),
+		Depth:           ctx.Int("depth"),
 	}
 	return runBench(ctx, &b)
 }

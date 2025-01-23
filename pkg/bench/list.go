@@ -20,12 +20,14 @@ package bench
 import (
 	"context"
 	"fmt"
+	"github.com/minio/minio-go/v7"
+	"math"
 	"math/rand"
 	"net/http"
+	"path"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/minio/minio-go/v7"
 
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/generator"
@@ -36,10 +38,13 @@ type List struct {
 	Common
 	objects []generator.Objects
 
-	CreateObjects int
-	Versions      int
-	NoPrefix      bool
-	Metadata      bool
+	CreateObjects   int
+	Versions        int
+	NoPrefix        bool
+	Metadata        bool
+	Nested          bool // New field: whether to use nested structure
+	BranchingFactor int  // New field: number of child nodes at each node
+	Depth           int  // New field: number of levels in the hierarchy
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -109,10 +114,23 @@ func (d *List) Prepare(ctx context.Context) error {
 				}
 				name := obj.Name
 				exists[name] = struct{}{}
+
+				// Generate nested prefix if Nested is enabled
+				if d.Nested {
+					nestedPrefix := generateNestedPrefix(i, j, d.BranchingFactor, d.Depth)
+					obj.Prefix = strings.TrimSuffix(nestedPrefix, "/")
+					obj.SetName(path.Base(name))
+				}
+
 				for ver := 0; ver < d.Versions; ver++ {
 					// New input for each version
 					obj := src.Object()
 					obj.Name = name
+					if d.Nested {
+						nestedPrefix := generateNestedPrefix(i, j, d.BranchingFactor, d.Depth)
+						obj.Prefix = strings.TrimSuffix(nestedPrefix, "/")
+						obj.SetName(path.Base(name))
+					}
 					client, cldone := d.Client()
 					op := Operation{
 						OpType:   http.MethodPut,
@@ -206,7 +224,17 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					return
 				}
 
-				prefix := objs[0].Prefix
+				prefix := ""
+				if !d.Nested {
+					prefix = objs[0].Prefix + "/"
+				} else {
+					// Generate a random parent prefix
+					parentDepth := rand.Intn(d.Depth) + 1 // Random depth between 1 and depth
+					for level := 1; level <= parentDepth; level++ {
+						dir := rand.Intn(d.BranchingFactor) // Random directory name between 0 and branchingFactor-1
+						prefix += fmt.Sprintf("nested-%d/", dir)
+					}
+				}
 				client, cldone := d.Client()
 				op := Operation{
 					File:     prefix,
@@ -221,8 +249,8 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				// List all objects with prefix
 				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{
 					WithMetadata: d.Metadata,
-					Prefix:       objs[0].Prefix,
-					Recursive:    true,
+					Prefix:       prefix,
+					Recursive:    true, // List recursively to include all nested objects
 					WithVersions: d.Versions > 1,
 					MaxKeys:      100,
 				})
@@ -243,9 +271,11 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 						op.FirstByte = &now
 					}
 				}
-				if op.ObjPerOp != wantN {
-					if op.Err == "" {
-						op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
+				if !d.Nested {
+					if op.ObjPerOp != wantN {
+						if op.Err == "" {
+							op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
+						}
 					}
 				}
 				op.End = time.Now()
@@ -261,4 +291,19 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 // Cleanup deletes everything uploaded to the bucket.
 func (d *List) Cleanup(ctx context.Context) {
 	d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
+}
+
+// generateNestedPrefix generates a nested prefix based on the branching factor and depth.
+func generateNestedPrefix(thread, objIndex, branchingFactor, depth int) string {
+	// Normalize the object index to fit within the range of possible prefixes
+	maxIndex := int(math.Pow(float64(branchingFactor), float64(depth)))
+	normalizedIndex := objIndex % maxIndex
+	prefix := ""
+	remaining := normalizedIndex
+	for level := depth; level > 0; level-- {
+		dir := remaining % branchingFactor
+		prefix = fmt.Sprintf("nested-%d/%s", dir, prefix)
+		remaining = remaining / branchingFactor
+	}
+	return prefix
 }

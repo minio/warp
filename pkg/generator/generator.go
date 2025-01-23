@@ -104,7 +104,7 @@ func (o *Object) setPrefix(opts Options) {
 	o.Prefix = path.Join(opts.customPrefix, string(b))
 }
 
-func (o *Object) setName(s string) {
+func (o *Object) SetName(s string) {
 	if len(o.Prefix) == 0 {
 		o.Name = s
 		return

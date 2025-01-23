@@ -122,7 +122,7 @@ func (r *randomSrc) Object() *Object {
 	var nBuf [16]byte
 	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
-	r.obj.setName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
+	r.obj.SetName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
 
 	// Reset scrambler
 	r.source.ResetSize(r.obj.Size)
