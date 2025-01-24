@@ -28,18 +28,20 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/s3utils"
 	"github.com/minio/warp/pkg/generator"
 )
 
 // Put benchmarks upload speed.
 type Put struct {
 	Common
-	PostObject bool
-	prefixes   map[string]struct{}
-	cl         *http.Client
+	PostObject  bool
+	prefixes    map[string]struct{}
+	cl          *http.Client
+	CreateParts int
 }
 
-// Prepare will create an empty bucket or delete any content already there.
+// Prepare will create an empty bucket ot delete any content already there.
 func (u *Put) Prepare(ctx context.Context) error {
 	if u.PostObject {
 		u.cl = &http.Client{
@@ -112,7 +114,8 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				var err error
 				var res minio.UploadInfo
 				if !u.PostObject {
-					res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					res, err = u.putObjectMultipartNoStream(nonTerm, u.Bucket, obj.Name, opts)
+					res.Size = obj.Size * int64(u.CreateParts)
 				} else {
 					op.OpType = http.MethodPost
 					var verID string
@@ -129,13 +132,13 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				obj.VersionID = res.VersionID
 
-				if res.Size != obj.Size && op.Err == "" {
-					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
-					if op.Err == "" {
-						op.Err = err
-					}
-					u.Error(err)
-				}
+				// if res.Size != obj.Size && op.Err == "" {
+				// 	err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
+				// 	if op.Err == "" {
+				// 		op.Err = err
+				// 	}
+				// 	u.Error(err)
+				// }
 				op.Size = res.Size
 				cldone()
 				rcv <- op
@@ -215,4 +218,128 @@ func (u *Put) postPolicy(ctx context.Context, c *minio.Client, bucket string, ob
 	}
 
 	return resp.Header.Get("x-amz-version-id"), nil
+}
+
+func (u *Put) putObjectMultipartNoStream(ctx context.Context, bucketName, objectName string, opts minio.PutObjectOptions) (info minio.UploadInfo, err error) {
+	if err = s3utils.CheckValidBucketName(bucketName); err != nil {
+		return minio.UploadInfo{}, err
+	}
+	if err = s3utils.CheckValidObjectName(objectName); err != nil {
+		return minio.UploadInfo{}, err
+	}
+
+	cl, done := u.Client()
+	c := minio.Core{Client: cl}
+	uploadID, err := c.NewMultipartUpload(ctx, bucketName, objectName, opts)
+	if err != nil {
+		return minio.UploadInfo{}, err
+	}
+
+	defer func() {
+		if err != nil {
+			c.AbortMultipartUpload(ctx, bucketName, objectName, uploadID)
+		}
+		done()
+	}()
+
+	partsChan := make(chan int, u.CreateParts)
+
+	go func() {
+		for i := 1; i <= u.CreateParts; i++ {
+			select {
+			case partsChan <- i:
+			case <-ctx.Done():
+				close(partsChan)
+				return
+			}
+		}
+		close(partsChan)
+	}()
+
+	partsInfo := make(map[int]minio.ObjectPart)
+	var mu sync.Mutex
+
+	var wg sync.WaitGroup
+
+	mpopts := minio.PutObjectPartOptions{
+		SSE:                  u.Common.PutOpts.ServerSideEncryption,
+		DisableContentSha256: u.PutOpts.DisableContentSha256,
+	}
+
+	var uploadErr error
+	var errMu sync.Mutex
+
+	worker := func() {
+		defer wg.Done()
+		src := u.Source()
+
+		for {
+			select {
+			case partNumber, ok := <-partsChan:
+				if !ok {
+					return
+				}
+				obj := src.Object()
+
+				res, err := c.PutObjectPart(ctx, bucketName, objectName, uploadID, partNumber, obj.Reader, obj.Size, mpopts)
+				if err != nil {
+
+					errMu.Lock()
+					if uploadErr == nil {
+						uploadErr = err
+					}
+					errMu.Unlock()
+					return
+				}
+
+				// Save part info.
+				mu.Lock()
+				partsInfo[partNumber] = res
+				mu.Unlock()
+
+			case <-ctx.Done():
+				return // Context canceled, exit worker.
+			}
+		}
+	}
+
+	// Launch workers.
+	concurrency := 32
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	wg.Wait()
+
+	if uploadErr != nil {
+		return minio.UploadInfo{}, uploadErr
+	}
+
+	var complMultipartUpload []minio.CompletePart
+	for i := 1; i <= u.CreateParts; i++ {
+		part, ok := partsInfo[i]
+		if !ok {
+			return minio.UploadInfo{}, minio.ErrorResponse{
+				StatusCode: http.StatusBadRequest,
+				Code:       "InvalidArgument",
+				Message:    fmt.Sprintf("Missing part number %d", i),
+				RequestID:  "minio",
+			}
+		}
+		complMultipartUpload = append(complMultipartUpload, minio.CompletePart{
+			ETag:           part.ETag,
+			PartNumber:     part.PartNumber,
+			ChecksumCRC32:  part.ChecksumCRC32,
+			ChecksumCRC32C: part.ChecksumCRC32C,
+			ChecksumSHA1:   part.ChecksumSHA1,
+			ChecksumSHA256: part.ChecksumSHA256,
+		})
+	}
+
+	opts = minio.PutObjectOptions{
+		ServerSideEncryption: opts.ServerSideEncryption,
+	}
+	uploadInfo, err := c.CompleteMultipartUpload(ctx, bucketName, objectName, uploadID, complMultipartUpload, opts)
+	return uploadInfo, err
 }

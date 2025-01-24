@@ -56,23 +56,26 @@ var putCmd = cli.Command{
 	Before: setGlobalsFromContext,
 	Flags:  PutCombinedFlags,
 	CustomHelpTemplate: `NAME:
-  {{.HelpName}} - {{.Usage}}
-
-USAGE:
-  {{.HelpName}} [FLAGS]
-  -> see https://github.com/minio/warp#put
-
-FLAGS:
-  {{range .VisibleFlags}}{{.}}
-  {{end}}`,
+   {{.HelpName}} - {{.Usage}}
+ 
+ USAGE:
+   {{.HelpName}} [FLAGS]
+   -> see https://github.com/minio/warp#put
+ 
+ FLAGS:
+   {{range .VisibleFlags}}{{.}}
+   {{end}}`,
 }
 
 // mainPut is the entry point for cp command.
 func mainPut(ctx *cli.Context) error {
 	checkPutSyntax(ctx)
+	pSize, _ := toSize(ctx.String("part.size"))
+	oSize, _ := toSize(ctx.String("obj.size"))
 	b := bench.Put{
-		Common:     getCommon(ctx, newGenSource(ctx, "obj.size")),
-		PostObject: ctx.Bool("post"),
+		Common:      getCommon(ctx, newGenSource(ctx, "part.size")),
+		PostObject:  ctx.Bool("post"),
+		CreateParts: int(oSize / pSize),
 	}
 	return runBench(ctx, &b)
 }
