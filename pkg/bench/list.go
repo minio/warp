@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/minio/minio-go/v7"
-	"math"
 	"math/rand"
 	"net/http"
 	"path"
@@ -38,13 +37,13 @@ type List struct {
 	Common
 	objects []generator.Objects
 
-	CreateObjects   int
-	Versions        int
-	NoPrefix        bool
-	Metadata        bool
-	Nested          bool // New field: whether to use nested structure
-	BranchingFactor int  // New field: number of child nodes at each node
-	Depth           int  // New field: number of levels in the hierarchy
+	CreateObjects    int
+	Versions         int
+	NoPrefix         bool
+	Metadata         bool
+	Nested           bool   // New field: whether to use nested structure
+	BranchingFactors []int  // New field: number of child nodes at each node at each level
+	FixedPrefix      string // New field: fixed prefix to use for nested calls
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -83,6 +82,8 @@ func (d *List) Prepare(ctx context.Context) error {
 	var mu sync.Mutex
 	objsCreated := 0
 	var groupErr error
+	lastLevelDirectories := multiplyArray(d.BranchingFactors)
+
 	for i := 0; i < d.Concurrency; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -117,7 +118,7 @@ func (d *List) Prepare(ctx context.Context) error {
 
 				// Generate nested prefix if Nested is enabled
 				if d.Nested {
-					nestedPrefix := generateNestedPrefix(i, j, d.BranchingFactor, d.Depth)
+					nestedPrefix := generateNestedPrefix(j, d.BranchingFactors, lastLevelDirectories, d.FixedPrefix)
 					obj.Prefix = strings.TrimSuffix(nestedPrefix, "/")
 					obj.SetName(path.Base(name))
 				}
@@ -127,7 +128,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					obj := src.Object()
 					obj.Name = name
 					if d.Nested {
-						nestedPrefix := generateNestedPrefix(i, j, d.BranchingFactor, d.Depth)
+						nestedPrefix := generateNestedPrefix(j, d.BranchingFactors, lastLevelDirectories, d.FixedPrefix)
 						obj.Prefix = strings.TrimSuffix(nestedPrefix, "/")
 						obj.SetName(path.Base(name))
 					}
@@ -189,6 +190,17 @@ func (d *List) Prepare(ctx context.Context) error {
 	return groupErr
 }
 
+func multiplyArray(arr []int) int {
+	if len(arr) == 0 {
+		return 1 // Or 1, based on requirements
+	}
+	product := 1
+	for _, num := range arr {
+		product *= num
+	}
+	return product
+}
+
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
 func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
@@ -229,9 +241,10 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 					prefix = objs[0].Prefix + "/"
 				} else {
 					// Generate a random parent prefix
-					parentDepth := rand.Intn(d.Depth) + 1 // Random depth between 1 and depth
+					parentDepth := rand.Intn(len(d.BranchingFactors) + 1) // Random depth between 0(root) and depth(leaf)
+					prefix = d.FixedPrefix + "/"
 					for level := 1; level <= parentDepth; level++ {
-						dir := rand.Intn(d.BranchingFactor) // Random directory name between 0 and branchingFactor-1
+						dir := rand.Intn(d.BranchingFactors[level-1]) // Random directory name between 0 and branchingFactor-1
 						prefix += fmt.Sprintf("nested-%d/", dir)
 					}
 				}
@@ -294,16 +307,16 @@ func (d *List) Cleanup(ctx context.Context) {
 }
 
 // generateNestedPrefix generates a nested prefix based on the branching factor and depth.
-func generateNestedPrefix(thread, objIndex, branchingFactor, depth int) string {
-	// Normalize the object index to fit within the range of possible prefixes
-	maxIndex := int(math.Pow(float64(branchingFactor), float64(depth)))
-	normalizedIndex := objIndex % maxIndex
+func generateNestedPrefix(objIndex int, branchingFactors []int, lastLevelDirectories int, fixedPrefix string) string {
+	normalizedIndex := objIndex % lastLevelDirectories
 	prefix := ""
 	remaining := normalizedIndex
+	depth := len(branchingFactors)
 	for level := depth; level > 0; level-- {
+		branchingFactor := branchingFactors[level-1]
 		dir := remaining % branchingFactor
 		prefix = fmt.Sprintf("nested-%d/%s", dir, prefix)
 		remaining = remaining / branchingFactor
 	}
-	return prefix
+	return fmt.Sprintf("%s/%s", fixedPrefix, prefix)
 }
