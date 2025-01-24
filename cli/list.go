@@ -18,9 +18,13 @@
 package cli
 
 import (
+	"errors"
+	"fmt"
 	"github.com/minio/cli"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
+	"strconv"
+	"strings"
 )
 
 var listFlags = []cli.Flag{
@@ -47,15 +51,10 @@ var listFlags = []cli.Flag{
 		Name:  "nested",
 		Usage: "Enable nested",
 	},
-	cli.IntFlag{
-		Name:  "branchingFactor",
-		Value: 1,
-		Usage: "branchingFactor, makes sense only when --nested",
-	},
-	cli.IntFlag{
-		Name:  "depth",
-		Value: 1,
-		Usage: "depth, makes sense only when --nested",
+	cli.StringFlag{
+		Name:  "branchingFactors",
+		Value: "2/2",
+		Usage: "branchingFactors, specifying the branching factor at each level separated by /. eg: depth=3 branchingFactors=/12/30/1000 makes sense only when --nested",
 	},
 }
 
@@ -82,16 +81,16 @@ FLAGS:
 // mainDelete is the entry point for get command.
 func mainList(ctx *cli.Context) error {
 	checkListSyntax(ctx)
-
+	branchingFactors, _ := parseBranchingFactors(ctx.String("branchingFactors"))
 	b := bench.List{
-		Common:          getCommon(ctx, newGenSource(ctx, "obj.size")),
-		Versions:        ctx.Int("versions"),
-		Metadata:        ctx.Bool("metadata"),
-		CreateObjects:   ctx.Int("objects"),
-		NoPrefix:        ctx.Bool("noprefix"),
-		Nested:          ctx.Bool("nested"),
-		BranchingFactor: ctx.Int("branchingFactor"),
-		Depth:           ctx.Int("depth"),
+		Common:           getCommon(ctx, newGenSource(ctx, "obj.size")),
+		Versions:         ctx.Int("versions"),
+		Metadata:         ctx.Bool("metadata"),
+		CreateObjects:    ctx.Int("objects"),
+		NoPrefix:         ctx.Bool("noprefix"),
+		Nested:           ctx.Bool("nested"),
+		BranchingFactors: branchingFactors,
+		FixedPrefix:      strings.Trim(ctx.String("prefix"), "/"), // reuse this as a fixed prefix when nesting enabled
 	}
 	return runBench(ctx, &b)
 }
@@ -109,4 +108,20 @@ func checkListSyntax(ctx *cli.Context) {
 
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
+}
+
+func parseBranchingFactors(branchingFactors string) ([]int, error) {
+	strNumbers := strings.Split(strings.Trim(branchingFactors, "/"), "/")
+	if len(strNumbers) == 1 && strNumbers[0] == "" {
+		return nil, errors.New("branchingFactors string is empty or contains only slashes")
+	}
+	parsedNumbers := make([]int, 0, len(strNumbers))
+	for _, strNum := range strNumbers {
+		num, err := strconv.Atoi(strNum)
+		if err != nil {
+			return nil, fmt.Errorf("invalid number '%s' in branchingFactors: %v", strNum, err)
+		}
+		parsedNumbers = append(parsedNumbers, num)
+	}
+	return parsedNumbers, nil
 }
