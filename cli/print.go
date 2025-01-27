@@ -20,6 +20,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"unicode"
@@ -46,6 +47,12 @@ type errorMessage struct {
 
 var printMu sync.Mutex
 
+// Initialize the default log package to include timestamp
+func init() {
+	// Set log flags to include date and time
+	log.SetFlags(log.Ldate | log.Ltime)
+}
+
 func printInfo(data ...interface{}) {
 	printMu.Lock()
 	defer printMu.Unlock()
@@ -55,7 +62,7 @@ func printInfo(data ...interface{}) {
 	} else {
 		data = append(data, "\n")
 	}
-	console.Info(data...)
+	log.Println(data...)
 }
 
 func printError(data ...interface{}) {
@@ -67,7 +74,7 @@ func printError(data ...interface{}) {
 	} else {
 		data = append(data, "\n")
 	}
-	console.Errorln(data...)
+	log.Println(data...)
 }
 
 // fatalIf wrapper function which takes error and selectively prints stack frames if available on debug
