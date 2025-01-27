@@ -253,7 +253,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 
 	for i := 0; i < g.Concurrency; i++ {
 		go func(i int) {
-			rng := rand.New(rand.NewSource(int64(i)))
+			rng := rand.New(rand.NewSource(int64(i + g.ClientIdx)))
 			rcv := c.Receiver()
 			defer wg.Done()
 			opts := g.GetOpts
