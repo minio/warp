@@ -102,6 +102,9 @@ type Common struct {
 
 	// Transport used.
 	Transport http.RoundTripper
+
+	// Sampling rate for collector.
+	SamplingRatio int
 }
 
 const (
@@ -255,7 +258,7 @@ func (c *Common) addCollector() {
 	if c.DiscardOutput {
 		c.Collector = NewNullCollector()
 	} else {
-		c.Collector = NewCollector()
+		c.Collector = NewCollector(c.SamplingRatio)
 	}
 	c.Collector.extra = c.ExtraOut
 }

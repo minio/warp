@@ -88,7 +88,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 			return (fmt.Errorf("no objects found for bucket %s", d.Bucket))
 		}
 		done()
-		d.Collector = NewCollector()
+		d.Collector = NewCollector(d.SamplingRatio)
 
 		// Shuffle objects.
 		// Benchmark will pick from slice in order.

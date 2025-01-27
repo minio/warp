@@ -283,6 +283,11 @@ var ioFlags = []cli.Flag{
 		Usage:  "Add user tag to all objects using the format <key>=<value>. Random value can be set with 'rand:%length'. Can be used multiple times. Example: --tag foo=bar --tag randomValue=rand:1024.",
 		Hidden: true,
 	},
+	cli.IntFlag{
+		Name:  "sampling-ratio",
+		Value: 1,
+		Usage: "Sampling ratio for collector",
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
@@ -312,6 +317,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts(ctx),
 		DiscardOutput: ctx.Bool("stress"),
+		SamplingRatio: ctx.Int("sampling-ratio"),
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
 		Transport:     clientTransport(ctx),

@@ -34,17 +34,24 @@ type Collector struct {
 	// The mutex protects the ops above.
 	// Once ops have been added, they should no longer be modified.
 	opsMu sync.Mutex
+	samplingRatio int
 }
 
-func NewCollector() *Collector {
+func NewCollector(samplingRatio	 int) *Collector {
 	r := &Collector{
-		ops: make(Operations, 0, 10000),
-		rcv: make(chan Operation, 1000),
+		ops:          make(Operations, 0, 10000),
+		rcv:          make(chan Operation, 1000),
+		samplingRatio: samplingRatio,
 	}
 	r.rcvWg.Add(1)
 	go func() {
 		defer r.rcvWg.Done()
+		count := 0
 		for op := range r.rcv {
+			count++
+			if count%r.samplingRatio != 0 {
+				continue
+			}
 			for _, ch := range r.extra {
 				ch <- op
 			}
