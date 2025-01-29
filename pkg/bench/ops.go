@@ -84,7 +84,7 @@ func (o Operation) BytesPerSec() Throughput {
 	}
 	d := o.Duration()
 	if d <= 0 {
-		return Throughput(math.Inf(1))
+		return 0
 	}
 	return Throughput(o.Size*int64(time.Second)) / Throughput(d)
 }
@@ -282,6 +282,18 @@ func (o Operations) SortByThroughput() {
 		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
 
 	})
+}
+
+// SortByThroughputNonZero will sort the operations by throughput.
+// Fastest operations first.
+func (o Operations) SortByThroughputNonZero() Operations {
+	o.SortByThroughput()
+	for i, op := range o {
+		if op.Duration() > 0 {
+			return o[i:]
+		}
+	}
+	return nil
 }
 
 // Median returns the m part median of the assumed sorted list of operations.

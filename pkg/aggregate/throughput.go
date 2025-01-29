@@ -82,8 +82,7 @@ func (t *Throughput) Merge(other Throughput) {
 	t.Bytes += other.Bytes
 	t.Objects += other.Objects
 	t.Operations += other.Operations
-	t.MeasureDurationMillis = max(t.MeasureDurationMillis, other.MeasureDurationMillis)
-	if other.StartTime.Before(t.StartTime) {
+	if t.StartTime.IsZero() || other.StartTime.Before(t.StartTime) {
 		t.StartTime = other.StartTime
 	}
 	if other.EndTime.After(t.EndTime) {
@@ -155,9 +154,9 @@ type ThroughputSegmented struct {
 	// Time of each segment.
 	SegmentDurationMillis int `json:"segment_duration_millis"`
 
-	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by operations per second.
+	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by objects per second.
 	FastestBPS float64 `json:"fastest_bps"`
-	// Fastest segment in terms of operations per second.
+	// Fastest segment in terms of objects per second.
 	FastestOPS float64 `json:"fastest_ops"`
 	MedianBPS  float64 `json:"median_bps"`
 	MedianOPS  float64 `json:"median_ops"`

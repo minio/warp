@@ -19,9 +19,11 @@ package aggregate
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -71,10 +73,83 @@ type collector struct {
 }
 
 func (c *collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
+	return AutoTerm(ctx, op, threshold, wantSamples, minDur, c.updates)
+}
+
+// AutoTerm allows to set auto-termination on a context.
+func AutoTerm(ctx context.Context, op string, threshold float64, wantSamples int, minDur time.Duration, updates chan<- UpdateReq) context.Context {
+	if updates == nil {
+		return ctx
+	}
 	ctx, cancel := context.WithCancel(ctx)
-	c.mu.Lock()
-	c.doneFn = append(c.doneFn, cancel)
-	c.mu.Unlock()
+	go func() {
+		defer cancel()
+		ticker := time.NewTicker(time.Second)
+
+	checkloop:
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+			}
+			respCh := make(chan *Realtime, 1)
+			req := UpdateReq{C: respCh, Reset: false, Final: false}
+			updates <- req
+			resp := <-respCh
+			if resp == nil {
+				continue
+			}
+
+			ops := resp.ByOpType[op]
+			if op == "" {
+				ops = &resp.Total
+			}
+			if ops == nil || ops.Throughput.Segmented == nil {
+				continue
+			}
+			start, end := ops.StartTime, ops.EndTime
+			if end.Sub(start) <= minDur {
+				// We don't have enough.
+				continue
+			}
+			if len(ops.Throughput.Segmented.Segments) < wantSamples {
+				continue
+			}
+			segs := ops.Throughput.Segmented.Segments
+			// Use last segment as our base.
+			lastSeg := segs[len(segs)-1]
+			mb, objs := lastSeg.BPS, lastSeg.OPS
+			// Only use the segments we are interested in.
+			segs = segs[len(segs)-wantSamples : len(segs)-1]
+			for _, seg := range segs {
+				segMB, segObjs := seg.BPS, seg.OPS
+				if mb > 0 {
+					if math.Abs(mb-segMB) > threshold*mb {
+						continue checkloop
+					}
+					continue
+				}
+				if math.Abs(objs-segObjs) > threshold*objs {
+					continue checkloop
+				}
+			}
+			// All checks passed.
+			if mb > 0 {
+				console.Eraseline()
+				console.Printf("\rThroughput %0.01fMiB/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					mb, threshold*100,
+					time.Duration(ops.Throughput.Segmented.SegmentDurationMillis*(len(segs)+1))*time.Millisecond)
+			} else {
+				console.Eraseline()
+				console.Printf("\rThroughput %0.01f objects/s within %f%% for %v. Assuming stability. Terminating benchmark.\n",
+					objs, threshold*100,
+					time.Duration(ops.Throughput.Segmented.SegmentDurationMillis*(len(segs)+1))*time.Millisecond)
+			}
+			return
+		}
+	}()
 	return ctx
 }
 

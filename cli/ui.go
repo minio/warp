@@ -18,18 +18,17 @@
 package cli
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"runtime/pprof"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/muesli/termenv"
@@ -44,12 +43,11 @@ type ui struct {
 	start, end    atomic.Pointer[time.Time]
 	pause         atomic.Bool
 	txtOnly       atomic.Bool
-	reportBuf     atomic.Pointer[bytes.Buffer]
+	quitPls       atomic.Bool
 	showProgress  bool
 	gotWindowSize bool
-	quit          bool
+	cancelFn      atomic.Pointer[context.CancelFunc]
 	quitCh        chan struct{}
-	viewport      viewport.Model
 }
 
 const useHighPerformanceRenderer = false
@@ -65,19 +63,27 @@ func tickCmd() tea.Cmd {
 func (u *ui) Init() tea.Cmd {
 	u.progress = progress.New(progress.WithScaledGradient("#c72e49", "#edf7f7"), progress.WithSolidFill("#c72e49"))
 	u.quitCh = make(chan struct{})
-	return tickCmd()
+	return tea.Batch(tickCmd())
 }
 
 func (u *ui) Run() {
 	p := tea.NewProgram(u)
+
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("UI: %v", err)
 	}
-	fmt.Println("UI EXIT...")
+	close(u.quitCh)
+	if c := u.cancelFn.Load(); c != nil {
+		cancel := *c
+		cancel()
+	}
+	u.quitPls.Store(true)
 }
 
 func (u *ui) Wait() {
-	<-u.quitCh
+	if u.quitCh != nil {
+		<-u.quitCh
+	}
 }
 
 const (
@@ -86,55 +92,28 @@ const (
 )
 
 func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.quitPls.Load() {
+		return m, tea.Quit
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case "ctrl+c", "q":
-			if !m.quit {
-				close(m.quitCh)
-				m.quit = true
-			}
 			return m, tea.Quit
 		}
+	case tea.QuitMsg:
+		m.quitPls.Store(true)
+		return m, tea.Quit
 	case tea.WindowSizeMsg:
-		m.progress.Width = msg.Width - padding*2 - 4
-		if m.progress.Width > maxWidth {
-			m.progress.Width = maxWidth
+		m.progress.Width = msg.Width - 4
+		if m.progress.Width > maxWidth-padding {
+			m.progress.Width = maxWidth - padding
 		}
-		headerHeight := lipgloss.Height(m.headerView())
-		footerHeight := lipgloss.Height(m.footerView())
-		verticalMarginHeight := headerHeight + footerHeight
-
-		if !m.gotWindowSize {
-			// Since this program is using the full size of the viewport we
-			// need to wait until we've received the window dimensions before
-			// we can initialize the viewport. The initial dimensions come in
-			// quickly, though asynchronously, which is why we wait for them
-			// here.
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-			m.viewport.YPosition = headerHeight
-			m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
-			m.gotWindowSize = true
-
-			// This is only necessary for high performance rendering, which in
-			// most cases you won't need.
-			//
-			// Render the viewport one line below the header.
-			m.viewport.YPosition = headerHeight + 1
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
-		}
-		return m, viewport.Sync(m.viewport)
 	case tickMsg:
-		batch := []tea.Cmd{tickCmd(), viewport.Sync(m.viewport)}
+		batch := []tea.Cmd{tickCmd()}
 		m.showProgress = false
-		if rep := m.reportBuf.Load(); rep != nil {
-			m.viewport.SetContent(rep.String())
-			return m, viewport.Sync(m.viewport)
-		}
 		if p := m.pct.Load(); p != nil {
 			m.showProgress = true
 			batch = append(batch, m.progress.SetPercent(*p))
@@ -153,6 +132,9 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.progress.SetPercent(pct)
 			}
 		}
+		if m.quitPls.Load() {
+			batch = append(batch, tea.Quit)
+		}
 
 		return m, tea.Batch(batch...)
 
@@ -162,26 +144,14 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress = progressModel.(progress.Model)
 		return m, cmd
 	}
-	var cmd tea.Cmd
-	if !m.quit {
-		m.viewport, cmd = m.viewport.Update(msg)
-	}
-	return m, cmd
+
+	return m, nil
 }
 
 func (u *ui) View() string {
-	if u.pause.Load() {
-		return ""
-	}
-	if rep := u.reportBuf.Load(); rep != nil {
-		if u.quit {
-			return rep.String()
-		}
-		return fmt.Sprintf("%s\n%s\n%s", u.headerView(), u.viewport.View(), u.footerView())
-	}
+	res := titleStyle.Render("WARP S3 Benchmark Tool by MinIO")
+	res += "\n"
 
-	pad := strings.Repeat(" ", padding)
-	res := "\nWARP S3 Benchmark Tool by MinIO\n"
 	if ph := u.phase.Load(); ph != nil {
 		status := "\n" + *ph
 		if ph := u.phaseTxt.Load(); ph != nil {
@@ -191,8 +161,11 @@ func (u *ui) View() string {
 		res += statusStyle.Render(status)
 	}
 
+	res += defaultStyle.Render("\r λ ")
 	if u.showProgress {
-		res += pad + u.progress.View() + "\n"
+		res += u.progress.View() + "\n"
+	} else {
+		res += "\n"
 	}
 	if up := u.updates.Load(); up != nil {
 		reqCh := *up
@@ -204,7 +177,7 @@ func (u *ui) View() string {
 		case <-time.After(time.Second):
 		}
 		if resp != nil {
-			res += fmt.Sprintf("\nReqs: %d, Errs:%d, Objs:%d, Bytes: %d\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalObjects, resp.Total.TotalBytes)
+			stats := fmt.Sprintf("\nReqs: %d, Errs:%d, Objs:%d, Bytes: %d\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalObjects, resp.Total.TotalBytes)
 			ops := stringKeysSorted(resp.ByOpType)
 			for _, op := range ops {
 				tp := resp.ByOpType[op].Throughput
@@ -212,21 +185,25 @@ func (u *ui) View() string {
 				if segs == nil || len(segs.Segments) == 0 {
 					continue
 				}
-				res += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s; ", op, tp.ObjectsPS(), tp.BytesPS().String())
+				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s; ", op, tp.ObjectsPS(), tp.BytesPS().String())
 				lastOps := segs.Segments[len(segs.Segments)-1]
-				res += fmt.Sprintf("Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
+				stats += fmt.Sprintf("Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
+				if len(resp.ByOpType[op].Requests) == 0 {
+					stats += ".\n"
+					continue
+				}
 				for _, reqs := range resp.ByOpType[op].Requests {
 					if len(reqs) > 0 {
 						reqs := reqs[len(resp.ByOpType[op].Requests)-1]
 						if reqs.Single != nil {
-							res += fmt.Sprintf(", %d ms/req", reqs.Single.DurAvgMillis)
+							stats += fmt.Sprintf(", %.1f ms/req", reqs.Single.DurAvgMillis)
 							if reqs.Single.FirstByte != nil {
-								res += fmt.Sprintf(", ttfb: %vms", reqs.Single.FirstByte.AverageMillis)
+								stats += fmt.Sprintf(", TTFB: %.1fms", reqs.Single.FirstByte.AverageMillis)
 							}
 						}
-						res += ".\n"
+						stats += ".\n"
 					} else {
-						res += "\n"
+						stats += "\n"
 					}
 					if len(resp.ByOpType[op].Requests) > 1 {
 						// Maybe handle more clients better...
@@ -234,22 +211,29 @@ func (u *ui) View() string {
 					}
 				}
 			}
+			res += statsStyle.Render(stats)
 		}
 	}
 	return res + "\n"
 }
 
 func (u *ui) SetSubText(caption string) {
+	if u.quitPls.Load() == true {
+		u.Wait()
+		console.Printf("\r%-80s", caption)
+		return
+	}
 	u.phaseTxt.Store(&caption)
 }
 
 func (u *ui) SetPhase(caption string) {
+	if u.quitPls.Load() == true {
+		u.Wait()
+		console.Println("\n" + caption)
+		return
+	}
 	u.phase.Store(&caption)
 	u.phaseTxt.Store(nil)
-}
-
-func (u *ui) ShowReport(buf *bytes.Buffer) {
-	u.reportBuf.Store(buf)
 }
 
 func (u *ui) StartPrepare(caption string, progress <-chan float64, ur chan<- aggregate.UpdateReq) {
@@ -284,13 +268,12 @@ func (m *ui) Pause(b bool) {
 	m.pause.Store(b)
 }
 
-const borderCol = lipgloss.ANSIColor(termenv.ANSICyan)
+const borderCol = lipgloss.Color("#c72e49")
 
 var (
 	titleStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
-		b.Right = "├"
-		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1).Foreground(lipgloss.ANSIColor(termenv.ANSIYellow)).BorderForeground(borderCol)
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1).Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite)).BorderForeground(borderCol)
 	}()
 
 	infoStyle = func() lipgloss.Style {
@@ -303,27 +286,14 @@ var (
 		return lipgloss.NewStyle().Foreground(borderCol)
 	}()
 	statusStyle = func() lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIGreen))
+		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIBrightBlue))
+	}()
+
+	defaultStyle = func() lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIWhite))
+	}()
+
+	statsStyle = func() lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIWhite))
 	}()
 )
-
-func (m *ui) headerView() string {
-	title := titleStyle.Render("Warp S3 Benchmark Tool by MinIO - Result View")
-	line := lineStyle.Render(strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title))))
-	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
-}
-
-func (m *ui) footerView() string {
-	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
-	line := lineStyle.Render(strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info))))
-	joined := lipgloss.JoinHorizontal(lipgloss.Center, line, info)
-	status := ""
-	if ph := m.phase.Load(); ph != nil {
-		status = "\n" + *ph
-		if ph := m.phaseTxt.Load(); ph != nil {
-			status += ": " + *ph
-		}
-		joined += statusStyle.Render(status)
-	}
-	return joined
-}

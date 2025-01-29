@@ -26,16 +26,16 @@ import (
 
 // TTFB contains times to first byte if applicable.
 type TTFB struct {
-	AverageMillis     int       `json:"average_millis"`
-	FastestMillis     int       `json:"fastest_millis"`
-	P25Millis         int       `json:"p25_millis"`
-	MedianMillis      int       `json:"median_millis"`
-	P75Millis         int       `json:"p75_millis"`
-	P90Millis         int       `json:"p90_millis"`
-	P99Millis         int       `json:"p99_millis"`
-	SlowestMillis     int       `json:"slowest_millis"`
-	StdDevMillis      int       `json:"std_dev_millis"`
-	PercentilesMillis *[101]int `json:"percentiles_millis,omitempty"`
+	AverageMillis     float64       `json:"average_millis"`
+	FastestMillis     float64       `json:"fastest_millis"`
+	P25Millis         float64       `json:"p25_millis"`
+	MedianMillis      float64       `json:"median_millis"`
+	P75Millis         float64       `json:"p75_millis"`
+	P90Millis         float64       `json:"p90_millis"`
+	P99Millis         float64       `json:"p99_millis"`
+	SlowestMillis     float64       `json:"slowest_millis"`
+	StdDevMillis      float64       `json:"std_dev_millis"`
+	PercentilesMillis *[101]float64 `json:"percentiles_millis,omitempty"`
 }
 
 // String returns a human printable version of the time to first byte.
@@ -44,15 +44,15 @@ func (t TTFB) String() string {
 		return ""
 	}
 	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
-		time.Duration(t.AverageMillis)*time.Millisecond,
-		time.Duration(t.FastestMillis)*time.Millisecond,
-		time.Duration(t.P25Millis)*time.Millisecond,
-		time.Duration(t.MedianMillis)*time.Millisecond,
-		time.Duration(t.P75Millis)*time.Millisecond,
-		time.Duration(t.P90Millis)*time.Millisecond,
-		time.Duration(t.P99Millis)*time.Millisecond,
-		time.Duration(t.SlowestMillis)*time.Millisecond,
-		time.Duration(t.StdDevMillis)*time.Millisecond)
+		time.Duration(t.AverageMillis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.FastestMillis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.P25Millis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.MedianMillis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.P75Millis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.P90Millis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.P99Millis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.SlowestMillis)*time.Millisecond.Round(time.Millisecond),
+		time.Duration(t.StdDevMillis)*time.Millisecond.Round(time.Millisecond))
 }
 
 func (t *TTFB) add(other TTFB) {
@@ -80,15 +80,15 @@ func (t TTFB) StringByN(n int) string {
 	// rounder...
 	hN := n / 2
 	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
-		time.Duration((hN+t.AverageMillis)/n)*time.Millisecond,
+		time.Duration((hN+int(t.AverageMillis))/n)*time.Millisecond,
 		time.Duration(t.FastestMillis)*time.Millisecond,
-		time.Duration((hN+t.P25Millis)/n)*time.Millisecond,
-		time.Duration((hN+t.MedianMillis)/n)*time.Millisecond,
-		time.Duration((hN+t.P75Millis)/n)*time.Millisecond,
-		time.Duration((hN+t.P90Millis)/n)*time.Millisecond,
-		time.Duration((hN+t.P99Millis)/n)*time.Millisecond,
+		time.Duration((hN+int(t.P25Millis))/n)*time.Millisecond,
+		time.Duration((hN+int(t.MedianMillis))/n)*time.Millisecond,
+		time.Duration((hN+int(t.P75Millis))/n)*time.Millisecond,
+		time.Duration((hN+int(t.P90Millis))/n)*time.Millisecond,
+		time.Duration((hN+int(t.P99Millis))/n)*time.Millisecond,
 		time.Duration(t.SlowestMillis)*time.Millisecond,
-		time.Duration((hN+t.StdDevMillis)/n)*time.Millisecond)
+		time.Duration((hN+int(t.StdDevMillis))/n)*time.Millisecond)
 }
 
 // TtfbFromBench converts from bench.TTFB
@@ -97,19 +97,19 @@ func TtfbFromBench(t bench.TTFB) *TTFB {
 		return nil
 	}
 	t2 := TTFB{
-		AverageMillis: durToMillis(t.Average),
-		SlowestMillis: durToMillis(t.Worst),
-		P25Millis:     durToMillis(t.P25),
-		MedianMillis:  durToMillis(t.Median),
-		P75Millis:     durToMillis(t.P75),
-		P90Millis:     durToMillis(t.P90),
-		P99Millis:     durToMillis(t.P99),
-		StdDevMillis:  durToMillis(t.StdDev),
-		FastestMillis: durToMillis(t.Best),
+		AverageMillis: durToMillisF(t.Average),
+		SlowestMillis: durToMillisF(t.Worst),
+		P25Millis:     durToMillisF(t.P25),
+		MedianMillis:  durToMillisF(t.Median),
+		P75Millis:     durToMillisF(t.P75),
+		P90Millis:     durToMillisF(t.P90),
+		P99Millis:     durToMillisF(t.P99),
+		StdDevMillis:  durToMillisF(t.StdDev),
+		FastestMillis: durToMillisF(t.Best),
 	}
-	t2.PercentilesMillis = &[101]int{}
+	t2.PercentilesMillis = &[101]float64{}
 	for i, v := range t.Percentiles[:] {
-		t2.PercentilesMillis[i] = durToMillis(v)
+		t2.PercentilesMillis[i] = durToMillisF(v)
 	}
 	return &t2
 }

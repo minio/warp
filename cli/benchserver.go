@@ -19,6 +19,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -29,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -47,6 +49,7 @@ const (
 	serverReqBenchmark   serverRequestOp = "benchmark"
 	serverReqStartStage  serverRequestOp = "start_stage"
 	serverReqStageStatus serverRequestOp = "stage_status"
+	serverReqAbortStage  serverRequestOp = "stage_abort"
 	serverReqSendOps     serverRequestOp = "send_ops"
 )
 
@@ -96,18 +99,30 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		return false, nil
 	}
 
+	if ctx.Bool("autoterm") && !ctx.Bool("aggregate") {
+		return true, errors.New("use of -autoterm also requires -aggregate on remote benchmarks")
+	}
+
+	var ui ui
+	if !globalQuiet && !globalJSON {
+		go ui.Run()
+	}
+
 	conns := newConnections(parseHosts(ctx.String("warp-client"), false))
 	if len(conns.hosts) == 0 {
 		return true, errors.New("no hosts")
 	}
-	conns.info = printInfo
+	infoLn := func(data ...interface{}) {
+		ui.SetSubText(strings.TrimRight(fmt.Sprintln(data...), "\r\n."))
+	}
+
+	conns.info = infoLn
 	conns.errLn = printError
 	defer conns.closeAll()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor.SetLnLoggers(infoLn, printError)
 	defer monitor.Done()
-	monitor.SetLnLoggers(printInfo, printError)
-	infoLn := monitor.InfoLn
-	errorLn := monitor.Errorln
+	errorLn := printError
 
 	var allOps bench.Operations
 
@@ -126,7 +141,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		"host": func(flag cli.Flag) (string, error) {
 			hostsIn := flag.String()
 			if !strings.Contains(hostsIn, "file:") {
-				return flagToJSON(ctx, flag)
+				return flagToJSON(ctx, flag, "host")
 			}
 			// This is a file, we will read it locally and expand.
 			hosts := parseHosts(hostsIn, false)
@@ -143,15 +158,16 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	req.Benchmark.Flags = make(map[string]string)
 
 	for _, flag := range ctx.Command.Flags {
-		if _, ok := excludeFlags[flag.GetName()]; ok {
+		name := strings.Split(flag.GetName(), ",")[0]
+		if _, ok := excludeFlags[name]; ok {
 			continue
 		}
-		if ctx.IsSet(flag.GetName()) {
+		if ctx.IsSet(name) {
 			var err error
-			if t := transformFlags[flag.GetName()]; t != nil {
-				req.Benchmark.Flags[flag.GetName()], err = t(flag)
+			if t := transformFlags[name]; t != nil {
+				req.Benchmark.Flags[name], err = t(flag)
 			} else {
-				req.Benchmark.Flags[flag.GetName()], err = flagToJSON(ctx, flag)
+				req.Benchmark.Flags[name], err = flagToJSON(ctx, flag, name)
 			}
 			if err != nil {
 				return true, err
@@ -163,6 +179,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	}
 
 	// Connect to hosts, send benchmark requests.
+	ui.StartPrepare("Connecting", nil, nil)
 	for i := range conns.hosts {
 		resp, err := conns.roundTrip(i, req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
@@ -172,11 +189,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		infoLn("Client ", conns.hostName(i), " connected...")
 		// Assume ok.
 	}
-	infoLn("All clients connected...")
+	infoLn("All clients connected. Preparing benchmark...")
 
 	common := b.GetCommon()
+
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(stagePrepare, true, common, nil)
+	err := conns.waitForStage(nil, stagePrepare, true, common, nil)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
@@ -188,17 +206,38 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	infoLn("All clients prepared...")
 
 	const benchmarkWait = 3 * time.Second
-
+	var updates chan aggregate.UpdateReq
+	if ctx.Bool("aggregate") {
+		updates = make(chan aggregate.UpdateReq, 10)
+	}
 	prof, err := startProfiling(context.Background(), ctx)
 	if err != nil {
 		return true, err
 	}
+	tStart := time.Now().Add(benchmarkWait)
+	benchDur := ctx.Duration("duration")
 	err = conns.startStageAll(stageBenchmark, time.Now().Add(benchmarkWait), false)
 	if err != nil {
 		errorLn("Failed to start all clients", err)
 	}
-	infoLn("Running benchmark on all clients...")
-	err = conns.waitForStage(stageBenchmark, false, common, nil)
+	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
+	ui.SetSubText("Press 'q' to abort benchmark and retrieve partial results")
+
+	benchCtx, cancel := context.WithCancel(context.Background())
+	ui.cancelFn.Store(&cancel)
+	defer cancel()
+	if ctx.Bool("autoterm") {
+		if !ctx.Bool("aggregate") {
+			return true, errors.New("use of -autoterm also requires -aggregate on remote benchmarks")
+		}
+		common.AutoTermDur = ctx.Duration("autoterm.dur")
+		common.AutoTermScale = ctx.Float64("autoterm.pct") / 100
+		if common.AutoTermDur > 0 {
+			benchCtx = aggregate.AutoTerm(benchCtx, "", common.AutoTermScale, int(common.AutoTermDur.Seconds()+0.999), common.AutoTermDur, updates)
+		}
+	}
+
+	err = conns.waitForStage(benchCtx, stageBenchmark, false, common, updates)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -209,47 +248,84 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	}
 	prof.stop(context.Background(), ctx, fileName+".profiles.zip")
 
-	infoLn("Done. Downloading operations...")
-	downloaded := conns.downloadOps()
-	switch len(downloaded) {
-	case 0:
-	case 1:
-		allOps = downloaded[0]
-	default:
-		threads := uint16(0)
-		for _, ops := range downloaded {
-			threads = ops.OffsetThreads(threads)
-			allOps = append(allOps, ops...)
+	ui.SetPhase("Downloading Operations")
+	if updates == nil {
+		downloaded := conns.downloadOps()
+		switch len(downloaded) {
+		case 0:
+		case 1:
+			allOps = downloaded[0]
+		default:
+			threads := uint16(0)
+			for _, ops := range downloaded {
+				threads = ops.OffsetThreads(threads)
+				allOps = append(allOps, ops...)
+			}
 		}
-	}
 
-	if len(allOps) > 0 {
-		allOps.SortByStartTime()
-		f, err := os.Create(fileName + ".csv.zst")
+		if len(allOps) > 0 {
+			allOps.SortByStartTime()
+			f, err := os.Create(fileName + ".csv.zst")
+			if err != nil {
+				errorLn("Unable to write benchmark data:", err)
+			} else {
+				func() {
+					defer f.Close()
+					enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+					fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+
+					defer enc.Close()
+					err = allOps.CSV(enc, commandLine(ctx))
+					fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+					infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+				}()
+			}
+		}
+		monitor.OperationsReady(allOps, fileName, commandLine(ctx))
+		ui.Update(tea.Quit())
+		ui.Wait()
+		printAnalysis(ctx, os.Stdout, allOps)
+	} else {
+		final := conns.downloadAggr()
+		if final.Total.TotalRequests == 0 {
+			return true, errors.New("no operations received")
+		}
+		f, err := os.Create(fileName + ".json.zst")
 		if err != nil {
-			errorLn("Unable to write benchmark data:", err)
+			monitor.Errorln("Unable to write benchmark data:", err)
 		} else {
 			func() {
 				defer f.Close()
 				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
-
 				defer enc.Close()
-				err = allOps.CSV(enc, commandLine(ctx))
+				js := json.NewEncoder(enc)
+				js.SetIndent("", "  ")
+				err = js.Encode(final)
 				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-				infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
 			}()
 		}
+		rep := final.Report(aggregate.ReportOptions{
+			Details: true,
+			Color:   !globalNoColor,
+		})
+		ui.Update(tea.Quit())
+		ui.Wait()
+		fmt.Println(rep)
 	}
-	monitor.OperationsReady(allOps, fileName, commandLine(ctx))
-	printAnalysis(ctx, os.Stdout, allOps)
+
+	ui.SetPhase("Cleanup")
+	monitor.InfoLn("Starting cleanup...")
+	b.Cleanup(context.Background())
 
 	err = conns.startStageAll(stageCleanup, time.Now(), false)
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)
 	}
-	err = conns.waitForStage(stageCleanup, false, common, nil)
+	err = conns.waitForStage(nil, stageCleanup, false, common, nil)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -426,7 +502,7 @@ func (c *connections) startStageAll(stage benchmarkStage, startAt time.Time, fai
 	var wg sync.WaitGroup
 	var gerr error
 	var mu sync.Mutex
-	c.info("Requesting stage ", stage, " start...")
+	c.info("Requesting stage", stage, "start...")
 
 	for i, conn := range c.ws {
 		if conn == nil {
@@ -502,7 +578,7 @@ func (c *connections) downloadAggr() aggregate.Realtime {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps, Aggregate: true})
+			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps, Aggregate: true, UpdateReq: &aggregate.UpdateReq{Final: true}})
 			if err != nil {
 				c.errorF("Client %v download returned error: %v\n", c.hostName(i), resp.Err)
 				return
@@ -512,7 +588,6 @@ func (c *connections) downloadAggr() aggregate.Realtime {
 				return
 			}
 			c.info("Client ", c.hostName(i), ": Operations downloaded.")
-
 			mu.Lock()
 			res.Merge(resp.Update)
 			mu.Unlock()
@@ -523,20 +598,29 @@ func (c *connections) downloadAggr() aggregate.Realtime {
 }
 
 // waitForStage will wait for stage completion on all clients.
-func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common *bench.Common, updates <-chan aggregate.UpdateReq) error {
+func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, failOnErr bool, common *bench.Common, updates <-chan aggregate.UpdateReq) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var lastUpdate atomic.Pointer[aggregate.Realtime]
+	var lastUpdate []atomic.Pointer[aggregate.Realtime]
 	var done chan struct{}
 	if updates != nil {
+		lastUpdate = make([]atomic.Pointer[aggregate.Realtime], len(c.ws))
 		done = make(chan struct{})
 		defer close(done)
 		go func() {
-			select {
-			case <-done:
-				return
-			case r := <-updates:
-				r.C <- lastUpdate.Load()
+			for {
+				select {
+				case <-done:
+					return
+				case r := <-updates:
+					var m aggregate.Realtime
+					for i := range lastUpdate {
+						if u := lastUpdate[i].Load(); u != nil {
+							m.Merge(u)
+						}
+					}
+					r.C <- &m
+				}
 			}
 		}()
 	}
@@ -548,10 +632,30 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common 
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			didCancel := false
 			for {
+				if !didCancel && ctx != nil && ctx.Err() != nil {
+					c.info("Client ", c.hostName(i), ": Sending cancellation to stage ", stage, "...")
+					req := serverRequest{
+						Operation: serverReqAbortStage,
+						Stage:     stage,
+					}
+					_, err := c.roundTrip(i, req)
+					if err != nil {
+						c.disconnect(i)
+						if failOnErr {
+							fatalIf(probe.NewError(err), "Stage failed.")
+						}
+						c.errLn(err)
+						return
+					}
+					didCancel = true
+					continue
+				}
 				req := serverRequest{
 					Operation: serverReqStageStatus,
 					Stage:     stage,
+					Aggregate: updates != nil,
 				}
 				if updates != nil {
 					req.UpdateReq = &aggregate.UpdateReq{}
@@ -572,6 +676,9 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common 
 					}
 					c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
+				}
+				if updates != nil {
+					lastUpdate[i].Store(resp.Update)
 				}
 				if resp.StageInfo.Finished {
 					// Merge custom
@@ -597,42 +704,42 @@ func (c *connections) waitForStage(stage benchmarkStage, failOnErr bool, common 
 }
 
 // flagToJSON converts a flag to a representation that can be reversed into the flag.
-func flagToJSON(ctx *cli.Context, flag cli.Flag) (string, error) {
+func flagToJSON(ctx *cli.Context, flag cli.Flag, name string) (string, error) {
 	switch flag.(type) {
 	case cli.StringFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return ctx.String(flag.GetName()), nil
+		if ctx.IsSet(name) {
+			return ctx.String(name), nil
 		}
 	case cli.BoolFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Bool(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Bool(name)), nil
 		}
 	case cli.Int64Flag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Int64(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Int64(name)), nil
 		}
 	case cli.IntFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Int(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Int(name)), nil
 		}
 	case cli.DurationFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return ctx.Duration(flag.GetName()).String(), nil
+		if ctx.IsSet(name) {
+			return ctx.Duration(name).String(), nil
 		}
 	case cli.UintFlag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Uint(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Uint(name)), nil
 		}
 	case cli.Uint64Flag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Uint64(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Uint64(name)), nil
 		}
 	case cli.Float64Flag:
-		if ctx.IsSet(flag.GetName()) {
-			return fmt.Sprint(ctx.Float64(flag.GetName())), nil
+		if ctx.IsSet(name) {
+			return fmt.Sprint(ctx.Float64(name)), nil
 		}
 	default:
-		if ctx.IsSet(flag.GetName()) {
+		if ctx.IsSet(name) {
 			return "", fmt.Errorf("unhandled flag type: %T", flag)
 		}
 	}

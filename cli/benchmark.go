@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/madmin-go/v3"
@@ -64,7 +65,7 @@ var benchFlags = []cli.Flag{
 	cli.DurationFlag{
 		Name:  "autoterm.dur",
 		Usage: "Minimum duration where output must have been stable to allow automatic termination.",
-		Value: 10 * time.Second,
+		Value: 15 * time.Second,
 	},
 	cli.Float64Flag{
 		Name:  "autoterm.pct",
@@ -130,7 +131,6 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	monitor.InfoLn("Preparing server")
 	c.Clear = !ctx.Bool("noclear")
 	if ctx.Bool("autoterm") {
-		// TODO: autoterm cannot be used when in client/server mode
 		c.AutoTermDur = ctx.Duration("autoterm.dur")
 		c.AutoTermScale = ctx.Float64("autoterm.pct") / 100
 	}
@@ -167,11 +167,12 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
 	ctx2, cancel := context.WithDeadline(context.Background(), tStart.Add(benchDur))
 	defer cancel()
+	ui.cancelFn.Store(&cancel)
 	start := make(chan struct{})
 	go func() {
 		monitor.InfoLn("Pausing before benchmark")
 		<-time.After(time.Until(tStart))
-		monitor.InfoLn("Running")
+		monitor.InfoLn("Running from " + time.Now().Format(time.RFC3339))
 		close(start)
 	}()
 
@@ -211,16 +212,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 					err = ops.CSV(enc, commandLine(ctx))
 					fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
-					monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
+					monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n", fileName+".csv.zst"))
 				}()
 			}
 		}
 		monitor.OperationsReady(ops, fileName, commandLine(ctx))
-		ui.Pause(true)
 		var buf bytes.Buffer
 		printAnalysis(ctx, &buf, ops)
-		ui.ShowReport(&buf)
-		ui.Pause(false)
+		ui.Update(tea.Quit())
+		ui.Wait()
+		fmt.Println(buf.String())
 	} else if updates != nil {
 		finalCh := make(chan *aggregate.Realtime, 1)
 		updates <- aggregate.UpdateReq{Final: true, C: finalCh}
@@ -232,21 +233,29 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			func() {
 				defer f.Close()
 				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
-				fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+				if err != nil {
+					monitor.Errorln("Unable to compress benchmark data:", err)
+				}
+
 				defer enc.Close()
 				js := json.NewEncoder(enc)
 				js.SetIndent("", "  ")
 				err = js.Encode(final)
-				fatalIf(probe.NewError(err), "Unable to write benchmark output")
+				if err != nil {
+					monitor.Errorln("Unable to write benchmark data:", err)
+				}
 
-				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
+				monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n\n", fileName+".json.zst"))
 			}()
 		}
 		rep := final.Report(aggregate.ReportOptions{
 			Details: true,
 			Color:   !globalNoColor,
 		})
-		ui.ShowReport(rep)
+
+		ui.Update(tea.Quit())
+		ui.Wait()
+		fmt.Println(rep)
 	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		ui.SetPhase("Cleanup")
@@ -279,6 +288,8 @@ type stageInfo struct {
 	start          chan struct{}
 	done           chan struct{}
 	custom         map[string]string
+	stageCtx       context.Context
+	cancelFn       context.CancelFunc
 	startRequested bool
 }
 
@@ -289,9 +300,12 @@ func (c *clientBenchmark) init(ctx context.Context) {
 	c.info = make(map[benchmarkStage]stageInfo, len(benchmarkStages))
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	for _, stage := range benchmarkStages {
+		sCtx, sCancel := context.WithCancel(ctx)
 		c.info[stage] = stageInfo{
-			start: make(chan struct{}),
-			done:  make(chan struct{}),
+			start:    make(chan struct{}),
+			done:     make(chan struct{}),
+			stageCtx: sCtx,
+			cancelFn: sCancel,
 		}
 	}
 }
@@ -316,7 +330,7 @@ func (c *clientBenchmark) waitForStage(s benchmarkStage) error {
 
 // waitForStage waits for the stage to be ready and updates the stage when it is
 func (c *clientBenchmark) stageDone(s benchmarkStage, err error, custom map[string]string) {
-	console.Infoln(s, "done...")
+	console.Infoln("Stage", s, "done...")
 	if err != nil {
 		console.Errorln(err.Error())
 	}
@@ -328,6 +342,9 @@ func (c *clientBenchmark) stageDone(s benchmarkStage, err error, custom map[stri
 	}
 	if info.done != nil {
 		close(info.done)
+	}
+	if info.cancelFn != nil {
+		info.cancelFn()
 	}
 	c.info[s] = info
 	c.Unlock()
@@ -358,21 +375,28 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
+
 	retrieveOps, updates := addCollector(ctx, b)
 	common := b.GetCommon()
+	common.UpdateStatus = func(s string) {
+		console.Infoln(s)
+	}
+	defer common.Collector.Close()
+
 	cb.Lock()
-	start := cb.info[stageBenchmark].start
-	ctx2, cancel := context.WithCancel(cb.ctx)
-	defer cancel()
+	benchStage := cb.info[stageBenchmark]
+	start := benchStage.start
 	cb.updates = updates
 	cb.Unlock()
 
-	err = b.Prepare(ctx2)
-
+	err = b.Prepare(cb.info[stagePrepare].stageCtx)
 	cb.stageDone(stagePrepare, err, common.Custom)
 	if err != nil {
 		return err
 	}
+
+	ctx2, cancel := benchStage.stageCtx, benchStage.cancelFn
+	defer cancel()
 
 	// Start after waiting a second or until we reached the start time.
 	benchDur := ctx.Duration("duration")
@@ -434,6 +458,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 			}()
 		}
 	}
+	common.Collector.Close()
 
 	err = cb.waitForStage(stageCleanup)
 	if err != nil {
@@ -441,7 +466,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		console.Infoln("Starting cleanup...")
-		b.Cleanup(context.Background())
+		b.Cleanup(cb.info[stageCleanup].stageCtx)
 	}
 	cb.stageDone(stageCleanup, nil, common.Custom)
 

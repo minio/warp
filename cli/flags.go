@@ -20,6 +20,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/minio/cli"
@@ -130,11 +131,11 @@ func setGlobals(quiet, debug, json, noColor bool) {
 func commandLine(ctx *cli.Context) string {
 	s := os.Args[0] + " " + ctx.Command.Name
 	for _, flag := range ctx.Command.Flags {
-		val, err := flagToJSON(ctx, flag)
+		name := strings.Split(flag.GetName(), ",")[0]
+		val, err := flagToJSON(ctx, flag, name)
 		if err != nil || val == "" {
 			continue
 		}
-		name := flag.GetName()
 		switch name {
 		case "access-key", "secret-key", "influxdb":
 			val = "*REDACTED*"

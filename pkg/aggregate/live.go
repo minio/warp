@@ -1,8 +1,24 @@
+/*
+ * Warp (C) 2019-2025 MinIO, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package aggregate
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/bits"
@@ -75,92 +91,6 @@ type RequestSegment struct {
 
 type RequestSegments []RequestSegment
 
-type MapAsSlice map[string]struct{}
-
-func (m *MapAsSlice) Add(k string) {
-	if *m == nil {
-		*m = make(MapAsSlice)
-	}
-	mp := *m
-	mp[k] = struct{}{}
-}
-
-func (m *MapAsSlice) AddMap(other MapAsSlice) {
-	if *m == nil {
-		*m = make(MapAsSlice, len(other))
-	}
-	mp := *m
-	for k := range other {
-		mp[k] = struct{}{}
-	}
-}
-
-func (m *MapAsSlice) AddSlice(other []string) {
-	if *m == nil {
-		*m = make(MapAsSlice, len(other))
-	}
-	mp := *m
-	for _, k := range other {
-		mp[k] = struct{}{}
-	}
-}
-
-func (m *MapAsSlice) SetSlice(v []string) {
-	*m = make(MapAsSlice, len(v))
-	mp := *m
-	for _, k := range v {
-		mp[k] = struct{}{}
-	}
-}
-
-func (m MapAsSlice) MarshalJSON() ([]byte, error) {
-	if m == nil {
-		return []byte("null"), nil
-	}
-	var dst bytes.Buffer
-	dst.WriteByte('[')
-	x := m.Slice()
-	for i, k := range x {
-		dst.WriteByte('"')
-		json.HTMLEscape(&dst, []byte(k))
-		dst.WriteByte('"')
-		if i < len(x)-1 {
-			dst.WriteByte(',')
-		}
-	}
-	dst.WriteByte(']')
-
-	return dst.Bytes(), nil
-}
-
-func (m *MapAsSlice) UnmarshalJSON(b []byte) error {
-	var tmp []string
-	err := json.Unmarshal(b, &tmp)
-	if err != nil {
-		return err
-	}
-	if tmp == nil {
-		*m = nil
-		return nil
-	}
-	var dst = make(MapAsSlice, len(tmp))
-	for _, v := range tmp {
-		dst[v] = struct{}{}
-	}
-	*m = dst
-	return nil
-}
-
-// Slice returns the keys as a sorted slice.
-func (m MapAsSlice) Slice() []string {
-	x := make([]string, 0, len(m))
-	for k := range m {
-		x = append(x, k)
-	}
-	sort.Strings(x)
-	return x
-}
-
 const maxFirstErrors = 10
 
 // Add operation to aggregate.
@@ -228,7 +158,7 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 	l.Clients.AddMap(l2.Clients)
 	l.Hosts.AddMap(l2.Hosts)
 	l.TotalRequests += l2.TotalRequests
-	if l2.StartTime.Before(l.StartTime) {
+	if l.StartTime.IsZero() || l2.StartTime.Before(l.StartTime) {
 		l.StartTime = l2.StartTime
 	}
 	if l2.EndTime.After(l.EndTime) {
@@ -252,6 +182,9 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 			l.ThroughputByClient[k] = v0
 		}
 	}
+	if l.Title == "" && l2.Title != "" {
+		l.Title = l2.Title
+	}
 }
 
 // Update returns a temporary update without finalizing.
@@ -259,9 +192,13 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 func (l LiveAggregate) Update() LiveAggregate {
 	var dst = l
 	dst.Throughput = dst.throughput.asThroughput()
+	// Clear maps...
+	dst.ThroughputByHost = nil
+	dst.ThroughputByClient = nil
 	dst.throughput = liveThroughput{}
-	dst.Requests = make(map[string]RequestSegments, len(l.requests))
+
 	// TODO: PROBABLY NOT NEEDED AND FASTER TO REMOVE...
+	dst.Requests = make(map[string]RequestSegments, len(l.requests))
 	for clientID, req := range l.requests {
 		startTime := time.Unix(req.firstSeg, 0)
 		if req.client != "" {
@@ -279,9 +216,10 @@ func (l LiveAggregate) Update() LiveAggregate {
 	}
 
 	dst.requests = nil
-	dst.Clients = MapAsSlice{}
-	dst.Hosts = MapAsSlice{}
+	dst.Clients = l.Clients.Clone()
+	dst.Hosts = l.Hosts.Clone()
 	dst.FirstErrors = slices.Clone(l.FirstErrors)
+	dst.Title += " (update)"
 
 	return dst
 }
@@ -306,12 +244,14 @@ func (l *LiveAggregate) Finalize() {
 		}
 		l.Requests[clientID] = dst
 	}
+	l.Title += " (Final)"
 }
 
 // ReportOptions provides options to report generation.
 type ReportOptions struct {
-	Details bool
-	Color   bool
+	Details  bool
+	Color    bool
+	SkipReqs bool
 }
 
 func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, format string, args ...interface{}) {
@@ -322,6 +262,13 @@ func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, forma
 		}
 		color.New(ca).Fprintf(dst, format, args...)
 	}
+}
+
+func (o ReportOptions) printf(ca color.Attribute, format string, args ...interface{}) string {
+	if !o.Color {
+		return fmt.Sprintf(format, args...)
+	}
+	return color.New(ca).Sprintf(format, args...)
 }
 
 func (o ReportOptions) col(ca color.Attribute, s string) string {
@@ -354,6 +301,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 		return dst.String()
 	}
 
+	opCol := o.printf(color.FgHiYellow, "%s", op)
 	if details {
 		hostsString := ""
 		if len(data.Hosts) > 1 {
@@ -366,12 +314,12 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 		if data.TotalBytes > 0 {
 			sz = fmt.Sprintf("Size: %d bytes. ", data.TotalBytes/int64(data.TotalObjects))
 		}
-		printfColor(color.FgHiWhite, "Operation: %v (%d). Ran %v\n", op, data.TotalRequests, data.Throughput.StringDuration())
-		printfColor(color.FgWhite, " - Objects per operation: %d. %vConcurrency: %d.%s\n",
+		printfColor(color.FgWhite, "Displaying: %v (%d reqs). Ran %v\n", opCol, data.TotalRequests, data.Throughput.StringDuration())
+		printfColor(color.FgWhite, " * Objects per request: %d. %vConcurrency: %d.%s\n",
 			data.TotalObjects/data.TotalRequests, sz,
 			data.Concurrency, hostsString)
 	} else {
-		printfColor(color.FgHiWhite, "Operation: %s. Concurrency: %d\n", op, data.Concurrency)
+		printfColor(color.FgHiWhite, "Displaying: %s. Concurrency: %d\n", opCol, data.Concurrency)
 	}
 	printfColor(color.FgWhite, " * Average: %v\n", col(color.FgWhite, data.Throughput.StringDetails(details)))
 	if data.TotalErrors > 0 {
@@ -380,39 +328,26 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			console.SetColor("Print", color.New(color.FgWhite))
 			printfColor(color.FgWhite, " - First Errors:\n")
 			for _, err := range data.FirstErrors {
-				printfColor(color.FgWhite, " * %s\n", err)
+				printfColor(color.FgWhite, "   * %s\n", err)
 			}
 		}
 	}
-	{
-		var ss SingleSizedRequests
-		var ms MultiSizedRequests
-		for _, reqs := range data.Requests {
-			for i, seg := range reqs {
-				if i < 2 || i >= len(reqs)-2 {
-					continue
-				}
-				if seg.Single != nil {
-					ss.add(*seg.Single)
-				}
-				if seg.Multi != nil {
-					ms.add(*seg.Multi)
-				}
-			}
-		}
-		if ss.n > 0 {
+
+	if !o.SkipReqs {
+		ss, ms := mergeRequests(data.Requests)
+		if ss.MergedEntries > 0 {
 			printfColor(color.FgWhite, " * Reqs: %s\n", ss.StringByN())
 			if ss.FirstByte != nil {
-				printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.n))
+				printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.MergedEntries))
 			}
 		}
-		if ms.n > 0 {
+		if ms.MergedEntries > 0 {
 			ms.BySize.SortbySize()
 			for _, s := range ms.BySize {
 				printfColor(color.FgWhite, "\nRequest size %s -> %s . Requests: %d\n", s.MinSizeString, s.MaxSizeString, s.Requests)
 				printfColor(color.FgWhite, " * Reqs: %s \n", s.StringByN())
 				if s.FirstByte != nil {
-					printfColor(color.FgWhite, " * TTFB: %s\n", s.FirstByte.StringByN(s.n))
+					printfColor(color.FgWhite, " * TTFB: %s\n", s.FirstByte.StringByN(s.MergedEntries))
 				}
 			}
 		}
@@ -432,15 +367,18 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 		}
 		dst.WriteByte('\n')
 	}
+
 	if len(data.Clients) > 1 {
 		printfColor(color.FgHiWhite, "Throughput by client:\n")
 		for i, client := range data.Clients.Slice() {
-			reqs := data.Requests[client]
-			printfColor(color.FgWhite, "%d: ", i+1)
+			printfColor(color.FgWhite, "Client %d throughput: ", i+1)
 			printfColor(color.FgHiWhite, "%s\n", data.ThroughputByClient[client].StringDetails(o.Details))
+			if o.SkipReqs {
+				continue
+			}
 			var ss SingleSizedRequests
 			var ms MultiSizedRequests
-			for _, seg := range reqs {
+			for _, seg := range data.Requests[client] {
 				if seg.Single != nil {
 					ss.add(*seg.Single)
 				}
@@ -448,19 +386,19 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 					ms.add(*seg.Multi)
 				}
 			}
-			if ss.n > 0 {
+			if ss.MergedEntries > 0 {
 				printfColor(color.FgWhite, " * Reqs: %s\n", ss.StringByN())
 				if ss.FirstByte != nil {
-					printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.n))
+					printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.MergedEntries))
 				}
 			}
-			if ms.n > 0 {
+			if ms.MergedEntries > 0 {
 				ms.BySize.SortbySize()
 				for _, s := range ms.BySize {
 					printfColor(color.FgWhite, "\nRequest size %s -> %s . Requests: %d\n", s.MinSizeString, s.MaxSizeString, s.Requests)
 					printfColor(color.FgWhite, " * Reqs: %s \n", s.StringByN())
 					if s.FirstByte != nil {
-						printfColor(color.FgWhite, " * TTFB: %s\n", s.FirstByte.StringByN(s.n))
+						printfColor(color.FgWhite, " * TTFB: %s\n", s.FirstByte.StringByN(s.MergedEntries))
 					}
 				}
 			}
@@ -480,6 +418,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 
 type Realtime struct {
 	Total    LiveAggregate             `json:"total"`
+	Final    bool                      `json:"final"`
 	ByOpType map[string]*LiveAggregate `json:"by_op_type,omitempty"`
 	// These are really not used.
 	ByHost        map[string]*LiveAggregate         `json:"by_host,omitempty"`
@@ -495,13 +434,16 @@ func (l *Realtime) Report(o ReportOptions) *bytes.Buffer {
 	wroteOps := 0
 	allOps := stringKeysSorted(l.ByOpType)
 	if len(allOps) > 1 && !l.overLappingOps() {
+		o.SkipReqs = len(allOps) > 1
 		dst.WriteString(l.Total.Report("Total", o))
+		o.SkipReqs = false
 		wroteOps++
 	}
+	dst.WriteByte('\n')
 	for _, op := range allOps {
 		data := l.ByOpType[op]
 		if wroteOps > 0 {
-			printfColor(color.FgCyan, "\n──────────────────────────────────\n\n")
+			printfColor(color.FgHiBlue, "\n──────────────────────────────────\n\n")
 		}
 		dst.WriteString(data.Report(op, o))
 		wroteOps++
@@ -518,7 +460,8 @@ func finalizeValues[K comparable](m map[K]*LiveAggregate) {
 	}
 }
 
-func mergeValues[K comparable](to, from map[K]*LiveAggregate) {
+func mergeValues[K comparable](toP *map[K]*LiveAggregate, from map[K]*LiveAggregate) {
+	to := *toP
 	if to == nil {
 		to = make(map[K]*LiveAggregate, len(from))
 	}
@@ -532,6 +475,7 @@ func mergeValues[K comparable](to, from map[K]*LiveAggregate) {
 			to[k] = dst
 		}
 	}
+	*toP = to
 }
 
 func (r *Realtime) Finalize() {
@@ -541,18 +485,20 @@ func (r *Realtime) Finalize() {
 	finalizeValues(r.ByClient)
 	finalizeValues(r.ByCategory)
 	r.Total.Finalize()
+	r.Final = true
 }
 
 func (r *Realtime) Merge(other *Realtime) {
 	if other == nil {
 		return
 	}
-	mergeValues(r.ByOpType, other.ByOpType)
-	mergeValues(r.ByHost, other.ByHost)
-	mergeValues(r.ByObjLog2Size, other.ByObjLog2Size)
-	mergeValues(r.ByClient, other.ByClient)
-	mergeValues(r.ByCategory, other.ByCategory)
+	mergeValues(&r.ByOpType, other.ByOpType)
+	mergeValues(&r.ByHost, other.ByHost)
+	mergeValues(&r.ByObjLog2Size, other.ByObjLog2Size)
+	mergeValues(&r.ByClient, other.ByClient)
+	mergeValues(&r.ByCategory, other.ByCategory)
 	r.Total.Merge(other.Total)
+	r.Final = other.Final && (r.Final || r.Total.TotalRequests == 0)
 }
 
 func newRealTime() Realtime {
@@ -656,6 +602,9 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string) *
 		// 4
 		go func() {
 			defer wg.Done()
+			if op.Size == 0 {
+				return
+			}
 			l2Size := bits.Len64(uint64(op.Size))
 			bySize := a.ByObjLog2Size[l2Size]
 			if bySize == nil {
@@ -797,15 +746,16 @@ func (l *liveThroughput) Add(o bench.Operation) {
 func (l liveThroughput) asThroughput() Throughput {
 	var t Throughput
 	t.StartTime = time.Unix(l.segmentsStart, 0)
-	t.EndTime = time.Unix(l.segmentsStart+int64(len(l.segments))+1, 0)
+	t.EndTime = time.Unix(l.segmentsStart+int64(len(l.segments)), 0)
 	segs := l.segments
 	// Remove first and last...
 	const removeN = 2
-	if len(segs) < removeN*2 {
-		segs = segs[:]
+	if len(segs) <= removeN*2 {
 		return t
 	} else {
 		segs = segs[removeN : len(segs)-removeN]
+		t.StartTime = time.Unix(l.segmentsStart, 0).Add(removeN * time.Second)
+		t.EndTime = t.StartTime.Add(time.Duration(len(l.segments)) * time.Second)
 	}
 	var ts ThroughputSegmented
 	segments := make(bench.Segments, 0, len(segs))
@@ -834,7 +784,7 @@ func (l liveThroughput) asThroughput() Throughput {
 	if len(segs) > 0 {
 		ts.fill(segments, int64(t.BytesPS()))
 		ts.SegmentDurationMillis = 1000
-		t.MeasureDurationMillis = len(l.segments) * 1000
+		t.MeasureDurationMillis = len(segs) * 1000
 	}
 	t.Segmented = &ts
 
@@ -918,6 +868,7 @@ func (l *liveRequests) cycle() {
 		}
 		l.single = append(l.single, tmp)
 	}
+	l.ops = l.ops[:0]
 }
 
 // stringKeysSorted returns the keys as a sorted string slice.
@@ -946,4 +897,18 @@ func (r Realtime) overLappingOps() bool {
 		}
 	}
 	return false
+}
+
+func mergeRequests(data map[string]RequestSegments) (ss SingleSizedRequests, ms MultiSizedRequests) {
+	for _, reqs := range data {
+		for _, seg := range reqs {
+			if seg.Single != nil {
+				ss.add(*seg.Single)
+			}
+			if seg.Multi != nil {
+				ms.add(*seg.Multi)
+			}
+		}
+	}
+	return ss, ms
 }

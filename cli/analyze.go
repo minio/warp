@@ -88,9 +88,8 @@ var analyzeFlags = []cli.Flag{
 		Usage: "When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762",
 	},
 	cli.BoolFlag{
-		Name:   "aggregate,a",
-		Usage:  "Aggregate operations instead of collecting each individually",
-		Hidden: true,
+		Name:  "aggregate,a",
+		Usage: "Aggregate operations instead of collecting each individually",
 	},
 }
 
@@ -137,18 +136,13 @@ func mainAnalyze(ctx *cli.Context) error {
 		rc, isAggregate := openInput(arg)
 		defer rc.Close()
 		if ctx.Bool("aggregate") || isAggregate {
-			var ui ui
-			if !globalQuiet && !globalJSON {
-				go ui.Run()
-				ui.SetPhase("Loading")
-				log = func(format string, data ...interface{}) {
-					ui.SetSubText(fmt.Sprintf(format, data...))
-				}
-			}
 			var final aggregate.Realtime
 			if isAggregate {
 				if err := json.NewDecoder(rc).Decode(&final); err != nil {
 					fatalIf(probe.NewError(err), "Unable to parse input")
+				}
+				if log != nil {
+					log("Loading %q", arg)
 				}
 			} else {
 				var opCh = make(chan bench.Operation, 10000)
@@ -166,15 +160,9 @@ func mainAnalyze(ctx *cli.Context) error {
 				b, err := json.MarshalIndent(final, "", "  ")
 				fatalIf(probe.NewError(err), "Unable to parse input")
 				fmt.Println(string(b))
-			} else if globalQuiet {
-				fmt.Println(rep.String())
 			} else {
-				ui.Pause(true)
-				ui.SetPhase("Report")
-				ui.SetSubText("Use Arrow keys to navigate. Press q to quit")
-				ui.ShowReport(rep)
-				ui.Pause(false)
-				ui.Wait()
+				console.Println("\n")
+				console.Println(rep.String())
 			}
 		} else {
 			ops, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
