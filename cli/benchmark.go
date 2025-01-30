@@ -601,6 +601,9 @@ func parseLocalTime(s string) time.Time {
 	now := time.Now()
 	y, m, d := now.Date()
 	t = t.AddDate(y, int(m)-1, d-1)
+	if t.Before(time.Now()) {
+		t = t.Add(24 * time.Hour)
+	}
 	return t
 }
 
