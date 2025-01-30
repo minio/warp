@@ -108,7 +108,7 @@ func (t Throughput) StringDuration() string {
 }
 
 // StringDetails returns a detailed string representation of the segment
-func (t Throughput) StringDetails(_ bool) string {
+func (t Throughput) StringDetails(details bool) string {
 	if t.Bytes == 0 && t.Objects == 0 {
 		return ""
 	}
@@ -120,8 +120,12 @@ func (t Throughput) StringDetails(_ bool) string {
 	if t.Errors > 0 {
 		errs = fmt.Sprintf(", %d errors", t.Errors)
 	}
-	return fmt.Sprintf("%s%.02f obj/s%s (%vs)",
-		speed, t.ObjectsPS(), errs, (t.MeasureDurationMillis+500)/1000)
+	dur := ""
+	if details {
+		dur = fmt.Sprintf(" (%vs)", int(t.MeasureDurationMillis+500)/1000)
+	}
+	return fmt.Sprintf("%s%.02f obj/s%s%s",
+		speed, t.ObjectsPS(), errs, dur)
 }
 
 func (t *Throughput) fill(total bench.Segment) {

@@ -320,7 +320,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			data.TotalObjects/data.TotalRequests, sz,
 			data.Concurrency, hostsString)
 	} else {
-		printfColor(color.FgHiWhite, "Report: %s. Concurrency: %d\n", opCol, data.Concurrency)
+		printfColor(color.FgHiWhite, "Report: %s. Concurrency: %d. Ran: %v\n", opCol, data.Concurrency, time.Duration(data.Throughput.MeasureDurationMillis)*time.Millisecond)
 	}
 	printfColor(color.FgWhite, " * Average: %v\n", col(color.FgWhite, data.Throughput.StringDetails(details)))
 	if data.TotalErrors > 0 {
@@ -372,9 +372,10 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 	if len(data.Clients) > 1 {
 		printfColor(color.FgHiWhite, "Throughput by client:\n")
 		for i, client := range data.Clients.Slice() {
+			tp := data.ThroughputByClient[client]
 			printfColor(color.FgWhite, "Client %d throughput: ", i+1)
-			printfColor(color.FgHiWhite, "%s\n", data.ThroughputByClient[client].StringDetails(o.Details))
-			if o.SkipReqs {
+			printfColor(color.FgHiWhite, "%s\n", tp.StringDetails(o.Details))
+			if o.SkipReqs || !o.Details {
 				continue
 			}
 			var ss SingleSizedRequests
@@ -388,18 +389,22 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 				}
 			}
 			if ss.MergedEntries > 0 {
-				printfColor(color.FgWhite, " * Reqs: %s\n", ss.StringByN())
+				printfColor(color.FgWhite, " * Reqs: %s", ss.StringByN())
 				if ss.FirstByte != nil {
 					printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.MergedEntries))
+				} else {
+					dst.WriteByte('\n')
 				}
 			}
 			if ms.MergedEntries > 0 {
 				ms.BySize.SortbySize()
 				for _, s := range ms.BySize {
 					printfColor(color.FgWhite, "\nRequest size %s -> %s . Requests: %d\n", s.MinSizeString, s.MaxSizeString, s.Requests)
-					printfColor(color.FgWhite, " * Reqs: %s \n", s.StringByN())
+					printfColor(color.FgWhite, " * Reqs: %s", s.StringByN())
 					if s.FirstByte != nil {
-						printfColor(color.FgWhite, " * TTFB: %s\n", s.FirstByte.StringByN(s.MergedEntries))
+						printfColor(color.FgWhite, ", TTFB: %s\n", s.FirstByte.StringByN(s.MergedEntries))
+					} else {
+						dst.WriteByte('\n')
 					}
 				}
 			}

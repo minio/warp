@@ -249,7 +249,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			}()
 		}
 		rep := final.Report(aggregate.ReportOptions{
-			Details: true,
+			Details: ctx.Bool("analyze.v"),
 			Color:   !globalNoColor,
 		})
 

@@ -309,7 +309,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 			}()
 		}
 		rep := final.Report(aggregate.ReportOptions{
-			Details: true,
+			Details: ctx.Bool("analyze.v"),
 			Color:   !globalNoColor,
 		})
 		ui.Update(tea.Quit())
