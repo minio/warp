@@ -194,7 +194,7 @@ func (u *ui) View() string {
 				}
 				for _, reqs := range resp.ByOpType[op].Requests {
 					if len(reqs) > 0 {
-						reqs := reqs[len(resp.ByOpType[op].Requests)-1]
+						reqs := reqs[len(reqs)-1]
 						if reqs.Single != nil {
 							stats += fmt.Sprintf(", %.1f ms/req", reqs.Single.DurAvgMillis)
 							if reqs.Single.FirstByte != nil {

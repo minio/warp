@@ -89,9 +89,10 @@ func (t *Throughput) Merge(other Throughput) {
 		t.EndTime = other.EndTime
 	}
 	t.MeasureDurationMillis = int(t.EndTime.Sub(t.StartTime).Milliseconds())
-	if t.Segmented == nil {
-		t.Segmented = other.Segmented
-	} else if t.Segmented != nil && other.Segmented != nil {
+	if t.Segmented == nil && other.Segmented != nil {
+		t.Segmented = &ThroughputSegmented{}
+	}
+	if other.Segmented != nil {
 		t.Segmented.Merge(*other.Segmented)
 	}
 }
@@ -253,13 +254,7 @@ func (t *SegmentsSmall) Merge(other SegmentsSmall) {
 
 func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
 	t.Segments.SortByStartTime()
-	a, b := t.Segments, other.Segments
-	if len(a) == 0 {
-		a = other.Segments
-		t.fillFromSegs()
-		return
-	}
-	if len(b) == 0 {
+	if len(other.Segments) == 0 {
 		return
 	}
 	t.Segments.Merge(other.Segments)

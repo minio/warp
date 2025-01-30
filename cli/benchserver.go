@@ -99,8 +99,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		return false, nil
 	}
 
-	if ctx.Bool("autoterm") && !ctx.Bool("aggregate") {
-		return true, errors.New("use of -autoterm also requires -aggregate on remote benchmarks")
+	if ctx.Bool("autoterm") && ctx.Bool("full") {
+		return true, errors.New("use of -autoterm cannot be used with --full on remote benchmarks")
 	}
 
 	var ui ui
@@ -179,7 +179,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	}
 
 	// Connect to hosts, send benchmark requests.
-	ui.StartPrepare("Connecting", nil, nil)
+	ui.StartPrepare("Preparing", nil, nil)
 	for i := range conns.hosts {
 		resp, err := conns.roundTrip(i, req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
@@ -207,7 +207,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 	const benchmarkWait = 3 * time.Second
 	var updates chan aggregate.UpdateReq
-	if ctx.Bool("aggregate") {
+	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
 	}
 	prof, err := startProfiling(context.Background(), ctx)
@@ -227,8 +227,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	ui.cancelFn.Store(&cancel)
 	defer cancel()
 	if ctx.Bool("autoterm") {
-		if !ctx.Bool("aggregate") {
-			return true, errors.New("use of -autoterm also requires -aggregate on remote benchmarks")
+		if ctx.Bool("full") {
+			return true, errors.New("use of -autoterm cannot be combined with -full on remote benchmarks")
 		}
 		common.AutoTermDur = ctx.Duration("autoterm.dur")
 		common.AutoTermScale = ctx.Float64("autoterm.pct") / 100
@@ -314,6 +314,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		})
 		ui.Update(tea.Quit())
 		ui.Wait()
+		fmt.Println("")
 		fmt.Println(rep)
 	}
 
@@ -493,7 +494,7 @@ func (c *connections) startStage(i int, t time.Time, stage benchmarkStage) error
 		c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 		return errors.New(resp.Err)
 	}
-	c.info("Client ", c.hostName(i), ": Requested stage ", stage, " start...")
+	c.info("Client ", c.hostName(i), ": Requested stage", stage, "start...")
 	return nil
 }
 
@@ -635,7 +636,7 @@ func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, fa
 			didCancel := false
 			for {
 				if !didCancel && ctx != nil && ctx.Err() != nil {
-					c.info("Client ", c.hostName(i), ": Sending cancellation to stage ", stage, "...")
+					c.info("Client ", c.hostName(i), ": Sending cancellation to stage", stage, "...")
 					req := serverRequest{
 						Operation: serverReqAbortStage,
 						Stage:     stage,
@@ -692,7 +693,7 @@ func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, fa
 						}
 						mu.Unlock()
 					}
-					c.info("Client ", c.hostName(i), ": Finished stage ", stage, "...")
+					c.info("Client", c.hostName(i), ": Finished stage", stage, "...")
 					return
 				}
 				time.Sleep(time.Second)

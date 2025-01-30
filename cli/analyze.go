@@ -88,8 +88,8 @@ var analyzeFlags = []cli.Flag{
 		Usage: "When running benchmarks open a webserver to fetch results remotely, eg: localhost:7762",
 	},
 	cli.BoolFlag{
-		Name:  "aggregate,a",
-		Usage: "Aggregate operations instead of collecting each individually",
+		Name:  "full",
+		Usage: "Record full analysis data with every request stored. Default will aggregate data.",
 	},
 }
 
@@ -135,7 +135,7 @@ func mainAnalyze(ctx *cli.Context) error {
 	for _, arg := range args {
 		rc, isAggregate := openInput(arg)
 		defer rc.Close()
-		if ctx.Bool("aggregate") || isAggregate {
+		if !ctx.Bool("full") || isAggregate {
 			var final aggregate.Realtime
 			if isAggregate {
 				if err := json.NewDecoder(rc).Decode(&final); err != nil {

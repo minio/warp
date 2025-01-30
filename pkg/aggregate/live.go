@@ -141,8 +141,9 @@ func (l *LiveAggregate) Add(o bench.Operation) {
 func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 	l.Throughput.Merge(l2.Throughput)
 	if l.Requests == nil {
-		l.Requests = l2.Requests
-	} else if l2.Requests != nil {
+		l.Requests = make(map[string]RequestSegments)
+	}
+	if len(l2.Requests) > 0 {
 		for k, v := range l2.Requests {
 			l.Requests[k] = v
 		}
@@ -314,12 +315,12 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 		if data.TotalBytes > 0 {
 			sz = fmt.Sprintf("Size: %d bytes. ", data.TotalBytes/int64(data.TotalObjects))
 		}
-		printfColor(color.FgWhite, "Displaying: %v (%d reqs). Ran %v\n", opCol, data.TotalRequests, data.Throughput.StringDuration())
+		printfColor(color.FgWhite, "Report: %v (%d reqs). Ran %v\n", opCol, data.TotalRequests, data.Throughput.StringDuration())
 		printfColor(color.FgWhite, " * Objects per request: %d. %vConcurrency: %d.%s\n",
 			data.TotalObjects/data.TotalRequests, sz,
 			data.Concurrency, hostsString)
 	} else {
-		printfColor(color.FgHiWhite, "Displaying: %s. Concurrency: %d\n", opCol, data.Concurrency)
+		printfColor(color.FgHiWhite, "Report: %s. Concurrency: %d\n", opCol, data.Concurrency)
 	}
 	printfColor(color.FgWhite, " * Average: %v\n", col(color.FgWhite, data.Throughput.StringDetails(details)))
 	if data.TotalErrors > 0 {
