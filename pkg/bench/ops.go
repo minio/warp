@@ -26,26 +26,27 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/minio/pkg/v3/console"
 )
 
 type Operations []Operation
 
 type Operation struct {
-	Start     time.Time  `json:"start"`
-	End       time.Time  `json:"end"`
-	FirstByte *time.Time `json:"first_byte"`
-	OpType    string     `json:"type"`
-	Err       string     `json:"err"`
-	File      string     `json:"file,omitempty"`
-	ClientID  string     `json:"client_id"`
-	Endpoint  string     `json:"endpoint"`
-	ObjPerOp  int        `json:"ops"`
-	Size      int64      `json:"size"`
-	Thread    uint16     `json:"thread"`
+	Start      time.Time  `json:"start"`
+	End        time.Time  `json:"end"`
+	FirstByte  *time.Time `json:"first_byte"`
+	OpType     string     `json:"type"`
+	Err        string     `json:"err"`
+	File       string     `json:"file,omitempty"`
+	ClientID   string     `json:"client_id"`
+	Endpoint   string     `json:"endpoint"`
+	ObjPerOp   int        `json:"ops"`
+	Size       int64      `json:"size"`
+	Thread     uint16     `json:"thread"`
+	Categories Categories `json:"cat"`
 }
 
 // Duration returns the duration o.End-o.Start
@@ -83,7 +84,7 @@ func (o Operation) BytesPerSec() Throughput {
 	}
 	d := o.Duration()
 	if d <= 0 {
-		return Throughput(math.Inf(1))
+		return 0
 	}
 	return Throughput(o.Size*int64(time.Second)) / Throughput(d)
 }
@@ -264,7 +265,7 @@ func (o Operations) SortByOpType() {
 // Fastest operations first.
 func (o Operations) SortByDuration() {
 	sort.Slice(o, func(i, j int) bool {
-		a, b := o[i].End.Sub(o[i].Start), o[j].End.Sub(o[j].Start)
+		a, b := o[i].End.UnixNano()-o[i].Start.UnixNano(), o[j].End.UnixNano()-o[j].Start.UnixNano()
 		return a < b
 	})
 }
@@ -274,12 +275,24 @@ func (o Operations) SortByDuration() {
 func (o Operations) SortByThroughput() {
 	sort.Slice(o, func(i, j int) bool {
 		a, b := &o[i], &o[j]
-		aDur, bDur := a.End.Sub(a.Start), b.End.Sub(b.Start)
+		aDur, bDur := a.End.UnixNano()-a.Start.UnixNano(), b.End.UnixNano()-b.Start.UnixNano()
 		if a.Size == 0 || b.Size == 0 {
 			return aDur < bDur
 		}
 		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
 	})
+}
+
+// SortByThroughputNonZero will sort the operations by throughput.
+// Fastest operations first.
+func (o Operations) SortByThroughputNonZero() Operations {
+	o.SortByThroughput()
+	for i, op := range o {
+		if op.Duration() > 0 {
+			return o[i:]
+		}
+	}
+	return nil
 }
 
 // Median returns the m part median of the assumed sorted list of operations.
@@ -302,7 +315,7 @@ func (o Operations) SortByTTFB() {
 		if a.FirstByte == nil || b.FirstByte == nil {
 			return a.Start.Before(b.Start)
 		}
-		return a.FirstByte.Sub(a.Start) < b.FirstByte.Sub(b.Start)
+		return a.FirstByte.UnixNano()-a.Start.UnixNano() < b.FirstByte.UnixNano()-b.Start.UnixNano()
 	})
 }
 
@@ -695,6 +708,7 @@ func (o Operations) SplitSizes(minShare float64) []SizeSegment {
 	if !o.MultipleSizes() {
 		return []SizeSegment{o.SingleSizeSegment()}
 	}
+	// FIXME: This allocs like crazy...
 	var res []SizeSegment
 	minSz, maxSz := o.MinMaxSize()
 	if minSz == 0 {
@@ -1030,18 +1044,13 @@ func (o Operations) FilterErrors() Operations {
 // The comment, if any, is written at the end of the file, each line prefixed with '# '.
 func (o Operations) CSV(w io.Writer, comment string) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\n")
+	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\tcat\n")
 	if err != nil {
 		return err
 	}
 
 	for i, op := range o {
-		var ttfb string
-		if op.FirstByte != nil {
-			ttfb = op.FirstByte.Format(time.RFC3339Nano)
-		}
-		_, err := fmt.Fprintf(bw, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond)
-		if err != nil {
+		if err := op.WriteCSV(bw, i); err != nil {
 			return err
 		}
 	}
@@ -1058,16 +1067,44 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 	return bw.Flush()
 }
 
+func (o Operation) WriteCSV(w io.Writer, i int) error {
+	var ttfb string
+	if o.FirstByte != nil {
+		ttfb = o.FirstByte.Format(time.RFC3339Nano)
+	}
+	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, o.Thread, o.OpType, o.ClientID, o.ObjPerOp, o.Size, csvEscapeString(o.Endpoint), o.File, csvEscapeString(o.Err), o.Start.Format(time.RFC3339Nano), ttfb, o.End.Format(time.RFC3339Nano), o.End.Sub(o.Start)/time.Nanosecond, o.Categories)
+	return err
+}
+
 // OperationsFromCSV will load operations from CSV.
 func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{})) (Operations, error) {
+	opCh := make(chan Operation, 1000)
 	var ops Operations
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for op := range opCh {
+			ops = append(ops, op)
+		}
+	}()
+	if err := StreamOperationsFromCSV(r, analyzeOnly, offset, limit, log, opCh); err != nil {
+		return nil, err
+	}
+	wg.Wait()
+	return ops, nil
+}
+
+// StreamOperationsFromCSV will load operations from CSV.
+func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{}), out chan<- Operation) error {
+	defer close(out)
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
 	cr.ReuseRecord = true
 	cr.Comment = '#'
 	header, err := cr.Read()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	fieldIdx := make(map[string]int)
 	for i, s := range header {
@@ -1102,13 +1139,14 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 			return strconv.Itoa(i)
 		}
 	}
+	n := 0
 	for {
 		values, err := cr.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(values) == 0 {
 			continue
@@ -1119,31 +1157,39 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		}
 		start, err := time.Parse(time.RFC3339Nano, values[fieldIdx["start"]])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var ttfb *time.Time
 		if fb := values[fieldIdx["first_byte"]]; fb != "" {
 			t, err := time.Parse(time.RFC3339Nano, fb)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			ttfb = &t
 		}
 		end, err := time.Parse(time.RFC3339Nano, values[fieldIdx["end"]])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		size, err := strconv.ParseInt(values[fieldIdx["bytes"]], 10, 64)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		thread, err := strconv.ParseUint(values[fieldIdx["thread"]], 10, 16)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		objs, err := strconv.ParseInt(values[fieldIdx["n_objects"]], 10, 64)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		var cat Categories
+		if idx, ok := fieldIdx["cat"]; ok {
+			c, err := strconv.ParseUint(values[idx], 10, 64)
+			if err != nil {
+				return err
+			}
+			cat = Categories(c)
 		}
 		var endpoint, clientID string
 		if idx, ok := fieldIdx["endpoint"]; ok {
@@ -1154,30 +1200,30 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 		}
 		file := fileMap(values[fieldIdx["file"]])
 
-		ops = append(ops, Operation{
-			OpType:    values[fieldIdx["op"]],
-			ObjPerOp:  int(objs),
-			Start:     start,
-			FirstByte: ttfb,
-			End:       end,
-			Err:       values[fieldIdx["error"]],
-			Size:      size,
-			File:      file,
-			Thread:    uint16(thread),
-			Endpoint:  endpoint,
-			ClientID:  getClient(clientID),
-		})
-		if log != nil && len(ops)%1000000 == 0 {
-			console.Eraseline()
-			log("\r%d operations loaded...", len(ops))
+		out <- Operation{
+			OpType:     values[fieldIdx["op"]],
+			ObjPerOp:   int(objs),
+			Start:      start,
+			FirstByte:  ttfb,
+			End:        end,
+			Err:        values[fieldIdx["error"]],
+			Size:       size,
+			File:       file,
+			Thread:     uint16(thread),
+			Endpoint:   endpoint,
+			ClientID:   getClient(clientID),
+			Categories: cat,
 		}
-		if limit > 0 && len(ops) >= limit {
+		n++
+		if log != nil && n%100000 == 0 {
+			log("%d operations loaded. Timestamp: %v", n, start.Round(time.Second).Local())
+		}
+		if limit > 0 && n >= limit {
 			break
 		}
 	}
 	if log != nil {
-		console.Eraseline()
-		log("\r%d operations loaded... Done!\n", len(ops))
+		log("%d operations loaded... Done!", n)
 	}
-	return ops, nil
+	return nil
 }

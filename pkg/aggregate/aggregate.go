@@ -133,7 +133,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			a.MixedServerStats.Segmented = &ThroughputSegmented{
 				SegmentDurationMillis: durToMillis(segmentDur),
 			}
-			a.MixedServerStats.Segmented.fill(segs, total)
+			a.MixedServerStats.Segmented.fill(segs, total.TotalBytes)
 		}
 
 		eps := o.SortSplitByEndpoint()
@@ -224,7 +224,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			a.Throughput.Segmented = &ThroughputSegmented{
 				SegmentDurationMillis: durToMillis(segmentDur),
 			}
-			a.Throughput.Segmented.fill(segs, total)
+			a.Throughput.Segmented.fill(segs, total.TotalBytes)
 			a.ObjectsPerOperation = ops.FirstObjPerOp()
 			a.Concurrency = ops.Threads()
 			a.Clients = ops.Clients()
@@ -274,7 +274,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 						host.Segmented = &ThroughputSegmented{
 							SegmentDurationMillis: durToMillis(segmentDur),
 						}
-						host.Segmented.fill(segs, total)
+						host.Segmented.fill(segs, total.TotalBytes)
 					}
 					epMu.Lock()
 					a.ThroughputByHost[ep] = host

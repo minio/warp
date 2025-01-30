@@ -46,18 +46,6 @@ type errorMessage struct {
 
 var printMu sync.Mutex
 
-func printInfo(data ...interface{}) {
-	printMu.Lock()
-	defer printMu.Unlock()
-	w, _ := pb.GetTerminalWidth()
-	if w > 0 {
-		fmt.Print("\r", strings.Repeat(" ", w), "\r")
-	} else {
-		data = append(data, "\n")
-	}
-	console.Info(data...)
-}
-
 func printError(data ...interface{}) {
 	printMu.Lock()
 	defer printMu.Unlock()

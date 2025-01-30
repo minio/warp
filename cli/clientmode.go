@@ -70,7 +70,7 @@ func mainClient(ctx *cli.Context) error {
 		fatal(errInvalidArgument(), "Too many parameters")
 	}
 	http.HandleFunc("/ws", serveWs)
-	console.Infoln("Listening on", addr)
+	console.Infoln("Listening on", addr, "Press Ctrl+C to exit.")
 	fatalIf(probe.NewError(http.ListenAndServe(addr, nil)), "Unable to start client")
 	return nil
 }

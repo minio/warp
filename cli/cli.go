@@ -43,6 +43,10 @@ var (
 	globalJSON    = false // Json flag set via command line
 	globalDebug   = false // Debug flag set via command line
 	globalNoColor = false // No Color flag set via command line
+
+	GlobalVersion string
+	GlobalCommit  string
+	GlobalDate    string
 )
 
 const (
@@ -165,7 +169,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 		cfg := &mprofile.Config{
 			Path:           ctx.String("pprofdir"),
 			UseTempPath:    false,
-			Quiet:          false,
+			Quiet:          ctx.Bool("quiet") || ctx.Bool("json"),
 			MemProfileRate: 4096,
 			MemProfileType: "heap",
 			CloserHook:     nil,

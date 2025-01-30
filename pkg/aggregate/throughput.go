@@ -20,6 +20,7 @@ package aggregate
 import (
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/minio/warp/pkg/bench"
@@ -37,12 +38,63 @@ type Throughput struct {
 	Errors int `json:"errors"`
 	// Time period of the throughput measurement.
 	MeasureDurationMillis int `json:"measure_duration_millis"`
-	// Average bytes per second. Can be 0.
-	AverageBPS float64 `json:"average_bps"`
-	// Average operations per second.
-	AverageOPS float64 `json:"average_ops"`
+	// Total bytes.
+	Bytes float64 `json:"bytes"`
+	// Total objects
+	Objects float64 `json:"objects"`
 	// Number of full operations
-	Operations int `json:"operations"`
+	Operations int `json:"ops"`
+}
+
+func (t Throughput) Add(o bench.Operation) Throughput {
+	if t.StartTime.IsZero() || t.StartTime.After(o.Start) {
+		t.StartTime = o.Start
+	}
+	if t.EndTime.IsZero() || t.EndTime.Before(o.End) {
+		t.EndTime = o.End
+	}
+	t.MeasureDurationMillis = int(t.EndTime.Sub(t.StartTime).Milliseconds())
+	t.Operations++
+	if o.Err != "" {
+		t.Errors++
+	}
+	t.Bytes += float64(o.Size)
+	t.Objects += float64(o.ObjPerOp)
+	return t
+}
+
+// BytesPS returns the bytes per second throughput for the time segment.
+func (t Throughput) BytesPS() bench.Throughput {
+	return bench.Throughput(1000 * t.Bytes / float64(t.MeasureDurationMillis))
+}
+
+// ObjectsPS returns the objects per second for the segment.
+func (t Throughput) ObjectsPS() float64 {
+	return 1000 * float64(t.Objects) / float64(t.MeasureDurationMillis)
+}
+
+// Merge currently running measurements.
+func (t *Throughput) Merge(other Throughput) {
+	if other.Operations == 0 {
+		return
+	}
+	t.Errors += other.Errors
+	t.Bytes += other.Bytes
+	t.Objects += other.Objects
+	t.Operations += other.Operations
+	if t.StartTime.IsZero() || other.StartTime.Before(t.StartTime) {
+		t.StartTime = other.StartTime
+	}
+	if other.EndTime.After(t.EndTime) {
+		t.EndTime = other.EndTime
+	}
+	t.MeasureDurationMillis = int(t.EndTime.Sub(t.StartTime).Milliseconds())
+	if t.Segmented == nil && other.Segmented != nil {
+		t.Segmented = &ThroughputSegmented{}
+	}
+	if other.Segmented != nil {
+		t.Segmented.Merge(*other.Segmented)
+	}
 }
 
 // String returns a string representation of the segment
@@ -56,28 +108,34 @@ func (t Throughput) StringDuration() string {
 }
 
 // StringDetails returns a detailed string representation of the segment
-func (t Throughput) StringDetails(_ bool) string {
+func (t Throughput) StringDetails(details bool) string {
+	if t.Bytes == 0 && t.Objects == 0 {
+		return ""
+	}
 	speed := ""
-	if t.AverageBPS > 0 {
-		speed = fmt.Sprintf("%.02f MiB/s, ", t.AverageBPS/(1<<20))
+	if t.Bytes > 0 {
+		speed = fmt.Sprintf("%.02f MiB/s, ", t.BytesPS()/(1<<20))
 	}
 	errs := ""
 	if t.Errors > 0 {
 		errs = fmt.Sprintf(", %d errors", t.Errors)
 	}
-	return fmt.Sprintf("%s%.02f obj/s%s",
-		speed, t.AverageOPS, errs)
+	dur := ""
+	if details {
+		dur = fmt.Sprintf(" (%vs)", (t.MeasureDurationMillis+500)/1000)
+	}
+	return fmt.Sprintf("%s%.02f obj/s%s%s",
+		speed, t.ObjectsPS(), errs, dur)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
-	mib, _, objs := total.SpeedPerSec()
 	*t = Throughput{
 		Operations:            total.FullOps,
 		MeasureDurationMillis: durToMillis(total.EndsBefore.Sub(total.Start)),
 		StartTime:             total.Start,
 		EndTime:               total.EndsBefore,
-		AverageBPS:            math.Round(mib*(1<<20)*10) / 10,
-		AverageOPS:            math.Round(objs*100) / 100,
+		Bytes:                 float64(total.TotalBytes),
+		Objects:               total.Objects,
 		Errors:                total.Errors,
 	}
 }
@@ -95,18 +153,119 @@ type ThroughputSegmented struct {
 	SortedBy string `json:"sorted_by"`
 
 	// All segments, sorted
-	Segments []SegmentSmall `json:"segments"`
+	Segments SegmentsSmall `json:"segments"`
 
 	// Time of each segment.
 	SegmentDurationMillis int `json:"segment_duration_millis"`
-	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by operations per second.
+
+	// Fastest segment bytes per second. Can be 0. In that case segments are sorted by objects per second.
 	FastestBPS float64 `json:"fastest_bps"`
-	// Fastest segment in terms of operations per second.
+	// Fastest segment in terms of objects per second.
 	FastestOPS float64 `json:"fastest_ops"`
 	MedianBPS  float64 `json:"median_bps"`
 	MedianOPS  float64 `json:"median_ops"`
 	SlowestBPS float64 `json:"slowest_bps"`
 	SlowestOPS float64 `json:"slowest_ops"`
+}
+
+type SegmentsSmall []SegmentSmall
+
+// SortByThroughput sorts the segments by throughput.
+// Slowest first.
+func (s SegmentsSmall) SortByThroughput() {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].BPS < s[j].BPS
+	})
+}
+
+// SortByObjsPerSec sorts the segments by the number of objects processed in the segment.
+// Lowest first.
+func (s SegmentsSmall) SortByObjsPerSec() {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].OPS < s[j].OPS
+	})
+}
+
+// SortByStartTime sorts the segments by the start time.
+// Earliest first.
+func (s SegmentsSmall) SortByStartTime() {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].Start.Before(s[j].Start)
+	})
+}
+
+// Median returns the m part median.
+// m is clamped to the range 0 -> 1.
+func (s SegmentsSmall) Median(m float64) SegmentSmall {
+	if len(s) == 0 {
+		return SegmentSmall{}
+	}
+	m = math.Round(float64(len(s)) * m)
+	m = math.Max(m, 0)
+	m = math.Min(m, float64(len(s)-1))
+	return s[int(m)]
+}
+
+// Merge 'other' into 't'.
+// Will mutate (re-sort) both segments.
+// Segments must have same time alignment.
+func (s *SegmentsSmall) Merge(other SegmentsSmall) {
+	if len(other) == 0 {
+		return
+	}
+	a := *s
+	if len(a) == 0 {
+		a = append(a, other...)
+		*s = a
+		return
+	}
+	merged := make(SegmentsSmall, 0, len(a))
+	a.SortByStartTime()
+	other.SortByStartTime()
+	// Add empty segments to a, so all in other are present
+	for len(a) > 0 && len(other) > 0 {
+		if len(other) == 0 {
+			merged = append(merged, a...)
+			break
+		}
+		if len(a) == 0 {
+			merged = append(merged, other...)
+			break
+		}
+		toMerge := other[0]
+		idx := -1
+		for i := range a {
+			if a[i].Start.After(toMerge.Start) {
+				// Store in previous index.
+				break
+			}
+			idx = i
+		}
+		if idx == -1 {
+			merged = append(merged, toMerge)
+			other = other[1:]
+		}
+		if idx > 0 {
+			merged = append(merged, a[:idx]...)
+			a = a[idx:]
+		}
+		merged = append(merged, a[0].add(toMerge))
+		other = other[1:]
+	}
+	merged.SortByStartTime()
+	*s = merged
+}
+
+func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
+	t.Segments.SortByStartTime()
+	if len(other.Segments) == 0 {
+		return
+	}
+	if t.SegmentDurationMillis == 0 {
+		t.SegmentDurationMillis = other.SegmentDurationMillis
+	}
+	t.Segments.Merge(other.Segments)
+	t.fillFromSegs()
 }
 
 // BPSorOPS returns bytes per second if non zero otherwise operations per second as human readable string.
@@ -125,7 +284,7 @@ type SegmentSmall struct {
 	// Bytes per second during the time segment.
 	BPS float64 `json:"bytes_per_sec"`
 
-	// Operations per second during the time segment.
+	// Objects per second during the time segment.
 	OPS float64 `json:"obj_per_sec"`
 
 	// Errors logged during the time segment.
@@ -147,6 +306,13 @@ func cloneBenchSegments(s bench.Segments) []SegmentSmall {
 	return res
 }
 
+func (s *SegmentSmall) add(other SegmentSmall) SegmentSmall {
+	s.Errors += other.Errors
+	s.OPS += other.OPS
+	s.BPS += other.BPS
+	return *s
+}
+
 // StringLong returns a long string representation of the segment.
 func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 	speed := ""
@@ -161,18 +327,18 @@ func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 		speed, s.OPS, detail)
 }
 
-func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
+func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	// Copy by time.
 	segs.SortByTime()
 	smallSegs := cloneBenchSegments(segs)
 
 	// Sort to get correct medians.
-	if total.TotalBytes > 0 {
+	if totalBytes > 0 {
 		segs.SortByThroughput()
-		a.SortedBy = "bps"
+		t.SortedBy = "bps"
 	} else {
 		segs.SortByObjsPerSec()
-		a.SortedBy = "ops"
+		t.SortedBy = "ops"
 	}
 
 	fast := segs.Median(1)
@@ -188,10 +354,10 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 		return math.Round(objs*100) / 100
 	}
 
-	*a = ThroughputSegmented{
+	*t = ThroughputSegmented{
 		Segments:              smallSegs,
-		SortedBy:              a.SortedBy,
-		SegmentDurationMillis: a.SegmentDurationMillis,
+		SortedBy:              t.SortedBy,
+		SegmentDurationMillis: t.SegmentDurationMillis,
 		FastestStart:          fast.Start,
 		FastestBPS:            bps(fast),
 		FastestOPS:            ops(fast),
@@ -201,5 +367,44 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, total bench.Segment) {
 		SlowestStart:          slow.Start,
 		SlowestBPS:            bps(slow),
 		SlowestOPS:            ops(slow),
+	}
+}
+
+func (t *ThroughputSegmented) fillFromSegs() {
+	// Copy by time.
+	segs := t.Segments
+	var byBPS bool
+	for _, seg := range segs {
+		if seg.BPS > 0 {
+			byBPS = true
+			break
+		}
+	}
+	// Sort to get correct medians.
+	if byBPS {
+		segs.SortByThroughput()
+		t.SortedBy = "bps"
+	} else {
+		segs.SortByObjsPerSec()
+		t.SortedBy = "ops"
+	}
+
+	fast := segs.Median(1)
+	med := segs.Median(0.5)
+	slow := segs.Median(0)
+
+	*t = ThroughputSegmented{
+		Segments:              segs,
+		SortedBy:              t.SortedBy,
+		SegmentDurationMillis: t.SegmentDurationMillis,
+		FastestStart:          fast.Start,
+		FastestBPS:            fast.BPS,
+		FastestOPS:            fast.OPS,
+		MedianStart:           med.Start,
+		MedianBPS:             med.BPS,
+		MedianOPS:             med.OPS,
+		SlowestStart:          slow.Start,
+		SlowestBPS:            slow.BPS,
+		SlowestOPS:            slow.OPS,
 	}
 }

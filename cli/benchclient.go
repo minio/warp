@@ -28,6 +28,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/pkg/v3/console"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/websocket"
 )
@@ -38,6 +39,7 @@ type clientReplyType string
 const (
 	clientRespBenchmarkStarted clientReplyType = "benchmark_started"
 	clientRespStatus           clientReplyType = "benchmark_status"
+	clientRespAborted          clientReplyType = "abort_requested"
 	clientRespOps              clientReplyType = "ops"
 )
 
@@ -50,9 +52,10 @@ type clientReply struct {
 		Started  bool              `json:"started"`
 		Finished bool              `json:"finished"`
 	} `json:"stage_info"`
-	Type clientReplyType  `json:"type"`
-	Err  string           `json:"err,omitempty"`
-	Ops  bench.Operations `json:"ops,omitempty"`
+	Type   clientReplyType     `json:"type"`
+	Err    string              `json:"err,omitempty"`
+	Ops    bench.Operations    `json:"ops,omitempty"`
+	Update *aggregate.Realtime `json:"update,omitempty"`
 }
 
 // executeBenchmark will execute the benchmark and return any error.
@@ -237,6 +240,20 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				close(info.start)
 			}()
 			resp.Type = clientRespStatus
+		case serverReqAbortStage:
+			activeBenchmarkMu.Lock()
+			ab := activeBenchmark
+			activeBenchmarkMu.Unlock()
+			resp.Type = clientRespAborted
+			if ab == nil {
+				break
+			}
+			console.Infoln("Aborting stage", req.Stage)
+			ab.Lock()
+			if cancel := ab.info[req.Stage].cancelFn; cancel != nil {
+				cancel()
+			}
+			ab.Unlock()
 		case serverReqStageStatus:
 			activeBenchmarkMu.Lock()
 			ab := activeBenchmark
@@ -249,6 +266,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			ab.Lock()
 			err := ab.err
 			stageInfo := ab.info
+			updates := ab.updates
 			ab.Unlock()
 			if err != nil {
 				resp.Err = err.Error()
@@ -270,6 +288,12 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				resp.StageInfo.Custom = info.custom
 			default:
 			}
+			if req.UpdateReq != nil && updates != nil {
+				u := make(chan *aggregate.Realtime, 1)
+				req.UpdateReq.C = u
+				updates <- *req.UpdateReq
+				resp.Update = <-u
+			}
 		case serverReqSendOps:
 			activeBenchmarkMu.Lock()
 			ab := activeBenchmark
@@ -277,6 +301,19 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			if ab == nil {
 				resp.Err = "no benchmark running"
 				break
+			}
+			ab.Lock()
+			updates := ab.updates
+			ab.Unlock()
+			if req.UpdateReq != nil && updates != nil {
+				u := make(chan *aggregate.Realtime, 1)
+				req.UpdateReq.C = u
+				updates <- *req.UpdateReq
+				select {
+				case <-time.After(time.Second):
+					resp.Err = "timeout fetching update"
+				case resp.Update = <-u:
+				}
 			}
 			resp.Type = clientRespOps
 			ab.Lock()
@@ -325,15 +362,7 @@ func runCommand(ctx *cli.Context, c *cli.Command) (err error) {
 		}()
 	}
 
-	if c.Before != nil {
-		err = c.Before(ctx)
-		if err != nil {
-			fmt.Fprintln(ctx.App.Writer, err)
-			fmt.Fprintln(ctx.App.Writer)
-			return err
-		}
-	}
-
+	// We do not run c.Before, since it only updates global flags, which we don't want to modify.
 	if c.Action == nil {
 		return errors.New("no action")
 	}

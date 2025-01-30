@@ -27,7 +27,6 @@ import (
 
 	"github.com/minio/minio-go/v7"
 
-	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -61,19 +60,17 @@ func (d *List) Prepare(ctx context.Context) error {
 	}
 
 	objPerPrefix := (d.CreateObjects + d.Concurrency - 1) / d.Concurrency
-	console.Eraseline()
 	x := ""
 	if d.Versions > 1 {
 		x = fmt.Sprintf(" with %d versions each", d.Versions)
 	}
 	if d.NoPrefix {
-		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects", x)
+		d.UpdateStatus(fmt.Sprint("Uploading ", objPerPrefix*d.Concurrency, " objects", x))
 	} else {
-		console.Info("\rUploading ", objPerPrefix*d.Concurrency, " objects", x, " in ", d.Concurrency, " prefixes")
+		d.UpdateStatus(fmt.Sprint("Uploading ", objPerPrefix*d.Concurrency, " objects", x, " in ", d.Concurrency, " prefixes"))
 	}
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
-	d.addCollector()
 	d.objects = make([]generator.Objects, d.Concurrency)
 	var mu sync.Mutex
 	objsCreated := 0
@@ -173,7 +170,7 @@ func (d *List) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (d *List) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
@@ -255,7 +252,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.

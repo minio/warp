@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
@@ -49,10 +48,8 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 		return err
 	}
 
-	g.addCollector()
 	src := g.Source()
-	console.Eraseline()
-	console.Info("\rUploading", g.ZipObjName, "with ", g.CreateFiles, " files each of ", src.String())
+	g.UpdateStatus(fmt.Sprint("Uploading", g.ZipObjName, "with ", g.CreateFiles, " files each of ", src.String()))
 
 	client, cldone := g.Client()
 	defer cldone()
@@ -125,7 +122,7 @@ func (g *S3Zip) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
 	wg.Add(g.Concurrency)
 	c := g.Collector
@@ -199,7 +196,7 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) (Operations, erro
 		}(i)
 	}
 	wg.Wait()
-	return c.Close(), nil
+	return nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.
