@@ -29,8 +29,9 @@ var (
 	date    string
 )
 
-var _, _, _ = version, commit, date
-
 func main() {
+	cli.GlobalVersion = version
+	cli.GlobalCommit = commit
+	cli.GlobalDate = date
 	cli.Main(os.Args)
 }

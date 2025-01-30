@@ -291,6 +291,10 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		if final.Total.TotalRequests == 0 {
 			return true, errors.New("no operations received")
 		}
+		final.Commandline = commandLine(ctx)
+		final.WarpVersion = GlobalVersion
+		final.WarpDate = GlobalDate
+		final.WarpCommit = GlobalCommit
 		f, err := os.Create(fileName + ".json.zst")
 		if err != nil {
 			monitor.Errorln("Unable to write benchmark data:", err)

@@ -226,6 +226,10 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		finalCh := make(chan *aggregate.Realtime, 1)
 		updates <- aggregate.UpdateReq{Final: true, C: finalCh}
 		final := <-finalCh
+		final.Commandline = commandLine(ctx)
+		final.WarpVersion = GlobalVersion
+		final.WarpDate = GlobalDate
+		final.WarpCommit = GlobalCommit
 		f, err := os.Create(fileName + ".json.zst")
 		if err != nil {
 			monitor.Errorln("Unable to write benchmark data:", err)
@@ -456,6 +460,35 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 				fatalIf(probe.NewError(err), "Unable to write benchmark output")
 
 				console.Infof("Benchmark data written to %q\n", fileName+".csv.zst")
+			}()
+		}
+	} else if updates != nil {
+		finalCh := make(chan *aggregate.Realtime, 1)
+		updates <- aggregate.UpdateReq{Final: true, C: finalCh}
+		final := <-finalCh
+		final.Commandline = commandLine(ctx)
+		final.WarpVersion = GlobalVersion
+		final.WarpDate = GlobalDate
+		final.WarpCommit = GlobalCommit
+		f, err := os.Create(fileName + ".json.zst")
+		if err != nil {
+			console.Errorln("Unable to write benchmark data:", err)
+		} else {
+			func() {
+				defer f.Close()
+				enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+				if err != nil {
+					console.Errorln("Unable to compress benchmark data:", err)
+				}
+
+				defer enc.Close()
+				js := json.NewEncoder(enc)
+				js.SetIndent("", "  ")
+				err = js.Encode(final)
+				if err != nil {
+					console.Errorln("Unable to write benchmark data:", err)
+				}
+				console.Infoln(fmt.Sprintf("\nBenchmark data written to %q\n\n", fileName+".json.zst"))
 			}()
 		}
 	}

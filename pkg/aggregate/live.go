@@ -33,6 +33,26 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
+const currentVersion = 1
+
+// Realtime is a collection of realtime aggregated data.
+type Realtime struct {
+	DataVersion int    `json:"v"`
+	Commandline string `json:"commandline"`
+	Final       bool   `json:"final"`
+	WarpVersion string `json:"warp_version,omitempty"`
+	WarpCommit  string `json:"warp_commit,omitempty"`
+	WarpDate    string `json:"warp_date,omitempty"`
+
+	Total    LiveAggregate             `json:"total"`
+	ByOpType map[string]*LiveAggregate `json:"by_op_type,omitempty"`
+	// These are really not used.
+	ByHost        map[string]*LiveAggregate         `json:"by_host,omitempty"`
+	ByObjLog2Size map[int]*LiveAggregate            `json:"by_obj_log_2_size,omitempty"`
+	ByClient      map[string]*LiveAggregate         `json:"by_client,omitempty"`
+	ByCategory    map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
+}
+
 type LiveAggregate struct {
 	Title string
 	// Total requests
@@ -422,17 +442,6 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 	return dst.String()
 }
 
-type Realtime struct {
-	Total    LiveAggregate             `json:"total"`
-	Final    bool                      `json:"final"`
-	ByOpType map[string]*LiveAggregate `json:"by_op_type,omitempty"`
-	// These are really not used.
-	ByHost        map[string]*LiveAggregate         `json:"by_host,omitempty"`
-	ByObjLog2Size map[int]*LiveAggregate            `json:"by_obj_log_2_size,omitempty"`
-	ByClient      map[string]*LiveAggregate         `json:"by_client,omitempty"`
-	ByCategory    map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
-}
-
 func (r *Realtime) Report(o ReportOptions) *bytes.Buffer {
 	dst := bytes.NewBuffer(make([]byte, 0, 1024))
 	printfColor := o.printfColor(dst)
@@ -509,10 +518,26 @@ func (r *Realtime) Merge(other *Realtime) {
 	mergeValues(&r.ByCategory, other.ByCategory)
 	r.Total.Merge(other.Total)
 	r.Final = other.Final && (r.Final || r.Total.TotalRequests == 0)
+	setIfEmpty := func(dst *string, alt string) {
+		if dst == nil {
+			return
+		}
+		if *dst == "" {
+			*dst = alt
+		}
+	}
+	setIfEmpty(&r.WarpCommit, other.WarpCommit)
+	setIfEmpty(&r.WarpDate, other.WarpDate)
+	setIfEmpty(&r.WarpVersion, other.WarpVersion)
+	setIfEmpty(&r.Commandline, other.Commandline)
+	if r.DataVersion == 0 {
+		r.DataVersion = other.DataVersion
+	}
 }
 
 func newRealTime() Realtime {
 	return Realtime{
+		DataVersion:   currentVersion,
 		Total:         LiveAggregate{Title: "Total"},
 		ByOpType:      make(map[string]*LiveAggregate),
 		ByHost:        make(map[string]*LiveAggregate),

@@ -43,6 +43,10 @@ var (
 	globalJSON    = false // Json flag set via command line
 	globalDebug   = false // Debug flag set via command line
 	globalNoColor = false // No Color flag set via command line
+
+	GlobalVersion string
+	GlobalCommit  string
+	GlobalDate    string
 )
 
 const (
