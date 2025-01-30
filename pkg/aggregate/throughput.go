@@ -122,7 +122,7 @@ func (t Throughput) StringDetails(details bool) string {
 	}
 	dur := ""
 	if details {
-		dur = fmt.Sprintf(" (%vs)", int(t.MeasureDurationMillis+500)/1000)
+		dur = fmt.Sprintf(" (%vs)", (t.MeasureDurationMillis+500)/1000)
 	}
 	return fmt.Sprintf("%s%.02f obj/s%s%s",
 		speed, t.ObjectsPS(), errs, dur)
@@ -260,6 +260,9 @@ func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
 	t.Segments.SortByStartTime()
 	if len(other.Segments) == 0 {
 		return
+	}
+	if t.SegmentDurationMillis == 0 {
+		t.SegmentDurationMillis = other.SegmentDurationMillis
 	}
 	t.Segments.Merge(other.Segments)
 	t.fillFromSegs()

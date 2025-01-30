@@ -622,7 +622,7 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string) *
 				if l2Size > 0 {
 					start = 1 >> (l2Size - 1)
 				}
-				bySize = &LiveAggregate{Title: fmt.Sprintf("Size: %d->%d", start, (1>>l2Size)-1)}
+				bySize = &LiveAggregate{Title: fmt.Sprintf("Size: %d->%d", start, (1<<l2Size)-1)}
 				a.ByObjLog2Size[l2Size] = bySize
 			}
 			bySize.Add(op)

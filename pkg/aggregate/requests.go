@@ -355,9 +355,6 @@ type MultiSizedRequests struct {
 	// BySize contains request times separated by sizes
 	BySize RequestSizeRanges `json:"by_size"`
 
-	// HostNames are the host names, sorted.
-	HostNames MapAsSlice
-
 	// Total number of requests.
 	Requests int `json:"requests"`
 
@@ -383,7 +380,6 @@ func (a *MultiSizedRequests) add(b MultiSizedRequests) {
 		av.add(v)
 		a.ByHost[ep] = av
 	}
-	a.HostNames.AddMap(b.HostNames)
 	a.Requests += b.Requests
 	a.AvgObjSize += b.AvgObjSize
 	for _, toMerge := range b.BySize {
@@ -497,10 +493,6 @@ func RequestAnalysisMultiSized(o bench.Operations, allThreads bool) *MultiSizedR
 	}
 	res.fill(active, true)
 	res.ByHost = RequestAnalysisHostsMultiSized(active)
-	res.HostNames.AddSlice(active.Endpoints())
-	if len(res.HostNames) != len(res.ByHost) && len(res.ByHost) > 0 {
-		res.HostNames.AddSlice(o.ClientIDs(clientAsHostPrefix))
-	}
 	res.MergedEntries = 1
 	return &res
 }
