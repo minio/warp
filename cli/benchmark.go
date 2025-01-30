@@ -255,6 +255,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 		ui.Update(tea.Quit())
 		ui.Wait()
+		fmt.Println("")
 		fmt.Println(rep)
 	}
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {

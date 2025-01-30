@@ -434,13 +434,6 @@ func (r *Realtime) Report(o ReportOptions) *bytes.Buffer {
 
 	wroteOps := 0
 	allOps := stringKeysSorted(r.ByOpType)
-	if len(allOps) > 1 && !r.overLappingOps() {
-		o.SkipReqs = len(allOps) > 1
-		dst.WriteString(r.Total.Report("Total", o))
-		o.SkipReqs = false
-		wroteOps++
-	}
-	dst.WriteByte('\n')
 	for _, op := range allOps {
 		data := r.ByOpType[op]
 		if wroteOps > 0 {
@@ -448,6 +441,17 @@ func (r *Realtime) Report(o ReportOptions) *bytes.Buffer {
 		}
 		dst.WriteString(data.Report(op, o))
 		wroteOps++
+	}
+	dst.WriteByte('\n')
+	if len(allOps) > 1 && !r.overLappingOps() {
+		if len(allOps) > 1 {
+			if wroteOps > 0 {
+				printfColor(color.FgHiBlue, "\n──────────────────────────────────\n\n")
+			}
+		}
+		o.SkipReqs = len(allOps) > 1
+		dst.WriteString(r.Total.Report("Total", o))
+		o.SkipReqs = false
 	}
 
 	return dst
