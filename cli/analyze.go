@@ -145,7 +145,7 @@ func mainAnalyze(ctx *cli.Context) error {
 					log("Loading %q", arg)
 				}
 			} else {
-				var opCh = make(chan bench.Operation, 10000)
+				opCh := make(chan bench.Operation, 10000)
 				go func() {
 					err := bench.StreamOperationsFromCSV(rc, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
 					fatalIf(probe.NewError(err), "Unable to parse input")
@@ -301,6 +301,7 @@ type readCloser struct {
 func (rc readCloser) Close() error {
 	return rc.closeFn()
 }
+
 func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 	details := ctx.Bool("analyze.v")
 	var wrSegs io.Writer

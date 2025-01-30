@@ -35,22 +35,18 @@ import (
 )
 
 type ui struct {
-	progress      progress.Model
-	pct           atomic.Pointer[float64]
-	phase         atomic.Pointer[string]
-	phaseTxt      atomic.Pointer[string]
-	updates       atomic.Pointer[chan<- aggregate.UpdateReq]
-	start, end    atomic.Pointer[time.Time]
-	pause         atomic.Bool
-	txtOnly       atomic.Bool
-	quitPls       atomic.Bool
-	showProgress  bool
-	gotWindowSize bool
-	cancelFn      atomic.Pointer[context.CancelFunc]
-	quitCh        chan struct{}
+	progress     progress.Model
+	pct          atomic.Pointer[float64]
+	phase        atomic.Pointer[string]
+	phaseTxt     atomic.Pointer[string]
+	updates      atomic.Pointer[chan<- aggregate.UpdateReq]
+	start, end   atomic.Pointer[time.Time]
+	pause        atomic.Bool
+	quitPls      atomic.Bool
+	showProgress bool
+	cancelFn     atomic.Pointer[context.CancelFunc]
+	quitCh       chan struct{}
 }
-
-const useHighPerformanceRenderer = false
 
 type tickMsg time.Time
 
@@ -91,9 +87,9 @@ const (
 	maxWidth = 80
 )
 
-func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.quitPls.Load() {
-		return m, tea.Quit
+func (u *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if u.quitPls.Load() {
+		return u, tea.Quit
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -101,51 +97,52 @@ func (m *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case "ctrl+c", "q":
-			return m, tea.Quit
+			return u, tea.Quit
 		}
 	case tea.QuitMsg:
-		m.quitPls.Store(true)
-		return m, tea.Quit
+		u.quitPls.Store(true)
+		return u, tea.Quit
 	case tea.WindowSizeMsg:
-		m.progress.Width = msg.Width - 4
-		if m.progress.Width > maxWidth-padding {
-			m.progress.Width = maxWidth - padding
+		u.progress.Width = msg.Width - 4
+		if u.progress.Width > maxWidth-padding {
+			u.progress.Width = maxWidth - padding
 		}
 	case tickMsg:
 		batch := []tea.Cmd{tickCmd()}
-		m.showProgress = false
-		if p := m.pct.Load(); p != nil {
-			m.showProgress = true
-			batch = append(batch, m.progress.SetPercent(*p))
-		} else if start := m.start.Load(); start != nil {
-			m.showProgress = true
-			end := m.end.Load()
+		u.showProgress = false
+		if p := u.pct.Load(); p != nil {
+			u.showProgress = true
+			batch = append(batch, u.progress.SetPercent(*p))
+		} else if start := u.start.Load(); start != nil {
+			u.showProgress = true
+			end := u.end.Load()
 			now := time.Now()
-			if now.Before(*start) {
-				batch = append(batch, m.progress.SetPercent(0))
-			} else if now.After(*end) {
-				batch = append(batch, m.progress.SetPercent(1))
-			} else {
+			switch {
+			case now.Before(*start):
+				batch = append(batch, u.progress.SetPercent(0))
+			case now.After(*end):
+				batch = append(batch, u.progress.SetPercent(1))
+			default:
 				a, b := start.UnixNano(), end.UnixNano()
 				pct := float64(now.UnixNano()-a) / float64(b-a)
-				batch = append(batch, m.progress.SetPercent(pct))
-				m.progress.SetPercent(pct)
+				batch = append(batch, u.progress.SetPercent(pct))
+				u.progress.SetPercent(pct)
 			}
 		}
-		if m.quitPls.Load() {
+		if u.quitPls.Load() {
 			batch = append(batch, tea.Quit)
 		}
 
-		return m, tea.Batch(batch...)
+		return u, tea.Batch(batch...)
 
 	case progress.FrameMsg:
 		// FrameMsg is sent when the progress bar wants to animate itself
-		progressModel, cmd := m.progress.Update(msg)
-		m.progress = progressModel.(progress.Model)
-		return m, cmd
+		progressModel, cmd := u.progress.Update(msg)
+		u.progress = progressModel.(progress.Model)
+		return u, cmd
 	}
 
-	return m, nil
+	return u, nil
 }
 
 func (u *ui) View() string {
@@ -264,8 +261,8 @@ func (u *ui) StartBenchmark(caption string, start, end time.Time, ur chan<- aggr
 	}
 }
 
-func (m *ui) Pause(b bool) {
-	m.pause.Store(b)
+func (u *ui) Pause(b bool) {
+	u.pause.Store(b)
 }
 
 const borderCol = lipgloss.Color("#c72e49")
@@ -276,23 +273,12 @@ var (
 		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1).Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite)).BorderForeground(borderCol)
 	}()
 
-	infoStyle = func() lipgloss.Style {
-		b := lipgloss.RoundedBorder()
-		b.Left = "┤"
-		return titleStyle.BorderStyle(b)
-	}()
-
-	lineStyle = func() lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(borderCol)
+	defaultStyle = func() lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIWhite))
 	}()
 	statusStyle = func() lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIBrightBlue))
 	}()
-
-	defaultStyle = func() lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIWhite))
-	}()
-
 	statsStyle = func() lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(termenv.ANSIWhite))
 	}()

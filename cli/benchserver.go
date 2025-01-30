@@ -194,7 +194,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	common := b.GetCommon()
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(nil, stagePrepare, true, common, nil)
+	err := conns.waitForStage(context.Background(), stagePrepare, true, common, nil)
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
@@ -326,7 +326,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	if err != nil {
 		errorLn("Failed to clean up all clients", err)
 	}
-	err = conns.waitForStage(nil, stageCleanup, false, common, nil)
+	err = conns.waitForStage(context.Background(), stageCleanup, false, common, nil)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}

@@ -260,64 +260,64 @@ func (s RequestSizeRange) StringByN() string {
 	)
 }
 
-func (r *RequestSizeRange) fill(s bench.SizeSegment) {
-	ops := s.Ops.SortByThroughputNonZero()
+func (s *RequestSizeRange) fill(ss bench.SizeSegment) {
+	ops := ss.Ops.SortByThroughputNonZero()
 	if len(ops) == 0 {
 		return
 	}
-	r.Requests = len(ops)
-	r.MinSize = int(s.Smallest)
-	r.MaxSize = int(s.Biggest)
-	r.MinSizeString, r.MaxSizeString = s.SizesString()
-	r.AvgObjSize = int(ops.AvgSize())
-	r.AvgDurationMillis = durToMillis(ops.AvgDuration())
-	r.BpsAverage = ops.OpThroughput().Float()
-	r.BpsMedian = ops.Median(0.5).BytesPerSec().Float()
-	r.Bps90 = ops.Median(0.9).BytesPerSec().Float()
-	r.Bps99 = ops.Median(0.99).BytesPerSec().Float()
-	r.BpsFastest = ops.Median(0.0).BytesPerSec().Float()
-	r.BpsSlowest = ops.Median(1).BytesPerSec().Float()
-	r.BpsPct = &[101]float64{}
-	for i := range r.BpsPct[:] {
-		r.BpsPct[i] = ops.Median(float64(i) / 100).BytesPerSec().Float()
+	s.Requests = len(ops)
+	s.MinSize = int(ss.Smallest)
+	s.MaxSize = int(ss.Biggest)
+	s.MinSizeString, s.MaxSizeString = ss.SizesString()
+	s.AvgObjSize = int(ops.AvgSize())
+	s.AvgDurationMillis = durToMillis(ops.AvgDuration())
+	s.BpsAverage = ops.OpThroughput().Float()
+	s.BpsMedian = ops.Median(0.5).BytesPerSec().Float()
+	s.Bps90 = ops.Median(0.9).BytesPerSec().Float()
+	s.Bps99 = ops.Median(0.99).BytesPerSec().Float()
+	s.BpsFastest = ops.Median(0.0).BytesPerSec().Float()
+	s.BpsSlowest = ops.Median(1).BytesPerSec().Float()
+	s.BpsPct = &[101]float64{}
+	for i := range s.BpsPct[:] {
+		s.BpsPct[i] = ops.Median(float64(i) / 100).BytesPerSec().Float()
 	}
-	r.MergedEntries = 1
+	s.MergedEntries = 1
 }
 
-func (a *RequestSizeRange) add(b RequestSizeRange) {
-	a.Requests += b.Requests
+func (s *RequestSizeRange) add(b RequestSizeRange) {
+	s.Requests += b.Requests
 	if b.FirstByte != nil {
-		if a.FirstByte == nil {
-			a.FirstByte = &TTFB{}
+		if s.FirstByte == nil {
+			s.FirstByte = &TTFB{}
 		}
-		a.FirstByte.add(*b.FirstByte)
+		s.FirstByte.add(*b.FirstByte)
 	}
 	// Min/Max should be set
-	a.AvgObjSize += b.AvgObjSize
-	a.AvgDurationMillis += b.AvgDurationMillis
-	a.BpsAverage += b.BpsAverage
-	a.BpsMedian += b.BpsMedian
-	a.BpsFastest += b.BpsFastest
-	a.BpsSlowest += b.BpsSlowest
+	s.AvgObjSize += b.AvgObjSize
+	s.AvgDurationMillis += b.AvgDurationMillis
+	s.BpsAverage += b.BpsAverage
+	s.BpsMedian += b.BpsMedian
+	s.BpsFastest += b.BpsFastest
+	s.BpsSlowest += b.BpsSlowest
 	if b.BpsPct != nil {
-		if a.BpsPct == nil {
-			a.BpsPct = &[101]float64{}
+		if s.BpsPct == nil {
+			s.BpsPct = &[101]float64{}
 		}
 		for i, v := range b.BpsPct[:] {
-			a.BpsPct[i] = v
+			s.BpsPct[i] = v
 		}
 	}
-	a.MergedEntries += b.MergedEntries
+	s.MergedEntries += b.MergedEntries
 }
 
-func (r *RequestSizeRange) fillFirstAccess(s bench.SizeSegment) {
-	if !s.Ops.IsMultiTouch() {
+func (s *RequestSizeRange) fillFirstAccess(ss bench.SizeSegment) {
+	if !ss.Ops.IsMultiTouch() {
 		return
 	}
-	s.Ops = s.Ops.FilterFirst()
+	ss.Ops = ss.Ops.FilterFirst()
 	a := RequestSizeRange{}
-	a.fill(s)
-	r.FirstAccess = &a
+	a.fill(ss)
+	s.FirstAccess = &a
 }
 
 // RequestSizeRanges is an array of RequestSizeRange

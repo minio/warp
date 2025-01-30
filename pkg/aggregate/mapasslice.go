@@ -110,7 +110,7 @@ func (m *MapAsSlice) UnmarshalJSON(b []byte) error {
 		*m = nil
 		return nil
 	}
-	var dst = make(MapAsSlice, len(tmp))
+	dst := make(MapAsSlice, len(tmp))
 	for _, v := range tmp {
 		dst[v] = struct{}{}
 	}

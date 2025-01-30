@@ -307,12 +307,12 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		console.Print(s)
 	}
 	if globalQuiet {
-		statusln = func(s string) {}
+		statusln = func(_ string) {}
 	}
 
 	if ctx.Bool("stdout") {
 		globalQuiet = true
-		statusln = func(s string) {}
+		statusln = func(_ string) {}
 		so := make(chan bench.Operation, 1000)
 		go func() {
 			i := 0

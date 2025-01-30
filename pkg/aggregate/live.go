@@ -191,7 +191,7 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 // Update returns a temporary update without finalizing.
 // The update will have no references to the live version.
 func (l LiveAggregate) Update() LiveAggregate {
-	var dst = l
+	dst := l
 	dst.Throughput = dst.throughput.asThroughput()
 	// Clear maps...
 	dst.ThroughputByHost = nil
@@ -428,21 +428,21 @@ type Realtime struct {
 	ByCategory    map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
 }
 
-func (l *Realtime) Report(o ReportOptions) *bytes.Buffer {
+func (r *Realtime) Report(o ReportOptions) *bytes.Buffer {
 	dst := bytes.NewBuffer(make([]byte, 0, 1024))
 	printfColor := o.printfColor(dst)
 
 	wroteOps := 0
-	allOps := stringKeysSorted(l.ByOpType)
-	if len(allOps) > 1 && !l.overLappingOps() {
+	allOps := stringKeysSorted(r.ByOpType)
+	if len(allOps) > 1 && !r.overLappingOps() {
 		o.SkipReqs = len(allOps) > 1
-		dst.WriteString(l.Total.Report("Total", o))
+		dst.WriteString(r.Total.Report("Total", o))
 		o.SkipReqs = false
 		wroteOps++
 	}
 	dst.WriteByte('\n')
 	for _, op := range allOps {
-		data := l.ByOpType[op]
+		data := r.ByOpType[op]
 		if wroteOps > 0 {
 			printfColor(color.FgHiBlue, "\n──────────────────────────────────\n\n")
 		}
@@ -719,7 +719,7 @@ func (l *liveThroughput) Add(o bench.Operation) {
 		// Happy path - doesn't cross segments
 		if len(segs) == 1 {
 			seg.fullOps++
-			seg.ops += 1
+			seg.ops++
 			seg.objs += float64(o.ObjPerOp)
 			seg.bytes += float64(o.Size)
 			continue
@@ -728,7 +728,7 @@ func (l *liveThroughput) Add(o bench.Operation) {
 		seg.partialOps++
 		segStartNano := (startUnix + int64(i)) * int64(time.Second)
 		segEndNano := (startUnix + int64(i) + 1) * int64(time.Second)
-		var nanosInSeg = int64(time.Second)
+		nanosInSeg := int64(time.Second)
 		if startUnixNano >= segStartNano {
 			nanosInSeg = segEndNano - startUnixNano
 		}
@@ -753,11 +753,11 @@ func (l liveThroughput) asThroughput() Throughput {
 	const removeN = 2
 	if len(segs) <= removeN*2 {
 		return t
-	} else {
-		segs = segs[removeN : len(segs)-removeN]
-		t.StartTime = time.Unix(l.segmentsStart, 0).Add(removeN * time.Second)
-		t.EndTime = t.StartTime.Add(time.Duration(len(l.segments)) * time.Second)
 	}
+	segs = segs[removeN : len(segs)-removeN]
+	t.StartTime = time.Unix(l.segmentsStart, 0).Add(removeN * time.Second)
+	t.EndTime = t.StartTime.Add(time.Duration(len(l.segments)) * time.Second)
+
 	var ts ThroughputSegmented
 	segments := make(bench.Segments, 0, len(segs))
 	for i, seg := range segs {

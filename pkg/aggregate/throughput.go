@@ -117,10 +117,9 @@ func (t Throughput) StringDetails(_ bool) string {
 		speed = fmt.Sprintf("%.02f MiB/s, ", t.BytesPS()/(1<<20))
 	}
 	errs := ""
-	if false && t.Errors > 0 {
+	if t.Errors > 0 {
 		errs = fmt.Sprintf(", %d errors", t.Errors)
 	}
-	//speed = fmt.Sprintf("O: %.0f, B:%.0f, D: %v - %s", t.Objects, t.Bytes, time.Duration(t.MeasureDurationMillis)*time.Millisecond, speed)
 	return fmt.Sprintf("%s%.02f obj/s%s (%vs)",
 		speed, t.ObjectsPS(), errs, (t.MeasureDurationMillis+500)/1000)
 }
@@ -206,16 +205,17 @@ func (s SegmentsSmall) Median(m float64) SegmentSmall {
 // Merge 'other' into 't'.
 // Will mutate (re-sort) both segments.
 // Segments must have same time alignment.
-func (t *SegmentsSmall) Merge(other SegmentsSmall) {
+func (s *SegmentsSmall) Merge(other SegmentsSmall) {
 	if len(other) == 0 {
 		return
 	}
-	a := *t
+	a := *s
 	if len(a) == 0 {
-		*t = append(a, other...)
+		a = append(a, other...)
+		*s = a
 		return
 	}
-	var merged = make(SegmentsSmall, 0, len(a))
+	merged := make(SegmentsSmall, 0, len(a))
 	a.SortByStartTime()
 	other.SortByStartTime()
 	// Add empty segments to a, so all in other are present
@@ -249,7 +249,7 @@ func (t *SegmentsSmall) Merge(other SegmentsSmall) {
 		other = other[1:]
 	}
 	merged.SortByStartTime()
-	*t = merged
+	*s = merged
 }
 
 func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
@@ -320,7 +320,7 @@ func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 		speed, s.OPS, detail)
 }
 
-func (a *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
+func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	// Copy by time.
 	segs.SortByTime()
 	smallSegs := cloneBenchSegments(segs)
@@ -328,10 +328,10 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	// Sort to get correct medians.
 	if totalBytes > 0 {
 		segs.SortByThroughput()
-		a.SortedBy = "bps"
+		t.SortedBy = "bps"
 	} else {
 		segs.SortByObjsPerSec()
-		a.SortedBy = "ops"
+		t.SortedBy = "ops"
 	}
 
 	fast := segs.Median(1)
@@ -347,10 +347,10 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 		return math.Round(objs*100) / 100
 	}
 
-	*a = ThroughputSegmented{
+	*t = ThroughputSegmented{
 		Segments:              smallSegs,
-		SortedBy:              a.SortedBy,
-		SegmentDurationMillis: a.SegmentDurationMillis,
+		SortedBy:              t.SortedBy,
+		SegmentDurationMillis: t.SegmentDurationMillis,
 		FastestStart:          fast.Start,
 		FastestBPS:            bps(fast),
 		FastestOPS:            ops(fast),
@@ -363,9 +363,9 @@ func (a *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	}
 }
 
-func (a *ThroughputSegmented) fillFromSegs() {
+func (t *ThroughputSegmented) fillFromSegs() {
 	// Copy by time.
-	segs := a.Segments
+	segs := t.Segments
 	var byBPS bool
 	for _, seg := range segs {
 		if seg.BPS > 0 {
@@ -376,20 +376,20 @@ func (a *ThroughputSegmented) fillFromSegs() {
 	// Sort to get correct medians.
 	if byBPS {
 		segs.SortByThroughput()
-		a.SortedBy = "bps"
+		t.SortedBy = "bps"
 	} else {
 		segs.SortByObjsPerSec()
-		a.SortedBy = "ops"
+		t.SortedBy = "ops"
 	}
 
 	fast := segs.Median(1)
 	med := segs.Median(0.5)
 	slow := segs.Median(0)
 
-	*a = ThroughputSegmented{
+	*t = ThroughputSegmented{
 		Segments:              segs,
-		SortedBy:              a.SortedBy,
-		SegmentDurationMillis: a.SegmentDurationMillis,
+		SortedBy:              t.SortedBy,
+		SegmentDurationMillis: t.SegmentDurationMillis,
 		FastestStart:          fast.Start,
 		FastestBPS:            fast.BPS,
 		FastestOPS:            fast.OPS,

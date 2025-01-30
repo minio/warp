@@ -72,7 +72,7 @@ type collector struct {
 	doneFn  []context.CancelFunc
 }
 
-func (c *collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, splitInto int, minDur time.Duration) context.Context {
+func (c *collector) AutoTerm(ctx context.Context, op string, threshold float64, wantSamples, _ int, minDur time.Duration) context.Context {
 	return AutoTerm(ctx, op, threshold, wantSamples, minDur, c.updates)
 }
 

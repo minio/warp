@@ -297,12 +297,14 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		case serverReqSendOps:
 			activeBenchmarkMu.Lock()
 			ab := activeBenchmark
-			updates := ab.updates
 			activeBenchmarkMu.Unlock()
 			if ab == nil {
 				resp.Err = "no benchmark running"
 				break
 			}
+			ab.Lock()
+			updates := ab.updates
+			ab.Unlock()
 			if req.UpdateReq != nil && updates != nil {
 				u := make(chan *aggregate.Realtime, 1)
 				req.UpdateReq.C = u

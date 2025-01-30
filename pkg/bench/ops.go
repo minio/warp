@@ -280,7 +280,6 @@ func (o Operations) SortByThroughput() {
 			return aDur < bDur
 		}
 		return float64(a.Size)/float64(aDur) > float64(b.Size)/float64(bDur)
-
 	})
 }
 
@@ -1068,18 +1067,18 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 	return bw.Flush()
 }
 
-func (op Operation) WriteCSV(w io.Writer, i int) error {
+func (o Operation) WriteCSV(w io.Writer, i int) error {
 	var ttfb string
-	if op.FirstByte != nil {
-		ttfb = op.FirstByte.Format(time.RFC3339Nano)
+	if o.FirstByte != nil {
+		ttfb = o.FirstByte.Format(time.RFC3339Nano)
 	}
-	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, op.Thread, op.OpType, op.ClientID, op.ObjPerOp, op.Size, csvEscapeString(op.Endpoint), op.File, csvEscapeString(op.Err), op.Start.Format(time.RFC3339Nano), ttfb, op.End.Format(time.RFC3339Nano), op.End.Sub(op.Start)/time.Nanosecond, op.Categories)
+	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, o.Thread, o.OpType, o.ClientID, o.ObjPerOp, o.Size, csvEscapeString(o.Endpoint), o.File, csvEscapeString(o.Err), o.Start.Format(time.RFC3339Nano), ttfb, o.End.Format(time.RFC3339Nano), o.End.Sub(o.Start)/time.Nanosecond, o.Categories)
 	return err
 }
 
 // OperationsFromCSV will load operations from CSV.
 func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{})) (Operations, error) {
-	var opCh = make(chan Operation, 1000)
+	opCh := make(chan Operation, 1000)
 	var ops Operations
 	var wg sync.WaitGroup
 	wg.Add(1)

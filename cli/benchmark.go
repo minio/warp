@@ -477,7 +477,6 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 	// Add collectors
 	common := b.GetCommon()
 
-	var retrieveOps = bench.EmptyOpsCollector
 	if !ctx.Bool("full") {
 		updates := make(chan aggregate.UpdateReq, 1000)
 		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4))
@@ -490,6 +489,7 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 		common.Collector.AddOutput(common.ExtraOut...)
 		return bench.EmptyOpsCollector, nil
 	}
+	var retrieveOps bench.OpsCollector
 	common.Collector, retrieveOps = bench.NewOpsCollector()
 	common.Collector.AddOutput(common.ExtraOut...)
 	return retrieveOps, nil
