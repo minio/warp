@@ -247,7 +247,7 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 	c.UpdateStatus("Cleanup Done")
 }
 
-// prepareProgress updates preparation progess with the value 0->1.
+// prepareProgress updates preparation progress with the value 0->1.
 func (c *Common) prepareProgress(progress float64) {
 	if c.PrepareProgress == nil {
 		return

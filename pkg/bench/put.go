@@ -39,7 +39,7 @@ type Put struct {
 	cl         *http.Client
 }
 
-// Prepare will create an empty bucket ot delete any content already there.
+// Prepare will create an empty bucket or delete any content already there.
 func (u *Put) Prepare(ctx context.Context) error {
 	if u.PostObject {
 		u.cl = &http.Client{
