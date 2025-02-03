@@ -192,9 +192,15 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	infoLn("All clients connected. Preparing benchmark...")
 
 	common := b.GetCommon()
+	benchCtx, cancel := context.WithCancel(context.Background())
+	ui.cancelFn.Store(&cancel)
+	defer cancel()
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(context.Background(), stagePrepare, true, common, nil)
+	err := conns.waitForStage(benchCtx, stagePrepare, true, common, nil)
+	if benchCtx.Err() != nil {
+		return true, benchCtx.Err()
+	}
 	if err != nil {
 		fatalIf(probe.NewError(err), "Failed to prepare")
 	}
@@ -223,9 +229,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
 	ui.SetSubText("Press 'q' to abort benchmark and retrieve partial results")
 
-	benchCtx, cancel := context.WithCancel(context.Background())
-	ui.cancelFn.Store(&cancel)
-	defer cancel()
 	if ctx.Bool("autoterm") {
 		if ctx.Bool("full") {
 			return true, errors.New("use of -autoterm cannot be combined with -full on remote benchmarks")
