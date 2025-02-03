@@ -172,7 +172,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	go func() {
 		monitor.InfoLn("Pausing before benchmark")
 		<-time.After(time.Until(tStart))
-		monitor.InfoLn("Running from " + time.Now().Format(time.RFC3339))
+		monitor.InfoLn("Press 'q' to abort benchmark and print partial results")
 		close(start)
 	}()
 
@@ -444,6 +444,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	}
 	ops.SetClientID(cID)
 	ops.SortByStartTime()
+	common.Collector.Close()
 
 	if len(ops) > 0 {
 		f, err := os.Create(fileName + ".csv.zst")
@@ -492,7 +493,6 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 			}()
 		}
 	}
-	common.Collector.Close()
 
 	err = cb.waitForStage(stageCleanup)
 	if err != nil {
