@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -174,7 +175,8 @@ func (u *ui) View() string {
 		case <-time.After(time.Second):
 		}
 		if resp != nil {
-			stats := fmt.Sprintf("\nReqs: %d, Errs:%d, Objs:%d, Bytes: %d\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalObjects, resp.Total.TotalBytes)
+			nBytes := strings.TrimSuffix(bench.Throughput(resp.Total.TotalBytes).String(), "/s")
+			stats := fmt.Sprintf("\nReqs: %d, Errs:%d, Objs:%d, Bytes: %s\n", resp.Total.TotalRequests, resp.Total.TotalErrors, resp.Total.TotalObjects, nBytes)
 			ops := stringKeysSorted(resp.ByOpType)
 			for _, op := range ops {
 				tp := resp.ByOpType[op].Throughput
