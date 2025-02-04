@@ -723,7 +723,7 @@ func (l *liveThroughput) Add(o bench.Operation) {
 		l.segments = make([]liveSegments, 0, 100)
 		l.segmentsStart = startUnix
 	}
-	if startUnixNano < l.segmentsStart {
+	if startUnix < l.segmentsStart {
 		// Drop...
 		return
 	}
