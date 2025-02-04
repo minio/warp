@@ -185,7 +185,7 @@ func (u *ui) View() string {
 				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s", op, tp.ObjectsPS(), tp.BytesPS().String())
 				segs.Segments.SortByStartTime()
 				lastOps := segs.Segments[len(segs.Segments)-1]
-				if time.Since(lastOps.Start) > 5*time.Second {
+				if time.Since(lastOps.Start) > 15*time.Second {
 					stats += "\n"
 					continue
 				}
