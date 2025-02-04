@@ -31,11 +31,13 @@ type Options struct {
 	customPrefix   string
 	random         RandomOpts
 	circularRandom CircularRandomOpts
+	partialCompr   CircularPartialCompressibleOpts
 	csv            CsvOpts
 	minSize        int64
 	totalSize      int64
 	randomPrefix   int
 	randSize       bool
+	percentCompr   int
 
 	// Activates the use of a distribution of sizes
 	flagSizesDistribution bool
@@ -151,3 +153,4 @@ func WithPrefixSize(n int) Option {
 		return nil
 	}
 }
+
