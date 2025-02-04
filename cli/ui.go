@@ -184,14 +184,22 @@ func (u *ui) View() string {
 				if segs == nil || len(segs.Segments) == 0 {
 					continue
 				}
-				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s", op, tp.ObjectsPS(), tp.BytesPS().String())
+				tpBytes := ""
+				if tp.Bytes > 0 {
+					tpBytes = ", " + tp.BytesPS().String()
+				}
+				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s%s", op, tp.ObjectsPS(), tpBytes)
 				segs.Segments.SortByStartTime()
 				lastOps := segs.Segments[len(segs.Segments)-1]
 				if time.Since(lastOps.Start) > 15*time.Second {
 					stats += "\n"
 					continue
 				}
-				stats += fmt.Sprintf("; Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
+				tpBytes = ""
+				if tp.Bytes > 0 {
+					tpBytes = ", " + bench.Throughput(lastOps.BPS).String()
+				}
+				stats += fmt.Sprintf("; Current %.0f Obj/s%s", lastOps.OPS, tpBytes)
 				if len(resp.ByOpType[op].Requests) == 0 {
 					stats += ".\n"
 					continue
