@@ -102,8 +102,9 @@ func (a SingleSizedRequests) StringByN() string {
 		", 50%: ", fmtMillis(reqs.DurMedianMillis),
 		", 90%: ", fmtMillis(reqs.Dur90Millis),
 		", 99%: ", fmtMillis(reqs.Dur99Millis),
-		", Fastest: ", fmtMillis(reqs.FastestMillis),
-		", Slowest: ", fmtMillis(reqs.SlowestMillis),
+		// These are not accumulated.
+		", Fastest: ", fmtMillis(reqs.FastestMillis*n),
+		", Slowest: ", fmtMillis(reqs.SlowestMillis*n),
 		", StdDev: ", fmtMillis(reqs.StdDev),
 	)
 }
@@ -211,7 +212,7 @@ type RequestSizeRange struct {
 	BpsPct *[101]float64 `json:"bps_percentiles,omitempty"`
 
 	BpsMedian         float64 `json:"bps_median"`
-	AvgDurationMillis int     `json:"avg_duration_millis"`
+	AvgDurationMillis float64 `json:"avg_duration_millis"`
 
 	// Stats:
 	BpsAverage float64 `json:"bps_average"`
@@ -270,7 +271,7 @@ func (s *RequestSizeRange) fill(ss bench.SizeSegment) {
 	s.MaxSize = int(ss.Biggest)
 	s.MinSizeString, s.MaxSizeString = ss.SizesString()
 	s.AvgObjSize = int(ops.AvgSize())
-	s.AvgDurationMillis = durToMillis(ops.AvgDuration())
+	s.AvgDurationMillis = durToMillisF(ops.AvgDuration())
 	s.BpsAverage = ops.OpThroughput().Float()
 	s.BpsMedian = ops.Median(0.5).BytesPerSec().Float()
 	s.Bps90 = ops.Median(0.9).BytesPerSec().Float()

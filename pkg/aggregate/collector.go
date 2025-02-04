@@ -60,8 +60,8 @@ func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string)
 // If the provided channel blocks no update will be sent.
 type UpdateReq struct {
 	C     chan<- *Realtime `json:"-"`
-	Reset bool             `json:"reset"`
-	Final bool             `json:"final"`
+	Reset bool             `json:"reset"` // Does not return result.
+	Final bool             `json:"final"` // Blocks until final value is ready.
 }
 
 type collector struct {

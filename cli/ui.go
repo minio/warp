@@ -182,31 +182,54 @@ func (u *ui) View() string {
 				if segs == nil || len(segs.Segments) == 0 {
 					continue
 				}
-				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s; ", op, tp.ObjectsPS(), tp.BytesPS().String())
+				stats += fmt.Sprintf(" -%10s Average: %.0f Obj/s, %s", op, tp.ObjectsPS(), tp.BytesPS().String())
+				segs.Segments.SortByStartTime()
 				lastOps := segs.Segments[len(segs.Segments)-1]
-				stats += fmt.Sprintf("Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
+				if time.Since(lastOps.Start) > 5*time.Second {
+					stats += "\n"
+					continue
+				}
+				stats += fmt.Sprintf("; Current %.0f Obj/s, %s", lastOps.OPS, bench.Throughput(lastOps.BPS))
 				if len(resp.ByOpType[op].Requests) == 0 {
 					stats += ".\n"
 					continue
 				}
+
+				var totalDur float64
+				var totalTTFB float64
+				var totalRequests int
 				for _, reqs := range resp.ByOpType[op].Requests {
-					if len(reqs) > 0 {
-						reqs := reqs[len(reqs)-1]
-						if reqs.Single != nil {
-							stats += fmt.Sprintf(", %.1f ms/req", reqs.Single.DurAvgMillis)
-							if reqs.Single.FirstByte != nil {
-								stats += fmt.Sprintf(", TTFB: %.1fms", reqs.Single.FirstByte.AverageMillis)
-							}
-						}
-						stats += ".\n"
-					} else {
-						stats += "\n"
+					if len(reqs) == 0 {
+						continue
 					}
-					if len(resp.ByOpType[op].Requests) > 1 {
-						// Maybe handle more clients better...
-						break
+					lastReq := reqs[len(reqs)-1]
+					if time.Since(lastReq.EndTime) > 30*time.Second {
+						continue
+					}
+					if lastReq.Single != nil {
+						totalDur += lastReq.Single.DurAvgMillis
+						if lastReq.Single.FirstByte != nil {
+							totalTTFB += lastReq.Single.FirstByte.AverageMillis
+						}
+						totalRequests += lastReq.Single.MergedEntries
+					}
+					if lastReq.Multi != nil {
+						for _, reqs := range lastReq.Multi.ByHost {
+							totalDur += reqs.AvgDurationMillis
+							if reqs.FirstByte != nil {
+								totalTTFB += reqs.FirstByte.AverageMillis
+							}
+							totalRequests += reqs.MergedEntries
+						}
 					}
 				}
+				if totalRequests > 0 {
+					stats += fmt.Sprintf(", %.1f ms/req", totalDur/float64(totalRequests))
+					if totalTTFB > 0 {
+						stats += fmt.Sprintf(", TTFB: %.1fms", totalTTFB/float64(totalRequests))
+					}
+				}
+				stats += "\n"
 			}
 			res += statsStyle.Render(stats)
 		}

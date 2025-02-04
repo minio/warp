@@ -430,6 +430,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			}
 			dst.WriteByte('\n')
 		}
+		dst.WriteByte('\n')
 	}
 
 	if segs := data.Throughput.Segmented; segs != nil {

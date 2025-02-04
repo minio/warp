@@ -219,45 +219,24 @@ func (s *SegmentsSmall) Merge(other SegmentsSmall) {
 		*s = a
 		return
 	}
-	merged := make(SegmentsSmall, 0, len(a))
-	a.SortByStartTime()
-	other.SortByStartTime()
+
+	merged := make(SegmentsSmall, 0, max(len(other), len(a)))
+	merged = append(merged, a...)
 	// Add empty segments to a, so all in other are present
-	for len(a) > 0 && len(other) > 0 {
-		if len(other) == 0 {
-			merged = append(merged, a...)
-			break
-		}
-		if len(a) == 0 {
-			merged = append(merged, other...)
-			break
-		}
-		toMerge := other[0]
-		idx := -1
-		for i := range a {
-			if a[i].Start.After(toMerge.Start) {
-				// Store in previous index.
+	for _, toMerge := range other {
+		for i, org := range merged {
+			if org.Start.Equal(toMerge.Start) {
+				merged[i] = org.add(toMerge)
 				break
 			}
-			idx = i
 		}
-		if idx == -1 {
-			merged = append(merged, toMerge)
-			other = other[1:]
-		}
-		if idx > 0 {
-			merged = append(merged, a[:idx]...)
-			a = a[idx:]
-		}
-		merged = append(merged, a[0].add(toMerge))
-		other = other[1:]
+		a = append(a, toMerge)
 	}
 	merged.SortByStartTime()
 	*s = merged
 }
 
 func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
-	t.Segments.SortByStartTime()
 	if len(other.Segments) == 0 {
 		return
 	}
@@ -266,6 +245,7 @@ func (t *ThroughputSegmented) Merge(other ThroughputSegmented) {
 	}
 	t.Segments.Merge(other.Segments)
 	t.fillFromSegs()
+	t.Segments.SortByStartTime()
 }
 
 // BPSorOPS returns bytes per second if non zero otherwise operations per second as human readable string.
