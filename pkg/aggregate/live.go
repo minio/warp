@@ -430,6 +430,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			}
 			dst.WriteByte('\n')
 		}
+		dst.WriteByte('\n')
 	}
 
 	if segs := data.Throughput.Segmented; segs != nil {
@@ -722,7 +723,7 @@ func (l *liveThroughput) Add(o bench.Operation) {
 		l.segments = make([]liveSegments, 0, 100)
 		l.segmentsStart = startUnix
 	}
-	if startUnixNano < l.segmentsStart {
+	if startUnix < l.segmentsStart {
 		// Drop...
 		return
 	}

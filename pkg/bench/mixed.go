@@ -132,10 +132,12 @@ func (m *MixedDistribution) deleteRandomObj() generator.Object {
 	panic("ran out of objects")
 }
 
-func (m *MixedDistribution) addObj(o generator.Object) {
+func (m *MixedDistribution) addObj(o generator.Object) int {
 	m.mu.Lock()
 	m.objects[o.Name] = o
+	n := len(m.objects)
 	m.mu.Unlock()
+	return n
 }
 
 func (m *MixedDistribution) getOp() string {
@@ -209,8 +211,8 @@ func (g *Mixed) Prepare(ctx context.Context) error {
 				}
 				clDone()
 				obj.Reader = nil
-				g.Dist.addObj(*obj)
-				g.prepareProgress(float64(len(g.Dist.objects)) / float64(g.CreateObjects))
+				n := g.Dist.addObj(*obj)
+				g.prepareProgress(float64(n) / float64(g.CreateObjects))
 			}
 		}(obj)
 	}

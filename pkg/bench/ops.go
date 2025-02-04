@@ -58,6 +58,9 @@ func (o Operation) Duration() time.Duration {
 type Throughput float64
 
 func (t Throughput) String() string {
+	if t == 0 {
+		return "0B/s"
+	}
 	if t < 2<<10 {
 		return fmt.Sprintf("%.1fB/s", float64(t))
 	}
