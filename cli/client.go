@@ -215,6 +215,7 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 			// Can't use TLSv1.1 because of RC4 cipher usage
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: ctx.Bool("insecure"),
+			ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 		}
 
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
