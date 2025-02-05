@@ -113,13 +113,13 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 				}
 				op.End = time.Now()
 				if err != nil {
-					u.Error( fmt.Sprintf("upload error in PutObject. Error '%s', filename '%s', bucket '%s', size '%s'", err, obj.Name, u.Bucket, obj.Size ) )
+					u.Error( fmt.Sprintf("upload error in PutObject. Error '%s', filename '%s', bucket '%s', size '%s'", err, obj.Name, u.Bucket(), obj.Size ) )
 					op.Err = err.Error()
 				}
 				obj.VersionID = res.VersionID
 
 				if res.Size != obj.Size && op.Err == "" {
-					err := fmt.Sprintf("short upload; wanted %s and got %s. filename '%s', bucket '%s', size '%s'", obj.Size, res.Size, obj.Name, u.Bucket)
+					err := fmt.Sprintf("short upload; wanted %s and got %s. filename '%s', bucket '%s', size '%s'", obj.Size, res.Size, obj.Name, u.Bucket())
 					if op.Err == "" {
 						op.Err = err
 					}

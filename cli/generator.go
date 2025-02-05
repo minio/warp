@@ -41,6 +41,12 @@ var genFlags = []cli.Flag{
 		Name:  "obj.randsize",
 		Usage: "Randomize size of objects so they will be up to the specified size",
 	},
+	cli.IntFlag{
+		Name:  "obj.percentCompressible",
+		Value: 0,
+		Usage: "Percent of each object that should be compressible. Requires the partial compressible generator",
+	},
+
 }
 
 func newGenSourceCSV(ctx *cli.Context) func() generator.Source {
@@ -78,6 +84,8 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		g = generator.WithCSV().Size(25, 1000)
 	case "randomLite":
 		g = generator.WithCircularRandomData()
+	case "partiallyCompressible":
+		g = generator.WithPartialCompressability(ctx.Int("obj.percentCompressible"))
 	default:
 		err := errors.New("unknown generator type:" + ctx.String("obj.generator"))
 		fatal(probe.NewError(err), "Invalid -generator parameter")
