@@ -5,7 +5,7 @@ import (
 	"math/rand"
 )
 
-// CircularPartialCompressibleOpts are the options for the partially compressibe Circ data source.
+// CircularPartialCompressibleOpts are the options for the circular partially compressible data source.
 type CircularPartialCompressibleOpts struct {
 	seed *int64
 	size int
@@ -88,14 +88,14 @@ func newCircularPartialCompressible(o Options) (Source, error) {
 		return nil, err
 	}
 
-	chunks := 0
-	chunkOrder := 100 / o.partialCompr.percentCompressible
+	chunkCount := 0
+	chunkIntervalToMakeCompressible := 100 / o.partialCompr.percentCompressible
 	//	fmt.Printf ("setting every %d chunks to be 0. chunk size %d total size %d\n", chunkOrder, o.partialCompr.compressibleChunkSize, size)
 
 	for i := 0; i < size; i += o.partialCompr.compressibleChunkSize	{
 		//	fmt.Printf("checking offset %d chunk %d!\n", i, chunks)
-		chunks++
-		if chunks % chunkOrder != 0{
+		chunkCount++
+		if chunkCount % chunkIntervalToMakeCompressible != 0{
 			//	fmt.Printf("skipping this chunk; %d %% %d == %d!\n", chunks, chunkOrder, chunks % chunkOrder )
 			continue
 		}
@@ -115,7 +115,7 @@ func newCircularPartialCompressible(o Options) (Source, error) {
 	// for i := 0; i < size; i++	{
 	// 	fmt.Printf("%d", buf[i] )
 	// }
-			
+
 	r := &circularPartialCompressibleSrc{
 		o:   o,
 		rng: rng,
