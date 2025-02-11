@@ -24,6 +24,7 @@ import (
 	"math/bits"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -273,6 +274,7 @@ type ReportOptions struct {
 	Details  bool
 	Color    bool
 	SkipReqs bool
+	OnlyOps  map[string]struct{}
 }
 
 func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, format string, args ...interface{}) {
@@ -450,6 +452,11 @@ func (r *Realtime) Report(o ReportOptions) *bytes.Buffer {
 	wroteOps := 0
 	allOps := stringKeysSorted(r.ByOpType)
 	for _, op := range allOps {
+		if len(o.OnlyOps) > 0 {
+			if _, ok := o.OnlyOps[strings.ToUpper(op)]; !ok {
+				continue
+			}
+		}
 		data := r.ByOpType[op]
 		if wroteOps > 0 {
 			printfColor(color.FgHiBlue, "\n──────────────────────────────────\n\n")
