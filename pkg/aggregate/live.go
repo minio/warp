@@ -33,7 +33,7 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-const currentVersion = 1
+const currentVersion = 2
 
 // Realtime is a collection of realtime aggregated data.
 type Realtime struct {
@@ -800,6 +800,14 @@ func (l liveThroughput) asThroughput() Throughput {
 		t.Bytes += seg.bytes
 		t.Objects += seg.objs
 		t.Operations += seg.opsStarted
+		var reqAvg float64
+		objsPerOp := 1
+		if reqAvg > 0 {
+			reqAvg = float64(seg.reqDur) / float64(seg.opsStarted)
+		}
+		if seg.ops > 0 && seg.objs > 0 {
+			objsPerOp = int(seg.objs / seg.ops)
+		}
 		segments = append(segments, bench.Segment{
 			Start:      time.Unix(l.segmentsStart+int64(i), 0),
 			EndsBefore: time.Unix(l.segmentsStart+int64(i+1), -1),
@@ -809,11 +817,11 @@ func (l liveThroughput) asThroughput() Throughput {
 			PartialOps: seg.partialOps,
 			FullOps:    seg.fullOps,
 			OpsEnded:   seg.opsEnded,
-			Objects:    seg.ops,
+			Objects:    seg.objs,
 			Errors:     seg.errors,
-			ReqAvg:     float64(seg.reqDur) / float64(seg.opsStarted), // TODO: CHECK 0
+			ReqAvg:     reqAvg,
 			TotalBytes: int64(seg.bytes),
-			ObjsPerOp:  int(seg.objs / seg.ops),
+			ObjsPerOp:  objsPerOp,
 		})
 	}
 
