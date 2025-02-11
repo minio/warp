@@ -255,6 +255,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		rep := final.Report(aggregate.ReportOptions{
 			Details: ctx.Bool("analyze.v"),
 			Color:   !globalNoColor,
+			OnlyOps: getAnalyzeOPS(ctx),
 		})
 
 		ui.Update(tea.Quit())

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -99,7 +100,7 @@ func printCompare(ctx *cli.Context, before, after bench.Operations) {
 	afterOps := after.SortSplitByOpType()
 	for typ, before := range before.SortSplitByOpType() {
 		if wantOp := ctx.String("analyze.op"); wantOp != "" {
-			if wantOp != typ {
+			if strings.ToUpper(wantOp) != typ {
 				continue
 			}
 		}

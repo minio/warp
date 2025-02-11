@@ -155,6 +155,7 @@ func mainAnalyze(ctx *cli.Context) error {
 			rep := final.Report(aggregate.ReportOptions{
 				Details: true,
 				Color:   !globalNoColor,
+				OnlyOps: getAnalyzeOPS(ctx),
 			})
 			if globalJSON {
 				b, err := json.MarshalIndent(final, "", "  ")
@@ -333,7 +334,7 @@ func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 
 	if wantOp := ctx.String("analyze.op"); wantOp != "" {
 		prefiltered = prefiltered || o.IsMixed()
-		o = o.FilterByOp(wantOp)
+		o = o.FilterByOp(strings.ToUpper(wantOp))
 	}
 	durFn := func(total time.Duration) time.Duration {
 		if total <= 0 {
@@ -728,4 +729,11 @@ func stringKeysSorted[K string, V any](m map[K]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func getAnalyzeOPS(ctx *cli.Context) map[string]struct{} {
+	if wantOp := ctx.String("analyze.op"); wantOp != "" {
+		return map[string]struct{}{strings.ToUpper(wantOp): {}}
+	}
+	return nil
 }
