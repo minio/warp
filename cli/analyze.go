@@ -123,7 +123,7 @@ func mainAnalyze(ctx *cli.Context) error {
 	if len(args) > 1 {
 		console.Fatal("Only one benchmark file can be given")
 	}
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), nil)
 	defer monitor.Done()
 	log := func(format string, data ...interface{}) {
 		console.Eraseline()
@@ -157,6 +157,7 @@ func mainAnalyze(ctx *cli.Context) error {
 				Color:   !globalNoColor,
 				OnlyOps: getAnalyzeOPS(ctx),
 			})
+			monitor.UpdateAggregate(&final, "")
 			if globalJSON {
 				b, err := json.MarshalIndent(final, "", "  ")
 				fatalIf(probe.NewError(err), "Unable to parse input")

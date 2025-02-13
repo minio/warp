@@ -119,7 +119,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	conns.info = infoLn
 	conns.errLn = printError
 	defer conns.closeAll()
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), nil)
 	monitor.SetLnLoggers(infoLn, printError)
 	defer monitor.Done()
 	errorLn := printError
@@ -215,6 +215,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	var updates chan aggregate.UpdateReq
 	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
+		monitor.SetUpdate(updates)
 	}
 	prof, err := startProfiling(context.Background(), ctx)
 	if err != nil {
@@ -320,6 +321,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 			Color:   !globalNoColor,
 			OnlyOps: getAnalyzeOPS(ctx),
 		})
+		monitor.UpdateAggregate(&final, fileName)
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")

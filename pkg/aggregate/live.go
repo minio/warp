@@ -685,7 +685,7 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string) *
 		}()
 		wg.Wait()
 		if updates != nil && time.Since(lastUpdate) > time.Second {
-			u := Realtime{Total: a.Total.Update(), ByOpType: make(map[string]*LiveAggregate, len(a.ByOpType))}
+			u := Realtime{Total: a.Total.Update(), ByOpType: make(map[string]*LiveAggregate, len(a.ByOpType)), DataVersion: currentVersion}
 			for k, v := range a.ByOpType {
 				if v != nil {
 					clone := v.Update()

@@ -92,6 +92,16 @@ var benchFlags = []cli.Flag{
 		EnvVar: "",
 		Value:  "",
 	},
+	cli.StringSliceFlag{
+		Name:   "add-metadata",
+		Usage:  "Add user metadata to all objects using the format <key>=<value>. Random value can be set with 'rand:%length'. Can be used multiple times. Example: --add-metadata foo=bar --add-metadata randomValue=rand:1024.",
+		Hidden: true,
+	},
+	cli.StringSliceFlag{
+		Name:   "tag",
+		Usage:  "Add user tag to all objects using the format <key>=<value>. Random value can be set with 'rand:%length'. Can be used multiple times. Example: --tag foo=bar --tag randomValue=rand:1024.",
+		Hidden: true,
+	},
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
@@ -122,7 +132,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	retrieveOps, updates := addCollector(ctx, b)
 	c.UpdateStatus = ui.SetSubText
 
-	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
+	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), updates)
 	monitor.SetLnLoggers(func(data ...interface{}) {
 		ui.SetSubText(strings.TrimRight(fmt.Sprintln(data...), "\r\n."))
 	}, printError)
@@ -258,6 +268,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			OnlyOps: getAnalyzeOPS(ctx),
 		})
 
+		monitor.UpdateAggregate(final, fileName)
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")
