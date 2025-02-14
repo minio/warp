@@ -67,7 +67,7 @@ var getFlags = []cli.Flag{
 		Usage: "Many apps HEAD before GET. Add an extra HEAD operation to emulate this behavior.",
 	},
 	cli.BoolFlag{
-		Name:  "md5",
+		Name:  "verify-md5",
 		Usage: "Verify MD5 hash of downloaded objects against ETag",
 	},
 }
@@ -115,7 +115,7 @@ func mainGet(ctx *cli.Context) error {
 		ListFlat:      ctx.Bool("list-flat"),
 		ListPrefix:    ctx.String("prefix"),
 		ExtraHead:     ctx.Bool("extra-head"),
-		VerifyMD5:     ctx.Bool("md5"),
+		VerifyMD5:     ctx.Bool("verify-md5"),
 	}
 	if b.ListExisting && !ctx.IsSet("objects") {
 		b.CreateObjects = 0
