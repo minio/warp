@@ -46,6 +46,9 @@ type BenchmarkStatus = struct {
 
 	// Will be true when benchmark has finished and data is ready.
 	DataReady bool `json:"data_ready"`
+
+	// LiveData will be set with partial or final data when benchmark is running.
+	LiveData *aggregate.Realtime `json:"realtime,omitempty"`
 }
 
 // Operations contains raw benchmark operations.
@@ -57,10 +60,11 @@ type Operations struct {
 // Server contains the state of the running server.
 type Server struct {
 	// Shutting down
-	ctx    context.Context
-	agrr   *aggregate.Aggregated
-	server *http.Server
-	cancel context.CancelFunc
+	ctx     context.Context
+	agrr    *aggregate.Aggregated
+	server  *http.Server
+	cancel  context.CancelFunc
+	updates chan<- aggregate.UpdateReq
 
 	// Parent loggers
 	infoln  func(data ...interface{})
@@ -82,6 +86,25 @@ func (s *Server) OperationsReady(ops bench.Operations, filename, cmdLine string)
 	s.ops = ops
 	s.status.Filename = filename
 	s.cmdLine = cmdLine
+	s.mu.Unlock()
+}
+
+// UpdateAggregate can be used to send benchmark data to the server, either final or not.
+func (s *Server) UpdateAggregate(res *aggregate.Realtime, filename string) {
+	s.mu.Lock()
+	s.status.LiveData = res
+	s.status.Filename = filename
+	if res.Final {
+		s.updates = nil
+		s.status.DataReady = true
+	}
+	s.mu.Unlock()
+}
+
+// SetUpdate can be used to set the update fn.
+func (s *Server) SetUpdate(updates chan<- aggregate.UpdateReq) {
+	s.mu.Lock()
+	s.updates = updates
 	s.mu.Unlock()
 }
 
@@ -141,7 +164,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, req *http.Request) {
 	}
 	s.mu.Lock()
 	st := s.status
+	ups := s.updates
 	s.mu.Unlock()
+	if ups != nil {
+		res := make(chan *aggregate.Realtime, 1)
+		ups <- aggregate.UpdateReq{C: res}
+		st.LiveData = <-res
+	}
 	b, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		w.WriteHeader(500)
@@ -209,13 +238,18 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	s.mu.Lock()
 	ops := s.ops
 	fn := s.status.Filename
+	live := s.status.LiveData
 	s.mu.Unlock()
-	if len(ops) == 0 {
+	if len(ops) == 0 && live == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	ext := "csv"
+	if len(ops) == 0 {
+		ext = "json"
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv.zst"`, fn))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.%s.zst"`, fn, ext))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(200)
 
@@ -225,12 +259,21 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer enc.Close()
-
-	err = ops.CSV(enc, s.cmdLine)
-	if err != nil {
-		s.Errorln(err)
+	if len(ops) > 0 {
+		err = ops.CSV(enc, s.cmdLine)
+		if err != nil {
+			s.Errorln(err)
+			return
+		}
 		return
 	}
+	jsenc := json.NewEncoder(enc)
+	jsenc.SetIndent("", "  ")
+	err = jsenc.Encode(live)
+	if err != nil {
+		s.Errorln(err)
+	}
+	return
 }
 
 // handleDownloadJSON handles GET `/v1/operations` requests and returns the operations as JSON.
@@ -259,8 +302,8 @@ func (s *Server) handleStop(w http.ResponseWriter, req *http.Request) {
 }
 
 // NewBenchmarkMonitor creates a new Server.
-func NewBenchmarkMonitor(listenAddr string) *Server {
-	s := &Server{}
+func NewBenchmarkMonitor(listenAddr string, updates chan<- aggregate.UpdateReq) *Server {
+	s := &Server{updates: updates}
 	if listenAddr == "" {
 		return s
 	}
