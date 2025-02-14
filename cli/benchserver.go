@@ -328,19 +328,21 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		fmt.Println(rep)
 	}
 
-	ui.SetPhase("Cleanup")
-	monitor.InfoLn("Starting cleanup...")
-	b.Cleanup(context.Background())
+	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
+		ui.SetPhase("Cleanup")
+		monitor.InfoLn("Starting cleanup...")
+		b.Cleanup(context.Background())
 
-	err = conns.startStageAll(stageCleanup, time.Now(), false)
-	if err != nil {
-		errorLn("Failed to clean up all clients", err)
+		err = conns.startStageAll(stageCleanup, time.Now(), false)
+		if err != nil {
+			errorLn("Failed to clean up all clients", err)
+		}
+		err = conns.waitForStage(context.Background(), stageCleanup, false, common, nil)
+		if err != nil {
+			errorLn("Failed to keep connection to all clients", err)
+		}
+		infoLn("Cleanup done.\n")
 	}
-	err = conns.waitForStage(context.Background(), stageCleanup, false, common, nil)
-	if err != nil {
-		errorLn("Failed to keep connection to all clients", err)
-	}
-	infoLn("Cleanup done.\n")
 
 	return true, nil
 }
