@@ -43,6 +43,11 @@ var listFlags = []cli.Flag{
 		Name:  "metadata",
 		Usage: "Enable extended MinIO ListObjects with metadata, by default this benchmarking uses ListObjectsV2 API.",
 	},
+	cli.IntFlag{
+		Name:  "max-keys",
+		Value: 100,
+		Usage: "Set the number of keys requested per list request.",
+	},
 }
 
 var ListCombinedFlags = combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags)
@@ -75,6 +80,7 @@ func mainList(ctx *cli.Context) error {
 		Metadata:      ctx.Bool("metadata"),
 		CreateObjects: ctx.Int("objects"),
 		NoPrefix:      ctx.Bool("noprefix"),
+		MaxKeys:       ctx.Int("max-keys"),
 	}
 	return runBench(ctx, &b)
 }
@@ -89,7 +95,12 @@ func checkListSyntax(ctx *cli.Context) {
 	if ctx.Int("objects") < 1 {
 		console.Fatal("At least one object must be tested")
 	}
-
+	if ctx.Int("max-keys") < 1 {
+		console.Fatal("Max keys must be at least 1.")
+	}
+	if ctx.Int("max-keys") > 5000 {
+		console.Fatal("Max keys cannot be greater than 5000")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }

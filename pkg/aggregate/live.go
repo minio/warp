@@ -413,7 +413,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			if ss.MergedEntries > 0 {
 				printfColor(color.FgWhite, " * Reqs: %s", ss.StringByN())
 				if ss.FirstByte != nil {
-					printfColor(color.FgWhite, " * TTFB: %v\n", ss.FirstByte.StringByN(ss.MergedEntries))
+					printfColor(color.FgWhite, "\n * TTFB: %v\n", ss.FirstByte.StringByN(ss.MergedEntries))
 				} else {
 					dst.WriteByte('\n')
 				}
