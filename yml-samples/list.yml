@@ -82,7 +82,7 @@ warp:
 
     # The number of keys to request per list request.
     # Must be between 1 and 5000.
-    maxkeys: 100
+    max-keys: 100
 
     # Properties of uploaded objects.
     obj:
