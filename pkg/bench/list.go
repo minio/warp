@@ -39,6 +39,7 @@ type List struct {
 	Versions      int
 	NoPrefix      bool
 	Metadata      bool
+	MaxKeys       int
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -221,7 +222,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) error {
 					Prefix:       objs[0].Prefix,
 					Recursive:    true,
 					WithVersions: d.Versions > 1,
-					MaxKeys:      100,
+					MaxKeys:      d.MaxKeys,
 				})
 
 				// Wait for errCh to close.
