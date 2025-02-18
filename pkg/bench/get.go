@@ -19,10 +19,13 @@ package bench
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+	"hash"
 	"io"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +50,7 @@ type Get struct {
 	ListExisting  bool
 	ListFlat      bool
 	ExtraHead     bool
+	VerifyMD5     bool // Add MD5 verification option
 }
 
 // Prepare will create an empty bucket or delete any content already there
@@ -357,11 +361,40 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) (Operations, error)
 					continue
 				}
 				fbr.r = o
-				n, err := io.Copy(io.Discard, &fbr)
+
+				var dst = io.Discard
+				var objInfo, e = o.Stat()
+				if e != nil {
+					g.Error("error getting object info:", err)
+					op.Err = err.Error()
+					op.End = time.Now()
+					rcv <- op
+					cldone()
+					continue
+				}
+				var etag = objInfo.ETag
+
+				var md5hash hash.Hash = nil
+				if g.VerifyMD5 && !g.RandomRanges && !strings.Contains(etag, "-") {
+					md5hash = md5.New()
+					dst = md5hash
+				}
+
+				n, err := io.Copy(dst, &fbr)
 				if err != nil {
 					g.Error("download error:", err)
 					op.Err = err.Error()
 				}
+
+				if md5hash != nil {
+					computed := fmt.Sprintf("%x", md5hash.Sum(nil))
+					etag := strings.Trim(etag, "\"")
+					if computed != etag {
+						op.Err = fmt.Sprintf("MD5 mismatch: expected %s, got %s", etag, computed)
+						g.Error(op.Err)
+					}
+				}
+
 				op.FirstByte = fbr.t
 				op.End = time.Now()
 				if n != op.Size && op.Err == "" {
