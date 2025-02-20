@@ -1,14 +1,14 @@
 [Unit]
-Description=Warp
-Documentation=https://github.com/minio/warp
+Description=Warp DDN
+Documentation=https://github.com/DDNStorage/warp
 Wants=network-online.target
 After=network-online.target
-AssertFileIsExecutable=/usr/bin/warp
+AssertFileIsExecutable=/usr/bin/warp-ddn
 
 [Service]
 WorkingDirectory=/tmp
 
-ExecStart=/usr/bin/warp client
+ExecStart=/usr/bin/warp-ddn client
 
 # Let systemd restart this service always
 Restart=always
