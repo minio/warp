@@ -8,7 +8,7 @@ on:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       -
         name: Checkout
@@ -33,18 +33,42 @@ jobs:
         if: success()
         with:
           name: Warp-Snapshot-Build-Win64
-          path: dist/warp_windows_amd64_v1
+          path: dist/warp-ddn_windows_amd64_v1
       -
-        name: Upload Linux Binaries
+        name: Upload Linux amd64 Binaries
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-Linux-amd64
-          path: dist/warp_linux_amd64_v1
+          path: dist/warp-ddn_linux_amd64_v1
+      -
+        name: Upload Linux arm64 Binaries
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Warp-Snapshot-Build-Linux-arm64
+          path: dist/warp-ddn_linux_arm64
+
       -
         name: Upload MacOS Binaries
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-MacOSX-amd64
-          path: dist/warp_darwin_amd64_v1
+          path: dist/warp-ddn_darwin_amd64_v1
+      -
+        name: Upload deb files to nexus
+        shell: bash
+        if: success()
+        run: |
+          version="snapshot_$(date +'%Y-%m-%d_%H-%M-%S')"
+          for file in $(find dist -name *.deb); do
+          curl -u "${{ secrets.NEXUS_RW_LOGIN }}:${{ secrets.NEXUS_RW_PASSWORD }}" \
+              -X POST \
+              -H "Accept: application/json" \
+              -H "Content-Type: multipart/form-data" \
+              "https://nexus.redlab.datadirectnet.com/service/rest/v1/components?repository=cicd" \
+              -F "raw.directory=warp-ddn/$version" \
+              -F "raw.asset1=@$file;type=application/gzip" \
+              -F "raw.asset1.filename=$(basename $file)"
+          done
