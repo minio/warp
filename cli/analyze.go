@@ -129,7 +129,7 @@ func mainAnalyze(ctx *cli.Context) error {
 		console.Eraseline()
 		console.Printf("\r"+format, data...)
 	}
-	if globalQuiet {
+	if globalQuiet || globalJSON {
 		log = nil
 	}
 	for _, arg := range args {
