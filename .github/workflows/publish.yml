@@ -24,7 +24,7 @@ jobs:
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: latest
+          version: '~> v1'
           args: release --clean --skip=publish --snapshot
       -
         name: Upload binaries and packages to nexus
