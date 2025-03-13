@@ -1,0 +1,43 @@
+name: mirroring
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  warp-to-ghe:
+    runs-on: self-hosted
+    steps:
+      - uses: mickem/clean-after-action@v2
+        with:
+          keepGit: nooooooo  # this is "false" for the action
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Mirror warp repository from github.com to Gitea
+        shell: bash
+        run: |
+          echo "Trying to mirror the repository in Gitea .."
+          git push --mirror https://${{ secrets.GITEA_MIRROR_USERNAME }}:${{ secrets.GITEA_MIRROR_TOKEN }}@gitea.redlab.datadirectnet.com/red/warp.git
+  
+
+      - name: Mirror warp repository from github.com to GHE
+        shell: bash
+        run: |
+          git branch
+          git branch -r
+          echo "Trying to mirror the repository in GHE .."
+          git push --mirror https://${{ secrets.DEVOPS_BOT_USERNAME }}:${{ secrets.DEVOPS_BOT_TOKEN }}@github.red.datadirectnet.com/3rdParty/warp.git
+
+      - name: Send PagerDuty alert on failure
+        if: failure()
+        uses: Entle/action-pagerduty-alert@1.0.4
+        with:
+          pagerduty-integration-key: '${{ secrets.PAGERDUTY_INTEGRATION_KEY }}'
+
+
+  
+
