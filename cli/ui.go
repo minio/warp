@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"sync/atomic"
@@ -46,6 +47,7 @@ type ui struct {
 	quitPls      atomic.Bool
 	showProgress bool
 	cancelFn     atomic.Pointer[context.CancelFunc]
+	uiCancel     atomic.Pointer[context.CancelFunc]
 	quitCh       chan struct{}
 }
 
@@ -64,8 +66,11 @@ func (u *ui) Init() tea.Cmd {
 }
 
 func (u *ui) Run() {
-	p := tea.NewProgram(u)
-
+	runtime.LockOSThread()
+	ctx, cancel := context.WithCancel(context.Background())
+	p := tea.NewProgram(u, tea.WithContext(ctx))
+	u.uiCancel.Store(&cancel)
+	defer cancel()
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("UI: %v", err)
 	}
@@ -78,6 +83,10 @@ func (u *ui) Run() {
 }
 
 func (u *ui) Wait() {
+	if c := u.uiCancel.Load(); c != nil {
+		cancel := *c
+		cancel()
+	}
 	if u.quitCh != nil {
 		<-u.quitCh
 	}
