@@ -507,6 +507,42 @@ Throughput, split into 9 x 1s:
 warp: Cleanup done.
 ```
 
+## MULTIPART UPLOAD
+
+Multipart upload benchmark tests upload speed of parts. It creates multipart upload, uploads `--parts` parts of
+`--part.size` size each and completes multipart upload when all parts are uploaded.
+
+Multipart upload test runs `--concurrent` separate multipart uploads. Each of those uploads split up to
+`--part.concurrent` concurrent upload threads. So total concurrency is a `--concurrent`
+multiplied by `--part.concurrent`.
+
+```
+λ warp multipart-upload --parts 100 --part.size 5MiB
+╭─────────────────────────────────╮
+│ WARP S3 Benchmark Tool by MinIO │
+╰─────────────────────────────────╯
+
+Benchmarking:
+Benchmark data written to "warp-multipart-upload-2025-02-17[141311]-rsbn.json.zst"...
+
+ λ ███████████████████████████████
+
+Reqs: 1185, Errs:0, Objs:1185, Bytes: 5925.0MiB
+ -       PUT Average: 3 Obj/s, 15.9MiB/s; Current 0 Obj/s, 238.8KiB/s, 97559.8 ms/req
+
+
+Report: PUT. Concurrency: 20. Ran: 6m4s
+ * Average: 15.92 MiB/s, 3.18 obj/s
+ * Reqs: Avg: 119293.2ms, 50%: 120351.8ms, 90%: 132827.4ms, 99%: 141314.2ms, Fastest: 62788.9ms, Slowest: 202591.5ms, StdDev: 10800.6ms
+
+Throughput, split into 364 x 1s:
+ * Fastest: 17.3MiB/s, 3.46 obj/s
+ * 50% Median: 16.5MiB/s, 3.31 obj/s
+ * Slowest: 238.8KiB/s, 0.05 obj/s
+
+
+Cleanup Done
+```
 
 ## ZIP
 
