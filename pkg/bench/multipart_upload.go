@@ -38,13 +38,7 @@ func (g *MultipartUpload) Start(ctx context.Context, wait chan struct{}) error {
 		eg.Go(func() error {
 			<-wait
 
-			for {
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
-				}
-
+			for ctx.Err() == nil {
 				objectName := g.Source().Object().Name
 
 				uploadID, err := g.createMultupartUpload(ctx, objectName)
@@ -70,6 +64,7 @@ func (g *MultipartUpload) Start(ctx context.Context, wait chan struct{}) error {
 					g.Error("complete multipart upload")
 				}
 			}
+			return nil
 		})
 	}
 	return eg.Wait()
