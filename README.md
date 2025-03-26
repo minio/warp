@@ -507,23 +507,23 @@ Throughput, split into 9 x 1s:
 warp: Cleanup done.
 ```
 
-## MULTIPART UPLOAD
+## MULTIPART PUT
 
-Multipart upload benchmark tests upload speed of parts. It creates multipart upload, uploads `--parts` parts of
+Multipart put benchmark tests upload speed of parts. It creates multipart upload, uploads `--parts` parts of
 `--part.size` size each and completes multipart upload when all parts are uploaded.
 
-Multipart upload test runs `--concurrent` separate multipart uploads. Each of those uploads split up to
+Multipart put test runs `--concurrent` separate multipart uploads. Each of those uploads split up to
 `--part.concurrent` concurrent upload threads. So total concurrency is a `--concurrent`
 multiplied by `--part.concurrent`.
 
 ```
-λ warp multipart-upload --parts 100 --part.size 5MiB
+λ warp multipart-put --parts 100 --part.size 5MiB
 ╭─────────────────────────────────╮
 │ WARP S3 Benchmark Tool by MinIO │
 ╰─────────────────────────────────╯
 
 Benchmarking:
-Benchmark data written to "warp-multipart-upload-2025-02-17[141311]-rsbn.json.zst"...
+Benchmark data written to "warp-multipart-put-2025-02-17[141311]-rsbn.json.zst"...
 
  λ ███████████████████████████████
 

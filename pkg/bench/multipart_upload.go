@@ -103,6 +103,7 @@ func (g *MultipartUpload) uploadParts(ctx context.Context, thread uint16, object
 
 	for i := 0; i < g.PartsConcurrency; i++ {
 		eg.Go(func() error {
+			i := i
 			for ctx.Err() == nil {
 				var partIdx int
 				var ok bool
@@ -125,7 +126,7 @@ func (g *MultipartUpload) uploadParts(ctx context.Context, thread uint16, object
 				core := minio.Core{Client: client}
 				op := Operation{
 					OpType:   http.MethodPut,
-					Thread:   thread,
+					Thread:   thread*uint16(g.PartsConcurrency) + uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
