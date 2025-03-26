@@ -522,23 +522,21 @@ multiplied by `--part.concurrent`.
 │ WARP S3 Benchmark Tool by MinIO │
 ╰─────────────────────────────────╯
 
-Benchmarking:
-Benchmark data written to "warp-multipart-put-2025-02-17[141311]-rsbn.json.zst"...
+Benchmarking: Press 'q' to abort benchmark and print partial results...
 
- λ ███████████████████████████████
+ λ █████████████████████████████████████████████████████████████████████████ 100%
 
-Reqs: 1185, Errs:0, Objs:1185, Bytes: 5925.0MiB
- -       PUT Average: 3 Obj/s, 15.9MiB/s; Current 0 Obj/s, 238.8KiB/s, 97559.8 ms/req
+Reqs: 2034, Errs:0, Objs:2034, Bytes: 10170.0MiB
+ -       PUT Average: 7 Obj/s, 33.2MiB/s; Current 2 Obj/s, 12.0MiB/s, 40233.9 ms/req
 
+Report: PUT. Concurrency: 400. Ran: 5m5s
+ * Average: 33.24 MiB/s, 6.65 obj/s
+ * Reqs: Avg: 55325.0ms, 50%: 55521.4ms, 90%: 69196.4ms, 99%: 78513.4ms, Fastest: 4896.5ms, Slowest: 97884.8ms, StdDev: 10521.0ms
 
-Report: PUT. Concurrency: 20. Ran: 6m4s
- * Average: 15.92 MiB/s, 3.18 obj/s
- * Reqs: Avg: 119293.2ms, 50%: 120351.8ms, 90%: 132827.4ms, 99%: 141314.2ms, Fastest: 62788.9ms, Slowest: 202591.5ms, StdDev: 10800.6ms
-
-Throughput, split into 364 x 1s:
- * Fastest: 17.3MiB/s, 3.46 obj/s
- * 50% Median: 16.5MiB/s, 3.31 obj/s
- * Slowest: 238.8KiB/s, 0.05 obj/s
+Throughput, split into 305 x 1s:
+ * Fastest: 39.1MiB/s, 7.81 obj/s
+ * 50% Median: 33.3MiB/s, 6.66 obj/s
+ * Slowest: 10.2MiB/s, 2.04 obj/s
 
 
 Cleanup Done
