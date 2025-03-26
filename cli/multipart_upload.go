@@ -68,4 +68,7 @@ func checkMultipartUploadSyntax(ctx *cli.Context) {
 	if ctx.Int("parts") > 10000 {
 		console.Fatal("parts can't be more than 10000")
 	}
+	if ctx.Int("parts") <= 0 {
+		console.Fatal("parts must be at least 1")
+	}
 }
