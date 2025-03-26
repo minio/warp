@@ -28,7 +28,7 @@ var MultiPartUploadCombinedFlags = combineFlags(globalFlags, ioFlags, multipartU
 
 // MultipartUpload command
 var multipartUploadCmd = cli.Command{
-	Name:   "multipart-upload",
+	Name:   "multipart-put",
 	Usage:  "benchmark multipart upload",
 	Action: mainMutipartUpload,
 	Before: setGlobalsFromContext,
