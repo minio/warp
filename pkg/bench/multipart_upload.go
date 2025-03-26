@@ -21,10 +21,7 @@ type MultipartUpload struct {
 
 // Prepare for the benchmark run
 func (g *MultipartUpload) Prepare(ctx context.Context) error {
-	if err := g.createEmptyBucket(ctx); err != nil {
-		return err
-	}
-	return nil
+	return g.createEmptyBucket(ctx)
 }
 
 // Start will execute the main benchmark.
