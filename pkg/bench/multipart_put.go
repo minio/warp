@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// MultipartUpload benchmarks multipart upload speed.
-type MultipartUpload struct {
+// MultipartPut benchmarks multipart upload speed.
+type MultipartPut struct {
 	Common
 
 	PartsNumber      int
@@ -20,13 +20,13 @@ type MultipartUpload struct {
 }
 
 // Prepare for the benchmark run
-func (g *MultipartUpload) Prepare(ctx context.Context) error {
+func (g *MultipartPut) Prepare(ctx context.Context) error {
 	return g.createEmptyBucket(ctx)
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (g *MultipartUpload) Start(ctx context.Context, wait chan struct{}) error {
+func (g *MultipartPut) Start(ctx context.Context, wait chan struct{}) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	c := g.Collector
 	if g.AutoTermDur > 0 {
@@ -71,11 +71,11 @@ func (g *MultipartUpload) Start(ctx context.Context, wait chan struct{}) error {
 }
 
 // Cleanup up after the benchmark run.
-func (g *MultipartUpload) Cleanup(ctx context.Context) {
+func (g *MultipartPut) Cleanup(ctx context.Context) {
 	g.deleteAllInBucket(ctx, "")
 }
 
-func (g *MultipartUpload) createMultupartUpload(ctx context.Context, objectName string) (string, error) {
+func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName string) (string, error) {
 	if err := g.rpsLimit(ctx); err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func (g *MultipartUpload) createMultupartUpload(ctx context.Context, objectName 
 	return c.NewMultipartUpload(nonTerm, g.Bucket, objectName, g.PutOpts)
 }
 
-func (g *MultipartUpload) uploadParts(ctx context.Context, thread uint16, objectName string, uploadID string) error {
+func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName string, uploadID string) error {
 	partIdxCh := make(chan int, g.PartsNumber)
 	for i := range g.PartsNumber {
 		partIdxCh <- i + 1
@@ -159,7 +159,7 @@ func (g *MultipartUpload) uploadParts(ctx context.Context, thread uint16, object
 	return eg.Wait()
 }
 
-func (g *MultipartUpload) completeMultipartUpload(_ context.Context, objectName string, uploadID string) error {
+func (g *MultipartPut) completeMultipartUpload(_ context.Context, objectName string, uploadID string) error {
 	// Non-terminating context.
 	nonTerm := context.Background()
 

@@ -6,7 +6,7 @@ import (
 	"github.com/minio/warp/pkg/bench"
 )
 
-var multipartUploadFlags = []cli.Flag{
+var multipartPutFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "parts",
 		Value: 100,
@@ -24,32 +24,32 @@ var multipartUploadFlags = []cli.Flag{
 	},
 }
 
-var MultiPartUploadCombinedFlags = combineFlags(globalFlags, ioFlags, multipartUploadFlags, genFlags, benchFlags, analyzeFlags)
+var MultiPartPutCombinedFlags = combineFlags(globalFlags, ioFlags, multipartPutFlags, genFlags, benchFlags, analyzeFlags)
 
-// MultipartUpload command
-var multipartUploadCmd = cli.Command{
+// MultipartPut command
+var multipartPutCmd = cli.Command{
 	Name:   "multipart-put",
 	Usage:  "benchmark multipart upload",
-	Action: mainMutipartUpload,
+	Action: mainMutipartPut,
 	Before: setGlobalsFromContext,
-	Flags:  MultiPartUploadCombinedFlags,
+	Flags:  MultiPartPutCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
 USAGE:
   {{.HelpName}} [FLAGS]
-  -> see https://github.com/minio/warp#multipart-upload
+  -> see https://github.com/minio/warp#multipart-put
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}`,
 }
 
-// mainMutipartUpload is the entry point for multipart-upload command
-func mainMutipartUpload(ctx *cli.Context) error {
-	checkMultipartUploadSyntax(ctx)
+// mainMutipartPut is the entry point for multipart-put command
+func mainMutipartPut(ctx *cli.Context) error {
+	checkMultipartPutSyntax(ctx)
 
-	b := &bench.MultipartUpload{
+	b := &bench.MultipartPut{
 		Common:           getCommon(ctx, newGenSource(ctx, "part.size")),
 		PartsNumber:      ctx.Int("parts"),
 		PartsConcurrency: ctx.Int("part.concurrent"),
@@ -57,12 +57,12 @@ func mainMutipartUpload(ctx *cli.Context) error {
 	return runBench(ctx, b)
 }
 
-func checkMultipartUploadSyntax(ctx *cli.Context) {
+func checkMultipartPutSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
 	if ctx.Bool("disable-multipart") {
-		console.Fatal("cannot disable multipart for multipart-upload test")
+		console.Fatal("cannot disable multipart for multipart-put test")
 	}
 
 	if ctx.Int("parts") > 10000 {

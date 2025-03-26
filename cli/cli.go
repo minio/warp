@@ -98,7 +98,7 @@ func init() {
 		versionedCmd,
 		retentionCmd,
 		multipartCmd,
-		multipartUploadCmd,
+		multipartPutCmd,
 		zipCmd,
 		snowballCmd,
 		fanoutCmd,
