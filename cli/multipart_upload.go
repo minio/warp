@@ -71,10 +71,16 @@ func checkMultipartUploadSyntax(ctx *cli.Context) {
 	if ctx.Int("parts") <= 0 {
 		console.Fatal("parts must be at least 1")
 	}
+
 	if ctx.Int("part.concurrent") > ctx.Int("parts") {
 		console.Fatal("part.concurrent can't be more than parts")
 	}
-	if _, err := toSize(ctx.String("part.size")); err != nil {
+
+	sz, err := toSize(ctx.String("part.size"))
+	if err != nil {
 		console.Fatal("error parsing part.size:", err)
+	}
+	if sz <= 0 {
+		console.Fatal("part.size must be at least 1")
 	}
 }
