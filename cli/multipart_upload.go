@@ -15,12 +15,12 @@ var multipartUploadFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "part.size",
 		Value: "5MiB",
-		Usage: "Size of each part. Can be a number or MiB/GiB. Must be a single value >= 5MiB",
+		Usage: "Size of each part. Can be a number or MiB/GiB.",
 	},
 	cli.IntFlag{
 		Name:  "part.concurrent",
 		Value: 20,
-		Usage: "Run this many concurrent operations per each multipart upload. Must not exceed obj.size/part.size",
+		Usage: "Run this many concurrent operations per each multipart upload. Must not exceed a number of parts.",
 	},
 }
 
@@ -70,5 +70,11 @@ func checkMultipartUploadSyntax(ctx *cli.Context) {
 	}
 	if ctx.Int("parts") <= 0 {
 		console.Fatal("parts must be at least 1")
+	}
+	if ctx.Int("part.concurrent") > ctx.Int("parts") {
+		console.Fatal("part.concurrent can't be more than parts")
+	}
+	if _, err := toSize(ctx.String("part.size")); err != nil {
+		console.Fatal("error parsing part.size:", err)
 	}
 }
