@@ -91,7 +91,7 @@ func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName str
 
 func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName string, uploadID string) error {
 	partIdxCh := make(chan int, g.PartsNumber)
-	for i := range g.PartsNumber {
+	for i := 0; i < g.PartsNumber; i++ {
 		partIdxCh <- i + 1
 	}
 	close(partIdxCh)
@@ -125,7 +125,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 				defer done()
 				core := minio.Core{Client: client}
 				op := Operation{
-					OpType:   http.MethodPut,
+					OpType:   "PUTPART",
 					Thread:   thread*uint16(g.PartsConcurrency) + uint16(i),
 					Size:     obj.Size,
 					File:     obj.Name,
@@ -142,13 +142,22 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 				}
 
 				op.Start = time.Now()
-				_, err := core.PutObjectPart(nonTerm, g.Bucket, objectName, uploadID, partIdx, obj.Reader, obj.Size, opts)
+				res, err := core.PutObjectPart(nonTerm, g.Bucket, objectName, uploadID, partIdx, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					g.Error(err)
 					return err
 				}
+
+				if res.Size != obj.Size && op.Err == "" {
+					err := fmt.Sprint("short upload. want:", obj.Size, ", got:", res.Size)
+					if op.Err == "" {
+						op.Err = err
+					}
+					g.Error(err)
+				}
+
 				g.Collector.Receiver() <- op
 			}
 

@@ -521,25 +521,25 @@ multiplied by `--part.concurrent`.
 ╭─────────────────────────────────╮
 │ WARP S3 Benchmark Tool by MinIO │
 ╰─────────────────────────────────╯
-
+                                                                       
 Benchmarking: Press 'q' to abort benchmark and print partial results...
-
+                                                                       
  λ █████████████████████████████████████████████████████████████████████████ 100%
+                                                                                       
+Reqs: 15867, Errs:0, Objs:15867, Bytes: 1983.4MiB                                      
+ -   PUTPART Average: 266 Obj/s, 33.2MiB/s; Current 260 Obj/s, 32.5MiB/s, 1193.7 ms/req
+                                                                                       
+Report: PUTPART. Concurrency: 400. Ran: 58s
+ * Average: 33.36 MiB/s, 266.85 obj/s
+ * Reqs: Avg: 1262.5ms, 50%: 935.3ms, 90%: 2773.8ms, 99%: 4395.2ms, Fastest: 53.6ms, Slowest: 6976.4ms, StdDev: 1027.5ms
 
-Reqs: 2034, Errs:0, Objs:2034, Bytes: 10170.0MiB
- -       PUT Average: 7 Obj/s, 33.2MiB/s; Current 2 Obj/s, 12.0MiB/s, 40233.9 ms/req
-
-Report: PUT. Concurrency: 400. Ran: 5m5s
- * Average: 33.24 MiB/s, 6.65 obj/s
- * Reqs: Avg: 55325.0ms, 50%: 55521.4ms, 90%: 69196.4ms, 99%: 78513.4ms, Fastest: 4896.5ms, Slowest: 97884.8ms, StdDev: 10521.0ms
-
-Throughput, split into 305 x 1s:
- * Fastest: 39.1MiB/s, 7.81 obj/s
- * 50% Median: 33.3MiB/s, 6.66 obj/s
- * Slowest: 10.2MiB/s, 2.04 obj/s
+Throughput, split into 58 x 1s:
+ * Fastest: 37.9MiB/s, 302.87 obj/s
+ * 50% Median: 34.3MiB/s, 274.10 obj/s
+ * Slowest: 19.8MiB/s, 158.41 obj/s
 
 
-Cleanup Done
+Cleanup Done                                                                
 ```
 
 ## ZIP
