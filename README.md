@@ -539,7 +539,7 @@ Throughput, split into 58 x 1s:
  * Slowest: 19.8MiB/s, 158.41 obj/s
 
 
-Cleanup Done                                                                
+Cleanup Done
 ```
 
 ## ZIP
