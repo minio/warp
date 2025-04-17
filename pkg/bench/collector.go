@@ -192,7 +192,6 @@ func (c *collector) Close() {
 		}
 		c.extra = nil
 	}
-	return
 }
 
 func (c *collector) AddOutput(x ...chan<- Operation) {
