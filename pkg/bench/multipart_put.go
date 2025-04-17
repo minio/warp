@@ -89,7 +89,7 @@ func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName str
 	return c.NewMultipartUpload(nonTerm, g.Bucket, objectName, g.PutOpts)
 }
 
-func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName string, uploadID string) error {
+func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName, uploadID string) error {
 	partIdxCh := make(chan int, g.PartsNumber)
 	for i := 0; i < g.PartsNumber; i++ {
 		partIdxCh <- i + 1
@@ -137,7 +137,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 				}
 
 				opts := minio.PutObjectPartOptions{
-					SSE:                  g.Common.PutOpts.ServerSideEncryption,
+					SSE:                  g.PutOpts.ServerSideEncryption,
 					DisableContentSha256: g.PutOpts.DisableContentSha256,
 				}
 
@@ -168,7 +168,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 	return eg.Wait()
 }
 
-func (g *MultipartPut) completeMultipartUpload(_ context.Context, objectName string, uploadID string) error {
+func (g *MultipartPut) completeMultipartUpload(_ context.Context, objectName, uploadID string) error {
 	// Non-terminating context.
 	nonTerm := context.Background()
 
