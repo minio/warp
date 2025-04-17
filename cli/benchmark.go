@@ -554,6 +554,7 @@ func startProfiling(ctx2 context.Context, ctx *cli.Context) (*runningProfiles, e
 	r.client = newAdminClient(ctx)
 
 	// Start profile
+	//nolint:staticcheck
 	_, cmdErr := r.client.StartProfiling(ctx2, madmin.ProfilerType(prof))
 	if cmdErr != nil {
 		return nil, cmdErr
@@ -568,6 +569,7 @@ func (rp *runningProfiles) stop(ctx2 context.Context, _ *cli.Context, fileName s
 	}
 
 	// Ask for profile data, which will come compressed with zip format
+	//nolint:staticcheck
 	zippedData, adminErr := rp.client.DownloadProfilingData(ctx2)
 	fatalIf(probe.NewError(adminErr), "Unable to download profile data.")
 	defer zippedData.Close()
