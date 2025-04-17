@@ -273,7 +273,6 @@ func (s *Server) handleDownloadZst(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		s.Errorln(err)
 	}
-	return
 }
 
 // handleDownloadJSON handles GET `/v1/operations` requests and returns the operations as JSON.

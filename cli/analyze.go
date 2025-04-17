@@ -350,7 +350,7 @@ func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 	})
 	if wrSegs != nil {
 		for _, ops := range aggr.Operations {
-			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), !(aggr.Mixed || prefiltered), details)
+			writeSegs(ctx, wrSegs, o.FilterByOp(ops.Type), !aggr.Mixed && !prefiltered, details)
 		}
 	}
 

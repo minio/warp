@@ -304,9 +304,7 @@ func (s *RequestSizeRange) add(b RequestSizeRange) {
 		if s.BpsPct == nil {
 			s.BpsPct = &[101]float64{}
 		}
-		for i, v := range b.BpsPct[:] {
-			s.BpsPct[i] = v
-		}
+		s.BpsPct = b.BpsPct
 	}
 	s.MergedEntries += b.MergedEntries
 }

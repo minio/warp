@@ -257,7 +257,7 @@ func (u *ui) View() string {
 }
 
 func (u *ui) SetSubText(caption string) {
-	if u.quitPls.Load() == true {
+	if u.quitPls.Load() {
 		u.Wait()
 		console.Printf("\r%-80s", caption)
 		return
@@ -266,7 +266,7 @@ func (u *ui) SetSubText(caption string) {
 }
 
 func (u *ui) SetPhase(caption string) {
-	if u.quitPls.Load() == true {
+	if u.quitPls.Load() {
 		u.Wait()
 		console.Println("\n" + caption)
 		return
