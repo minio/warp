@@ -59,8 +59,6 @@ func (c *CmpReqs) Compare(before, after Operations) {
 		Worst:   a.Worst - b.Worst,
 		Best:    a.Best - b.Best,
 		Median:  a.Median - b.Median,
-		P25:     a.P25 - b.P25,
-		P75:     a.P75 - b.P75,
 		P90:     a.P90 - b.P90,
 		P99:     a.P99 - b.P99,
 		StdDev:  a.StdDev - b.StdDev,
@@ -72,9 +70,7 @@ type CmpRequests struct {
 	Requests   int
 	Average    time.Duration
 	Best       time.Duration
-	P25        time.Duration
 	Median     time.Duration
-	P75        time.Duration
 	P90        time.Duration
 	P99        time.Duration
 	Worst      time.Duration
@@ -87,9 +83,7 @@ func (c *CmpRequests) fill(ops Operations) {
 	c.AvgObjSize = ops.AvgSize()
 	c.Average = ops.AvgDuration()
 	c.Best = ops.Median(0).Duration()
-	c.P25 = ops.Median(0.25).Duration()
 	c.Median = ops.Median(0.5).Duration()
-	c.P75 = ops.Median(0.75).Duration()
 	c.P90 = ops.Median(0.9).Duration()
 	c.P99 = ops.Median(0.99).Duration()
 	c.Worst = ops.Median(1).Duration()
@@ -241,7 +235,6 @@ func plusPositiveD(d time.Duration) string {
 	}
 }
 
-// Compare compares operations of a single operation type.
 func Compare(before, after Operations, analysis time.Duration, allThreads bool) (*Comparison, error) {
 	var res Comparison
 	if before.FirstOpType() != after.FirstOpType() {
