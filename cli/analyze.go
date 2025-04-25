@@ -120,9 +120,6 @@ func mainAnalyze(ctx *cli.Context) error {
 	if len(args) == 0 {
 		console.Fatal("No benchmark data file supplied")
 	}
-	if len(args) > 1 {
-		console.Fatal("Only one benchmark file can be given")
-	}
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), nil)
 	defer monitor.Done()
 	log := func(format string, data ...interface{}) {

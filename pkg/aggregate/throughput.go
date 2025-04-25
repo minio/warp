@@ -286,6 +286,16 @@ func cloneBenchSegments(s bench.Segments) []SegmentSmall {
 	return res
 }
 
+func (s SegmentSmall) LongSeg(segdur time.Duration) bench.Segment {
+	return bench.Segment{
+		Start:      s.Start,
+		EndsBefore: s.Start.Add(segdur),
+		TotalBytes: int64(time.Duration(s.BPS) * segdur / time.Second),
+		Objects:    s.OPS,
+		Errors:     s.Errors,
+	}
+}
+
 func (s *SegmentSmall) add(other SegmentSmall) SegmentSmall {
 	s.Errors += other.Errors
 	s.OPS += other.OPS

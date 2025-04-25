@@ -18,16 +18,18 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
-	"io"
-	"os"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -60,35 +62,114 @@ func mainCmp(ctx *cli.Context) error {
 	if globalQuiet {
 		log = nil
 	}
-	readOps := func(s string) bench.Operations {
-		rc, isAggreated := openInput(s)
-		defer rc.Close()
-		if isAggreated {
-			fatalIf(probe.NewError(errors.New("aggregated compare not available yet")), "Aggregated compare not available yet")
-		}
-		ops, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
-		fatalIf(probe.NewError(err), "Unable to parse input")
-		return ops
+	// Open "before" and "after" files
+	rc, agg := openInput(args[0])
+	defer rc.Close()
+	rc2, agg2 := openInput(args[1])
+	defer rc2.Close()
+
+	if agg != agg2 {
+		fatalIf(probe.NewError(errors.New("mixed input types")), "mixed input types (aggregated and non-aggregated)")
 	}
-	printCompare(ctx, readOps(args[0]), readOps(args[1]))
+
+	if agg {
+		var before, after aggregate.Realtime
+		if err := json.NewDecoder(rc).Decode(&before); err != nil {
+			fatalIf(probe.NewError(err), "Unable to parse input")
+		}
+		if err := json.NewDecoder(rc2).Decode(&after); err != nil {
+			fatalIf(probe.NewError(err), "Unable to parse input")
+		}
+		printCompare(ctx, before, after)
+		return nil
+	}
+
+	if log != nil {
+		log("Loading %q", args[0])
+	}
+
+	beforeOps, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+	fatalIf(probe.NewError(err), "Unable to parse input")
+
+	if log != nil {
+		log("Loading %q", args[1])
+	}
+	afterOps, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+	fatalIf(probe.NewError(err), "Unable to parse input")
+
+	printCompareLegacy(ctx, beforeOps, afterOps)
 	return nil
 }
 
-func printCompare(ctx *cli.Context, before, after bench.Operations) {
-	var wrSegs io.Writer
+func printCompare(ctx *cli.Context, before, after aggregate.Realtime) {
+	afterOps := after.ByOpType
+	ops := mapKeys(before.ByOpType)
+	sort.Strings(ops)
+	for _, typ := range ops {
+		before := before.ByOpType[typ]
+		if wantOp := ctx.String("analyze.op"); wantOp != "" {
+			if strings.ToUpper(wantOp) != typ {
+				continue
+			}
+		}
 
-	if fn := ctx.String("compare.out"); fn != "" {
-		if fn == "-" {
-			wrSegs = os.Stdout
-		} else {
-			f, err := os.Create(fn)
-			fatalIf(probe.NewError(err), "Unable to create create analysis output")
-			defer console.Println("Aggregated data saved to", fn)
-			defer f.Close()
-			wrSegs = f
+		console.Println("-------------------")
+		console.SetColor("Print", color.New(color.FgHiWhite))
+		console.Println("Operation:", typ)
+		console.SetColor("Print", color.New(color.FgWhite))
+
+		after := afterOps[typ]
+		cmp, err := aggregate.Compare(before, after, typ)
+		if err != nil {
+			console.Println(err)
+			continue
+		}
+
+		if bErrs, aErrs := before.TotalErrors, after.TotalErrors; bErrs+aErrs > 0 {
+			console.SetColor("Print", color.New(color.FgHiRed))
+			console.Println("Errors:", bErrs, "->", aErrs)
+			console.SetColor("Print", color.New(color.FgWhite))
+		}
+		if before.TotalRequests != after.TotalRequests {
+			console.Println("Operations:", before.TotalRequests, "->", after.TotalRequests)
+		}
+		if before.Concurrency != after.Concurrency {
+			console.Println("Concurrency:", before.Concurrency, "->", after.Concurrency)
+		}
+		if len(before.ThroughputByHost) != len(after.ThroughputByHost) {
+			console.Println("Endpoints:", len(before.ThroughputByHost), "->", len(after.ThroughputByHost))
+		}
+		opoB := before.TotalObjects / before.TotalRequests
+		opoA := after.TotalObjects / after.TotalRequests
+		if opoB != opoA {
+			console.Println("Objects per operation:", opoB, "->", opoA)
+		}
+		bDur := before.EndTime.Sub(before.StartTime).Round(time.Second)
+		aDur := after.EndTime.Sub(after.StartTime).Round(time.Second)
+		if bDur != aDur {
+			console.Println("Duration:", bDur, "->", aDur)
+		}
+		if cmp.Reqs.Before.AvgObjSize != cmp.Reqs.After.AvgObjSize {
+			console.Printf("Object size: %v -> %v\n",
+				humanize.Bytes(uint64(cmp.Reqs.Before.AvgObjSize)),
+				humanize.Bytes(uint64(cmp.Reqs.After.AvgObjSize)))
+		}
+		console.Println("* Average:", cmp.Average)
+		console.Println("* Requests:", cmp.Reqs.String())
+
+		if cmp.TTFB != nil {
+			console.Println("* TTFB:", cmp.TTFB)
+		}
+		if cmp.Fastest.ObjPerSec > 0 {
+			console.SetColor("Print", color.New(color.FgWhite))
+			console.Println("* Fastest:", cmp.Fastest)
+			console.Println("* 50% Median:", cmp.Median)
+			console.Println("* Slowest:", cmp.Slowest)
 		}
 	}
-	_ = wrSegs
+}
+
+func printCompareLegacy(ctx *cli.Context, before, after bench.Operations) {
 	isMultiOp := before.IsMixed()
 	if isMultiOp != after.IsMixed() {
 		console.Fatal("Cannot compare multi-operation to single operation.")
@@ -160,4 +241,12 @@ func checkCmp(ctx *cli.Context) {
 	if ctx.NArg() != 2 {
 		console.Fatal("Two data sources must be supplied")
 	}
+}
+
+func mapKeys[Map ~map[K]V, K comparable, V any](m Map) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
