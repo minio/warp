@@ -51,7 +51,7 @@ func (g *Multipart) InitOnce(ctx context.Context) error {
 	if err := g.createEmptyBucket(ctx); err != nil {
 		return err
 	}
-	g.UpdateStatus(fmt.Sprint("Creating Object..."))
+	g.UpdateStatus("Creating Object...")
 
 	cl, done := g.Client()
 	c := minio.Core{Client: cl}
@@ -124,7 +124,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 
 				opts.ContentType = obj.ContentType
 				mpopts := minio.PutObjectPartOptions{
-					SSE:                  g.Common.PutOpts.ServerSideEncryption,
+					SSE:                  g.PutOpts.ServerSideEncryption,
 					DisableContentSha256: g.PutOpts.DisableContentSha256,
 				}
 				op.Start = time.Now()

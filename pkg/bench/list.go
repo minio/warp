@@ -219,7 +219,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) error {
 				// List all objects with prefix
 				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{
 					WithMetadata: d.Metadata,
-					Prefix:       objs[0].Prefix,
+					Prefix:       objs[0].Prefix + "/",
 					Recursive:    true,
 					WithVersions: d.Versions > 1,
 					MaxKeys:      d.MaxKeys,

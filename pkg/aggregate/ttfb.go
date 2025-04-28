@@ -38,21 +38,58 @@ type TTFB struct {
 	PercentilesMillis *[101]float64 `json:"percentiles_millis,omitempty"`
 }
 
+// AsBench converts to bench.TTFB.
+// Provide the byN value to scale the values (typically merged count).
+func (t *TTFB) AsBench(byN int) bench.TTFB {
+	if t == nil {
+		return bench.TTFB{}
+	}
+	if byN == 0 {
+		byN = 1
+	}
+	millisToDurF := func(millis float64) time.Duration {
+		if millis == 0 {
+			return 0
+		}
+		return time.Duration(millis * float64(time.Millisecond))
+	}
+	var pct [101]time.Duration
+	invBy := 1.0 / float64(byN)
+	if t.PercentilesMillis != nil {
+		for i, v := range t.PercentilesMillis {
+			pct[i] = millisToDurF(v * invBy)
+		}
+	}
+	return bench.TTFB{
+		Average:     millisToDurF(t.AverageMillis * invBy),
+		Worst:       millisToDurF(t.SlowestMillis),
+		Best:        millisToDurF(t.FastestMillis),
+		P25:         millisToDurF(t.P25Millis * invBy),
+		Median:      millisToDurF(t.MedianMillis * invBy),
+		P75:         millisToDurF(t.P75Millis * invBy),
+		P90:         millisToDurF(t.P90Millis * invBy),
+		P99:         millisToDurF(t.P99Millis * invBy),
+		StdDev:      millisToDurF(t.StdDevMillis * invBy),
+		Percentiles: pct,
+	}
+}
+
 // String returns a human printable version of the time to first byte.
 func (t TTFB) String() string {
 	if t.AverageMillis == 0 {
 		return ""
 	}
+	fMilli := float64(time.Millisecond)
 	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
-		time.Duration(t.AverageMillis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.FastestMillis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.P25Millis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.MedianMillis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.P75Millis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.P90Millis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.P99Millis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.SlowestMillis)*time.Millisecond.Round(time.Millisecond),
-		time.Duration(t.StdDevMillis)*time.Millisecond.Round(time.Millisecond))
+		time.Duration(t.AverageMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.FastestMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.P25Millis*fMilli).Round(time.Millisecond),
+		time.Duration(t.MedianMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.P75Millis*fMilli).Round(time.Millisecond),
+		time.Duration(t.P90Millis*fMilli).Round(time.Millisecond),
+		time.Duration(t.P99Millis*fMilli).Round(time.Millisecond),
+		time.Duration(t.SlowestMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.StdDevMillis*fMilli).Round(time.Millisecond))
 }
 
 func (t *TTFB) add(other TTFB) {
@@ -78,17 +115,18 @@ func (t TTFB) StringByN(n int) string {
 		return ""
 	}
 	// rounder...
-	hN := n / 2
+	fMilli := float64(time.Millisecond)
+	fn := 1.0 / float64(n)
 	return fmt.Sprintf("Avg: %v, Best: %v, 25th: %v, Median: %v, 75th: %v, 90th: %v, 99th: %v, Worst: %v StdDev: %v",
-		time.Duration((hN+int(t.AverageMillis))/n)*time.Millisecond,
-		time.Duration(t.FastestMillis)*time.Millisecond,
-		time.Duration((hN+int(t.P25Millis))/n)*time.Millisecond,
-		time.Duration((hN+int(t.MedianMillis))/n)*time.Millisecond,
-		time.Duration((hN+int(t.P75Millis))/n)*time.Millisecond,
-		time.Duration((hN+int(t.P90Millis))/n)*time.Millisecond,
-		time.Duration((hN+int(t.P99Millis))/n)*time.Millisecond,
-		time.Duration(t.SlowestMillis)*time.Millisecond,
-		time.Duration((hN+int(t.StdDevMillis))/n)*time.Millisecond)
+		time.Duration(t.AverageMillis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.FastestMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.P25Millis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.MedianMillis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.P75Millis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.P90Millis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.P99Millis*fMilli*fn).Round(time.Millisecond),
+		time.Duration(t.SlowestMillis*fMilli).Round(time.Millisecond),
+		time.Duration(t.StdDevMillis*fMilli*fn).Round(time.Millisecond))
 }
 
 // TtfbFromBench converts from bench.TTFB
