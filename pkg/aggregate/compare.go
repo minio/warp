@@ -30,7 +30,8 @@ func Compare(before, after *LiveAggregate, op string) (*bench.Comparison, error)
 	if before.TotalErrors > 0 || after.TotalErrors > 0 {
 		return nil, fmt.Errorf("errors recorded in benchmark run. before: %v, after %d", before.TotalErrors, after.TotalErrors)
 	}
-	if after.Throughput.Segmented.Segments == nil || before.Throughput.Segmented.Segments == nil {
+	if after.Throughput.Segmented == nil || after.Throughput.Segmented.Segments == nil ||
+		before.Throughput.Segmented == nil || before.Throughput.Segmented.Segments == nil {
 		return nil, fmt.Errorf("no segments found in benchmark run. before: %v, after %v", before.Throughput.Segmented.Segments, after.Throughput.Segmented.Segments)
 	}
 	res.Op = op
