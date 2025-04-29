@@ -16,7 +16,7 @@ require (
 	github.com/jfsmig/prng v0.0.2
 	github.com/klauspost/compress v1.18.0
 	github.com/minio/cli v1.24.2
-	github.com/minio/madmin-go/v4 v4.0.6
+	github.com/minio/madmin-go/v4 v4.0.7
 	github.com/minio/mc v0.0.0-20250416181326-b00526b153a3
 	github.com/minio/md5-simd v1.1.2
 	github.com/minio/minio-go/v7 v7.0.91
