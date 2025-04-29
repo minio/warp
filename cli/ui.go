@@ -60,7 +60,7 @@ func tickCmd() tea.Cmd {
 }
 
 func (u *ui) Init() tea.Cmd {
-	u.progress = progress.New(progress.WithScaledGradient("#c72e49", "#edf7f7"), progress.WithSolidFill("#c72e49"))
+	u.progress = progress.New(progress.WithSolidFill("#c72e49"), progress.WithWidth(maxWidth-padding))
 	u.quitCh = make(chan struct{})
 	return tea.Batch(tickCmd())
 }
@@ -68,7 +68,7 @@ func (u *ui) Init() tea.Cmd {
 func (u *ui) Run() {
 	runtime.LockOSThread()
 	ctx, cancel := context.WithCancel(context.Background())
-	p := tea.NewProgram(u, tea.WithContext(ctx))
+	p := tea.NewProgram(u, tea.WithContext(ctx), tea.WithFPS(4))
 	u.uiCancel.Store(&cancel)
 	defer cancel()
 	if _, err := p.Run(); err != nil {
@@ -99,7 +99,7 @@ const (
 
 func (u *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if u.quitPls.Load() {
-		return u, tea.Quit
+		return u, tea.Batch(tea.ShowCursor, tea.Quit)
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -107,11 +107,11 @@ func (u *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		case "ctrl+c", "q":
-			return u, tea.Quit
+			return u, tea.Batch(tea.ShowCursor, tea.Quit)
 		}
 	case tea.QuitMsg:
 		u.quitPls.Store(true)
-		return u, tea.Quit
+		return u, tea.Batch(tea.ShowCursor, tea.Quit)
 	case tea.WindowSizeMsg:
 		u.progress.Width = msg.Width - 4
 		if u.progress.Width > maxWidth-padding {
@@ -140,7 +140,7 @@ func (u *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if u.quitPls.Load() {
-			batch = append(batch, tea.Quit)
+			batch = append(batch, tea.ShowCursor, tea.Quit)
 		}
 
 		return u, tea.Batch(batch...)
@@ -164,11 +164,11 @@ func (u *ui) View() string {
 		if ph := u.phaseTxt.Load(); ph != nil {
 			status += ": " + *ph
 		}
-		status += "...\n\n"
+		status += "...\n"
 		res += statusStyle.Render(status)
 	}
 
-	res += defaultStyle.Render("\r λ ")
+	res += defaultStyle.Render("\n λ ")
 	if u.showProgress {
 		res += u.progress.View() + "\n"
 	} else {
