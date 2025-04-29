@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/minio/cli"
-	"github.com/minio/madmin-go/v3"
+	"github.com/minio/madmin-go/v4"
 	"github.com/minio/mc/pkg/probe"
 	md5simd "github.com/minio/md5-simd"
 	"github.com/minio/minio-go/v7"
