@@ -71,9 +71,7 @@ func (u *ui) Run() {
 	p := tea.NewProgram(u, tea.WithContext(ctx), tea.WithFPS(4))
 	u.uiCancel.Store(&cancel)
 	defer cancel()
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("UI: %v", err)
-	}
+	p.Run() // ignore the error on purpose
 	close(u.quitCh)
 	if c := u.cancelFn.Load(); c != nil {
 		cancel := *c

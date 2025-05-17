@@ -2,7 +2,7 @@ module github.com/minio/warp
 
 go 1.24.0
 
-toolchain go1.24.2
+toolchain go1.24.3
 
 require (
 	github.com/bygui86/multi-profile/v2 v2.1.0
@@ -16,11 +16,11 @@ require (
 	github.com/jfsmig/prng v0.0.2
 	github.com/klauspost/compress v1.18.0
 	github.com/minio/cli v1.24.2
-	github.com/minio/madmin-go/v4 v4.0.7
-	github.com/minio/mc v0.0.0-20250416181326-b00526b153a3
+	github.com/minio/madmin-go/v4 v4.0.13
+	github.com/minio/mc v0.0.0-20250506164133-19d87ba47505
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.91
-	github.com/minio/pkg/v3 v3.1.3
+	github.com/minio/minio-go/v7 v7.0.92-0.20250515110726-4f25bfc12706
+	github.com/minio/pkg/v3 v3.1.8
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
@@ -40,6 +40,7 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
+	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -75,16 +76,15 @@ require (
 	github.com/prometheus/common v0.63.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/prometheus/prom2json v1.4.2 // indirect
-	github.com/prometheus/prometheus v0.303.0 // indirect
+	github.com/prometheus/prometheus v0.303.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rjeczalik/notify v0.9.3 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/safchain/ethtool v0.5.10 // indirect
 	github.com/secure-io/sio-go v0.3.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/tinylib/msgp v1.2.5 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.4 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
