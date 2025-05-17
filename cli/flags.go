@@ -165,6 +165,12 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_SECRET_KEY",
 		Value:  "",
 	},
+	cli.StringFlag{
+		Name:   "session-token",
+		Usage:  "Specify secret key",
+		EnvVar: appNameUC + "_SESSION_TOKEN",
+		Value:  "",
+	},
 	cli.BoolFlag{
 		Name:   "tls",
 		Usage:  "Use TLS (HTTPS) for transport",
