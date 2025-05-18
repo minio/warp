@@ -147,13 +147,24 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 // getClient creates a client with the specified host and the options set in the context.
 func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	var creds *credentials.Credentials
+	transport := clientTransport(ctx)
 	switch strings.ToUpper(ctx.String("signature")) {
 	case "S3V4":
 		// if Signature version '4' use NewV4 directly.
-		creds = credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), "")
+		creds = credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ctx.String("session-token"))
 	case "S3V2":
 		// if Signature version '2' use NewV2 directly.
 		creds = credentials.NewStaticV2(ctx.String("access-key"), ctx.String("secret-key"), "")
+	case "IAM":
+		creds = credentials.NewChainCredentials([]credentials.Provider{
+			&credentials.EnvAWS{},
+			&credentials.EnvMinio{},
+			&credentials.IAM{
+				Client: &http.Client{
+					Transport: transport,
+				},
+			},
+		})
 	default:
 		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
 	}
@@ -169,7 +180,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		Region:       ctx.String("region"),
 		BucketLookup: lookup,
 		CustomMD5:    md5simd.NewServer().NewHash,
-		Transport:    clientTransport(ctx),
+		Transport:    transport,
 	})
 	if err != nil {
 		return nil, err
