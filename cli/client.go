@@ -175,12 +175,13 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		lookup = minio.BucketLookupPath
 	}
 	cl, err := minio.New(host, &minio.Options{
-		Creds:        creds,
-		Secure:       ctx.Bool("tls"),
-		Region:       ctx.String("region"),
-		BucketLookup: lookup,
-		CustomMD5:    md5simd.NewServer().NewHash,
-		Transport:    transport,
+		Creds:           creds,
+		Secure:          ctx.Bool("tls"),
+		Region:          ctx.String("region"),
+		BucketLookup:    lookup,
+		CustomMD5:       md5simd.NewServer().NewHash,
+		Transport:       transport,
+		TrailingHeaders: useTrailingHeaders.Load(),
 	})
 	if err != nil {
 		return nil, err

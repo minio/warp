@@ -18,11 +18,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync/atomic"
 
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
@@ -43,6 +46,11 @@ var putFlags = []cli.Flag{
 	cli.BoolFlag{
 		Name:  "post",
 		Usage: "Use PostObject for upload. Will force single part upload",
+	},
+	cli.StringFlag{
+		Name:  "checksum",
+		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
+		Value: "",
 	},
 }
 
@@ -82,11 +90,13 @@ const metadataChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ12345
 // putOpts retrieves put options from the context.
 func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 	pSize, _ := toSize(ctx.String("part.size"))
+	useMD5, checksumType := parseChecksum(ctx)
 	options := minio.PutObjectOptions{
 		ServerSideEncryption: newSSE(ctx),
 		DisableMultipart:     ctx.Bool("disable-multipart"),
 		DisableContentSha256: ctx.Bool("disable-sha256-payload"),
-		SendContentMd5:       ctx.Bool("md5"),
+		SendContentMd5:       useMD5,
+		Checksum:             checksumType,
 		StorageClass:         ctx.String("storage-class"),
 		PartSize:             pSize,
 	}
@@ -133,4 +143,41 @@ func checkPutSyntax(ctx *cli.Context) {
 
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
+}
+
+var useTrailingHeaders atomic.Bool
+
+func parseChecksum(ctx *cli.Context) (useMD5 bool, ct minio.ChecksumType) {
+	useMD5 = ctx.Bool("md5")
+	if cs := ctx.String("checksum"); cs != "" {
+		switch strings.ToUpper(cs) {
+		case "CRC32":
+			ct = minio.ChecksumCRC32
+		case "CRC32C":
+			ct = minio.ChecksumCRC32C
+		case "CRC32-FO":
+			ct = minio.ChecksumFullObjectCRC32
+		case "CRC32C-FO":
+			ct = minio.ChecksumFullObjectCRC32C
+		case "SHA1":
+			ct = minio.ChecksumSHA1
+		case "SHA256":
+			ct = minio.ChecksumSHA256
+		case "CRC64N", "CRC64NVME":
+			ct = minio.ChecksumCRC64NVME
+		case "MD5":
+			useMD5 = true
+		default:
+			err := fmt.Errorf("unknown checksum type: %s. Should be one of CRC64NVME, MD5, CRC32, CRC32C, CRC32-FO, CRC32C-FO, SHA1 or SHA256", cs)
+			fatalIf(probe.NewError(err), "")
+		}
+		if ct.IsSet() {
+			useTrailingHeaders.Store(true)
+			if useMD5 {
+				err := errors.New("cannot combine MD5 with checksum")
+				fatalIf(probe.NewError(err), "")
+			}
+		}
+	}
+	return
 }
