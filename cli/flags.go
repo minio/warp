@@ -331,14 +331,15 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		// set burst to 1 as limiter will always be called to wait for 1 token
 		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
 	}
-
+	// Create put options now, so ensure that trailing headers are set.
+	putOpts := putOpts(ctx)
 	return bench.Common{
 		Client:        newClient(ctx),
 		Concurrency:   ctx.Int("concurrent"),
 		Source:        src,
 		Bucket:        ctx.String("bucket"),
 		Location:      ctx.String("region"),
-		PutOpts:       putOpts(ctx),
+		PutOpts:       putOpts,
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,

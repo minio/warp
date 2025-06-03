@@ -7,7 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/bygui86/multi-profile/v2 v2.1.0
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.4
+	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cheggaaa/pb v1.0.29
 	github.com/dustin/go-humanize v1.0.1
@@ -19,7 +19,7 @@ require (
 	github.com/minio/madmin-go/v4 v4.0.13
 	github.com/minio/mc v0.0.0-20250506164133-19d87ba47505
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.92-0.20250515110726-4f25bfc12706
+	github.com/minio/minio-go/v7 v7.0.92
 	github.com/minio/pkg/v3 v3.1.8
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
