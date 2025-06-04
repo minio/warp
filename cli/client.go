@@ -42,6 +42,7 @@ import (
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/pkg/v3/ellipses"
 	"github.com/minio/warp/pkg"
+	ktls "gitlab.com/go-extension/tls"
 	"golang.org/x/net/http2"
 )
 
@@ -218,18 +219,48 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		DisableCompression: true,
 		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
 	}
-	if ctx.Bool("tls") {
+	if ctx.Bool("tls") || ctx.Bool("ktls") {
 		// Keep TLS config.
-		tr.TLSClientConfig = &tls.Config{
-			RootCAs: mustGetSystemCertPool(),
-			// Can't use SSLv3 because of POODLE and BEAST
-			// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
-			// Can't use TLSv1.1 because of RC4 cipher usage
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: ctx.Bool("insecure"),
-			ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
+		if !ctx.Bool("ktls") {
+			tr.TLSClientConfig = &tls.Config{
+				RootCAs: mustGetSystemCertPool(),
+				// Can't use SSLv3 because of POODLE and BEAST
+				// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
+				// Can't use TLSv1.1 because of RC4 cipher usage
+				MinVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: ctx.Bool("insecure"),
+				ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
+			}
+		} else {
+			d := ktls.Dialer{
+				NetDialer: &net.Dialer{
+					Timeout:   10 * time.Second,
+					KeepAlive: 10 * time.Second,
+				},
+				Config: &ktls.Config{
+					KernelRX: true,
+					KernelTX: true,
+					// Prefer the cipher suites that are available in the kernel.
+					PreferCipherSuites: true,
+					// We don't care about the size.
+					CertCompressionDisabled: true,
+					// Should be ok for benchmarks.
+					AllowEarlyData: true,
+					// Can't use SSLv3 because of POODLE and BEAST
+					// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
+					// Can't use TLSv1.1 because of RC4 cipher usage
+					RootCAs:            mustGetSystemCertPool(),
+					MinVersion:         tls.VersionTLS12,
+					InsecureSkipVerify: ctx.Bool("insecure"),
+					ClientSessionCache: ktls.NewLRUClientSessionCache(1024), // up to 1024 nodes
+				},
+			}
+			if ctx.Bool("debug") {
+				d.Config.KeyLogWriter = os.Stdout
+			}
+			tr.DialContext = nil
+			tr.DialTLSContext = d.DialContext
 		}
-
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
 		if ctx.Bool("http2") {
@@ -332,7 +363,7 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 
 	cl, err := madmin.NewWithOptions(hosts[0], &madmin.Options{
 		Creds:     credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ""),
-		Secure:    ctx.Bool("tls"),
+		Secure:    ctx.Bool("tls") || ctx.Bool("ktls"),
 		Transport: clientTransport(ctx),
 	})
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
