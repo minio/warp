@@ -50,7 +50,7 @@ func (g *MultipartPut) Start(ctx context.Context, wait chan struct{}) error {
 					continue
 				}
 
-				err = g.uploadParts(ctx, thread, objectName, uploadID)
+				parts, err := g.uploadParts(ctx, thread, objectName, uploadID)
 				if errors.Is(err, context.Canceled) {
 					return nil
 				}
@@ -59,7 +59,7 @@ func (g *MultipartPut) Start(ctx context.Context, wait chan struct{}) error {
 					continue
 				}
 
-				err = g.completeMultipartUpload(ctx, objectName, uploadID)
+				err = g.completeMultipartUpload(ctx, objectName, uploadID, parts)
 				if err != nil {
 					g.Error("complete multipart upload")
 				}
@@ -89,12 +89,14 @@ func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName str
 	return c.NewMultipartUpload(nonTerm, g.Bucket, objectName, g.PutOpts)
 }
 
-func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName, uploadID string) error {
+func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName, uploadID string) ([]minio.CompletePart, error) {
 	partIdxCh := make(chan int, g.PartsNumber)
 	for i := 0; i < g.PartsNumber; i++ {
 		partIdxCh <- i + 1
 	}
 	close(partIdxCh)
+
+	parts := make([]minio.CompletePart, g.PartsNumber)
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -157,6 +159,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 					}
 					g.Error(err)
 				}
+				parts[res.PartNumber-1] = minio.CompletePart{PartNumber: res.PartNumber, ETag: res.ETag}
 
 				g.Collector.Receiver() <- op
 			}
@@ -165,16 +168,24 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 		})
 	}
 
-	return eg.Wait()
+	err := eg.Wait()
+
+	return parts, err
 }
 
-func (g *MultipartPut) completeMultipartUpload(_ context.Context, objectName, uploadID string) error {
+func (g *MultipartPut) completeMultipartUpload(ctx context.Context, objectName, uploadID string, parts []minio.CompletePart) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
 	// Non-terminating context.
 	nonTerm := context.Background()
 
 	cl, done := g.Client()
 	c := minio.Core{Client: cl}
 	defer done()
-	_, err := c.CompleteMultipartUpload(nonTerm, g.Bucket, objectName, uploadID, nil, g.PutOpts)
+	_, err := c.CompleteMultipartUpload(nonTerm, g.Bucket, objectName, uploadID, parts, g.PutOpts)
 	return err
 }

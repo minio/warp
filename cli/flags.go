@@ -290,6 +290,11 @@ var ioFlags = []cli.Flag{
 		Name:  "lookup",
 		Usage: "Force requests to be 'host' for host-style or 'path' for path-style lookup. Default will attempt autodetect based on remote host name.",
 	},
+	cli.StringFlag{
+		Name:  "checksum",
+		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
+		Value: "",
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {

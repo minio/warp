@@ -47,11 +47,6 @@ var putFlags = []cli.Flag{
 		Name:  "post",
 		Usage: "Use PostObject for upload. Will force single part upload",
 	},
-	cli.StringFlag{
-		Name:  "checksum",
-		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
-		Value: "",
-	},
 }
 
 var PutCombinedFlags = combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags)
