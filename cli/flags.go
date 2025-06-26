@@ -176,6 +176,11 @@ var ioFlags = []cli.Flag{
 		Usage:  "Use TLS (HTTPS) for transport",
 		EnvVar: appNameUC + "_TLS",
 	},
+	cli.BoolFlag{
+		Name:   "ktls",
+		Usage:  "Use Kernel TLS (HTTPS) for transport if available",
+		EnvVar: appNameUC + "_KTLS",
+	},
 	cli.StringFlag{
 		Name:   "region",
 		Usage:  "Specify a custom region",
