@@ -62,12 +62,12 @@ func mainAppend(ctx *cli.Context) error {
 	b := bench.Append{
 		Common: getCommon(ctx, newGenSource(ctx, "obj.size")),
 	}
-	if b.Common.Versioned {
+	if b.Versioned {
 		return fmt.Errorf("append versioned objects is not supported")
 	}
 	if !b.PutOpts.Checksum.IsSet() {
 		// Set checksum to CRC64NVME if not set
-		b.Common.PutOpts.Checksum = minio.ChecksumCRC64NVME
+		b.PutOpts.Checksum = minio.ChecksumCRC64NVME
 	}
 	return runBench(ctx, &b)
 }

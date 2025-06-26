@@ -31,7 +31,6 @@ import (
 type Append struct {
 	Common
 	prefixes map[string]struct{}
-	cl       *http.Client
 }
 
 // Prepare will create an empty bucket or delete any content already there.
