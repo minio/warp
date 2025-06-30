@@ -46,6 +46,11 @@ var genFlags = []cli.Flag{
 		Value: 0,
 		Usage: "Percent of each object that should be compressible. Requires the partial compressible generator",
 	},
+	cli.IntFlag{
+		Name:  "obj.compressionRatioTunable",
+		Value: 40,
+		Usage: "Compressible regions of the object are composed of random substrings of a known text buffer. 0 means 'all 0s'. Value must be between 0 and 64 (inclusive); higher numbers mean larger substrings.",
+	},
 
 }
 
@@ -85,7 +90,7 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 	case "randomLite":
 		g = generator.WithCircularRandomData()
 	case "partiallyCompressible":
-		g = generator.WithPartialCompressability(ctx.Int("obj.percentCompressible"))
+		g = generator.WithPartialCompressability(ctx.Int("obj.percentCompressible"), ctx.Int("obj.compressionRatioTunable") )
 	default:
 		err := errors.New("unknown generator type:" + ctx.String("obj.generator"))
 		fatal(probe.NewError(err), "Invalid -generator parameter")

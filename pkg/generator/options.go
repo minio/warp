@@ -38,6 +38,7 @@ type Options struct {
 	randomPrefix   int
 	randSize       bool
 	percentCompr   int
+	comprRatio     int
 
 	// Activates the use of a distribution of sizes
 	flagSizesDistribution bool

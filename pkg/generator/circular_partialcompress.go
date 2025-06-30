@@ -10,20 +10,29 @@ type CircularPartialCompressibleOpts struct {
 	seed *int64
 	size int
 	percentCompressible int
+	compressionRatio int
 	compressibleChunkSize int
+	comprBuffer string
 }
 
-func WithPartialCompressability(percent int) CircularPartialCompressibleOpts {
+type PartialCompressionData struct {
+	comprBuffer string
+}
+
+
+func WithPartialCompressability(percent int, ratio int) CircularPartialCompressibleOpts {
 	return CircularPartialCompressibleOpts{
 		seed: nil,
 		// Use 2^20 + 1 (1MB + 1 byte) as default size
 		size: 1<<20 + 1,
 		percentCompressible: percent,
+		compressionRatio: ratio,
 		compressibleChunkSize: 32000,
+		comprBuffer: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
 	}
 }
 
-// Apply Circular Random data options.
+// Apply Partial Compression data options.
 func (o CircularPartialCompressibleOpts) Apply() Option {
 	return func(opts *Options) error {
 		if err := o.validate(); err != nil {
@@ -37,15 +46,19 @@ func (o CircularPartialCompressibleOpts) Apply() Option {
 
 func (o CircularPartialCompressibleOpts) validate() error {
 	if o.size <= 0 {
-		return fmt.Errorf("circular random: size must be > 0, got %d", o.size)
+		return fmt.Errorf("partial compression: size must be > 0, got %d", o.size)
 	}
 	if o.size <= o.compressibleChunkSize {
-		return fmt.Errorf("circular random: size must be > compressibleChunkSize, got %d and %d", o.size, o.compressibleChunkSize)
+		return fmt.Errorf("partial compression: size must be > compressibleChunkSize, got %d and %d", o.size, o.compressibleChunkSize)
 	}
 
 	if o.percentCompressible <= 0 {
-		return fmt.Errorf("circular random: percentCompressible must be > 0, got %d", o.size)
+		return fmt.Errorf("partial compression: percentCompressible must be > 0, got %d", o.percentCompressible)
 	}
+	if o.compressionRatio < 0 || o.compressionRatio > 64 {
+		return fmt.Errorf("partial compression: percentCompressible must be between 0 and 64, got %d", o.compressionRatio)
+	}
+	
 	return nil
 }
 
@@ -69,6 +82,16 @@ type circularPartialCompressibleSrc struct {
 	pos int64
 }
 
+func getRandomSubstring(str string, length int) string {
+	// Random starting position
+	maxStart := len(str) - length
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	start := rand.Intn(maxStart + 1)
+
+	return str[start : start+length]
+}
 func newCircularPartialCompressible(o Options) (Source, error) {
 	rndSrc := rand.NewSource(int64(rand.Uint64()))
 	if o.partialCompr.seed != nil {
@@ -91,6 +114,7 @@ func newCircularPartialCompressible(o Options) (Source, error) {
 	chunkCount := 0
 	chunkIntervalToMakeCompressible := 100 / o.partialCompr.percentCompressible
 	//	fmt.Printf ("setting every %d chunks to be 0. chunk size %d total size %d\n", chunkOrder, o.partialCompr.compressibleChunkSize, size)
+	//Now we will insert some compressible regions into this buffer
 
 	for i := 0; i < size; i += o.partialCompr.compressibleChunkSize	{
 		//	fmt.Printf("checking offset %d chunk %d!\n", i, chunks)
@@ -103,17 +127,23 @@ func newCircularPartialCompressible(o Options) (Source, error) {
 			//fmt.Printf("skipping the last chunk so we don't overflow!\n" )
 			continue
 		}
-
-		for j := i; j <  i + o.partialCompr.compressibleChunkSize; j++ {
-			// if j == i {
-			// 	fmt.Printf("setting the chunk started at %d to 0!\n", j )
-			// }
-			buf[j] = 0
+		if o.partialCompr.compressionRatio == 0 {
+			//special case; 0 here means "just put 0s into the buffer"
+			//this won't hit the main compression code
+			for j := i; j <  i + o.partialCompr.compressibleChunkSize; j+= o.partialCompr.compressionRatio {
+				buf[j] = 0
+			}
+			continue
 		}
+		//For this chunk, we will fill it with random substrings from comprBuffer
+		for j := i; j <  i + o.partialCompr.compressibleChunkSize; j+= o.partialCompr.compressionRatio {
+			substring := getRandomSubstring(o.partialCompr.comprBuffer, o.partialCompr.compressionRatio)
+			copy(buf[j:], substring)
+       		}
 	}
 	// fmt.Printf("dumping the buffer!\n" )
 	// for i := 0; i < size; i++	{
-	// 	fmt.Printf("%d", buf[i] )
+	//  	fmt.Printf("%c", buf[i] )
 	// }
 
 	r := &circularPartialCompressibleSrc{
@@ -154,9 +184,9 @@ func (r *circularPartialCompressibleSrc) Object() *Object {
 
 func (r *circularPartialCompressibleSrc) String() string {
 	if r.o.randSize {
-		return fmt.Sprintf("Circular Random data; random size up to %d bytes", r.o.totalSize)
+		return fmt.Sprintf("Partial Compression data; random size up to %d bytes", r.o.totalSize)
 	}
-	return fmt.Sprintf("Circular Random data; %d bytes total", r.o.totalSize)
+	return fmt.Sprintf("Partial Compression data; %d bytes total", r.o.totalSize)
 }
 
 func (r *circularPartialCompressibleSrc) Prefix() string {
