@@ -122,7 +122,7 @@ func (u *Append) Start(ctx context.Context, wait chan struct{}) error {
 				if part == 1 {
 					res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 				} else {
-					res, err = client.AppendObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, aOpts)
+					res, err = client.AppendObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, aOpts)
 				}
 				op.End = time.Now()
 				if err != nil {
