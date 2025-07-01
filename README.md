@@ -546,6 +546,43 @@ Throughput, split into 58 x 1s:
 Cleanup Done
 ```
 
+## APPEND (S3 Express)
+
+Benchmarks S3 Express One Zone [Append Object](https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-objects-append.html) operations.
+
+WARP will upload `--obj.size` objects for each `--concurrent` and append up to 10,000 parts to these.
+Each append operation will be one part and the size of each part will be `--part.size` - a new object will be created when the part limit is reached. 
+
+If no `--checksum` is specified, the CRC64NVME checksum will be used. The checksum type must support full object checksums (CRC32, CRC32C, CRC64NVME).
+
+Example:
+
+```
+λ warp append -duration=1m -obj.size=1MB
+╭─────────────────────────────────╮
+│ WARP S3 Benchmark Tool by MinIO │
+╰─────────────────────────────────╯
+
+Benchmarking: Press 'q' to abort benchmark and print partial results...
+
+ λ ████████████████████████████████████████████████████████████████████████░  99%
+
+Reqs: 4997, Errs:0, Objs:4997, Bytes: 4765.5MiB
+ -    APPEND Average: 84 Obj/s, 80.4MiB/s; Current 88 Obj/s, 84.4MiB/s, 280.7 ms/req
+
+
+Report: APPEND. Concurrency: 20. Ran: 58s
+ * Average: 80.15 MiB/s, 84.04 obj/s
+ * Reqs: Avg: 234.6ms, 50%: 203.9ms, 90%: 354.1ms, 99%: 711.3ms, Fastest: 58.3ms, Slowest: 1213.9ms, StdDev: 109.5ms
+
+Throughput, split into 58 x 1s:
+ * Fastest: 123.8MiB/s, 129.80 obj/s
+ * 50% Median: 80.1MiB/s, 83.97 obj/s
+ * Slowest: 23.6MiB/s, 24.74 obj/s
+```
+
+The "obj/s" indicates the number of append operations per second.
+
 ## ZIP
 
 The `zip` command benchmarks the MinIO [s3zip](https://blog.min.io/small-file-archives/) extension

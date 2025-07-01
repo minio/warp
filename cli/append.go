@@ -68,7 +68,13 @@ func mainAppend(ctx *cli.Context) error {
 	if !b.PutOpts.Checksum.IsSet() {
 		// Set checksum to CRC64NVME if not set
 		b.PutOpts.Checksum = minio.ChecksumCRC64NVME
+	} else if !b.PutOpts.Checksum.CanMergeCRC() {
+		return fmt.Errorf("append benchmark requires a checksum that can merge CRC")
+	} else {
+		// Ensure the full object checksum is set
+		b.PutOpts.Checksum |= minio.ChecksumFullObject
 	}
+
 	return runBench(ctx, &b)
 }
 

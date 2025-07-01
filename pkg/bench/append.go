@@ -20,7 +20,6 @@ package bench
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -45,7 +44,7 @@ func (u *Append) Start(ctx context.Context, wait chan struct{}) error {
 	wg.Add(u.Concurrency)
 	c := u.Collector
 	if u.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
+		ctx = c.AutoTerm(ctx, "APPEND", u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
 
