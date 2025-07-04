@@ -16,6 +16,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/russfellows/warp-replay/pkg/generator"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -40,7 +42,11 @@ var replayCmd = cli.Command{
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "file",
-			Usage: "Path to the warp output file (.csv or .csv.zst) to replay. (required)",
+			Usage: "Path to the warp output file (.csv or .csv.zst) to replay (required)",
+		},
+		cli.StringFlag{
+                        Name:  "bucket",
+                        Usage: "S3 bucket name to use for all replay operations (required)",
 		},
 		cli.StringFlag{
 			Name:   "access-key",
@@ -54,7 +60,7 @@ var replayCmd = cli.Command{
 		},
 		cli.BoolFlag{
 			Name:  "insecure",
-			Usage: "Disable TLS certificate verification.",
+			Usage: "Disable TLS certificate verification",
 		},
 	},
 }
@@ -89,6 +95,7 @@ type warpLogEntry struct {
 // mainReplay is the main function for the replay command.
 func mainReplay(c *cli.Context) error {
 	replayFile := c.String("file")
+	replayBucket := c.String("bucket")
 	replayAccessKey := c.String("access-key")
 	replaySecretKey := c.String("secret-key")
 	replayInsecure := c.Bool("insecure")
@@ -96,6 +103,11 @@ func mainReplay(c *cli.Context) error {
 	if replayFile == "" {
 		return cli.NewExitError("Error: --file flag is required.", 1)
 	}
+
+	if replayBucket == "" {
+		return cli.NewExitError("Error: --bucket flag is required.", 1)
+	}
+
 	if replayAccessKey == "" || replaySecretKey == "" {
 		return cli.NewExitError("Error: S3 credentials must be provided via flags or environment variables.", 1)
 	}
@@ -145,6 +157,8 @@ func mainReplay(c *cli.Context) error {
 			continue
 		}
 
+		entry.Bucket = replayBucket
+
 		if !previousStartTime.IsZero() {
 			delay := entry.Start.Sub(previousStartTime)
 			if delay > 0 {
@@ -176,6 +190,7 @@ func mainReplay(c *cli.Context) error {
 }
 
 // parseLogRecord converts a CSV record into a structured log entry.
+// Note: bucket comes from the cli --bucket parameter 
 func parseLogRecord(record []string) (*warpLogEntry, error) {
     if len(record) < colStart+1 {
         return nil, fmt.Errorf("record has too few columns: %d", len(record))
@@ -191,11 +206,6 @@ func parseLogRecord(record []string) (*warpLogEntry, error) {
 		return nil, fmt.Errorf("could not parse bytes: %w", err)
 	}
 
-	pathParts := strings.SplitN(record[colFile], "/", 2)
-	if len(pathParts) != 2 {
-		return nil, fmt.Errorf("invalid file format: %s", record[colFile])
-	}
-
 	startTime, err := time.Parse(time.RFC3339Nano, record[colStart])
 	if err != nil {
 		return nil, fmt.Errorf("could not parse start time: %w", err)
@@ -205,8 +215,8 @@ func parseLogRecord(record []string) (*warpLogEntry, error) {
 		Op:       record[colOp],
 		Bytes:    bytes,
 		Endpoint: record[colEndpoint],
-		Bucket:   pathParts[0],
-		Object:   pathParts[1],
+		//Bucket:   pathParts[0], // Note: bucket is passed via cli --bucket param
+		Object:   record[colFile],
 		Start:    startTime,
 	}, nil
 }
@@ -231,8 +241,25 @@ func executeOperation(ctx context.Context, client *minio.Client, entry *warpLogE
 		// We can ignore the returned object as we just want to perform the operation
 		_, err = client.GetObject(ctx, entry.Bucket, entry.Object, minio.GetObjectOptions{})
 	case "PUT":
+        /* Old code, delete 
 		nullReader := io.LimitReader(nullReader{}, entry.Bytes)
 		_, err = client.PutObject(ctx, entry.Bucket, entry.Object, nullReader, entry.Bytes, minio.PutObjectOptions{})
+	*/
+
+	// generate pseudo-random payload that won’t dedupe or compress away
+        // you can wire these to flags if you want to tune them at runtime
+        const dedupFactor   = 4
+        const compressFactor = 2
+
+        data := generator.GenerateControlledData(int(entry.Bytes), dedupFactor, compressFactor)
+        reader := bytes.NewReader(data)
+        _, err = client.PutObject(ctx,
+                entry.Bucket,
+                entry.Object,
+                reader,
+                entry.Bytes,
+                minio.PutObjectOptions{},
+            )
 	case "DELETE":
 		err = client.RemoveObject(ctx, entry.Bucket, entry.Object, minio.RemoveObjectOptions{})
 	default:
@@ -245,6 +272,7 @@ func executeOperation(ctx context.Context, client *minio.Client, entry *warpLogE
 	}
 }
 
+/*
 // nullReader is an io.Reader that reads endless zero bytes.
 type nullReader struct{}
 func (r nullReader) Read(p []byte) (n int, err error) {
@@ -253,4 +281,5 @@ func (r nullReader) Read(p []byte) (n int, err error) {
 	}
 	return len(p), nil
 }
+*/
 

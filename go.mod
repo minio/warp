@@ -1,4 +1,4 @@
-module github.com/minio/warp
+module github.com/russfellows/warp-replay
 
 go 1.25.0
 

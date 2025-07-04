@@ -19,8 +19,7 @@ package main
 
 import (
 	"os"
-
-	"github.com/minio/warp/cli"
+	"github.com/russfellows/warp-replay/cli"
 )
 
 var (
