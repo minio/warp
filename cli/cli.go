@@ -100,6 +100,7 @@ func init() {
 		zipCmd,
 		snowballCmd,
 		fanoutCmd,
+		appendCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,
