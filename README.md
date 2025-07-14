@@ -2,7 +2,7 @@
 
 S3 benchmarking tool.
 
-# Download
+## Download
 
 ## From binary
 [Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
