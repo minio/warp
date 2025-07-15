@@ -27,6 +27,7 @@ import (
     "fmt"
     "io"
     "log"
+    //"flag"
     "net/url"
     "os"
     "path/filepath"
@@ -41,6 +42,8 @@ import (
     "github.com/minio/minio-go/v7/pkg/credentials"
 
     "github.com/russfellows/warp-replay/pkg/generator"
+    "github.com/russfellows/warp-replay/pkg/config"
+    "github.com/russfellows/warp-replay/pkg/state"
 )
 
 var replayCmd = cli.Command{
@@ -51,6 +54,10 @@ var replayCmd = cli.Command{
         cli.StringFlag{
             Name:  "file",
             Usage: "Path to the WARP output file (.csv or .csv.zst) to replay (required)",
+        },
+	cli.StringFlag{
+            Name:  "config",
+            Usage: "Optional YAML remap config (use '-' for stdin)",
         },
         cli.StringFlag{
             Name:  "bucket",
@@ -139,6 +146,7 @@ func mainReplay(c *cli.Context) error {
     insecureTLS := c.Bool("insecure")
     logWarpOps := c.Bool("log-warp-ops")
     s3Target := c.String("s3-target")
+    cfgPath := c.String("config") // added flag below
 
     // optional: validate the override URL up‐front
     if s3Target != "" {
@@ -147,6 +155,20 @@ func mainReplay(c *cli.Context) error {
         }
         log.Printf("Overriding all endpoints to: %s", s3Target)
     }
+
+    // For YAML config file to implement host remapping
+    // 1. Load YAML (optional)
+    var cfg *config.ReplayConfig
+    if cfgPath != "" {
+        var err error
+        cfg, err = config.LoadConfig(cfgPath)
+        if err != nil {
+            return cli.NewExitError(fmt.Sprintf("failed to load config: %v", err), 1)
+        }
+    }
+
+    // 2. Sticky-mapping cache (default 30 s)
+    sm := state.New(30 * time.Second)
 
     /* ---------- logfile plumbing ---------- */
     logName := fmt.Sprintf("warp-replay-%s.log", time.Now().Format("20060102-150405"))
@@ -247,6 +269,18 @@ func mainReplay(c *cli.Context) error {
             continue
         }
 
+        objID := extractObjectID(entry) // implement for your TSV format
+        resolved := entry.Endpoint
+        if cfg != nil {
+            // a) config-level wildcard mapping
+            if m, _ := cfg.Resolve(entry.Endpoint); m != "" {
+                resolved = m
+            }
+        }
+        // b) sticky remap per object
+        resolved = sm.LookupOrSet(objID, resolved)
+        entry.Endpoint = resolved
+
         // apply the S3-target override if provided
         if s3Target != "" {
             entry.Endpoint = s3Target
@@ -315,6 +349,12 @@ func parseLogRecord(r []string) (*warpLogEntry, error) {
     }, nil
 }
 
+// Is this correct?  Prepends bucket to object
+func extractObjectID(e *warpLogEntry) string {
+    // simplest: bucket + object path
+    return e.Bucket + "/" + e.Object
+}
+
 func newS3Client(ep, ak, sk string, insecure bool) (*minio.Client, error) {
     ep = strings.TrimPrefix(strings.TrimPrefix(ep, "https://"), "http://")
     return minio.New(ep, &minio.Options{
@@ -322,6 +362,7 @@ func newS3Client(ep, ak, sk string, insecure bool) (*minio.Client, error) {
         Secure: !insecure,
     })
 }
+
 func executeOperation(
     ctx context.Context,
     cl *minio.Client,

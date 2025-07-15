@@ -1,0 +1,18 @@
+# warp --replay sample config.yaml
+default_s3_targets: # Renamed from target_ips
+  - "http://10.9.0.22:80" # Add scheme and port to target URLs
+  - "http://10.9.0.26:80"
+
+host_mapping:
+  "http://10.9.0.21": "http://10.9.0.22:80" # Original trace format as key, full target URL as value
+  "http://10.9.0.25": "http://10.9.0.26:80"
+  # Example: If you wanted to map the original 10.9.0.21-28 range to 10.9.0.22:9000
+  #"http://10.9.0.(2[1-8])": "http://10.9.0.22:9000" # Use regex for range, ensure it matches the trace format
+  #
+
+state_tracking:
+  enabled: true
+  retention_window_seconds: 60 
+  producer_operations:
+    - "PutObject"
+    - "CreateBucket"
