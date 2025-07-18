@@ -24,16 +24,16 @@ require (
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
-	gitlab.com/go-extension/tls v0.0.0-20250213181811-2b06719ee5f1
-	golang.org/x/net v0.41.0
-	golang.org/x/sync v0.15.0
+	gitlab.com/go-extension/http v0.0.0-20250718152519-2e47168a80e9
+	gitlab.com/go-extension/tls v0.0.0-20250718194712-8fddfd278553
+	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/RyuaNerin/go-krypto v1.3.0 // indirect
-	github.com/andybalholm/brotli v1.1.1 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -99,8 +99,10 @@ require (
 	gitlab.com/go-extension/hpke v0.0.0-20250212195157-716075a00b8a // indirect
 	gitlab.com/go-extension/mlkem768 v0.0.0-20240814071630-937354a2177e // indirect
 	gitlab.com/go-extension/rand v0.0.0-20240303103951-707937a049b5 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	gitlab.com/go-extension/utils v0.0.0-20250718194058-bae8b5a74647 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
