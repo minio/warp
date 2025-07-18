@@ -98,6 +98,12 @@ var replayCmd = cli.Command{
     },
 }
 
+//For round-robin host mapping
+var rrIdx = struct {
+   sync.Mutex
+   m map[string]int
+}{m: make(map[string]int)}
+
 /* column indexes in the original WARP trace */
 const (
     colIdx = iota
@@ -277,6 +283,18 @@ func mainReplay(c *cli.Context) error {
                 resolved = m
             }
         }
+	 // start from the trace’s original host
+        resolved = entry.Endpoint
+        if cfg != nil {
+            // a) host_mapping with round-robin “one→many”
+            if targets, ok := cfg.HostMapping[entry.Endpoint]; ok && len(targets) > 0 {
+                resolved = pickTarget(entry.Endpoint, targets)
+            } else if m, _ := cfg.Resolve(entry.Endpoint); m != "" {
+                // fallback to your existing single-target or wildcard logic
+                resolved = m
+            }
+        }
+
         // b) sticky remap per object
         resolved = sm.LookupOrSet(objID, resolved)
         entry.Endpoint = resolved
@@ -361,6 +379,15 @@ func newS3Client(ep, ak, sk string, insecure bool) (*minio.Client, error) {
         Creds:  credentials.NewStaticV4(ak, sk, ""),
         Secure: !insecure,
     })
+}
+
+//Round-Robin function
+func pickTarget(host string, targets []string) string {
+    rrIdx.Lock()
+    i := rrIdx.m[host] % len(targets)
+    rrIdx.m[host]++
+    rrIdx.Unlock()
+    return targets[i]
 }
 
 func executeOperation(
