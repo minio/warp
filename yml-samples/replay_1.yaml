@@ -3,29 +3,18 @@ default_s3_targets: # Renamed from target_ips
   - "http://10.9.0.22:80" # Add scheme and port to target URLs
   - "http://10.9.0.26:80"
 
-#for 1 to 1 mapping
-#host_mapping:
-#  "http://10.9.0.21": "http://10.9.0.22:80" # Original trace format as key, full target URL as value
-#  "http://10.9.0.25": "http://10.9.0.26:80"
-
-#for 1 to many mapping
+#for 1 to 1 or 1 to many mapping
 host_mapping:
   "http://10.9.0.21":
-    - "http://10.9.0.21:80"
-    - "http://10.9.0.21:80"
-    - "http://10.9.0.23:80"
-    - "http://10.9.0.24:80"
+    - "http://10.9.0.22:80"
+      #    - "http://10.9.0.21:80"
+      #- "http://10.9.0.23:80"
+      #- "http://10.9.0.24:80"
   "http://10.9.0.25":
-    - "http://10.9.0.25:80"
     - "http://10.9.0.26:80"
-    - "http://10.9.0.27:80"
-    - "http://10.9.0.28:80"
-      #  "http://10.9.0.21":
-      #    - "http://10.9.0.22:80"
-      #    - "http://10.9.0.26:80"
-      #  "http://10.9.0.25":
-      #    - "http://10.9.0.26:80"
-      #    - "http://10.9.0.27:80"
+#    - "http://10.9.0.26:80"
+#    - "http://10.9.0.27:80"
+#    - "http://10.9.0.28:80"
  
   # Example: If you wanted to map the original 10.9.0.21-28 range to 10.9.0.22:9000
   #"http://10.9.0.(2[1-8])": "http://10.9.0.22:9000" # Use regex for range, ensure it matches the trace format
