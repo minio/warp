@@ -68,8 +68,6 @@ func clientTransportKernelTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		// Extra configs
 		KernelRX: true,
 		KernelTX: true,
-		// Prefer the cipher suites that are available in the kernel.
-		PreferCipherSuites: true,
 		// We don't care about the size.
 		CertCompressionDisabled: true,
 		// Should be ok for benchmarks.
