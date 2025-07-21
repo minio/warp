@@ -18,16 +18,28 @@
 package cli
 
 import (
-	stdHttp "net/http"
-	"os"
+	"crypto/tls"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/minio/cli"
-	"gitlab.com/go-extension/http"
-	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
+var netDialer = &net.Dialer{
+	Timeout:   10 * time.Second,
+	KeepAlive: 10 * time.Second,
+}
+
+type transportOption func(transport *http.Transport)
+
+func withTLSConfig(tlsConfig *tls.Config) transportOption {
+	return func(transport *http.Transport) {
+		transport.TLSClientConfig = tlsConfig
+	}
+}
+
+func newClientTransport(ctx *cli.Context, options ...transportOption) http.RoundTripper {
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           netDialer.DialContext,
@@ -51,29 +63,9 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		ForceAttemptHTTP2: ctx.Bool("http2"),
 	}
 
-	// Keep TLS config.
-	tr.TLSClientConfig = &tls.Config{
-		RootCAs: mustGetSystemCertPool(),
-		// Can't use SSLv3 because of POODLE and BEAST
-		// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
-		// Can't use TLSv1.1 because of RC4 cipher usage
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: ctx.Bool("insecure"),
-		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
-
-		// Extra configs
-		KernelTX: true,
-		// Disable RX offload by default due to severe performance regressions and issues
-		// https://github.com/golang/go/issues/44506#issuecomment-2387977030
-		// https://github.com/golang/go/issues/44506#issuecomment-2765047544
-		KernelRX: false,
-		// We don't care about the size.
-		CertCompressionDisabled: true,
+	for _, option := range options {
+		option(tr)
 	}
 
-	if ctx.Bool("debug") {
-		tr.TLSClientConfig.KeyLogWriter = os.Stdout
-	}
-
-	return &http.CompatableTransport{Transport: tr}
+	return tr
 }

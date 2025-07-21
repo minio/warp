@@ -194,10 +194,14 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
-	if ctx.Bool("ktls") {
+	switch {
+	case ctx.Bool("ktls"):
 		return clientTransportKTLS(ctx)
+	case ctx.Bool("tls"):
+		return clientTransportTLS(ctx)
+	default:
+		return clientTransportDefault(ctx)
 	}
-	return clientTransportDefault(ctx)
 }
 
 // parseHosts will parse the host parameter given.
