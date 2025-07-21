@@ -240,12 +240,13 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 					KeepAlive: 10 * time.Second,
 				},
 				Config: &ktls.Config{
-					KernelRX: true,
+					// Disable RX offload by default due to severe performance regressions and issues
+					// https://github.com/golang/go/issues/44506#issuecomment-2387977030
+					// https://github.com/golang/go/issues/44506#issuecomment-2765047544
+					KernelRX: false,
 					KernelTX: true,
 					// We don't care about the size.
 					CertCompressionDisabled: true,
-					// Should be ok for benchmarks.
-					AllowEarlyData: true,
 					// Can't use SSLv3 because of POODLE and BEAST
 					// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
 					// Can't use TLSv1.1 because of RC4 cipher usage
