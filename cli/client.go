@@ -177,7 +177,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	}
 	cl, err := minio.New(host, &minio.Options{
 		Creds:           creds,
-		Secure:          ctx.Bool("tls"),
+		Secure:          ctx.Bool("tls") || ctx.Bool("ktls"),
 		Region:          ctx.String("region"),
 		BucketLookup:    lookup,
 		CustomMD5:       md5simd.NewServer().NewHash,
