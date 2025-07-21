@@ -28,6 +28,37 @@ import (
 )
 
 func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
+	// Keep TLS config.
+	tlsConfig := &tls.Config{
+		RootCAs: mustGetSystemCertPool(),
+		// Can't use SSLv3 because of POODLE and BEAST
+		// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
+		// Can't use TLSv1.1 because of RC4 cipher usage
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: ctx.Bool("insecure"),
+		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
+
+		// Extra configs
+		KernelTX: true,
+		// Disable RX offload by default due to severe performance regressions and issues
+		// https://github.com/golang/go/issues/44506#issuecomment-2387977030
+		// https://github.com/golang/go/issues/44506#issuecomment-2765047544
+		KernelRX: false,
+		// We don't care about the size.
+		CertCompressionDisabled: true,
+	}
+
+	if ctx.Bool("debug") {
+		tlsConfig.KeyLogWriter = os.Stdout
+	}
+
+	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
+	// It can improve performance by not using a compatibility layer.
+	if !ctx.Bool("http2") {
+		dialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
+		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+	}
+
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           netDialer.DialContext,
@@ -48,31 +79,10 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
-		ForceAttemptHTTP2: ctx.Bool("http2"),
-	}
+		ForceAttemptHTTP2: true,
 
-	// Keep TLS config.
-	tr.TLSClientConfig = &tls.Config{
-		RootCAs: mustGetSystemCertPool(),
-		// Can't use SSLv3 because of POODLE and BEAST
-		// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
-		// Can't use TLSv1.1 because of RC4 cipher usage
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: ctx.Bool("insecure"),
-		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
-
-		// Extra configs
-		KernelTX: true,
-		// Disable RX offload by default due to severe performance regressions and issues
-		// https://github.com/golang/go/issues/44506#issuecomment-2387977030
-		// https://github.com/golang/go/issues/44506#issuecomment-2765047544
-		KernelRX: false,
-		// We don't care about the size.
-		CertCompressionDisabled: true,
-	}
-
-	if ctx.Bool("debug") {
-		tr.TLSClientConfig.KeyLogWriter = os.Stdout
+		// Extra config
+		TLSClientConfig: tlsConfig,
 	}
 
 	return &http.CompatableTransport{Transport: tr}
