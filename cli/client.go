@@ -19,7 +19,6 @@ package cli
 
 import (
 	"bufio"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -42,7 +41,6 @@ import (
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/pkg/v3/ellipses"
 	"github.com/minio/warp/pkg"
-	ktls "gitlab.com/go-extension/tls"
 )
 
 type hostSelectType string
@@ -196,74 +194,10 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
-	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 10 * time.Second,
-		}).DialContext,
-		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
-		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
-		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
-		ResponseHeaderTimeout: 2 * time.Minute,
-		// Set this value so that the underlying transport round-tripper
-		// doesn't try to auto decode the body of objects with
-		// content-encoding set to `gzip`.
-		//
-		// Refer:
-		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
-		DisableCompression: true,
-		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
-		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
-		// See https://github.com/golang/go/issues/14275
-		ForceAttemptHTTP2: ctx.Bool("http2"),
+	if ctx.Bool("ktls") {
+		return clientTransportKTLS(ctx)
 	}
-	if ctx.Bool("tls") || ctx.Bool("ktls") {
-		// Keep TLS config.
-		if !ctx.Bool("ktls") {
-			tr.TLSClientConfig = &tls.Config{
-				RootCAs: mustGetSystemCertPool(),
-				// Can't use SSLv3 because of POODLE and BEAST
-				// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
-				// Can't use TLSv1.1 because of RC4 cipher usage
-				MinVersion:         tls.VersionTLS12,
-				InsecureSkipVerify: ctx.Bool("insecure"),
-				ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
-			}
-		} else {
-			d := ktls.Dialer{
-				NetDialer: &net.Dialer{
-					Timeout:   10 * time.Second,
-					KeepAlive: 10 * time.Second,
-				},
-				Config: &ktls.Config{
-					// Disable RX offload by default due to severe performance regressions and issues
-					// https://github.com/golang/go/issues/44506#issuecomment-2387977030
-					// https://github.com/golang/go/issues/44506#issuecomment-2765047544
-					KernelRX: false,
-					KernelTX: true,
-					// We don't care about the size.
-					CertCompressionDisabled: true,
-					// Can't use SSLv3 because of POODLE and BEAST
-					// Can't use TLSv1.0 because of POODLE and BEAST using CBC cipher
-					// Can't use TLSv1.1 because of RC4 cipher usage
-					RootCAs:            mustGetSystemCertPool(),
-					MinVersion:         tls.VersionTLS12,
-					InsecureSkipVerify: ctx.Bool("insecure"),
-					ClientSessionCache: ktls.NewLRUClientSessionCache(1024), // up to 1024 nodes
-				},
-			}
-			if ctx.Bool("debug") {
-				d.Config.KeyLogWriter = os.Stdout
-			}
-			tr.DialContext = nil
-			tr.DialTLSContext = d.DialContext
-		}
-	}
-	return tr
+	return clientTransportDefault(ctx)
 }
 
 // parseHosts will parse the host parameter given.

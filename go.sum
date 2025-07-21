@@ -209,6 +209,8 @@ gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7 h1:UNrDfkQqiE
 gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7/go.mod h1:E+rxHvJG9H6PUdzq9NRG6csuLN3XUx98BfGOVWNYnXs=
 gitlab.com/go-extension/hpke v0.0.0-20250212195157-716075a00b8a h1:8Ot1x2DayfUfOrVcXZ/f0SLj81Y9dq/hsf57cNYy66A=
 gitlab.com/go-extension/hpke v0.0.0-20250212195157-716075a00b8a/go.mod h1:onq0LLalsHWfSaXZiC3fDBY2A2wWvywnHq8xJIo+bzw=
+gitlab.com/go-extension/http v0.0.0-20250719151615-08a618538a4f h1:PFFko7ISWll4vAc0WuAeWt0g/xC7eLo4h1KCmElkYKc=
+gitlab.com/go-extension/http v0.0.0-20250719151615-08a618538a4f/go.mod h1:x/igFbbu6lCH3p5/b9KoemjuuaHBQOoi1zpnICd0Sjw=
 gitlab.com/go-extension/mlkem768 v0.0.0-20240814071630-937354a2177e h1:D/TnZkP81CR2Md9YJR3X059iLhOU8a493pebdLtQ99Q=
 gitlab.com/go-extension/mlkem768 v0.0.0-20240814071630-937354a2177e/go.mod h1:SQhmb9r/Fb0M4mb//AlrwD0yrDHre+nF0QzZD6OZV4k=
 gitlab.com/go-extension/rand v0.0.0-20240303103951-707937a049b5 h1:xQA0rfVPqW3G6dnb4qtgBdxr9XLu9vzDfdqKfLqGFXA=

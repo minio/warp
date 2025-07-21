@@ -24,6 +24,7 @@ require (
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
+	gitlab.com/go-extension/http v0.0.0-20250719151615-08a618538a4f
 	gitlab.com/go-extension/tls v0.0.0-20250719191918-cbc1229b74c0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
