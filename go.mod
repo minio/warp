@@ -25,7 +25,6 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
 	gitlab.com/go-extension/tls v0.0.0-20250719191918-cbc1229b74c0
-	golang.org/x/net v0.42.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -101,6 +100,7 @@ require (
 	gitlab.com/go-extension/rand v0.0.0-20240303103951-707937a049b5 // indirect
 	gitlab.com/go-extension/utils v0.0.0-20250718194058-bae8b5a74647 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

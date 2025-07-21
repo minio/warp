@@ -43,7 +43,6 @@ import (
 	"github.com/minio/pkg/v3/ellipses"
 	"github.com/minio/warp/pkg"
 	ktls "gitlab.com/go-extension/tls"
-	"golang.org/x/net/http2"
 )
 
 type hostSelectType string
@@ -218,6 +217,9 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
 		DisableCompression: true,
 		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
+		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
+		// See https://github.com/golang/go/issues/14275
+		ForceAttemptHTTP2: ctx.Bool("http2"),
 	}
 	if ctx.Bool("tls") || ctx.Bool("ktls") {
 		// Keep TLS config.
@@ -260,11 +262,6 @@ func clientTransport(ctx *cli.Context) http.RoundTripper {
 			}
 			tr.DialContext = nil
 			tr.DialTLSContext = d.DialContext
-		}
-		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
-		// See https://github.com/golang/go/issues/14275
-		if ctx.Bool("http2") {
-			http2.ConfigureTransport(tr)
 		}
 	}
 	return tr
