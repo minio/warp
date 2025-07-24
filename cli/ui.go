@@ -257,7 +257,9 @@ func (u *ui) View() string {
 func (u *ui) SetSubText(caption string) {
 	if u.quitPls.Load() {
 		u.Wait()
-		console.Printf("\r%-80s", caption)
+		if !globalQuiet && !globalJSON {
+			console.Printf("\r%-80s", caption)
+		}
 		return
 	}
 	u.phaseTxt.Store(&caption)
@@ -266,7 +268,9 @@ func (u *ui) SetSubText(caption string) {
 func (u *ui) SetPhase(caption string) {
 	if u.quitPls.Load() {
 		u.Wait()
-		console.Println("\n" + caption)
+		if !globalQuiet && !globalJSON {
+			console.Println("\n" + caption)
+		}
 		return
 	}
 	u.phase.Store(&caption)
