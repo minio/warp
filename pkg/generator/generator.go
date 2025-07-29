@@ -99,7 +99,7 @@ func (o *Object) setPrefix(opts Options) {
 		return
 	}
 	b := make([]byte, opts.randomPrefix)
-	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
+	rng := rand.New(rand.NewSource(1))
 	randASCIIBytes(b, rng)
 	o.Prefix = path.Join(opts.customPrefix, string(b))
 }

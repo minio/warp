@@ -111,7 +111,7 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 			}
 			var randN int
 			if _, err := fmt.Sscanf(value, "rand:%d", &randN); err == nil {
-				rng := rand.New(rand.NewSource(int64(rand.Uint64())))
+				rng := rand.New(rand.NewSource(1))
 				value = ""
 				for i := 0; i < randN; i++ {
 					value += string(metadataChars[rng.Int()%len(metadataChars)])

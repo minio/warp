@@ -85,7 +85,7 @@ type randomSrc struct {
 }
 
 func newRandom(o Options) (Source, error) {
-	rndSrc := rand.NewSource(int64(rand.Uint64()))
+	rndSrc := rand.NewSource(1)
 	if o.random.seed != nil {
 		rndSrc = rand.NewSource(*o.random.seed)
 	}

@@ -95,9 +95,9 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		running := make([]int, len(hosts))
 		lastFinished := make([]time.Time, len(hosts))
 		{
-			// Start with a random host
+			// Start with a random host using a fixed seed
 			now := time.Now()
-			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(hosts))
+			off := rand.New(rand.NewSource(1)).Intn(len(hosts))
 			for i := range lastFinished {
 				lastFinished[i] = now.Add(time.Duration(i + off%len(hosts)))
 			}

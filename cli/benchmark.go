@@ -20,7 +20,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -668,10 +667,9 @@ func pRandASCII(n int) string {
 	const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 	// Use a single seed.
 	dst := make([]byte, n)
-	var seed [8]byte
+	seed := [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 
-	// Get something random
-	_, _ = rand.Read(seed[:])
+	// Use a fixed seed for deterministic output
 	rnd := binary.LittleEndian.Uint32(seed[0:4])
 	rnd2 := binary.LittleEndian.Uint32(seed[4:8])
 	for i := range dst {

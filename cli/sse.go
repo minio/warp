@@ -18,8 +18,6 @@
 package cli
 
 import (
-	"crypto/rand"
-
 	"github.com/minio/cli"
 	"github.com/minio/minio-go/v7/pkg/encrypt"
 )
@@ -42,11 +40,10 @@ func newSSE(ctx *cli.Context) encrypt.ServerSide {
 	}
 
 	var key [32]byte
-	_, err := rand.Read(key[:])
-	if err != nil {
-		panic(err)
+	for i := range key {
+		key[i] = byte(i + 1)
 	}
-	sseKey, err = encrypt.NewSSEC(key[:])
+	sseKey, err := encrypt.NewSSEC(key[:])
 	if err != nil {
 		panic(err)
 	}
