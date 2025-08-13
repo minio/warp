@@ -81,7 +81,7 @@ type randomSrc struct {
 	rng     *rand.Rand
 	obj     Object
 	o       Options
-	counter uint64
+	counter atomic.Uint64
 }
 
 func newRandom(o Options) (Source, error) {
@@ -118,11 +118,11 @@ func newRandom(o Options) (Source, error) {
 }
 
 func (r *randomSrc) Object() *Object {
-	atomic.AddUint64(&r.counter, 1)
+	n := r.counter.Add(1)
 	var nBuf [16]byte
 	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
-	r.obj.setName(fmt.Sprintf("%d.%s.rnd", atomic.LoadUint64(&r.counter), string(nBuf[:])))
+	r.obj.setName(fmt.Sprintf("%d.%s.rnd", n, string(nBuf[:])))
 
 	// Reset scrambler
 	r.source.ResetSize(r.obj.Size)
