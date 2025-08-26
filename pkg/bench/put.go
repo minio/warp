@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"sync"
@@ -74,12 +75,8 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 			opts := u.PutOpts
 			opts.UserMetadata = make(map[string]string, len(u.PutOpts.UserMetadata))
 			opts.UserTags = make(map[string]string, len(u.PutOpts.UserTags))
-			for k, v := range u.PutOpts.UserMetadata {
-				opts.UserMetadata[k] = v
-			}
-			for k, v := range u.PutOpts.UserTags {
-				opts.UserTags[k] = v
-			}
+			maps.Copy(opts.UserMetadata, u.PutOpts.UserMetadata)
+			maps.Copy(opts.UserTags, u.PutOpts.UserTags)
 
 			done := ctx.Done()
 

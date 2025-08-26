@@ -70,7 +70,7 @@ func (m *MixedDistribution) Generate(allocObjs int) error {
 	m.ops = make([]string, 0, genOps)
 	for op, dist := range m.Distribution {
 		add := int(0.5 + dist*genOps)
-		for i := 0; i < add; i++ {
+		for range add {
 			m.ops = append(m.ops, op)
 		}
 	}

@@ -1058,8 +1058,8 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 		}
 	}
 	if len(comment) > 0 {
-		lines := strings.Split(comment, "\n")
-		for _, txt := range lines {
+		lines := strings.SplitSeq(comment, "\n")
+		for txt := range lines {
 			_, err := bw.WriteString("# " + txt + "\n")
 			if err != nil {
 				return err
@@ -1080,7 +1080,7 @@ func (o Operation) WriteCSV(w io.Writer, i int) error {
 }
 
 // OperationsFromCSV will load operations from CSV.
-func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{})) (Operations, error) {
+func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...any)) (Operations, error) {
 	opCh := make(chan Operation, 1000)
 	var ops Operations
 	var wg sync.WaitGroup
@@ -1099,7 +1099,7 @@ func OperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log fun
 }
 
 // StreamOperationsFromCSV will load operations from CSV.
-func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...interface{}), out chan<- Operation) error {
+func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, log func(msg string, v ...any), out chan<- Operation) error {
 	defer close(out)
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'

@@ -133,7 +133,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	c.UpdateStatus = ui.SetSubText
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), updates)
-	monitor.SetLnLoggers(func(data ...interface{}) {
+	monitor.SetLnLoggers(func(data ...any) {
 		ui.SetSubText(strings.TrimRight(fmt.Sprintln(data...), "\r\n."))
 	}, printError)
 	defer monitor.Done()
@@ -613,8 +613,8 @@ func checkBenchmark(ctx *cli.Context) {
 	_, err := parseInfluxURL(ctx)
 	fatalIf(probe.NewError(err), "invalid influx config")
 
-	profs := strings.Split(ctx.String("serverprof"), ",")
-	for _, profilerType := range profs {
+	profs := strings.SplitSeq(ctx.String("serverprof"), ",")
+	for profilerType := range profs {
 		if len(profilerType) == 0 {
 			continue
 		}

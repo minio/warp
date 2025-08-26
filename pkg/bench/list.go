@@ -85,7 +85,7 @@ func (d *List) Prepare(ctx context.Context) error {
 			done := ctx.Done()
 			exists := make(map[string]struct{}, objPerPrefix)
 
-			for j := 0; j < objPerPrefix; j++ {
+			for range objPerPrefix {
 				select {
 				case <-done:
 					return

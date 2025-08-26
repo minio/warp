@@ -111,10 +111,7 @@ func (u *ui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		u.quitPls.Store(true)
 		return u, tea.Batch(tea.ShowCursor, tea.Quit)
 	case tea.WindowSizeMsg:
-		u.progress.Width = msg.Width - 4
-		if u.progress.Width > maxWidth-padding {
-			u.progress.Width = maxWidth - padding
-		}
+		u.progress.Width = min(msg.Width-4, maxWidth-padding)
 	case tickMsg:
 		batch := []tea.Cmd{tickCmd()}
 		u.showProgress = false

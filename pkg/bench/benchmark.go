@@ -67,7 +67,7 @@ type Common struct {
 	ExtraOut []chan<- Operation
 
 	// Error should log an error similar to fmt.Print(data...)
-	Error func(data ...interface{})
+	Error func(data ...any)
 
 	Client func() (cl *minio.Client, done func())
 
@@ -125,7 +125,7 @@ func (c *Common) GetCommon() *Common {
 }
 
 // ErrorF formatted error printer
-func (c *Common) ErrorF(format string, data ...interface{}) {
+func (c *Common) ErrorF(format string, data ...any) {
 	c.Error(fmt.Sprintf(format, data...))
 }
 

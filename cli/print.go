@@ -46,7 +46,7 @@ type errorMessage struct {
 
 var printMu sync.Mutex
 
-func printError(data ...interface{}) {
+func printError(data ...any) {
 	printMu.Lock()
 	defer printMu.Unlock()
 	w, _ := pb.GetTerminalWidth()
@@ -59,14 +59,14 @@ func printError(data ...interface{}) {
 }
 
 // fatalIf wrapper function which takes error and selectively prints stack frames if available on debug
-func fatalIf(err *probe.Error, msg string, data ...interface{}) {
+func fatalIf(err *probe.Error, msg string, data ...any) {
 	if err == nil {
 		return
 	}
 	fatal(err, msg, data...)
 }
 
-func fatal(err *probe.Error, msg string, data ...interface{}) {
+func fatal(err *probe.Error, msg string, data ...any) {
 	if globalJSON {
 		errorMsg := errorMessage{
 			Message: msg,
@@ -125,7 +125,7 @@ func fatal(err *probe.Error, msg string, data ...interface{}) {
 }
 
 // errorIf synonymous with fatalIf but doesn't exit on error != nil
-func errorIf(err *probe.Error, msg string, data ...interface{}) {
+func errorIf(err *probe.Error, msg string, data ...any) {
 	if err == nil {
 		return
 	}

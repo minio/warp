@@ -156,7 +156,7 @@ func BenchmarkWithRandomData(b *testing.B) {
 			b.SetBytes(n)
 			b.ReportAllocs()
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				obj = got.Object()
 				_, err := io.Copy(io.Discard, obj.Reader)
 				if err != nil {

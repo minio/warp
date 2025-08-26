@@ -230,10 +230,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			ab.info[req.Stage] = info
 			ab.Unlock()
 
-			wait := time.Until(req.StartTime)
-			if wait < 0 {
-				wait = 0
-			}
+			wait := max(time.Until(req.StartTime), 0)
 			console.Infoln("Starting stage", req.Stage, "in", wait)
 			go func() {
 				time.Sleep(wait)
