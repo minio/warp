@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"math/bits"
 	"slices"
 	"sort"
@@ -165,9 +166,7 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 		l.Requests = make(map[string]RequestSegments)
 	}
 	if len(l2.Requests) > 0 {
-		for k, v := range l2.Requests {
-			l.Requests[k] = v
-		}
+		maps.Copy(l.Requests, l2.Requests)
 	}
 	l.Concurrency += l2.Concurrency
 	l.TotalBytes += l2.TotalBytes
@@ -277,8 +276,8 @@ type ReportOptions struct {
 	OnlyOps  map[string]struct{}
 }
 
-func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, format string, args ...interface{}) {
-	return func(ca color.Attribute, format string, args ...interface{}) {
+func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, format string, args ...any) {
+	return func(ca color.Attribute, format string, args ...any) {
 		if !o.Color {
 			fmt.Fprintf(dst, format, args...)
 			return
@@ -287,7 +286,7 @@ func (o ReportOptions) printfColor(dst io.Writer) func(ca color.Attribute, forma
 	}
 }
 
-func (o ReportOptions) printf(ca color.Attribute, format string, args ...interface{}) string {
+func (o ReportOptions) printf(ca color.Attribute, format string, args ...any) string {
 	if !o.Color {
 		return fmt.Sprintf(format, args...)
 	}

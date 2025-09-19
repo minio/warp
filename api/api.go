@@ -67,8 +67,8 @@ type Server struct {
 	updates chan<- aggregate.UpdateReq
 
 	// Parent loggers
-	infoln  func(data ...interface{})
-	errorln func(data ...interface{})
+	infoln  func(data ...any)
+	errorln func(data ...any)
 	status  BenchmarkStatus
 	cmdLine string
 
@@ -110,7 +110,7 @@ func (s *Server) SetUpdate(updates chan<- aggregate.UpdateReq) {
 
 // SetLnLoggers can be used to set upstream loggers.
 // When logging to the servers these will be called.
-func (s *Server) SetLnLoggers(info, err func(data ...interface{})) {
+func (s *Server) SetLnLoggers(info, err func(data ...any)) {
 	s.mu.Lock()
 	s.infoln = info
 	s.errorln = err
@@ -129,7 +129,7 @@ func (s *Server) Done() {
 
 // InfoLn allows to log data to the server.
 // The server will update its status and send message upstream if set.
-func (s *Server) InfoLn(data ...interface{}) {
+func (s *Server) InfoLn(data ...any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.infoln != nil {
@@ -140,14 +140,14 @@ func (s *Server) InfoLn(data ...interface{}) {
 
 // InfoQuietln can be used to log data to the internal status only
 // and not forward it to the upstream logger.
-func (s *Server) InfoQuietln(data ...interface{}) {
+func (s *Server) InfoQuietln(data ...any) {
 	s.mu.Lock()
 	s.status.LastStatus = strings.TrimSpace(fmt.Sprintln(data...))
 	s.mu.Unlock()
 }
 
 // Errorln allows to store a non-fatal error.
-func (s *Server) Errorln(data ...interface{}) {
+func (s *Server) Errorln(data ...any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.errorln != nil {

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"strconv"
@@ -112,7 +113,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	if len(conns.hosts) == 0 {
 		return true, errors.New("no hosts")
 	}
-	infoLn := func(data ...interface{}) {
+	infoLn := func(data ...any) {
 		ui.SetSubText(strings.TrimRight(fmt.Sprintln(data...), "\r\n."))
 	}
 
@@ -174,9 +175,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 			}
 		}
 	}
-	for k, v := range b.GetCommon().ExtraFlags {
-		req.Benchmark.Flags[k] = v
-	}
+	maps.Copy(req.Benchmark.Flags, b.GetCommon().ExtraFlags)
 
 	// Connect to hosts, send benchmark requests.
 	ui.StartPrepare("Preparing", nil, nil)
@@ -349,8 +348,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 // connections keeps track of connections to clients.
 type connections struct {
-	info  func(data ...interface{})
-	errLn func(data ...interface{})
+	info  func(data ...any)
+	errLn func(data ...any)
 	hosts []string
 	ws    []*websocket.Conn
 	si    serverInfo
@@ -369,7 +368,7 @@ func newConnections(hosts []string) *connections {
 	return &c
 }
 
-func (c *connections) errorF(format string, data ...interface{}) {
+func (c *connections) errorF(format string, data ...any) {
 	c.errLn(fmt.Sprintf(format, data...))
 }
 
@@ -700,9 +699,7 @@ func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, fa
 						if common.Custom == nil {
 							common.Custom = make(map[string]string, len(resp.StageInfo.Custom))
 						}
-						for k, v := range resp.StageInfo.Custom {
-							common.Custom[k] = v
-						}
+						maps.Copy(common.Custom, resp.StageInfo.Custom)
 						mu.Unlock()
 					}
 					c.info("Client", c.hostName(i), ": Finished stage", stage, "...")

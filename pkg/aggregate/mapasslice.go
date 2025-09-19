@@ -20,6 +20,7 @@ package aggregate
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"sort"
 )
 
@@ -72,9 +73,7 @@ func (m *MapAsSlice) Clone() MapAsSlice {
 		return MapAsSlice(nil)
 	}
 	mm := make(MapAsSlice, len(*m))
-	for k, v := range *m {
-		mm[k] = v
-	}
+	maps.Copy(mm, *m)
 	return mm
 }
 

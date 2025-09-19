@@ -122,7 +122,7 @@ func mainAnalyze(ctx *cli.Context) error {
 	}
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), nil)
 	defer monitor.Done()
-	log := func(format string, data ...interface{}) {
+	log := func(format string, data ...any) {
 		console.Eraseline()
 		console.Printf("\r"+format, data...)
 	}

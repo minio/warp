@@ -75,10 +75,7 @@ func mainSnowball(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		b.WindowSize = int(sz) * 2
-		if b.WindowSize < 128<<10 {
-			b.WindowSize = 128 << 10
-		}
+		b.WindowSize = max(int(sz)*2, 128<<10)
 		if b.WindowSize > 16<<20 {
 			b.WindowSize = 16 << 20
 		}

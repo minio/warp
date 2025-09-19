@@ -20,6 +20,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -68,12 +69,8 @@ func (u *Append) Start(ctx context.Context, wait chan struct{}) error {
 			opts.UserTags = make(map[string]string, len(u.PutOpts.UserTags))
 			// Only create 1 part on initial upload.
 			opts.DisableMultipart = true
-			for k, v := range u.PutOpts.UserMetadata {
-				opts.UserMetadata[k] = v
-			}
-			for k, v := range u.PutOpts.UserTags {
-				opts.UserTags[k] = v
-			}
+			maps.Copy(opts.UserMetadata, u.PutOpts.UserMetadata)
+			maps.Copy(opts.UserTags, u.PutOpts.UserTags)
 			aOpts := minio.AppendObjectOptions{
 				Progress:             nil,
 				ChunkSize:            0,
