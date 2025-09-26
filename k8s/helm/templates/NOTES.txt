@@ -1,0 +1,34 @@
+{{- $jobName := include "warp.fullname" . -}}
+{{- if .Values.job.restartOnUpgrade -}}
+{{- $jobName = printf "%s-%d" (include "warp.fullname" .) (int .Release.Revision) -}}
+{{- end }}
+1. Warp has been deployed successfully!
+
+2. The benchmark job is running. To view and follow the benchmark results, run:
+
+   kubectl logs -f job/{{ $jobName }} -n {{ .Release.Namespace }}
+
+3. To check the status of all warp pods:
+
+   kubectl get pods -l app.kubernetes.io/name={{ include "warp.name" . }} -n {{ .Release.Namespace }}
+
+4. To view completed benchmark results (if job has finished):
+
+   kubectl logs job/{{ $jobName }} -n {{ .Release.Namespace }}
+
+5. Configuration details:
+   - Warp clients: {{ .Values.replicaCount }}
+   {{- if .Values.configFile }}
+   - Configuration method: YAML config file
+   {{- else }}
+   - Configuration method: Legacy warpConfiguration
+   {{- end }}
+   - Job restart on upgrade: {{ .Values.job.restartOnUpgrade }}
+
+{{- if .Values.configFile }}
+6. The benchmark is configured to run against:
+   {{- $config := .Values.configFile | fromYaml }}
+   {{- range $config.warp.remote.host }}
+   - {{ . }}
+   {{- end }}
+{{- end }}
