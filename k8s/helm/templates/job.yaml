@@ -1,11 +1,24 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
+  {{- if .Values.job.restartOnUpgrade }}
+  name: {{ include "warp.fullname" . }}-{{ .Release.Revision }}
+  {{- else }}
   name: {{ include "warp.fullname" . }}
+  {{- end }}
   labels:
     {{- include "warp.labels" . | nindent 4 }}
+    {{- if .Values.job.restartOnUpgrade }}
+    revision: "{{ .Release.Revision }}"
+    {{- end }}
 spec:
   template:
+    {{- if .Values.job.restartOnUpgrade }}
+    metadata:
+      annotations:
+        # Force pod restart on upgrade by including a timestamp or revision
+        rollme: {{ .Release.Revision | quote }}
+    {{- end }}
     spec:
       restartPolicy: Never
       containers:
@@ -13,11 +26,17 @@ spec:
         image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
+        {{- if .Values.configFile }}
+          - run
+          - /config/warp-config.yml
+        {{- else }}
           - "{{ .Values.warpConfiguration.operationToBenchmark }}"
           - "--warp-client={{ include "warp.fullname" . }}-{0...{{ sub .Values.replicaCount 1 }}}.{{ include "warp.fullname" . }}.{{ .Release.Namespace }}"
         {{- range $k, $v := .Values.warpJobArgs }}
           - --{{ $k }}={{ $v }}
         {{- end }}
+        {{- end }}
+        {{- if not .Values.configFile }}
         env:
           - name: WARP_HOST
             value: {{ .Values.warpConfiguration.s3ServerURL | quote }}
@@ -37,11 +56,18 @@ spec:
               secretKeyRef:
                 name: {{ include "warp.fullname" . }}-credentials
                 key: secret_key
+        {{- end }}
       {{- if .Values.serverResources }}
         resources: {{- toYaml .Values.serverResources | nindent 12 }}
       {{- end }}
       {{- if .Values.securityContext }}
         securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- end }}
+      {{- if .Values.configFile }}
+        volumeMounts:
+          - name: config
+            mountPath: /config
+            readOnly: true
       {{- end }}
     {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "warp.serviceAccountName" . }}
@@ -57,5 +83,11 @@ spec:
     {{- end }}
     {{- if .Values.tolerations }}
       tolerations: {{- .Values.tolerations | toYaml | nindent 8 }}
+    {{- end }}
+    {{- if .Values.configFile }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "warp.fullname" . }}-config
     {{- end }}
   backoffLimit: 4

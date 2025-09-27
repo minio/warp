@@ -15,6 +15,15 @@ The [configuration](./values.yaml) file lists the configuration parameters. If y
 
 We recommend setting `replicaCount` as the same number of MinIO Pods.
 
+#### Configuration Methods
+
+The chart supports two configuration methods:
+
+1. **Traditional Configuration** (Simple): Use the `warpConfiguration` section in `values.yaml` for basic setup
+2. **YAML Configuration File** (Advanced): Use the `configFile` option to provide a complete Warp YAML configuration
+
+For detailed information about both methods, see the [Configuration Guide](./CONFIG.md).
+
 ### Installing the Chart
 
 After configuring the `values.yaml` file, install this chart using:
@@ -22,6 +31,16 @@ After configuring the `values.yaml` file, install this chart using:
 ```bash
 cd /home/warp/k8s/
 helm install warp helm/
+```
+
+Or use a custom configuration file:
+
+```bash
+# Using the example configuration with full YAML config
+helm install warp helm/ -f helm/values-configfile-example.yaml
+
+# Or provide your own YAML config file
+helm install warp helm/ --set-file configFile=my-warp-config.yml
 ```
 
 The command deploys a StatefulSet with `replicaCount` number of Warp client pods and a Job with Warp Server.

@@ -1,7 +1,7 @@
 # Running *warp* on kubernetes
 
-This document describes with simple examples on how to automate running *warp* on Kubernetes with `yaml` files. You can also use [Warp Helm Chart](./helm) to 
-deploy Warp. For details on Helm chart based deployment, refer the [document here](./helm/README.md).
+This document describes with simple examples on how to automate running *warp* on Kubernetes with `yaml` files. You can also use [Warp Helm Chart](./helm) to
+deploy Warp with advanced configuration options. For details on Helm chart based deployment, refer the [document here](./helm/README.md).
 
 ## Create *warp* client listeners
 
@@ -64,4 +64,63 @@ Aggregated Throughput, split into 268 x 1s time segments:
  * Fastest: 881.9MiB/s, 27.56 obj/s (1s, starting 19:20:49 UTC)
  * 50% Median: 866.4MiB/s, 27.08 obj/s (1s, starting 19:18:46 UTC)
  * Slowest: 851.4MiB/s, 26.61 obj/s (1s, starting 19:17:37 UTC)
+```
+
+## Using Helm Chart with Configuration File
+
+The Warp Helm chart now supports two configuration methods:
+
+### Method 1: Traditional Configuration (Simple)
+Edit `values.yaml` with basic configuration:
+```yaml
+warpConfiguration:
+  s3ServerURL: minio-{0...3}.minio.default.svc.cluster.local:9000
+  s3AccessKey: "minio"
+  s3SecretKey: "minio123"
+  operationToBenchmark: mixed
+```
+
+### Method 2: Full YAML Configuration File (Advanced)
+Use the `configFile` option in `values.yaml` for complete control over Warp configuration:
+```yaml
+configFile: |
+  warp:
+    api: v1
+    benchmark: mixed
+    remote:
+      region: us-east-1
+      access-key: 'minioadmin'
+      secret-key: 'minioadmin'
+      host:
+        - 'minio-{0...3}.minio.default.svc.cluster.local:9000'
+      tls: true
+      insecure: true
+    params:
+      duration: 5m
+      concurrent: 16
+      objects: 2500
+      obj:
+        size: 10MiB
+```
+
+This method provides access to all Warp YAML configuration options including:
+- Advanced IO settings
+- Auto-termination
+- Analysis configuration
+- Custom prefixes and storage classes
+- And more
+
+For complete configuration examples, see:
+- [Warp YAML Samples](https://github.com/minio/warp/tree/master/yml-samples)
+- [Helm Configuration Guide](./helm/CONFIG.md)
+- [Example values file](./helm/values-configfile-example.yaml)
+
+### Installing with Custom Configuration
+
+```bash
+# Using the example configuration file
+helm install warp -n warp --create namespace ./helm -f ./helm/values-configfile-example.yaml
+
+# Or provide your own YAML config file
+helm install warp -n warp --create namespace ./helm --set-file configFile=my-warp-config.yml
 ```

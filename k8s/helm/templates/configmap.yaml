@@ -1,0 +1,14 @@
+{{- if .Values.configFile }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "warp.fullname" . }}-config
+  labels:
+    {{- include "warp.labels" . | nindent 4 }}
+data:
+  warp-config.yml: |
+{{- $config := .Values.configFile | fromYaml }}
+{{- $_ := set $config.warp "warp-client" (printf "%s-{0...%d}.%s.%s" (include "warp.fullname" .) (sub .Values.replicaCount 1) (include "warp.fullname" .) .Release.Namespace) }}
+{{ $config | toYaml | indent 4 }}
+{{- end }}
