@@ -1,6 +1,6 @@
 {{- $jobName := include "warp.fullname" . -}}
 {{- if .Values.job.restartOnUpgrade -}}
-{{- $jobName = printf "%s-%d" (include "warp.fullname" .) (int .Release.Revision) -}}
+{{- $jobName = printf "%s-%d" (include "warp.fullname" .) .Release.Revision -}}
 {{- end }}
 1. Warp has been deployed successfully!
 
