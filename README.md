@@ -8,7 +8,7 @@ use this log file to recreate the original workload.  Additionally, it is possib
 other tools that create trace files in the same format, and then replay that workload with 
 
 ## Tools Able to Create Trace Files
-The [s3dlio](https://github.com/russfellows/sdlio) I/O library is able to create trace logfiles
+The [s3dlio](https://github.com/russfellows/s3dlio) I/O library is able to create trace logfiles
 in the warp format.  This makes it possible to run any workload, that utilizes the s3dlio library
 to perform I/O, and generate a warp compatible trace file.  Then that workload can be replayed
 using this project, warp-replay.
