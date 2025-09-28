@@ -1,11 +1,17 @@
-![warp](https://raw.githubusercontent.com/minio/warp/master/warp_logo.png)
+# Fork of the MinIO Warp Repository
+This is a fork of the original MinIO warp project, which is an S3 benchmarking tool.
 
-S3 benchmarking tool.
+# Changes from Original Warp
+This fork provides one significant addition to the warp tool, the ability to "replay" a warp logfile. 
+Since warp logs contain essentially a recording or trace of every I/O that occured, it is possible to 
+use this log file to recreate the original workload.  Additionally, it is possible to utilize 
+other tools that create trace files in the same format, and then replay that workload with 
 
-## Download
-
-## From binary
-[Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
+## Tools Able to Create Trace Files
+The [s3dlio](https://github.com/russfellows/sdlio) I/O library is able to create trace logfiles
+in the warp format.  This makes it possible to run any workload, that utilizes the s3dlio library
+to perform I/O, and generate a warp compatible trace file.  Then that workload can be replayed
+using this project, warp-replay.
 
 ## Build with source
 
@@ -14,7 +20,7 @@ Warp requires minimum Go `go1.21`, please ensure you have compatible version for
 You can follow easy step below to build project
 - Clone project
 ```
-λ git clone https://github.com/minio/warp.git
+λ git clone https://github.com/russefellows/warp-replay.git
 ```
 - Change directory and build
 ```
