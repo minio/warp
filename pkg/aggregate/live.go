@@ -555,13 +555,18 @@ func newRealTime() Realtime {
 }
 
 // Live collects operations and update requests.
-func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string) *Realtime {
+func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string, extra []chan<- bench.Operation) *Realtime {
 	a := newRealTime()
 	var reset atomic.Bool
 	var update atomic.Pointer[Realtime]
 	if updates != nil {
 		done := make(chan struct{})
-		defer close(done)
+		defer func() {
+			close(done)
+			for _, c := range extra {
+				close(c)
+			}
+		}()
 		go func() {
 			var finalQ []UpdateReq
 			defer func() {
@@ -608,6 +613,13 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string) *
 			op.ClientID = clientID
 		}
 		var wg sync.WaitGroup
+		wg.Add(len(extra))
+		for _, c := range extra {
+			go func() {
+				c <- op
+				wg.Done()
+			}()
+		}
 		wg.Add(6)
 		// 1
 		go func() {
