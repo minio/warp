@@ -220,7 +220,7 @@ func (s Segment) SpeedPerSec() (mib, ops, objs float64) {
 	mib = float64(s.TotalBytes) / (1024 * 1024) / scale
 	ops = float64(s.OpsEnded) / scale
 	objs = s.Objects / scale
-	return
+	return mib, ops, objs
 }
 
 // Print segments to a supplied writer.

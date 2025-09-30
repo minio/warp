@@ -67,7 +67,6 @@ type UpdateReq struct {
 type collector struct {
 	mu      sync.Mutex
 	rcv     chan bench.Operation
-	extra   []chan<- bench.Operation
 	updates chan<- UpdateReq
 	doneFn  []context.CancelFunc
 }

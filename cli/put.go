@@ -174,5 +174,5 @@ func parseChecksum(ctx *cli.Context) (useMD5 bool, ct minio.ChecksumType) {
 			}
 		}
 	}
-	return
+	return useMD5, ct
 }

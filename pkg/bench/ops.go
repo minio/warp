@@ -104,10 +104,10 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 	}
 	done = false
 	if len(s.OpType) > 0 && o.OpType != s.OpType {
-		return
+		return done
 	}
 	if o.End.Before(s.Start) {
-		return
+		return done
 	}
 	startedInSegment := o.Start.After(s.Start) || o.Start.Equal(s.Start)
 	endedInSegment := o.End.Before(s.EndsBefore)
@@ -116,7 +116,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 	if startedInSegment && endedInSegment {
 		if len(o.Err) != 0 {
 			s.Errors++
-			return
+			return done
 		}
 		// We are completely within segment.
 		s.TotalBytes += o.Size
@@ -126,7 +126,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 		s.ObjsPerOp = o.ObjPerOp
 		s.Objects += float64(o.ObjPerOp)
 		s.ReqAvg += float64(o.End.Sub(o.Start)) / float64(time.Millisecond)
-		return
+		return done
 	}
 	// Operation partially within segment.
 	s.PartialOps++
@@ -134,7 +134,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 		s.OpsStarted++
 		if len(o.Err) != 0 {
 			// Errors are only counted in segments they ends in.
-			return
+			return done
 		}
 
 	}
@@ -142,7 +142,7 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 		s.OpsEnded++
 		if len(o.Err) != 0 {
 			s.Errors++
-			return
+			return done
 		}
 		s.ReqAvg += float64(o.End.Sub(o.Start)) / float64(time.Millisecond)
 	}
@@ -759,7 +759,7 @@ func (o Operations) Duration() time.Duration {
 // TimeRange returns the full time range from start of first operation to end of the last.
 func (o Operations) TimeRange() (start, end time.Time) {
 	if len(o) == 0 {
-		return
+		return start, end
 	}
 	start = o[0].Start
 	end = o[0].End
@@ -771,7 +771,7 @@ func (o Operations) TimeRange() (start, end time.Time) {
 			end = op.End
 		}
 	}
-	return
+	return start, end
 }
 
 // ActiveTimeRange returns the "active" time range.
@@ -780,7 +780,7 @@ func (o Operations) TimeRange() (start, end time.Time) {
 // If there is no active time range both values will be the same.
 func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 	if len(o) == 0 {
-		return
+		return start, end
 	}
 	// Only discard one.
 	if !allThreads {
@@ -808,7 +808,7 @@ func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 			return start, start
 		}
 
-		return
+		return start, end
 	}
 	threads := o.Threads()
 	firstEnded := make(map[uint16]time.Time, threads)
@@ -840,7 +840,7 @@ func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 	if start.After(end) {
 		return start, start
 	}
-	return
+	return start, end
 }
 
 // Threads returns the number of threads found.
