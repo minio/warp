@@ -147,7 +147,7 @@ func mainAnalyze(ctx *cli.Context) error {
 					err := bench.StreamOperationsFromCSV(rc, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
 					fatalIf(probe.NewError(err), "Unable to parse input")
 				}()
-				final = *aggregate.Live(opCh, nil, "")
+				final = *aggregate.Live(opCh, nil, "", nil)
 			}
 			rep := final.Report(aggregate.ReportOptions{
 				Details: true,

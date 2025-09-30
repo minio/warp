@@ -36,9 +36,6 @@ type Collector interface {
 	// Receiver returns the receiver of input
 	Receiver() chan<- Operation
 
-	// AddOutput allows to add additional inputs.
-	AddOutput(...chan<- Operation)
-
 	// Close the collector
 	Close()
 }
@@ -61,16 +58,17 @@ type collector struct {
 
 // NewOpsCollector returns a collector that will collect all operations in memory.
 // After calling Close the returned function can be used to retrieve the operations.
-func NewOpsCollector() (Collector, OpsCollector) {
+func NewOpsCollector(extra ...chan<- Operation) (Collector, OpsCollector) {
 	r := &collector{
-		ops: make(Operations, 0, 10000),
-		rcv: make(chan Operation, 1000),
+		ops:   make(Operations, 0, 10000),
+		rcv:   make(chan Operation, 1000),
+		extra: extra,
 	}
 	r.rcvWg.Add(1)
 	go func() {
 		defer r.rcvWg.Done()
 		for op := range r.rcv {
-			for _, ch := range r.extra {
+			for _, ch := range extra {
 				ch <- op
 			}
 			r.opsMu.Lock()
@@ -85,16 +83,17 @@ func NewOpsCollector() (Collector, OpsCollector) {
 }
 
 // NewNullCollector collects operations, but discards them.
-func NewNullCollector() Collector {
+func NewNullCollector(extra ...chan<- Operation) Collector {
 	r := &collector{
-		ops: make(Operations, 0),
-		rcv: make(chan Operation, 1000),
+		ops:   make(Operations, 0),
+		rcv:   make(chan Operation, 1000),
+		extra: extra,
 	}
 	r.rcvWg.Add(1)
 	go func() {
 		defer r.rcvWg.Done()
 		for op := range r.rcv {
-			for _, ch := range r.extra {
+			for _, ch := range extra {
 				ch <- op
 			}
 		}
@@ -192,8 +191,4 @@ func (c *collector) Close() {
 		}
 		c.extra = nil
 	}
-}
-
-func (c *collector) AddOutput(x ...chan<- Operation) {
-	c.extra = append(c.extra, x...)
 }

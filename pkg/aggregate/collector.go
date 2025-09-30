@@ -29,7 +29,7 @@ import (
 
 // LiveCollector return a collector, and a channel that will return the
 // current aggregate on the channel whenever it is requested.
-func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string) bench.Collector {
+func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string, extra []chan<- bench.Operation) bench.Collector {
 	c := collector{
 		rcv: make(chan bench.Operation, 1000),
 	}
@@ -39,7 +39,7 @@ func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string)
 	}
 	c.updates = updates
 	go func() {
-		final := Live(c.rcv, updates, clientID)
+		final := Live(c.rcv, updates, clientID, extra)
 		for {
 			select {
 			case <-ctx.Done():
@@ -67,7 +67,6 @@ type UpdateReq struct {
 type collector struct {
 	mu      sync.Mutex
 	rcv     chan bench.Operation
-	extra   []chan<- bench.Operation
 	updates chan<- UpdateReq
 	doneFn  []context.CancelFunc
 }
@@ -155,10 +154,6 @@ func AutoTerm(ctx context.Context, op string, threshold float64, wantSamples int
 
 func (c *collector) Receiver() chan<- bench.Operation {
 	return c.rcv
-}
-
-func (c *collector) AddOutput(operations ...chan<- bench.Operation) {
-	c.extra = append(c.extra, operations...)
 }
 
 func (c *collector) Close() {
