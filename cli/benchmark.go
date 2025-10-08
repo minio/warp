@@ -126,6 +126,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 	var ui ui
 	if !globalQuiet && !globalJSON {
+		registerUI(&ui)
 		go ui.Run()
 	}
 
@@ -289,6 +290,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	}
 	monitor.InfoLn("Cleanup Done.")
 	ui.Wait()
+	registerUI(nil)
 	return nil
 }
 

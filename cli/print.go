@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 
 	"github.com/cheggaaa/pb"
@@ -46,6 +47,13 @@ type errorMessage struct {
 
 var printMu sync.Mutex
 
+// Global UI instance for cleanup on fatal errors
+var globalUI atomic.Pointer[ui]
+
+func registerUI(u *ui) {
+	globalUI.Store(u)
+}
+
 func printError(data ...any) {
 	printMu.Lock()
 	defer printMu.Unlock()
@@ -62,6 +70,10 @@ func printError(data ...any) {
 func fatalIf(err *probe.Error, msg string, data ...any) {
 	if err == nil {
 		return
+	}
+	// Clean up UI if one is registered
+	if u := globalUI.Load(); u != nil {
+		u.Wait()
 	}
 	fatal(err, msg, data...)
 }
