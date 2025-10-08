@@ -1,0 +1,118 @@
+# Example values file using configFile option instead of warpConfiguration
+# This example demonstrates how to use a full YAML config from https://github.com/minio/warp/tree/master/yml-samples
+# Note: The warp-client property is automatically added by the Helm chart based on replicaCount
+
+replicaCount: 4
+
+image:
+  repository: minio/warp
+  pullPolicy: IfNotPresent
+
+# Full YAML configuration for warp
+# This takes precedence over warpConfiguration if both are defined
+# The 'warp-client' property will be automatically added by the Helm chart
+configFile: |
+  warp:
+    api: v1
+    benchmark: mixed
+    quiet: false
+    no-color: false
+    json: false
+    # warp-client is auto-generated, no need to specify it here
+
+    remote:
+      region: us-east-1
+      access-key: 'minioadmin'
+      secret-key: 'minioadmin'
+      host:
+        - 'minio-{0...3}.minio.default.svc.cluster.local:9000'
+      tls: true
+      insecure: true
+      bucket: warp-benchmark-bucket
+
+    params:
+      # Duration to run the benchmark
+      duration: 5m
+
+      # Concurrent operations to run per warp instance
+      concurrent: 16
+
+      # The number of objects to upload before starting the benchmark
+      objects: 2500
+
+      # Properties of uploaded objects
+      obj:
+        # Size of each uploaded object
+        size: 10MiB
+
+        # Randomize the size of each object
+        rand-size: false
+
+      # Use automatic termination when traffic stabilizes
+      autoterm:
+        enabled: false
+        dur: 10s
+        pct: 7.5
+
+      # Do not clear bucket before or after running benchmarks
+      no-clear: false
+
+      # Leave benchmark data. Do not run cleanup after benchmark
+      keep-data: false
+
+    # Custom IO properties
+    io:
+      # Use a custom prefix
+      prefix: benchmark-
+
+      # Do not use separate prefix for each thread
+      no-prefix: false
+
+      # Add MD5 sum to uploads
+      md5: false
+
+      # Disable multipart uploads
+      disable-multipart: false
+
+      # Server-side sse-s3 encrypt/decrypt objects
+      sse-s3-encrypt: false
+
+      # Override storage class
+      storage-class: STANDARD
+
+    # Analysis settings
+    analyze:
+      verbose: false
+
+    # Advanced settings
+    advanced:
+      stress: false
+      debug: false
+      disable-http-keepalive: false
+      http2: false
+      host-select: weighed
+      resolve-host: false
+      sndbuf: 32768
+      rcvbuf: 32768
+
+serviceAccount:
+  create: true
+
+securityContext:
+  readOnlyRootFilesystem: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+service:
+  port: 7761
+
+clientResources:
+  limits:
+    cpu: 4
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 256Mi
