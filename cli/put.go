@@ -121,7 +121,7 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 		}
 
 		switch flag {
-		case "metadata":
+		case "add-metadata":
 			options.UserMetadata = values
 		case "tag":
 			options.UserTags = values
