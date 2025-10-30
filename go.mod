@@ -2,6 +2,8 @@ module github.com/minio/warp
 
 go 1.25.0
 
+toolchain go1.25.3
+
 require (
 	github.com/bygui86/multi-profile/v2 v2.1.0
 	github.com/charmbracelet/bubbles v0.21.0
