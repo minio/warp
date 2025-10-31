@@ -103,7 +103,6 @@ require (
 	gitlab.com/go-extension/ffdh v0.0.0-20251006173934-5daf3aad4721 // indirect
 	gitlab.com/go-extension/hash v0.0.0-20250912170447-263d1d8375e4 // indirect
 	gitlab.com/go-extension/hpke v0.0.0-20250903154322-ae11394c5e06 // indirect
-	gitlab.com/go-extension/mlkem768 v0.0.0-20240814071630-937354a2177e // indirect
 	gitlab.com/go-extension/rand v0.0.0-20240303103951-707937a049b5 // indirect
 	gitlab.com/go-extension/utils v0.0.0-20251006173700-b62b19cda891 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
