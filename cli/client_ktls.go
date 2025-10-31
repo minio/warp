@@ -45,7 +45,7 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		// https://github.com/golang/go/issues/44506#issuecomment-2765047544
 		KernelRX: false,
 		// We don't care about the size.
-		CertCompressionDisabled: true,
+		CertificateCompressionDisabled: true,
 	}
 
 	if ctx.Bool("debug") {
