@@ -31,18 +31,6 @@ linters:
   exclusions:
     generated: lax
     rules:
-      - linters:
-          - govet
-        text: "Println call has possible Printf formatting"
-        source: "console.Println"
-      - linters:
-          - govet
-        source: "console.Println"
-        text: "Println arg list ends with redundant newline"
-      - linters:
-          - govet
-        text: "Fatal call has possible Printf formatting"
-        source: "console.Fatal"
       - path: (.+)\.go$
         text: should have comment or be unexported
       - path: (.+)\.go$

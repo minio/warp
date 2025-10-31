@@ -29,6 +29,7 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
+
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
@@ -220,7 +221,7 @@ func printCompareLegacy(ctx *cli.Context, before, after bench.Operations) {
 			console.Println("Duration:", timeDur(before), "->", timeDur(after))
 		}
 		if cmp.Reqs.Before.AvgObjSize != cmp.Reqs.After.AvgObjSize {
-			console.Println("Object size: %d->%d, ", cmp.Reqs.Before.AvgObjSize, cmp.Reqs.After.AvgObjSize)
+			console.Printf("Object size: %d->%d, \n", cmp.Reqs.Before.AvgObjSize, cmp.Reqs.After.AvgObjSize)
 		}
 		console.Println("* Average:", cmp.Average)
 		console.Println("* Requests:", cmp.Reqs.String())

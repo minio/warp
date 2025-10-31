@@ -107,7 +107,7 @@ func putOpts(ctx *cli.Context) minio.PutObjectOptions {
 			key := v[:idx]
 			value := v[idx+1:]
 			if len(value) == 0 {
-				console.Fatal("--%s value can't be empty", flag)
+				console.Fatalf("--%s value can't be empty", flag)
 			}
 			var randN int
 			if _, err := fmt.Sscanf(value, "rand:%d", &randN); err == nil {

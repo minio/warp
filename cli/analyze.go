@@ -160,8 +160,7 @@ func mainAnalyze(ctx *cli.Context) error {
 				fatalIf(probe.NewError(err), "Unable to parse input")
 				fmt.Println(string(b))
 			} else {
-				console.Println("\n")
-				console.Println(rep.String())
+				console.Println("\n", rep.String())
 			}
 		} else {
 			ops, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
@@ -322,7 +321,7 @@ func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 			hosts := o.Endpoints()
 			console.Println("Host not found, valid hosts are:")
 			for _, h := range hosts {
-				console.Println("\t* %s", h)
+				console.Println("\t*", h)
 			}
 			return
 		}
