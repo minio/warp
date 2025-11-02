@@ -2,10 +2,6 @@
 # Make sure to check the documentation at http://goreleaser.com
 project_name: warp
 
-before:
-  hooks:
-    # you may remove this if you don't use vgo
-    - go mod tidy -compat=1.21
 builds:
   -
     goos:
