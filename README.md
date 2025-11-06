@@ -39,7 +39,7 @@ By default operations are performed on a bucket called `warp-benchmark-bucket`.
 This can be changed using the `--bucket` parameter. 
 
 > [!WARNING]
-> Do however note that the bucket will be completely cleaned before and after each run, so it should **not** contain any data.
+> Note the bucket will be *completely wiped* before and after each run, so it should **not** contain any data.
 
 If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), 
 you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) 
