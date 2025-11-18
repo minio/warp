@@ -114,7 +114,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					client, cldone := d.Client()
 					op := Operation{
 						OpType:   http.MethodPut,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
@@ -209,7 +209,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) error {
 				op := Operation{
 					File:     prefix,
 					OpType:   "LIST",
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     0,
 					Endpoint: client.EndpointURL().String(),
 				}

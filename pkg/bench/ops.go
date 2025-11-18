@@ -45,7 +45,7 @@ type Operation struct {
 	Endpoint   string     `json:"endpoint"`
 	ObjPerOp   int        `json:"ops"`
 	Size       int64      `json:"size"`
-	Thread     uint16     `json:"thread"`
+	Thread     uint32     `json:"thread"`
 	Categories Categories `json:"cat"`
 }
 
@@ -811,8 +811,8 @@ func (o Operations) ActiveTimeRange(allThreads bool) (start, end time.Time) {
 		return start, end
 	}
 	threads := o.Threads()
-	firstEnded := make(map[uint16]time.Time, threads)
-	lastStarted := make(map[uint16]time.Time, threads)
+	firstEnded := make(map[uint32]time.Time, threads)
+	lastStarted := make(map[uint32]time.Time, threads)
 	for _, op := range o {
 		ended, ok := firstEnded[op.Thread]
 		if !ok || ended.After(op.End) {
@@ -848,7 +848,7 @@ func (o Operations) Threads() int {
 	if len(o) == 0 {
 		return 0
 	}
-	maxT := uint16(0)
+	maxT := uint32(0)
 	for _, op := range o {
 		if op.Thread > maxT {
 			maxT = op.Thread
@@ -859,11 +859,11 @@ func (o Operations) Threads() int {
 
 // OffsetThreads adds an offset to all thread ids and
 // returns the next thread number.
-func (o Operations) OffsetThreads(n uint16) uint16 {
+func (o Operations) OffsetThreads(n uint32) uint32 {
 	if len(o) == 0 {
 		return 0
 	}
-	maxT := uint16(0)
+	maxT := uint32(0)
 	for i, op := range o {
 		op.Thread += n
 		if op.Thread > maxT {
@@ -1212,7 +1212,7 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 			Err:        values[fieldIdx["error"]],
 			Size:       size,
 			File:       file,
-			Thread:     uint16(thread),
+			Thread:     uint32(thread),
 			Endpoint:   endpoint,
 			ClientID:   getClient(clientID),
 			Categories: cat,

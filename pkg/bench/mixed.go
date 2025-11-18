@@ -262,7 +262,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
@@ -305,7 +305,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
@@ -337,7 +337,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 					obj := g.Dist.deleteRandomObj()
 					op := Operation{
 						OpType:   operation,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,
@@ -358,7 +358,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 					client, clDone := g.Client()
 					op := Operation{
 						OpType:   operation,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,

@@ -97,7 +97,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 				client, cldone := u.Client()
 				op := Operation{
 					OpType:   http.MethodPut,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size,
 					ObjPerOp: 1,
 					File:     obj.Name,

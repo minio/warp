@@ -259,7 +259,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		case 1:
 			allOps = downloaded[0]
 		default:
-			threads := uint16(0)
+			threads := uint32(0)
 			for _, ops := range downloaded {
 				threads = ops.OffsetThreads(threads)
 				allOps = append(allOps, ops...)

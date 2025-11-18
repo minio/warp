@@ -42,11 +42,50 @@ gofmt -d .
 gofmt -w .
 ```
 
+### Assistant workflow for linting
+
+- Encourage and/or effect installation of gofumpt and golangci-lint
+- After any code edit, format first, then lint:
+  - When both tools are installed: run formatting and linting in a single shell to avoid extra confirmations:
+    ```bash
+    cd <root-of-code-tree> && gofumpt -extra -w . && golangci-lint run -j16
+    ```
+  - Format (preferred): `gofumpt -extra -w .`
+    - If gofumpt is unavailable, fall back: `gofmt -w .` and surface install steps for gofumpt (e.g., `go install mvdan.cc/gofumpt@latest` or `brew install gofumpt`).
+  - Then run the linter with the repo config, if possible:
+    - Prefer PATH: `golangci-lint run -j16`
+    - Fallback GOPATH if needed: `$(go env GOPATH)/bin/golangci-lint run -j16`
+    - If missing or built with an older Go than `go.mod` toolchain, surface concise upgrade/install steps and proceed with file-scoped lint checks locally.
+  - Re-run after fixes until clean or blocked.
+
 ## Architecture
 
 ### Core Components
 
-**cli/** - Command-line interface layer
+The packages follow a layered dependency structure:
+
+**pkg/generator/** - Test data generation (base package with no warp dependencies)
+- Random data generation for benchmark objects
+- Supports fixed size, random sizes, and bucketed sizes
+
+**pkg/bench/** - Benchmark implementations (imports pkg/generator)
+- `benchmark.go` - Core `Benchmark` interface with `Prepare()`, `Start()`, `Cleanup()` methods
+- `Common` struct contains shared configuration (bucket, concurrency, clients, etc.)
+- Each operation type implements the Benchmark interface (get.go, put.go, mixed.go, etc.)
+- `ops.go` - Reusable operation functions (upload, download, delete operations)
+- `collector.go` - Real-time operation statistics collection
+
+**pkg/aggregate/** - Data aggregation and analysis (imports pkg/bench)
+- `aggregate.go` - Aggregates raw operation data into statistics
+- `throughput.go` - Throughput calculations and statistics
+- `requests.go` - Per-request statistics (latency, TTFB, percentiles)
+- `compare.go` - Comparison between benchmark runs
+- `live.go` - Live statistics updates during benchmark runs
+
+**api/** - HTTP API for benchmark status and control (imports pkg/bench and pkg/aggregate)
+- `api.go` - Provides HTTP endpoints for monitoring running benchmarks
+
+**cli/** - Command-line interface layer (imports api, pkg/aggregate, pkg/bench, pkg/generator)
 - Each benchmark type has its own file (get.go, put.go, delete.go, etc.)
 - `benchmark.go` - Main benchmark execution logic (`runBench`, `runServerBenchmark`, `runClientBenchmark`)
 - `benchserver.go` / `benchclient.go` - Distributed benchmarking coordination
@@ -54,24 +93,6 @@ gofmt -w .
 - `flags.go` - Common flag definitions
 - `analyze.go` - Post-benchmark analysis
 - `ui.go` - Terminal UI using bubbletea
-
-**pkg/bench/** - Benchmark implementations
-- `benchmark.go` - Core `Benchmark` interface with `Prepare()`, `Start()`, `Cleanup()` methods
-- `Common` struct contains shared configuration (bucket, concurrency, clients, etc.)
-- Each operation type implements the Benchmark interface (get.go, put.go, mixed.go, etc.)
-- `ops.go` - Reusable operation functions (upload, download, delete operations)
-- `collector.go` - Real-time operation statistics collection
-
-**pkg/aggregate/** - Data aggregation and analysis
-- `aggregate.go` - Aggregates raw operation data into statistics
-- `throughput.go` - Throughput calculations and statistics
-- `requests.go` - Per-request statistics (latency, TTFB, percentiles)
-- `compare.go` - Comparison between benchmark runs
-- `live.go` - Live statistics updates during benchmark runs
-
-**pkg/generator/** - Test data generation
-- Random data generation for benchmark objects
-- Supports fixed size, random sizes, and bucketed sizes
 
 ### Key Patterns
 
@@ -93,7 +114,7 @@ gofmt -w .
 **Operation Collection:**
 - Each operation creates an `Operation` struct with timing, size, endpoint, error info
 - Sent to `Collector` which batches and compresses to `.csv.zst` files
-- Format: CSV with fields like op, time, duration, size, endpoint, error, TTFB
+- Format: Tab-separated values with fields like idx, thread, op, client_id, n_objects, bytes, etc.
 
 ### Important Files
 

@@ -89,7 +89,7 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) error {
 				client, cldone := u.Client()
 				op := Operation{
 					OpType:   http.MethodPost,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size * int64(u.Copies),
 					ObjPerOp: u.Copies,
 					File:     obj.Name,

@@ -170,7 +170,7 @@ func (g *Get) Prepare(ctx context.Context) error {
 					client, cldone := g.Client()
 					op := Operation{
 						OpType:   http.MethodPut,
-						Thread:   uint16(i),
+						Thread:   uint32(i),
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
@@ -273,7 +273,7 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 				client, cldone := g.Client()
 				op := Operation{
 					OpType:   http.MethodGet,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
