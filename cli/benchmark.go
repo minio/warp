@@ -149,14 +149,29 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	ui.StartPrepare("Preparing", c.PrepareProgress, updates)
 
 	err := b.Prepare(context.Background())
-	fatalIf(probe.NewError(err), "Error preparing server")
+	if err != nil {
+		// Ensure UI is properly cleaned up before exiting with error
+		ui.Update(tea.Quit())
+		ui.Wait()
+		if c.PrepareProgress != nil {
+			close(c.PrepareProgress)
+		}
+		fatalIf(probe.NewError(err), "Error preparing server")
+		return nil
+	}
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
 	}
 
 	if ap, ok := b.(AfterPreparer); ok {
 		err := ap.AfterPrepare(context.Background())
-		fatalIf(probe.NewError(err), "Error preparing server")
+		if err != nil {
+			// Ensure UI is properly cleaned up before exiting with error
+			ui.Update(tea.Quit())
+			ui.Wait()
+			fatalIf(probe.NewError(err), "Error preparing server")
+			return nil
+		}
 	}
 
 	// Start after waiting a second or until we reached the start time.
