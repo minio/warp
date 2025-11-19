@@ -295,6 +295,11 @@ var ioFlags = []cli.Flag{
 		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
 		Value: "",
 	},
+	cli.BoolFlag{
+		Name:   "single-delete",
+		Usage:  "Delete objects one at a time instead of using bulk delete",
+		Hidden: true,
+	},
 }
 
 func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
@@ -355,5 +360,6 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		RpsLimiter:    rpsLimiter,
 		Transport:     clientTransport(ctx),
 		UpdateStatus:  statusln,
+		SingleDelete:  ctx.Bool("single-delete"),
 	}
 }

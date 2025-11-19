@@ -48,6 +48,8 @@ To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServe
 
 If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) the older v2 signatures can be used with `--signature=S3V2`.
 
+If your server doesn't support bulk object deletes (e.g. Google Cloud Storage), the `--single-delete` flag will force all object delete operations to be done one at a time.
+
 # Usage
 
 `λ warp command [options]`
@@ -387,6 +389,7 @@ Benchmarking delete operations will attempt to delete as many objects it can wit
 By default, `--objects` objects of size `--obj.size` are uploaded before doing the actual bench.
 
 The delete operations are done in `--batch` objects per request in `--concurrent` concurrently running requests.
+If `--single-delete` is specified, delete operations will be done one at a time, ignoring any `--batch` value.
 
 If there are no more objects left the benchmark will end.
 

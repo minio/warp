@@ -238,36 +238,64 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) error {
 				close(objects)
 
 				client, cldone := d.Client()
-				op := Operation{
-					OpType:   http.MethodDelete,
-					Thread:   uint16(i),
-					Size:     0,
-					File:     "",
-					ObjPerOp: len(objs),
-					Endpoint: client.EndpointURL().String(),
-				}
-				if d.DiscardOutput {
-					op.File = ""
-				}
+				if d.SingleDelete {
+					// Single object deletion
+					for _, obj := range objs {
+						op := Operation{
+							OpType:   http.MethodDelete,
+							Thread:   uint16(i),
+							Size:     0,
+							File:     obj.Name,
+							ObjPerOp: 1,
+							Endpoint: client.EndpointURL().String(),
+						}
+						if d.DiscardOutput {
+							op.File = ""
+						}
 
-				op.Start = time.Now()
-				// RemoveObjectsWithContext will split any batches > 1000 into separate requests.
-				errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
+						op.Start = time.Now()
+						err := client.RemoveObject(nonTerm, d.Bucket, obj.Name, minio.RemoveObjectOptions{
+							VersionID: obj.VersionID,
+						})
+						op.End = time.Now()
+						if err != nil {
+							d.Error(err)
+							op.Err = err.Error()
+						}
+						rcv <- op
+					}
+				} else {
+					// Bulk deletion
+					op := Operation{
+						OpType:   http.MethodDelete,
+						Thread:   uint16(i),
+						Size:     0,
+						File:     "",
+						ObjPerOp: len(objs),
+						Endpoint: client.EndpointURL().String(),
+					}
+					if d.DiscardOutput {
+						op.File = ""
+					}
 
-				// Wait for errCh to close.
-				for {
-					err, ok := <-errCh
-					if !ok {
-						break
+					op.Start = time.Now()
+					errCh := client.RemoveObjects(nonTerm, d.Bucket, objects, minio.RemoveObjectsOptions{})
+
+					// Wait for errCh to close.
+					for {
+						err, ok := <-errCh
+						if !ok {
+							break
+						}
+						if err.Err != nil {
+							d.Error(err.Err)
+							op.Err = err.Err.Error()
+						}
 					}
-					if err.Err != nil {
-						d.Error(err.Err)
-						op.Err = err.Err.Error()
-					}
+					op.End = time.Now()
+					rcv <- op
 				}
-				op.End = time.Now()
 				cldone()
-				rcv <- op
 			}
 		}(i)
 	}

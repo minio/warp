@@ -108,6 +108,9 @@ type Common struct {
 
 	// UpdateStatus
 	UpdateStatus func(s string)
+
+	// Use single object deletion instead of bulk delete
+	SingleDelete bool
 }
 
 const (
@@ -231,17 +234,32 @@ func (c *Common) deleteAllInBucket(ctx context.Context, prefixes ...string) {
 		}
 	}()
 
-	delOpts := minio.RemoveObjectsOptions{}
-	_, _, _, errLock := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
-	if errLock == nil {
-		delOpts.GovernanceBypass = true
-	}
+	if c.SingleDelete {
+		// Single object deletion
+		for obj := range objectsCh {
+			err := cl.RemoveObject(ctx, c.Bucket, obj.Key, minio.RemoveObjectOptions{
+				VersionID:        obj.VersionID,
+				GovernanceBypass: true,
+			})
+			if err != nil {
+				c.Error(err)
+				continue
+			}
+		}
+	} else {
+		// Bulk deletion
+		delOpts := minio.RemoveObjectsOptions{}
+		_, _, _, errLock := cl.GetBucketObjectLockConfig(ctx, c.Bucket)
+		if errLock == nil {
+			delOpts.GovernanceBypass = true
+		}
 
-	errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, delOpts)
-	for err := range errCh {
-		if err.Err != nil {
-			c.Error(err.Err)
-			continue
+		errCh := cl.RemoveObjects(ctx, c.Bucket, objectsCh, delOpts)
+		for err := range errCh {
+			if err.Err != nil {
+				c.Error(err.Err)
+				continue
+			}
 		}
 	}
 	c.UpdateStatus("Cleanup Done")
