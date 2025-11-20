@@ -84,7 +84,7 @@ func mainStat(ctx *cli.Context) error {
 		},
 		ListExisting: ctx.Bool("list-existing"),
 		ListFlat:     ctx.Bool("list-flat"),
-		ListPrefix:   ctx.String("prefix"),
+		ListPrefixes: getPrefixes(ctx),
 	}
 	return runBench(ctx, &b)
 }

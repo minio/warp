@@ -34,8 +34,8 @@ type Stat struct {
 	Common
 
 	// Default Stat options.
-	StatOpts   minio.StatObjectOptions
-	ListPrefix string
+	StatOpts     minio.StatObjectOptions
+	ListPrefixes []string
 
 	objects       generator.Objects
 	CreateObjects int
@@ -50,65 +50,19 @@ type Stat struct {
 func (g *Stat) Prepare(ctx context.Context) error {
 	// prepare the bench by listing object from the bucket
 	if g.ListExisting {
-		cl, done := g.Client()
-
-		// ensure the bucket exist
-		found, err := cl.BucketExists(ctx, g.Bucket)
+		objects, err := g.listExistingObjects(ctx, ListObjectsConfig{
+			Bucket:         g.Bucket,
+			Prefixes:       g.ListPrefixes,
+			ListFlat:       g.ListFlat,
+			CreateObjects:  g.CreateObjects,
+			FilterZeroSize: true,
+			HandleVersions: g.Versions > 1,
+			MaxVersions:    g.Versions,
+		})
 		if err != nil {
 			return err
 		}
-		if !found {
-			return (fmt.Errorf("bucket %s does not exist and --list-existing has been set", g.Bucket))
-		}
-
-		// list all objects
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		objectCh := cl.ListObjects(ctx, g.Bucket, minio.ListObjectsOptions{
-			WithVersions: g.Versions > 1,
-			Prefix:       g.ListPrefix,
-			Recursive:    !g.ListFlat,
-		})
-
-		versions := map[string]int{}
-
-		for object := range objectCh {
-			if object.Err != nil {
-				return object.Err
-			}
-			if object.Size == 0 {
-				continue
-			}
-			obj := generator.Object{
-				Name: object.Key,
-				Size: object.Size,
-			}
-
-			if g.Versions > 1 {
-				if object.VersionID == "" {
-					continue
-				}
-
-				if version, found := versions[object.Key]; found {
-					if version >= g.Versions {
-						continue
-					}
-				}
-				versions[object.Key]++
-				obj.VersionID = object.VersionID
-			}
-
-			g.objects = append(g.objects, obj)
-
-			// limit to ListingMaxObjects
-			if g.CreateObjects > 0 && len(g.objects) >= g.CreateObjects {
-				break
-			}
-		}
-		if len(g.objects) == 0 {
-			return (fmt.Errorf("no objects found for bucket %s", g.Bucket))
-		}
-		done()
+		g.objects = objects
 		return nil
 	}
 

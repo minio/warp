@@ -80,7 +80,7 @@ func mainDelete(ctx *cli.Context) error {
 		BatchSize:     ctx.Int("batch"),
 		ListExisting:  ctx.Bool("list-existing"),
 		ListFlat:      ctx.Bool("list-flat"),
-		ListPrefix:    ctx.String("prefix"),
+		ListPrefixes:  getPrefixes(ctx),
 	}
 	if b.ListExisting && !ctx.IsSet("objects") {
 		b.CreateObjects = 0

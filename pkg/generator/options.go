@@ -27,13 +27,13 @@ import (
 // Options provides options.
 // Use WithXXX functions to set them.
 type Options struct {
-	src          func(o Options) (Source, error)
-	customPrefix string
-	random       RandomOpts
-	minSize      int64
-	totalSize    int64
-	randomPrefix int
-	randSize     bool
+	src            func(o Options) (Source, error)
+	customPrefixes []string
+	random         RandomOpts
+	minSize        int64
+	totalSize      int64
+	randomPrefix   int
+	randSize       bool
 
 	// Activates the use of a distribution of sizes
 	flagSizesDistribution bool
@@ -126,10 +126,11 @@ func WithRandomSize(b bool) Option {
 	}
 }
 
-// WithCustomPrefix adds custom prefix under bucket where all warp content is created.
-func WithCustomPrefix(prefix string) Option {
+// WithCustomPrefixes adds custom prefixes to use in round-robin fashion.
+// Each object will select a prefix from the list based on its counter position.
+func WithCustomPrefixes(prefixes []string) Option {
 	return func(o *Options) error {
-		o.customPrefix = prefix
+		o.customPrefixes = prefixes
 		return nil
 	}
 }
