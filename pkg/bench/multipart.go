@@ -112,7 +112,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 				core := minio.Core{Client: client}
 				op := Operation{
 					OpType:   http.MethodPut,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
@@ -225,7 +225,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) error {
 				client, cldone := g.Client()
 				op := Operation{
 					OpType:   http.MethodGet,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,

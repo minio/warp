@@ -66,7 +66,7 @@ func mainMerge(ctx *cli.Context) error {
 	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
 	var allOps bench.Operations
-	threads := uint16(0)
+	threads := uint32(0)
 	log := console.Printf
 	if globalQuiet {
 		log = nil

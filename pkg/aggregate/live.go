@@ -97,7 +97,7 @@ type LiveAggregate struct {
 
 	requests map[string]liveRequests
 
-	threadIDs map[uint16]struct{}
+	threadIDs map[uint32]struct{}
 }
 
 type RequestSegment struct {
@@ -124,7 +124,7 @@ func (l *LiveAggregate) Add(o bench.Operation) {
 		l.Clients.Add(o.ClientID)
 	}
 	if l.threadIDs == nil {
-		l.threadIDs = make(map[uint16]struct{})
+		l.threadIDs = make(map[uint32]struct{})
 	}
 	if _, ok := l.threadIDs[o.Thread]; !ok {
 		l.threadIDs[o.Thread] = struct{}{}

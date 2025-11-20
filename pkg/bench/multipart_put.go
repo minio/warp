@@ -34,7 +34,7 @@ func (g *MultipartPut) Start(ctx context.Context, wait chan struct{}) error {
 	}
 
 	for i := 0; i < g.Concurrency; i++ {
-		thread := uint16(i)
+		thread := uint32(i)
 		eg.Go(func() error {
 			<-wait
 
@@ -89,7 +89,7 @@ func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName str
 	return c.NewMultipartUpload(nonTerm, g.Bucket, objectName, g.PutOpts)
 }
 
-func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectName, uploadID string) ([]minio.CompletePart, error) {
+func (g *MultipartPut) uploadParts(ctx context.Context, thread uint32, objectName, uploadID string) ([]minio.CompletePart, error) {
 	partIdxCh := make(chan int, g.PartsNumber)
 	for i := 0; i < g.PartsNumber; i++ {
 		partIdxCh <- i + 1
@@ -128,7 +128,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint16, objectNam
 				core := minio.Core{Client: client}
 				op := Operation{
 					OpType:   "PUTPART",
-					Thread:   thread*uint16(g.PartsConcurrency) + uint16(i),
+					Thread:   thread*uint32(g.PartsConcurrency) + uint32(i),
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,

@@ -158,7 +158,7 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) error {
 				client, cldone := g.Client()
 				op := Operation{
 					OpType:   "GET",
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					Size:     obj.Size,
 					File:     path.Join(g.ZipObjName, obj.Name),
 					ObjPerOp: 1,

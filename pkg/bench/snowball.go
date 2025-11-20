@@ -107,7 +107,7 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) error {
 				obj := src.Object()
 				op := Operation{
 					OpType:   http.MethodPut,
-					Thread:   uint16(i),
+					Thread:   uint32(i),
 					File:     path.Join(obj.Prefix, "snowball.tar"),
 					ObjPerOp: s.NumObjs,
 				}
