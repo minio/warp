@@ -82,6 +82,7 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	var cb clientBenchmark
 	cb.init(ctx)
 	cb.clientIdx = s.ClientIdx
+	cb.totalClients = s.TotalClients
 	activeBenchmarkMu.Lock()
 	activeBenchmark = &cb
 	activeBenchmarkMu.Unlock()

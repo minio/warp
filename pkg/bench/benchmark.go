@@ -84,6 +84,10 @@ type Common struct {
 	// Will be 0 if single client.
 	ClientIdx int
 
+	// TotalClients is the total number of distributed clients.
+	// Will be 1 if single client mode.
+	TotalClients int
+
 	AutoTermScale float64
 
 	Concurrency int

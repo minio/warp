@@ -20,6 +20,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -58,7 +59,17 @@ func (d *Delete) Prepare(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		d.objects = objects
+		if d.TotalClients > 1 {
+			filtered := objects[:0]
+			for _, object := range objects {
+				if int(crc32.ChecksumIEEE([]byte(object.Name)))%d.TotalClients == d.ClientIdx {
+					filtered = append(filtered, object)
+				}
+			}
+			d.objects = filtered
+		} else {
+			d.objects = objects
+		}
 		return groupErr
 	}
 
