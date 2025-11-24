@@ -107,7 +107,7 @@ func mainGet(ctx *cli.Context) error {
 		GetOpts:       minio.GetObjectOptions{ServerSideEncryption: sse},
 		ListExisting:  ctx.Bool("list-existing"),
 		ListFlat:      ctx.Bool("list-flat"),
-		ListPrefix:    ctx.String("prefix"),
+		ListPrefixes:  getPrefixes(ctx),
 	}
 	return runBench(ctx, &b)
 }

@@ -1,5 +1,6 @@
 /*
  * Warp (C) 2019-2020 MinIO, Inc.
+ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,7 +23,6 @@ import (
 	"io"
 	"math"
 	"math/rand"
-	"path"
 	"runtime"
 )
 
@@ -91,17 +91,6 @@ func MergeObjectPrefixes(o []Objects) []string {
 		res = append(res, p)
 	}
 	return res
-}
-
-func (o *Object) setPrefix(opts Options) {
-	if opts.randomPrefix <= 0 {
-		o.Prefix = opts.customPrefix
-		return
-	}
-	b := make([]byte, opts.randomPrefix)
-	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
-	randASCIIBytes(b, rng)
-	o.Prefix = path.Join(opts.customPrefix, string(b))
 }
 
 func (o *Object) setName(s string) {

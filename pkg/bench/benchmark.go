@@ -1,5 +1,6 @@
 /*
  * Warp (C) 2019-2020 MinIO, Inc.
+ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -265,6 +267,111 @@ func (c *Common) rpsLimit(ctx context.Context) error {
 	}
 
 	return c.RpsLimiter.Wait(ctx)
+}
+
+// ListObjectsConfig configures behavior for listing existing objects.
+type ListObjectsConfig struct {
+	Bucket         string
+	Prefixes       []string
+	ListFlat       bool
+	CreateObjects  int
+	FilterZeroSize bool
+	HandleVersions bool
+	MaxVersions    int
+	Shuffle        bool
+}
+
+// listExistingObjects lists objects from the bucket based on the provided configuration.
+func (c *Common) listExistingObjects(ctx context.Context, cfg ListObjectsConfig) (generator.Objects, error) {
+	cl, done := c.Client()
+	defer done()
+
+	// Ensure the bucket exists
+	found, err := cl.BucketExists(ctx, cfg.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("bucket %s does not exist and --list-existing has been set", cfg.Bucket)
+	}
+
+	var objects generator.Objects
+	versions := map[string]int{}
+
+	// If no prefixes specified, list all objects (empty prefix)
+	prefixes := cfg.Prefixes
+	if len(prefixes) == 0 {
+		prefixes = []string{""}
+	}
+
+	// List objects from all specified prefixes
+	for _, prefix := range prefixes {
+		ctx, cancel := context.WithCancel(ctx)
+		objectCh := cl.ListObjects(ctx, cfg.Bucket, minio.ListObjectsOptions{
+			WithVersions: cfg.HandleVersions,
+			Prefix:       prefix,
+			Recursive:    !cfg.ListFlat,
+		})
+
+		for object := range objectCh {
+			if object.Err != nil {
+				cancel()
+				return nil, object.Err
+			}
+
+			// Filter zero-size objects if configured
+			if cfg.FilterZeroSize && object.Size == 0 {
+				continue
+			}
+
+			obj := generator.Object{
+				Name: object.Key,
+				Size: object.Size,
+			}
+
+			// Handle versions if configured
+			if cfg.HandleVersions {
+				if object.VersionID == "" {
+					continue
+				}
+
+				if version, found := versions[object.Key]; found {
+					if version >= cfg.MaxVersions {
+						continue
+					}
+				}
+				versions[object.Key]++
+				obj.VersionID = object.VersionID
+			}
+
+			objects = append(objects, obj)
+
+			// Limit to CreateObjects
+			if cfg.CreateObjects > 0 && len(objects) >= cfg.CreateObjects {
+				cancel()
+				break
+			}
+		}
+		cancel()
+
+		// Stop if we've reached the object limit
+		if cfg.CreateObjects > 0 && len(objects) >= cfg.CreateObjects {
+			break
+		}
+	}
+
+	if len(objects) == 0 {
+		return nil, fmt.Errorf("no objects found for bucket %s", cfg.Bucket)
+	}
+
+	// Shuffle objects if configured
+	if cfg.Shuffle {
+		rand.Shuffle(len(objects), func(i, j int) {
+			objects[i], objects[j] = objects[j], objects[i]
+		})
+	}
+
+	return objects, nil
 }
 
 func splitObjs(objects, concurrency int) [][]struct{} {

@@ -1,5 +1,6 @@
 /*
  * Warp (C) 2019-2020 MinIO, Inc.
+ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -234,11 +235,15 @@ var ioFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:  "noprefix",
-		Usage: "Do not use separate prefix for each thread",
+		Usage: "Do not use separate random prefix for each thread",
 	},
 	cli.StringFlag{
 		Name:  "prefix",
-		Usage: "Use a custom prefix for each thread",
+		Usage: "Use a custom prefix for each thread (mutually exclusive with --prefixes)",
+	},
+	cli.StringFlag{
+		Name:  "prefixes",
+		Usage: "Comma-separated list of custom prefixes to use in round-robin fashion (mutually exclusive with --prefix)",
 	},
 	cli.BoolFlag{
 		Name:  "disable-multipart",
@@ -356,4 +361,21 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Transport:     clientTransport(ctx),
 		UpdateStatus:  statusln,
 	}
+}
+
+// getPrefixes returns all prefixes from either --prefix or --prefixes flags.
+// Returns empty slice if neither is set.
+func getPrefixes(ctx *cli.Context) []string {
+	if prefix := ctx.String("prefix"); prefix != "" {
+		return []string{prefix}
+	}
+	if prefixesStr := ctx.String("prefixes"); prefixesStr != "" {
+		prefixes := strings.Split(prefixesStr, ",")
+		// Trim whitespace from each prefix
+		for i := range prefixes {
+			prefixes[i] = strings.TrimSpace(prefixes[i])
+		}
+		return prefixes
+	}
+	return nil
 }

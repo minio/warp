@@ -50,6 +50,32 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		prefixSize = 0
 	}
 
+	// Handle prefix flags - mutually exclusive
+	var prefixes []string
+	prefixSet := ctx.IsSet("prefix")
+	prefixesSet := ctx.IsSet("prefixes")
+
+	if prefixSet && prefixesSet {
+		fatal(probe.NewError(errors.New("--prefix and --prefixes are mutually exclusive")), "Invalid flag combination")
+		return nil
+	}
+
+	if prefixSet {
+		// Backward compatibility: treat --prefix as single-element --prefixes
+		if prefix := ctx.String("prefix"); prefix != "" {
+			prefixes = []string{prefix}
+		}
+	} else if prefixesSet {
+		// Parse comma-separated prefixes
+		if prefixesStr := ctx.String("prefixes"); prefixesStr != "" {
+			prefixes = strings.Split(prefixesStr, ",")
+			// Trim whitespace from each prefix
+			for i := range prefixes {
+				prefixes[i] = strings.TrimSpace(prefixes[i])
+			}
+		}
+	}
+
 	var g generator.OptionApplier
 	switch ctx.String("obj.generator") {
 	case "random":
@@ -60,7 +86,7 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 		return nil
 	}
 	opts := []generator.Option{
-		generator.WithCustomPrefix(ctx.String("prefix")),
+		generator.WithCustomPrefixes(prefixes),
 		generator.WithPrefixSize(prefixSize),
 	}
 	if strings.IndexRune(ctx.String(sizeField), ':') > 0 {

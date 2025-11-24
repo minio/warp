@@ -329,7 +329,8 @@ Objects will be uploaded with `--concurrent` different prefixes, except if `--no
 
 Using `--list-existing` will list at most `--objects` from the bucket and download them instead
 of uploading random objects (set it to 0 to use all object from the listing).
-Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`
+Listing is restricted to `--prefix` (or --prefixes) if it is set and recursive listing can be
+disabled by setting `--list-flat`
 
 If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
 which will add multiple versions of each object and request individual versions.
@@ -392,7 +393,8 @@ If there are no more objects left the benchmark will end.
 
 Using `--list-existing` will list at most `--objects` from the bucket and delete them instead of
 deleting random objects (set it to 0 to use all objects from the listing).
-Listing is restricted to `--prefix` if it is set and recursive listing can be disabled by setting `--list-flat`.
+Listing is restricted to `--prefix` (or --prefixes) if it is set and recursive listing can be
+disabled by setting `--list-flat`.
 
 The analysis will include the upload stats as `PUT` operations and the `DELETE` operations.
 

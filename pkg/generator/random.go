@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"path"
 	"sync/atomic"
 
 	"github.com/minio/pkg/v3/rng"
@@ -77,11 +78,12 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	source  *rng.Reader
-	rng     *rand.Rand
-	obj     Object
-	o       Options
-	counter atomic.Uint64
+	source       *rng.Reader
+	rng          *rand.Rand
+	obj          Object
+	o            Options
+	counter      atomic.Uint64
+	randomSuffix string // Per-thread random suffix (generated once, reused for all objects)
 }
 
 func newRandom(o Options) (Source, error) {
@@ -113,7 +115,15 @@ func newRandom(o Options) (Source, error) {
 			Size:        0,
 		},
 	}
-	r.obj.setPrefix(o)
+
+	// Generate random suffix once per thread (if randomPrefix > 0)
+	// This preserves the original semantic: random suffix differentiates threads
+	if o.randomPrefix > 0 {
+		b := make([]byte, o.randomPrefix)
+		randASCIIBytes(b, r.rng)
+		r.randomSuffix = string(b)
+	}
+
 	return &r, nil
 }
 
@@ -122,6 +132,25 @@ func (r *randomSrc) Object() *Object {
 	var nBuf [16]byte
 	randASCIIBytes(nBuf[:], r.rng)
 	r.obj.Size = r.o.getSize(r.rng)
+
+	// Compute prefix: round-robin custom prefixes + optional random suffix
+	var customPrefix string
+	if len(r.o.customPrefixes) > 0 {
+		// Round-robin selection from the list of custom prefixes
+		customPrefix = r.o.customPrefixes[(n-1)%uint64(len(r.o.customPrefixes))]
+	}
+
+	if r.o.randomPrefix <= 0 {
+		r.obj.Prefix = customPrefix
+	} else {
+		// Use the per-thread random suffix (generated once) to preserve thread differentiation
+		if customPrefix == "" {
+			r.obj.Prefix = r.randomSuffix
+		} else {
+			r.obj.Prefix = path.Join(customPrefix, r.randomSuffix)
+		}
+	}
+
 	r.obj.setName(fmt.Sprintf("%d.%s.rnd", n, string(nBuf[:])))
 
 	// Reset scrambler
