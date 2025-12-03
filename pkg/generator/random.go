@@ -111,9 +111,9 @@ func newRandom(o Options) (Source, error) {
 			Name:        "",
 			ContentType: "application/octet-stream",
 			Size:        0,
+			Prefix:      o.GeneratePrefix(),
 		},
 	}
-	r.obj.setPrefix(o)
 	return &r, nil
 }
 
