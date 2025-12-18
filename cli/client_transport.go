@@ -18,7 +18,6 @@
 package cli
 
 import (
-	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -37,12 +36,6 @@ type transportOption func(transport *http.Transport)
 func withTLSConfig(tlsConfig *tls.Config) transportOption {
 	return func(transport *http.Transport) {
 		transport.TLSClientConfig = tlsConfig
-	}
-}
-
-func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (net.Conn, error)) transportOption {
-	return func(transport *http.Transport) {
-		transport.DialTLSContext = dialer
 	}
 }
 
