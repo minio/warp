@@ -196,7 +196,8 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 func clientTransport(ctx *cli.Context) http.RoundTripper {
 	switch {
 	case ctx.Bool("ktls"):
-		return clientTransportKTLS(ctx)
+		fatalIf(probe.NewError(errors.New("ktls support unavailable")), "Unable to create MinIO client")
+		return nil
 	case ctx.Bool("tls"):
 		return clientTransportTLS(ctx)
 	default:
