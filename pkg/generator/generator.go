@@ -22,7 +22,6 @@ import (
 	"io"
 	"math"
 	"math/rand"
-	"path"
 	"runtime"
 )
 
@@ -91,17 +90,6 @@ func MergeObjectPrefixes(o []Objects) []string {
 		res = append(res, p)
 	}
 	return res
-}
-
-func (o *Object) setPrefix(opts Options) {
-	if opts.randomPrefix <= 0 {
-		o.Prefix = opts.customPrefix
-		return
-	}
-	b := make([]byte, opts.randomPrefix)
-	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
-	randASCIIBytes(b, rng)
-	o.Prefix = path.Join(opts.customPrefix, string(b))
 }
 
 func (o *Object) setName(s string) {
