@@ -20,6 +20,7 @@ package generator
 import (
 	"errors"
 	"math/rand"
+	"path"
 
 	hist "github.com/jfsmig/prng/histogram"
 )
@@ -54,6 +55,19 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 		return o.totalSize
 	}
 	return GetExpRandSize(rng, o.minSize, o.totalSize)
+}
+
+// GeneratePrefix returns a prefix string based on the configured options.
+// If randomPrefix > 0, a random subdirectory of that length is added under customPrefix.
+// Otherwise, customPrefix is returned as-is.
+func (o Options) GeneratePrefix() string {
+	if o.randomPrefix <= 0 {
+		return o.customPrefix
+	}
+	b := make([]byte, o.randomPrefix)
+	rng := rand.New(rand.NewSource(int64(rand.Uint64())))
+	randASCIIBytes(b, rng)
+	return path.Join(o.customPrefix, string(b))
 }
 
 func defaultOptions() Options {
