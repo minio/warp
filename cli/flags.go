@@ -355,5 +355,6 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		RpsLimiter:    rpsLimiter,
 		Transport:     clientTransport(ctx),
 		UpdateStatus:  statusln,
+		TotalClients:  1, // Default to 1 for single-client mode
 	}
 }
