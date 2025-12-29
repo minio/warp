@@ -85,12 +85,13 @@ type serverRequest struct {
 		Command string            `json:"command"`
 		Args    cli.Args          `json:"args"`
 	}
-	StartTime time.Time            `json:"start_time"`
-	Operation serverRequestOp      `json:"op"`
-	Stage     benchmarkStage       `json:"stage"`
-	ClientIdx int                  `json:"client_idx"`
-	Aggregate bool                 `json:"aggregate"`
-	UpdateReq *aggregate.UpdateReq `json:"update_req,omitempty"`
+	StartTime    time.Time            `json:"start_time"`
+	Operation    serverRequestOp      `json:"op"`
+	Stage        benchmarkStage       `json:"stage"`
+	ClientIdx    int                  `json:"client_idx"`
+	TotalClients int                  `json:"total_clients"`
+	Aggregate    bool                 `json:"aggregate"`
+	UpdateReq    *aggregate.UpdateReq `json:"update_req,omitempty"`
 }
 
 // runServerBenchmark will run a benchmark server if requested.
@@ -412,6 +413,7 @@ func (c *connections) roundTrip(i int, req serverRequest) (*clientReply, error) 
 	}
 	for {
 		req.ClientIdx = i
+		req.TotalClients = len(c.hosts)
 		conn := c.ws[i]
 		err := conn.WriteJSON(req)
 		if err != nil {

@@ -114,6 +114,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	c.Error = printError
 	if ab != nil {
 		c.ClientIdx = ab.clientIdx
+		c.TotalClients = ab.totalClients
 		return runClientBenchmark(ctx, b, ab)
 	}
 	if done, err := runServerBenchmark(ctx, b); done || err != nil {
@@ -315,14 +316,15 @@ var (
 )
 
 type clientBenchmark struct {
-	ctx       context.Context
-	err       error
-	cancel    context.CancelFunc
-	info      map[benchmarkStage]stageInfo
-	stage     benchmarkStage
-	results   bench.Operations
-	updates   chan<- aggregate.UpdateReq
-	clientIdx int
+	ctx          context.Context
+	err          error
+	cancel       context.CancelFunc
+	info         map[benchmarkStage]stageInfo
+	stage        benchmarkStage
+	results      bench.Operations
+	updates      chan<- aggregate.UpdateReq
+	clientIdx    int
+	totalClients int
 	sync.Mutex
 }
 
