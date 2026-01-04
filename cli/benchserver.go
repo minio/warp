@@ -35,9 +35,11 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
+	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 	"github.com/minio/websocket"
 )
 
@@ -316,12 +318,25 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
 			}()
 		}
+		// If -web is specified, spawn web UI
+		monitor.UpdateAggregate(&final, fileName)
+		if ctx.Bool("web") {
+			srv := wui.New(&final)
+			addr, err := srv.Start()
+			fatalIf(probe.NewError(err), "Failed to start web server")
+			console.Println("Web UI available at:", addr)
+			if err := srv.OpenBrowser(); err != nil {
+				console.Println("Could not open browser automatically. Please visit:", addr)
+			}
+			console.Println("Press Enter to exit...")
+			srv.WaitForKeypress()
+			srv.Shutdown()
+		}
 		rep := final.Report(aggregate.ReportOptions{
 			Details: ctx.Bool("analyze.v"),
 			Color:   !globalNoColor,
 			OnlyOps: getAnalyzeOPS(ctx),
 		})
-		monitor.UpdateAggregate(&final, fileName)
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")

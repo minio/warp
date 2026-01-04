@@ -40,6 +40,7 @@ import (
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 )
 
 var benchFlags = []cli.Flag{
@@ -292,8 +293,20 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 				OnlyOps: getAnalyzeOPS(ctx),
 			})
 		}
-
 		monitor.UpdateAggregate(final, fileName)
+		// If -web is specified, spawn web UI
+		if ctx.Bool("web") {
+			srv := wui.New(final)
+			addr, err := srv.Start()
+			fatalIf(probe.NewError(err), "Failed to start web server")
+			console.Println("Web UI available at:", addr)
+			if err := srv.OpenBrowser(); err != nil {
+				console.Println("Could not open browser automatically. Please visit:", addr)
+			}
+			console.Println("Press Enter to exit...")
+			srv.WaitForKeypress()
+			srv.Shutdown()
+		}
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")
