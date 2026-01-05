@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+
+	"github.com/minio/warp/pkg/aggregate"
 )
 
 // registerHandlers sets up all HTTP routes.
@@ -63,6 +65,12 @@ func (s *Server) registerHandlers(mux *http.ServeMux) {
 	})
 }
 
+// apiResponse wraps the benchmark data with metadata.
+type apiResponse struct {
+	AutoUpdate bool                `json:"auto_update"`
+	Data       *aggregate.Realtime `json:"data"`
+}
+
 // handleData returns the benchmark data as JSON.
 func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -72,10 +80,31 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache")
+	data := s.data.Load()
+	autoUpdate := false
+	if poll := s.poll.Load(); poll != nil {
+		ch := *poll
+		into := make(chan *aggregate.Realtime, 1)
+		ch <- aggregate.UpdateReq{C: into}
+		select {
+		case <-r.Context().Done():
+			return
+		case data = <-into:
+		}
+		if data == nil {
+			data = &aggregate.Realtime{}
+		}
+		autoUpdate = !data.Final
+	}
+
+	resp := apiResponse{
+		AutoUpdate: autoUpdate,
+		Data:       data,
+	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(s.data); err != nil {
+	if err := enc.Encode(resp); err != nil {
 		http.Error(w, "Failed to encode data: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

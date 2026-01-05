@@ -35,7 +35,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
-	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
@@ -215,9 +214,21 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 	const benchmarkWait = 3 * time.Second
 	var updates chan aggregate.UpdateReq
+	srv := wui.New(nil)
+	showAddress := ""
 	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
 		monitor.SetUpdate(updates)
+		if ctx.Bool("web") {
+			addr, err := srv.Start()
+			srv.WithPoll(updates)
+			fatalIf(probe.NewError(err), "Failed to start web server")
+			showAddress = "Web UI: " + addr
+			monitor.InfoLn("Web UI available at:", addr)
+			if err := srv.OpenBrowser(); err != nil {
+				monitor.Errorln("Could not open browser automatically. Please visit:", addr)
+			}
+		}
 	}
 	prof, err := startProfiling(context.Background(), ctx)
 	if err != nil {
@@ -230,7 +241,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		errorLn("Failed to start all clients", err)
 	}
 	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
-	ui.SetSubText("Press 'q' to abort benchmark and retrieve partial results")
+	ui.SetSubText("Press 'q' to stop benchmark. " + showAddress)
 
 	if ctx.Bool("autoterm") {
 		if ctx.Bool("full") {
@@ -320,18 +331,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		}
 		// If -web is specified, spawn web UI
 		monitor.UpdateAggregate(&final, fileName)
-		if ctx.Bool("web") {
-			srv := wui.New(&final)
-			addr, err := srv.Start()
-			fatalIf(probe.NewError(err), "Failed to start web server")
-			console.Println("Web UI available at:", addr)
-			if err := srv.OpenBrowser(); err != nil {
-				console.Println("Could not open browser automatically. Please visit:", addr)
-			}
-			console.Println("Press Enter to exit...")
-			srv.WaitForKeypress()
-			srv.Shutdown()
-		}
 		rep := final.Report(aggregate.ReportOptions{
 			Details: ctx.Bool("analyze.v"),
 			Color:   !globalNoColor,
@@ -357,6 +356,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 			errorLn("Failed to keep connection to all clients", err)
 		}
 		infoLn("Cleanup done.\n")
+	}
+
+	if ctx.Bool("web") && updates != nil {
+		monitor.InfoLn("Press Enter to exit..." + showAddress)
+		srv.WaitForKeypress()
+		srv.Shutdown()
 	}
 
 	return true, nil

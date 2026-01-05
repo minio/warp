@@ -79,16 +79,113 @@ document.querySelectorAll('.tab').forEach(tab => {
 // Main application
 let data = null;
 let charts = {};
+let autoUpdateInterval = null;
+let autoUpdateEnabled = false;
 
 async function loadData() {
     try {
         const response = await fetch('/api/data');
         if (!response.ok) throw new Error('Failed to load data');
-        data = await response.json();
+        const apiResponse = await response.json();
+
+        // Handle wrapped response structure
+        data = apiResponse.data || apiResponse;
+
+        // Setup auto-update if enabled by server
+        if (apiResponse.auto_update && !autoUpdateEnabled) {
+            autoUpdateEnabled = true;
+            startAutoUpdate();
+        } else if (!apiResponse.auto_update && autoUpdateEnabled) {
+            autoUpdateEnabled = false;
+            stopAutoUpdate();
+        }
+
         renderDashboard();
+        updateAutoUpdateIndicator();
     } catch (error) {
         console.error('Error loading data:', error);
         document.body.innerHTML = '<div style="padding: 2rem; text-align: center; color: #ff5252;">Error loading benchmark data: ' + error.message + '</div>';
+    }
+}
+
+function startAutoUpdate() {
+    if (autoUpdateInterval) return;
+    autoUpdateInterval = setInterval(refreshData, 5000);
+    console.log('Auto-update enabled (5s interval)');
+}
+
+function stopAutoUpdate() {
+    if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval);
+        autoUpdateInterval = null;
+        console.log('Auto-update disabled');
+    }
+}
+
+async function refreshData() {
+    try {
+        const response = await fetch('/api/data');
+        if (!response.ok) throw new Error('Failed to load data');
+        const apiResponse = await response.json();
+
+        // Handle wrapped response structure
+        data = apiResponse.data || apiResponse;
+
+        // Check if auto-update should continue
+        if (!apiResponse.auto_update && autoUpdateEnabled) {
+            autoUpdateEnabled = false;
+            stopAutoUpdate();
+        }
+
+        // Destroy existing charts before re-rendering
+        destroyAllCharts();
+
+        // Reset chart counters
+        hostChartCounter = 0;
+        clientChartCounter = 0;
+
+        renderDashboard();
+        updateAutoUpdateIndicator();
+    } catch (error) {
+        console.error('Error refreshing data:', error);
+    }
+}
+
+function destroyAllCharts() {
+    // Destroy charts stored in the charts object
+    for (const key in charts) {
+        if (charts[key] && typeof charts[key].destroy === 'function') {
+            charts[key].destroy();
+        }
+    }
+    charts = {};
+
+    // Destroy all Chart.js instances
+    const chartInstances = Chart.instances;
+    for (const id in chartInstances) {
+        if (chartInstances[id]) {
+            chartInstances[id].destroy();
+        }
+    }
+}
+
+function updateAutoUpdateIndicator() {
+    let indicator = document.getElementById('auto-update-indicator');
+    if (!indicator) {
+        // Create indicator if it doesn't exist
+        indicator = document.createElement('div');
+        indicator.id = 'auto-update-indicator';
+        indicator.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.875rem; z-index: 1000;';
+        document.body.appendChild(indicator);
+    }
+
+    if (autoUpdateEnabled) {
+        indicator.style.display = 'block';
+        indicator.style.background = '#10b981';
+        indicator.style.color = 'white';
+        indicator.innerHTML = '&#x21bb; Live (5s)';
+    } else {
+        indicator.style.display = 'none';
     }
 }
 
@@ -105,19 +202,16 @@ function renderDashboard() {
 
 function renderCommandline() {
     const el = document.getElementById('commandline');
-    if (data.commandline) {
-        el.textContent = data.commandline;
-    }
+    el.textContent = data.commandline || '';
 }
 
 function renderSummaryCards() {
-    const total = data.total;
-    if (!total) return;
+    const total = data.total || {};
 
     document.getElementById('total-ops').textContent = formatNumber(total.total_requests || 0);
     document.getElementById('total-bytes').textContent = formatBytes(total.total_bytes || 0);
 
-    // Calculate throughput
+    // Calculate throughput and ops/s
     const tp = total.throughput;
     if (tp && tp.measure_duration_millis > 0) {
         const bps = (tp.bytes * 1000) / tp.measure_duration_millis;
@@ -125,17 +219,28 @@ function renderSummaryCards() {
         if (bps > 0) {
             document.getElementById('throughput').textContent = formatBytesPerSec(bps);
         } else {
-            document.getElementById('throughput').textContent = ops.toFixed(2) + ' ops/s';
+            document.getElementById('throughput').textContent = '-';
         }
+        document.getElementById('ops-per-sec').textContent = ops.toFixed(2);
         document.getElementById('duration').textContent = formatDuration(tp.measure_duration_millis);
+    } else {
+        document.getElementById('throughput').textContent = '-';
+        document.getElementById('ops-per-sec').textContent = '-';
+        document.getElementById('duration').textContent = '-';
     }
 
     document.getElementById('concurrency').textContent = total.concurrency || '-';
 
-    // Show errors if any
+    // Client count
+    const clients = total.clients || [];
+    document.getElementById('client-count').textContent = clients.length > 0 ? clients.length : '-';
+
+    // Show/hide errors
     if (total.total_errors > 0) {
         document.getElementById('error-card').style.display = 'block';
         document.getElementById('errors').textContent = total.total_errors;
+    } else {
+        document.getElementById('error-card').style.display = 'none';
     }
 }
 
@@ -185,6 +290,9 @@ function renderThroughputChart() {
         canvas.parentElement.style.display = 'none';
         return;
     }
+
+    // Show the chart container (may have been hidden previously)
+    canvas.parentElement.style.display = '';
 
     // Determine if we're showing BPS or OPS
     const hasBPS = datasets.some(ds => ds.data.some(d => d.y > 1));
@@ -240,6 +348,9 @@ function renderOpsChart() {
         canvas.parentElement.style.display = 'none';
         return;
     }
+
+    // Show the chart container (may have been hidden previously)
+    canvas.parentElement.style.display = '';
 
     const labels = [];
     const values = [];
@@ -301,6 +412,9 @@ function renderLatencyChart() {
         canvas.parentElement.style.display = 'none';
         return;
     }
+
+    // Show the chart container (may have been hidden previously)
+    canvas.parentElement.style.display = '';
 
     // Update the chart title
     canvas.parentElement.querySelector('h2').textContent = 'Request Time';
@@ -643,6 +757,13 @@ function renderOperationsDetail() {
 
 function renderHostsTable() {
     const container = document.querySelector('#tab-hosts .table-container');
+
+    // Show notice if benchmark is still running
+    if (data.final === false) {
+        container.innerHTML = '<div class="running-notice"><p>Host statistics are not available while the benchmark is running.</p><p style="color: var(--text-muted); font-size: 0.875rem;">These statistics will be populated once the benchmark completes.</p></div>';
+        return;
+    }
+
     const opTypes = Object.keys(data.by_op_type || {}).sort();
     const hosts = [...(data.total?.hosts || [])].sort();
 
@@ -972,6 +1093,13 @@ function renderHostDetail(host, container, opType) {
 
 function renderClientsTable() {
     const container = document.querySelector('#tab-clients .table-container');
+
+    // Show notice if benchmark is still running
+    if (data.final === false) {
+        container.innerHTML = '<div class="running-notice"><p>Client statistics are not available while the benchmark is running.</p><p style="color: var(--text-muted); font-size: 0.875rem;">These statistics will be populated once the benchmark completes.</p></div>';
+        return;
+    }
+
     const opTypes = Object.keys(data.by_op_type || {}).sort();
     const clients = [...(data.total?.clients || [])].sort();
 

@@ -383,6 +383,20 @@ tr:hover td {
     max-height: 200px;
 }
 
+/* Running notice */
+.running-notice {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-muted);
+}
+
+.running-notice p:first-child {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+}
+
 /* Footer */
 footer {
     text-align: center;

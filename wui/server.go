@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/minio/warp/pkg/aggregate"
@@ -33,7 +34,8 @@ import (
 
 // Server is a web UI server for displaying benchmark results.
 type Server struct {
-	data     *aggregate.Realtime
+	data     atomic.Pointer[aggregate.Realtime]
+	poll     atomic.Pointer[chan<- aggregate.UpdateReq]
 	server   *http.Server
 	listener net.Listener
 	addr     string
@@ -41,9 +43,21 @@ type Server struct {
 
 // New creates a new web UI server with the given benchmark data.
 func New(data *aggregate.Realtime) *Server {
-	return &Server{
-		data: data,
+	s := Server{}
+	s.data.Store(data)
+	return &s
+}
+
+// Update the data.
+func (s *Server) Update(data *aggregate.Realtime) {
+	if data != nil {
+		s.data.Store(data)
 	}
+}
+
+// WithPoll the data will register a pollers
+func (s *Server) WithPoll(updates chan<- aggregate.UpdateReq) {
+	s.poll.Store(&updates)
 }
 
 // Start starts the web server on an automatically assigned port.
