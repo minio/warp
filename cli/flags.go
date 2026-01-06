@@ -198,12 +198,12 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:   "sts-web-token-file",
-		Usage:  "Specify a STS web token (required when using STS_WEB signature)",
+		Usage:  "Specify path to a file containing the STS web token",
 		EnvVar: appNameUC + "_STS_WEB_TOKEN_FILE",
 	},
 	cli.StringFlag{
 		Name:   "signature",
-		Usage:  "Specify a signature method. Available values are S3V2, S3V4, IAM, STS_WEB",
+		Usage:  "Specify a signature method. Available values are S3V2, S3V4, IAM, STS_WEB_TOKEN",
 		Value:  "S3V4",
 		Hidden: true,
 	},

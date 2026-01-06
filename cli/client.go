@@ -179,7 +179,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 			if stsToken == "" {
 				stsTokenFile := ctx.String("sts-web-token-file")
 				if stsTokenFile == "" {
-					return nil, errors.New("No STS web token (set --sts-web-token or --sts-web-token-file)")
+					return nil, errors.New("no STS web token (set --sts-web-token or --sts-web-token-file)")
 				}
 				data, err := os.ReadFile(stsTokenFile)
 				if err != nil {
@@ -194,7 +194,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		}
 
 	default:
-		fatal(probe.NewError(errors.New("unknown signature method. S3V2 and S3V4 is available")), strings.ToUpper(ctx.String("signature")))
+		fatal(probe.NewError(errors.New("unknown signature method. S3V2, S3V4, IAM and STS_WEB_TOKEN are available")), strings.ToUpper(ctx.String("signature")))
 	}
 	lookup := minio.BucketLookupAuto
 	if ctx.String("lookup") == "host" {
