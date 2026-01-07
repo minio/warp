@@ -165,15 +165,11 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		})
 	case "STS_WEB_TOKEN":
 		var err error
-		stsEndPoint := ctx.String("sts-endpoint")
-		if stsEndPoint == "" {
-			proto := "http"
-			if ctx.Bool("tls") || ctx.Bool("ktls") {
-				proto = "https"
-			}
-			stsEndPoint = fmt.Sprintf("%s://%s", proto, host)
+		proto := "http"
+		if ctx.Bool("tls") || ctx.Bool("ktls") {
+			proto = "https"
 		}
-
+		stsEndPoint := fmt.Sprintf("%s://%s", proto, host)
 		creds, err = credentials.NewSTSWebIdentity(stsEndPoint, func() (*credentials.WebIdentityToken, error) {
 			stsToken := ctx.String("sts-web-token")
 			if stsTokenFile, hasFilePrefix := strings.CutPrefix(stsToken, "file:"); hasFilePrefix {

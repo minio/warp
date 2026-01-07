@@ -187,11 +187,6 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_REGION",
 	},
 	cli.StringFlag{
-		Name:   "sts-endpoint",
-		Usage:  "Specify a custom STS endpoint",
-		EnvVar: appNameUC + "_STS_ENDPOINT",
-	},
-	cli.StringFlag{
 		Name:   "sts-web-token",
 		Usage:  "Specify the STS web token (prefix with file: to load from a file)",
 		EnvVar: appNameUC + "_STS_WEB_TOKEN",
