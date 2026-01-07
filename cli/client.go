@@ -176,11 +176,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 
 		creds, err = credentials.NewSTSWebIdentity(stsEndPoint, func() (*credentials.WebIdentityToken, error) {
 			stsToken := ctx.String("sts-web-token")
-			if stsToken == "" {
-				stsTokenFile := ctx.String("sts-web-token-file")
-				if stsTokenFile == "" {
-					return nil, errors.New("no STS web token (set --sts-web-token or --sts-web-token-file)")
-				}
+			if stsTokenFile, hasFilePrefix := strings.CutPrefix(stsToken, "file:"); hasFilePrefix {
 				data, err := os.ReadFile(stsTokenFile)
 				if err != nil {
 					return nil, err
