@@ -607,6 +607,14 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string, e
 	}
 	lastUpdate := time.Now()
 	for op := range ops {
+		dur := op.End.Sub(op.Start)
+		if dur < 0 {
+			op.End = op.Start
+			op.Err += "Negative duration"
+		} else {
+			// Rewrite op.End in case a non-monotonic adjustment has been made.
+			op.End = op.Start.Add(dur)
+		}
 		if reset.CompareAndSwap(true, false) {
 			a = newRealTime()
 		}

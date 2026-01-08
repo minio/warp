@@ -137,7 +137,7 @@ func commandLine(ctx *cli.Context) string {
 			continue
 		}
 		switch name {
-		case "access-key", "secret-key", "influxdb":
+		case "access-key", "secret-key", "influxdb", "sts-web-token":
 			val = "*REDACTED*"
 		}
 		s += " --" + flag.GetName() + "=" + val
@@ -187,8 +187,13 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_REGION",
 	},
 	cli.StringFlag{
+		Name:   "sts-web-token",
+		Usage:  "Specify the STS web token (prefix with file: to load from a file)",
+		EnvVar: appNameUC + "_STS_WEB_TOKEN",
+	},
+	cli.StringFlag{
 		Name:   "signature",
-		Usage:  "Specify a signature method. Available values are S3V2, S3V4",
+		Usage:  "Specify a signature method. Available values are S3V2, S3V4, IAM, STS_WEB_TOKEN",
 		Value:  "S3V4",
 		Hidden: true,
 	},
