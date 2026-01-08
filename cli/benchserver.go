@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -329,13 +330,20 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
 			}()
 		}
-		// If -web is specified, spawn web UI
 		monitor.UpdateAggregate(&final, fileName)
-		rep := final.Report(aggregate.ReportOptions{
-			Details: ctx.Bool("analyze.v"),
-			Color:   !globalNoColor,
-			OnlyOps: getAnalyzeOPS(ctx),
-		})
+		var rep *bytes.Buffer
+		if globalJSON {
+			rep = &bytes.Buffer{}
+			enc := json.NewEncoder(rep)
+			enc.SetIndent("", "  ")
+			_ = enc.Encode(final)
+		} else {
+			rep = final.Report(aggregate.ReportOptions{
+				Details: ctx.Bool("analyze.v"),
+				Color:   !globalNoColor,
+				OnlyOps: getAnalyzeOPS(ctx),
+			})
+		}
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")
