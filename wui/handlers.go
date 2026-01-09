@@ -36,33 +36,8 @@ func (s *Server) registerHandlers(mux *http.ServeMux) {
 	// API endpoint for benchmark data
 	mux.HandleFunc("/api/data", s.handleData)
 
-	// Serve index.html for root path directly to avoid redirect loop
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		content, err := fs.ReadFile(staticFS, "index.html")
-		if err != nil {
-			http.Error(w, "index.html not found", http.StatusNotFound)
-			return
-		}
-		w.Write(content)
-	})
-
-	// Serve static files (css, js)
-	mux.HandleFunc("/style.css", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		content, _ := fs.ReadFile(staticFS, "style.css")
-		w.Write(content)
-	})
-
-	mux.HandleFunc("/app.js", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		content, _ := fs.ReadFile(staticFS, "app.js")
-		w.Write(content)
-	})
+	// Serve static files
+	mux.Handle("/", http.FileServerFS(staticFS))
 }
 
 // apiResponse wraps the benchmark data with metadata.
