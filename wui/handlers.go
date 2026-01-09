@@ -48,11 +48,6 @@ type apiResponse struct {
 
 // handleData returns the benchmark data as JSON.
 func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache")
 	data := s.data.Load()
