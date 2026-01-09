@@ -40,6 +40,7 @@ import (
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 )
 
 var benchFlags = []cli.Flag{
@@ -174,6 +175,18 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 			return nil
 		}
 	}
+	srv := wui.New(nil)
+	showAddress := ""
+	if ctx.Bool("web") {
+		addr, err := srv.Start()
+		srv.WithPoll(updates)
+		fatalIf(probe.NewError(err), "Failed to start web server")
+		showAddress = "Web UI: " + addr
+		monitor.InfoLn(showAddress)
+		if err := srv.OpenBrowser(); err != nil {
+			monitor.Errorln("Could not open browser automatically. Please visit:", addr)
+		}
+	}
 
 	// Start after waiting a second or until we reached the start time.
 	tStart := time.Now().Add(time.Second * 3)
@@ -199,7 +212,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	go func() {
 		monitor.InfoLn("Pausing before benchmark")
 		<-time.After(time.Until(tStart))
-		monitor.InfoLn("Press 'q' to abort benchmark and print partial results")
+		monitor.InfoLn("Press 'q' to stop benchmark. " + showAddress)
 		close(start)
 	}()
 
@@ -292,8 +305,8 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 				OnlyOps: getAnalyzeOPS(ctx),
 			})
 		}
-
 		monitor.UpdateAggregate(final, fileName)
+		// If -web is specified, spawn web UI
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")
@@ -307,6 +320,12 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	monitor.InfoLn("Cleanup Done.")
 	ui.Wait()
 	registerUI(nil)
+	if ctx.Bool("web") {
+		monitor.InfoLn("Press Enter to exit..." + showAddress)
+		srv.WaitForKeypress()
+		srv.Shutdown()
+	}
+
 	return nil
 }
 
