@@ -34,7 +34,7 @@ func (s *Server) registerHandlers(mux *http.ServeMux) {
 	}
 
 	// API endpoint for benchmark data
-	mux.HandleFunc("/api/data", s.handleData)
+	mux.HandleFunc("GET /api/data", s.handleData)
 
 	// Serve static files
 	mux.Handle("/", http.FileServerFS(staticFS))
