@@ -77,9 +77,7 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 		Data:       data,
 	}
 
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(resp); err != nil {
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "Failed to encode data: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
