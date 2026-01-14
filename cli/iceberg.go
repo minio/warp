@@ -60,7 +60,7 @@ var icebergFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "cache-dir",
-		Usage: "Local cache directory for generated data",
+		Usage: "Local cache directory for generated/downloaded data",
 		Value: "/tmp/warp-iceberg-cache",
 	},
 	cli.IntFlag{
@@ -77,6 +77,20 @@ var icebergFlags = []cli.Flag{
 		Name:  "backoff-base",
 		Usage: "Base backoff duration for commit retries",
 		Value: "100ms",
+	},
+	cli.BoolFlag{
+		Name:  "tpcds",
+		Usage: "Use TPC-DS data from GCS (auto-downloads if not cached)",
+	},
+	cli.StringFlag{
+		Name:  "scale-factor",
+		Usage: "TPC-DS scale factor (sf1, sf10, sf100, sf1000)",
+		Value: "sf100",
+	},
+	cli.StringFlag{
+		Name:  "tpcds-table",
+		Usage: "TPC-DS table name to use",
+		Value: "store_sales",
 	},
 }
 
@@ -95,29 +109,45 @@ USAGE:
   {{.HelpName}} [FLAGS]
 
 DESCRIPTION:
-  Benchmark Iceberg table write performance by generating parquet files,
-  uploading them to S3 storage, and committing them to an Iceberg table.
+  Benchmark Iceberg table write performance by uploading parquet files
+  to S3 storage and committing them to an Iceberg table.
   Tests commit conflict handling under concurrent load.
 
-  The benchmark:
-  1. Generates parquet files locally with configurable size
-  2. Uploads parquet files to S3 storage
-  3. Commits file references to an Iceberg table via REST catalog
-  4. Handles commit conflicts with exponential backoff retry
+  The benchmark can operate in two modes:
+  1. Generated data (default): Creates synthetic parquet files
+  2. TPC-DS data (--tpcds): Uses real TPC-DS benchmark data from GCS
+
+  The benchmark automatically:
+  - Creates bucket, namespace, and table if they don't exist
+  - Downloads TPC-DS data from GCS if --tpcds is used and data isn't cached
+
+  Workflow:
+  1. Creates bucket (if needed)
+  2. Downloads/generates data files
+  3. Creates Iceberg namespace and table (if needed)
+  4. Uploads parquet files to S3 storage
+  5. Commits file references to Iceberg table via REST catalog
+  6. Handles commit conflicts with exponential backoff retry
 
   Requires an Iceberg REST catalog (e.g., MinIO AIStor with Iceberg support).
+  The warehouse must be created beforehand using mc or MinIO Console.
 
 EXAMPLES:
-  # Single node benchmark
+  # Benchmark with generated data
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
     --bucket=my-warehouse --num-files=10 --iterations=5
 
-  # Distributed benchmark with more data
+  # Benchmark with TPC-DS data (auto-downloads if not cached)
+  {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
+    --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
+    --bucket=my-warehouse --tpcds --scale-factor=sf100
+
+  # Distributed benchmark
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
     --bucket=my-warehouse --warp-client=node1:7761,node2:7761 \
-    --num-files=50 --rows-per-file=100000
+    --tpcds --scale-factor=sf100
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
@@ -127,24 +157,23 @@ FLAGS:
 func mainIceberg(ctx *cli.Context) error {
 	checkIcebergSyntax(ctx)
 
-	// Parse backoff duration
 	backoffBase, err := time.ParseDuration(ctx.String("backoff-base"))
 	if err != nil {
 		backoffBase = 100 * time.Millisecond
 	}
 
-	// Get catalog URI - default to host if not specified
+	host := ctx.String("host")
+	useTLS := ctx.Bool("tls")
+
 	catalogURI := ctx.String("catalog-uri")
 	if catalogURI == "" {
-		host := ctx.String("host")
 		scheme := "http"
-		if ctx.Bool("tls") {
+		if useTLS {
 			scheme = "https"
 		}
 		catalogURI = scheme + "://" + host + "/_iceberg"
 	}
 
-	// Get warehouse - default to bucket if not specified
 	warehouse := ctx.String("warehouse")
 	if warehouse == "" {
 		warehouse = ctx.String("bucket")
@@ -162,9 +191,11 @@ func mainIceberg(ctx *cli.Context) error {
 		Iterations:  ctx.Int("iterations"),
 		MaxRetries:  ctx.Int("max-retries"),
 		BackoffBase: backoffBase,
+		UseTPCDS:    ctx.Bool("tpcds"),
+		ScaleFactor: ctx.String("scale-factor"),
+		TPCDSTable:  ctx.String("tpcds-table"),
 	}
 
-	// Store credentials in ExtraFlags for the benchmark to access
 	if b.ExtraFlags == nil {
 		b.ExtraFlags = make(map[string]string)
 	}

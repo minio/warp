@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/apache/iceberg-go"
 	"github.com/apache/iceberg-go/catalog"
 	"github.com/minio/minio-go/v7"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
@@ -46,6 +47,11 @@ type Iceberg struct {
 	RowsPerFile int
 	CacheDir    string
 
+	// TPC-DS mode configuration
+	UseTPCDS    bool
+	ScaleFactor string
+	TPCDSTable  string
+
 	// Benchmark parameters
 	Iterations  int
 	MaxRetries  int
@@ -63,35 +69,73 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		return err
 	}
 
-	// Generate test parquet files
-	if b.UpdateStatus != nil {
-		b.UpdateStatus("Generating test data...")
-	}
-
-	dataDir := filepath.Join(b.CacheDir, "iceberg-bench-data")
-	result, err := warpiceberg.GenerateParquetFiles(ctx, warpiceberg.GenerateConfig{
-		OutputDir:   dataDir,
-		NumFiles:    b.NumFiles,
-		RowsPerFile: b.RowsPerFile,
-		Concurrency: b.Concurrency,
-	}, func(completed, total int64) {
-		if b.PrepareProgress != nil {
-			select {
-			case b.PrepareProgress <- float64(completed) / float64(total):
-			default:
-			}
+	// Get data files - either from TPC-DS or generate them
+	if b.UseTPCDS {
+		cfg := warpiceberg.TPCDSConfig{
+			ScaleFactor: b.ScaleFactor,
+			Table:       b.TPCDSTable,
+			CacheDir:    b.CacheDir,
+			Concurrency: b.Concurrency,
 		}
-	})
-	if err != nil {
-		return fmt.Errorf("failed to generate test data: %w", err)
-	}
 
-	if b.UpdateStatus != nil {
-		b.UpdateStatus(fmt.Sprintf("Generated %d files, %d rows, %.1f MB",
-			len(result.Files), result.TotalRows, float64(result.TotalBytes)/(1024*1024)))
-	}
+		// Try cache first, download if not available
+		files, err := warpiceberg.GetCachedTPCDSFiles(cfg)
+		if err != nil {
+			if b.UpdateStatus != nil {
+				b.UpdateStatus(fmt.Sprintf("Downloading TPC-DS %s/%s from GCS...", b.ScaleFactor, b.TPCDSTable))
+			}
 
-	b.dataFiles = result.Files
+			result, err := warpiceberg.DownloadTPCDS(ctx, cfg, func(completed, total, _ int64) {
+				if b.PrepareProgress != nil {
+					select {
+					case b.PrepareProgress <- float64(completed) / float64(total):
+					default:
+					}
+				}
+			})
+			if err != nil {
+				return fmt.Errorf("failed to download TPC-DS data: %w", err)
+			}
+			files = result.Files
+
+			if b.UpdateStatus != nil {
+				b.UpdateStatus(fmt.Sprintf("Downloaded %d files (%.2f GB)", len(files), float64(result.TotalBytes)/(1024*1024*1024)))
+			}
+		} else if b.UpdateStatus != nil {
+			b.UpdateStatus(fmt.Sprintf("Using %d cached TPC-DS files", len(files)))
+		}
+
+		b.dataFiles = files
+	} else {
+		if b.UpdateStatus != nil {
+			b.UpdateStatus("Generating test data...")
+		}
+
+		dataDir := filepath.Join(b.CacheDir, "iceberg-bench-data")
+		result, err := warpiceberg.GenerateParquetFiles(ctx, warpiceberg.GenerateConfig{
+			OutputDir:   dataDir,
+			NumFiles:    b.NumFiles,
+			RowsPerFile: b.RowsPerFile,
+			Concurrency: b.Concurrency,
+		}, func(completed, total int64) {
+			if b.PrepareProgress != nil {
+				select {
+				case b.PrepareProgress <- float64(completed) / float64(total):
+				default:
+				}
+			}
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate test data: %w", err)
+		}
+
+		if b.UpdateStatus != nil {
+			b.UpdateStatus(fmt.Sprintf("Generated %d files, %d rows, %.1f MB",
+				len(result.Files), result.TotalRows, float64(result.TotalBytes)/(1024*1024)))
+		}
+
+		b.dataFiles = result.Files
+	}
 
 	// Initialize Iceberg catalog and ensure table exists
 	if b.UpdateStatus != nil {
@@ -114,8 +158,13 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		b.Error("Note: namespace creation returned: ", err)
 	}
 
-	// Load or create the table with benchmark schema
-	schema := warpiceberg.BenchmarkDataSchema()
+	// Load or create the table with appropriate schema
+	var schema *iceberg.Schema
+	if b.UseTPCDS {
+		schema = warpiceberg.StoreSalesSchema()
+	} else {
+		schema = warpiceberg.BenchmarkDataSchema()
+	}
 	_, err = warpiceberg.LoadOrCreateTable(ctx, cat, b.Namespace, b.TableName, schema)
 	if err != nil {
 		return fmt.Errorf("failed to load/create Iceberg table: %w", err)
