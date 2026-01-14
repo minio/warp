@@ -3,8 +3,10 @@ package iceberg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/apache/iceberg-go"
 	"github.com/apache/iceberg-go/catalog"
@@ -21,6 +23,7 @@ type CatalogConfig struct {
 	AccessKey  string
 	SecretKey  string
 	Region     string
+	S3Endpoint string // S3 endpoint for file IO (e.g., http://localhost:9000)
 }
 
 // NewCatalog creates a new Iceberg REST catalog connection.
@@ -43,10 +46,21 @@ func NewCatalog(ctx context.Context, cfg CatalogConfig) (catalog.Catalog, error)
 		),
 	}
 
+	// S3 properties for file IO - these are used when reading parquet files
+	s3Props := iceberg.Properties{
+		"s3.access-key-id":     cfg.AccessKey,
+		"s3.secret-access-key": cfg.SecretKey,
+		"s3.region":            cfg.Region,
+	}
+	if cfg.S3Endpoint != "" {
+		s3Props["s3.endpoint"] = cfg.S3Endpoint
+	}
+
 	opts := []rest.Option{
 		rest.WithWarehouseLocation(cfg.Warehouse),
 		rest.WithAwsConfig(awsCfg),
 		rest.WithSigV4RegionSvc(cfg.Region, "s3tables"),
+		rest.WithAdditionalProps(s3Props),
 	}
 
 	cat, err := rest.NewCatalog(ctx, "rest", u.String(), opts...)
@@ -66,6 +80,18 @@ func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tabl
 		return tbl, nil
 	}
 
+	// Check if table doesn't exist - try to create it
+	// Use string matching as fallback since error types may not match exactly
+	errStr := err.Error()
+	isNotFound := errors.Is(err, catalog.ErrNoSuchTable) ||
+		strings.Contains(errStr, "NoSuchTable") ||
+		strings.Contains(errStr, "not found") ||
+		strings.Contains(errStr, "does not exist")
+
+	if !isNotFound {
+		return nil, fmt.Errorf("failed to load table %s.%s: %w", namespace, tableName, err)
+	}
+
 	// Table doesn't exist, create it
 	tbl, err = cat.CreateTable(ctx, ident, schema,
 		catalog.WithProperties(iceberg.Properties{
@@ -73,6 +99,15 @@ func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tabl
 		}),
 	)
 	if err != nil {
+		// If table already exists (race condition), try loading again
+		if errors.Is(err, catalog.ErrTableAlreadyExists) ||
+			strings.Contains(err.Error(), "AlreadyExists") {
+			tbl, err = cat.LoadTable(ctx, ident)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load existing table %s.%s after create conflict: %w", namespace, tableName, err)
+			}
+			return tbl, nil
+		}
 		return nil, fmt.Errorf("failed to create table %s.%s: %w", namespace, tableName, err)
 	}
 

@@ -10,7 +10,7 @@ tool (
 )
 
 require (
-	cloud.google.com/go/storage v1.58.0
+	github.com/apache/arrow-go/v18 v18.5.0
 	github.com/apache/iceberg-go v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.24
@@ -37,7 +37,6 @@ require (
 	gitlab.com/go-extension/tls v0.0.0-20251218095625-a161feb36b6b
 	golang.org/x/sync v0.19.0
 	golang.org/x/time v0.14.0
-	google.golang.org/api v0.258.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -54,6 +53,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
+	cloud.google.com/go/storage v1.58.0 // indirect
 	codeberg.org/chavacava/garif v0.2.0 // indirect
 	dev.gaijin.team/go/exhaustruct/v4 v4.0.0 // indirect
 	dev.gaijin.team/go/golib v0.6.0 // indirect
@@ -89,7 +89,6 @@ require (
 	github.com/alingse/nilnesserr v0.2.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/apache/arrow-go/v18 v18.5.0 // indirect
 	github.com/apache/thrift v0.22.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/ashanbrown/forbidigo/v2 v2.1.0 // indirect
@@ -394,6 +393,7 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+	google.golang.org/api v0.258.0 // indirect
 	google.golang.org/genproto v0.0.0-20250922171735-9219d122eba9 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251124214823-79d6a2a48846 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2 // indirect

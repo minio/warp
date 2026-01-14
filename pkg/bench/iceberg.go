@@ -28,8 +28,7 @@ import (
 
 	"github.com/apache/iceberg-go/catalog"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/warp/pkg/iceberg"
-	"github.com/minio/warp/pkg/tpcds"
+	warpiceberg "github.com/minio/warp/pkg/iceberg"
 )
 
 // Iceberg benchmarks Iceberg table write performance with commit conflict handling.
@@ -42,9 +41,9 @@ type Iceberg struct {
 	Namespace  string
 	TableName  string
 
-	// TPC-DS data configuration
-	ScaleFactor string
-	TPCDSTable  string
+	// Data generation configuration
+	NumFiles    int
+	RowsPerFile int
 	CacheDir    string
 
 	// Benchmark parameters
@@ -57,22 +56,23 @@ type Iceberg struct {
 	prefixes  map[string]struct{}
 }
 
-// Prepare downloads TPC-DS data and initializes the Iceberg catalog.
+// Prepare generates test data and initializes the Iceberg catalog.
 func (b *Iceberg) Prepare(ctx context.Context) error {
 	// Create bucket if needed
 	if err := b.createEmptyBucket(ctx); err != nil {
 		return err
 	}
 
-	// Download TPC-DS data
+	// Generate test parquet files
 	if b.UpdateStatus != nil {
-		b.UpdateStatus("Downloading TPC-DS data...")
+		b.UpdateStatus("Generating test data...")
 	}
 
-	result, err := tpcds.Download(ctx, tpcds.DownloadConfig{
-		ScaleFactor: b.ScaleFactor,
-		Table:       b.TPCDSTable,
-		CacheDir:    b.CacheDir,
+	dataDir := filepath.Join(b.CacheDir, "iceberg-bench-data")
+	result, err := warpiceberg.GenerateParquetFiles(ctx, warpiceberg.GenerateConfig{
+		OutputDir:   dataDir,
+		NumFiles:    b.NumFiles,
+		RowsPerFile: b.RowsPerFile,
 		Concurrency: b.Concurrency,
 	}, func(completed, total int64) {
 		if b.PrepareProgress != nil {
@@ -83,13 +83,12 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("failed to download TPC-DS data: %w", err)
+		return fmt.Errorf("failed to generate test data: %w", err)
 	}
 
-	if result.FromCache {
-		b.Error("Using cached TPC-DS data: ", len(result.Files), " files")
-	} else {
-		b.Error("Downloaded TPC-DS data: ", len(result.Files), " files, ", result.TotalBytes/(1024*1024), " MB")
+	if b.UpdateStatus != nil {
+		b.UpdateStatus(fmt.Sprintf("Generated %d files, %d rows, %.1f MB",
+			len(result.Files), result.TotalRows, float64(result.TotalBytes)/(1024*1024)))
 	}
 
 	b.dataFiles = result.Files
@@ -99,24 +98,25 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		b.UpdateStatus("Initializing Iceberg catalog...")
 	}
 
-	cat, err := iceberg.NewCatalog(ctx, iceberg.CatalogConfig{
+	cat, err := warpiceberg.NewCatalog(ctx, warpiceberg.CatalogConfig{
 		CatalogURI: b.CatalogURI,
 		Warehouse:  b.Warehouse,
 		AccessKey:  b.getAccessKey(),
 		SecretKey:  b.getSecretKey(),
+		S3Endpoint: b.getS3Endpoint(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create Iceberg catalog: %w", err)
 	}
 
 	// Ensure namespace exists
-	if err := iceberg.EnsureNamespace(ctx, cat, b.Namespace); err != nil {
+	if err := warpiceberg.EnsureNamespace(ctx, cat, b.Namespace); err != nil {
 		b.Error("Note: namespace creation returned: ", err)
 	}
 
-	// Load or create the table
-	schema := iceberg.ResultsSchema()
-	_, err = iceberg.LoadOrCreateTable(ctx, cat, b.Namespace, b.TableName, schema)
+	// Load or create the table with benchmark schema
+	schema := warpiceberg.BenchmarkDataSchema()
+	_, err = warpiceberg.LoadOrCreateTable(ctx, cat, b.Namespace, b.TableName, schema)
 	if err != nil {
 		return fmt.Errorf("failed to load/create Iceberg table: %w", err)
 	}
@@ -147,7 +147,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 	for i := 0; i < b.Concurrency; i++ {
 		workerFiles := b.getWorkerFiles(i, filesPerWorker)
-		prefix := fmt.Sprintf("iceberg/%s/worker-%d/", b.TableName, i)
+		prefix := fmt.Sprintf("iceberg/%s/worker-%d", b.TableName, i)
 		b.prefixes[prefix] = struct{}{}
 
 		go func(workerID int, files []string, prefix string) {
@@ -178,7 +178,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					}
 
 					client, cldone := b.Client()
-					objName := fmt.Sprintf("%siter-%d/%d/%s", prefix, iter, time.Now().UnixNano(), filepath.Base(localFile))
+					objName := fmt.Sprintf("%s/iter-%d/%d/%s", prefix, iter, time.Now().UnixNano(), filepath.Base(localFile))
 
 					op := Operation{
 						OpType:   "UPLOAD",
@@ -239,11 +239,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 					commitOp.Start = time.Now()
 
-					cat, err := iceberg.NewCatalog(ctx, iceberg.CatalogConfig{
+					cat, err := warpiceberg.NewCatalog(ctx, warpiceberg.CatalogConfig{
 						CatalogURI: b.CatalogURI,
 						Warehouse:  b.Warehouse,
 						AccessKey:  b.getAccessKey(),
 						SecretKey:  b.getSecretKey(),
+						S3Endpoint: b.getS3Endpoint(),
 					})
 					if err != nil {
 						commitOp.End = time.Now()
@@ -262,7 +263,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 						continue
 					}
 
-					result := iceberg.CommitWithRetry(ctx, tbl, uploadedPaths, iceberg.CommitConfig{
+					result := warpiceberg.CommitWithRetry(ctx, tbl, uploadedPaths, warpiceberg.CommitConfig{
 						MaxRetries:  b.MaxRetries,
 						BackoffBase: b.BackoffBase,
 						BackoffMax:  5 * time.Second,
@@ -279,6 +280,10 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 						totalFailedCommits.Add(1)
 						if result.Err != nil {
 							commitOp.Err = result.Err.Error()
+							// Log first few errors for debugging
+							if totalFailedCommits.Load() <= 3 {
+								b.Error("Commit error: ", result.Err.Error())
+							}
 						}
 					}
 
@@ -318,14 +323,11 @@ func (b *Iceberg) getWorkerFiles(workerID, filesPerWorker int) []string {
 
 // getAccessKey extracts access key from the client.
 func (b *Iceberg) getAccessKey() string {
-	cl, done := b.Client()
-	defer done()
-	// The minio client doesn't expose credentials directly,
-	// so we need to pass them through Common or ExtraFlags
 	if v, ok := b.ExtraFlags["access-key"]; ok {
 		return v
 	}
-	// Fallback - try to get from endpoint
+	cl, done := b.Client()
+	defer done()
 	return cl.EndpointURL().User.Username()
 }
 
@@ -340,4 +342,11 @@ func (b *Iceberg) getSecretKey() string {
 		return p
 	}
 	return ""
+}
+
+// getS3Endpoint returns the S3 endpoint URL.
+func (b *Iceberg) getS3Endpoint() string {
+	cl, done := b.Client()
+	defer done()
+	return cl.EndpointURL().Scheme + "://" + cl.EndpointURL().Host
 }
