@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/apache/iceberg-go"
 	"github.com/apache/iceberg-go/catalog"
@@ -75,13 +76,13 @@ func NewCatalog(ctx context.Context, cfg CatalogConfig) (catalog.Catalog, error)
 func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tableName string, schema *iceberg.Schema) (*table.Table, error) {
 	ident := catalog.ToIdentifier(fmt.Sprintf("%s.%s", namespace, tableName))
 
+	// Try to load existing table first
 	tbl, err := cat.LoadTable(ctx, ident)
 	if err == nil {
 		return tbl, nil
 	}
 
 	// Check if table doesn't exist - try to create it
-	// Use string matching as fallback since error types may not match exactly
 	errStr := err.Error()
 	isNotFound := errors.Is(err, catalog.ErrNoSuchTable) ||
 		strings.Contains(errStr, "NoSuchTable") ||
@@ -98,17 +99,43 @@ func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tabl
 			"format-version": "2",
 		}),
 	)
-	if err != nil {
-		// If table already exists (race condition), try loading again
-		if errors.Is(err, catalog.ErrTableAlreadyExists) ||
-			strings.Contains(err.Error(), "AlreadyExists") {
-			tbl, err = cat.LoadTable(ctx, ident)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load existing table %s.%s after create conflict: %w", namespace, tableName, err)
-			}
+	if err == nil {
+		return tbl, nil
+	}
+
+	// If table already exists (race condition), retry loading with backoff
+	createErrStr := err.Error()
+	isAlreadyExists := errors.Is(err, catalog.ErrTableAlreadyExists) ||
+		strings.Contains(createErrStr, "AlreadyExists") ||
+		strings.Contains(createErrStr, "already exists")
+
+	if !isAlreadyExists {
+		return nil, fmt.Errorf("failed to create table %s.%s: %w", namespace, tableName, err)
+	}
+
+	// Retry loading with exponential backoff
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(100*(1<<attempt)) * time.Millisecond)
+		}
+		tbl, lastErr = cat.LoadTable(ctx, ident)
+		if lastErr == nil {
 			return tbl, nil
 		}
-		return nil, fmt.Errorf("failed to create table %s.%s: %w", namespace, tableName, err)
+	}
+
+	// Table is in a corrupted state - try to drop and recreate
+	_ = cat.DropTable(ctx, ident)
+	time.Sleep(500 * time.Millisecond)
+
+	tbl, err = cat.CreateTable(ctx, ident, schema,
+		catalog.WithProperties(iceberg.Properties{
+			"format-version": "2",
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to recreate table %s.%s after drop: %w", namespace, tableName, err)
 	}
 
 	return tbl, nil
