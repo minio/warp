@@ -217,6 +217,7 @@ func (l LiveAggregate) Update() LiveAggregate {
 	dst.ThroughputByHost = nil
 	dst.ThroughputByClient = nil
 	dst.throughput = liveThroughput{}
+	dst.Concurrency = len(l.threadIDs)
 
 	// TODO: PROBABLY NOT NEEDED AND FASTER TO REMOVE...
 	dst.Requests = make(map[string]RequestSegments, len(l.requests))

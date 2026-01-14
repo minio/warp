@@ -39,6 +39,7 @@ import (
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 	"github.com/minio/websocket"
 )
 
@@ -214,9 +215,21 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 
 	const benchmarkWait = 3 * time.Second
 	var updates chan aggregate.UpdateReq
+	srv := wui.New(nil)
+	showAddress := ""
 	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
 		monitor.SetUpdate(updates)
+		if ctx.Bool("web") {
+			addr, err := srv.Start()
+			srv.WithPoll(updates)
+			fatalIf(probe.NewError(err), "Failed to start web server")
+			showAddress = "Web UI: " + addr
+			monitor.InfoLn("Web UI available at:", addr)
+			if err := srv.OpenBrowser(); err != nil {
+				monitor.Errorln("Could not open browser automatically. Please visit:", addr)
+			}
+		}
 	}
 	prof, err := startProfiling(context.Background(), ctx)
 	if err != nil {
@@ -229,7 +242,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		errorLn("Failed to start all clients", err)
 	}
 	ui.StartBenchmark("Benchmarking", tStart, tStart.Add(benchDur), updates)
-	ui.SetSubText("Press 'q' to abort benchmark and retrieve partial results")
+	ui.SetSubText("Press 'q' to stop benchmark. " + showAddress)
 
 	if ctx.Bool("autoterm") {
 		if ctx.Bool("full") {
@@ -317,6 +330,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 				monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
 			}()
 		}
+		monitor.UpdateAggregate(&final, fileName)
 		var rep *bytes.Buffer
 		if globalJSON {
 			rep = &bytes.Buffer{}
@@ -330,7 +344,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 				OnlyOps: getAnalyzeOPS(ctx),
 			})
 		}
-		monitor.UpdateAggregate(&final, fileName)
 		ui.Update(tea.Quit())
 		ui.Wait()
 		fmt.Println("")
@@ -351,6 +364,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 			errorLn("Failed to keep connection to all clients", err)
 		}
 		infoLn("Cleanup done.\n")
+	}
+
+	if ctx.Bool("web") && updates != nil {
+		monitor.InfoLn("Press Enter to exit..." + showAddress)
+		srv.WaitForKeypress()
+		srv.Shutdown()
 	}
 
 	return true, nil

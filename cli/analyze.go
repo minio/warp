@@ -38,9 +38,14 @@ import (
 	"github.com/minio/warp/api"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 )
 
 var analyzeFlags = []cli.Flag{
+	cli.BoolFlag{
+		Name:  "web",
+		Usage: "Open web UI to visualize results",
+	},
 	cli.StringFlag{
 		Name:  "analyze.dur",
 		Value: "",
@@ -149,12 +154,25 @@ func mainAnalyze(ctx *cli.Context) error {
 				}()
 				final = *aggregate.Live(opCh, nil, "", nil)
 			}
+			// If -web is specified, spawn web UI
+			monitor.UpdateAggregate(&final, "")
+			if ctx.Bool("web") {
+				srv := wui.New(&final)
+				addr, err := srv.Start()
+				fatalIf(probe.NewError(err), "Failed to start web server")
+				console.Println("Web UI available at:", addr)
+				if err := srv.OpenBrowser(); err != nil {
+					console.Println("Could not open browser automatically. Please visit:", addr)
+				}
+				console.Println("Press Enter to exit...")
+				srv.WaitForKeypress()
+				srv.Shutdown()
+			}
 			rep := final.Report(aggregate.ReportOptions{
 				Details: true,
 				Color:   !globalNoColor,
 				OnlyOps: getAnalyzeOPS(ctx),
 			})
-			monitor.UpdateAggregate(&final, "")
 			if globalJSON {
 				b, err := json.MarshalIndent(final, "", "  ")
 				fatalIf(probe.NewError(err), "Unable to parse input")
