@@ -116,7 +116,7 @@ func (t Throughput) StringDuration() string {
 
 // StringDetails returns a detailed string representation of the segment
 func (t Throughput) StringDetails(details bool) string {
-	if t.Bytes == 0 && t.Objects == 0 {
+	if t.Bytes == 0 && t.Objects == 0 && t.Operations == 0 {
 		return ""
 	}
 	speed := ""
@@ -135,8 +135,12 @@ func (t Throughput) StringDetails(details bool) string {
 	if t.Objects == 0 {
 		unit = "ops/s"
 	}
+	opsPerSec := t.ObjectsPS()
+	if t.Objects == 0 && t.Operations > 0 {
+		opsPerSec = t.OpsPS()
+	}
 	return fmt.Sprintf("%s%.02f %s%s%s",
-		speed, t.ObjectsPS(), unit, errs, dur)
+		speed, opsPerSec, unit, errs, dur)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
@@ -347,12 +351,24 @@ func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	segs.SortByTime()
 	smallSegs := cloneBenchSegments(segs)
 
+	// Check if any segment has objects
+	hasObjects := false
+	for _, seg := range segs {
+		if seg.Objects > 0 {
+			hasObjects = true
+			break
+		}
+	}
+
 	// Sort to get correct medians.
 	if totalBytes > 0 {
 		segs.SortByThroughput()
 		t.SortedBy = "bps"
-	} else {
+	} else if hasObjects {
 		segs.SortByObjsPerSec()
+		t.SortedBy = "ops"
+	} else {
+		segs.SortByOpsEnded()
 		t.SortedBy = "ops"
 	}
 

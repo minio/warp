@@ -334,12 +334,16 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, len(data.Clients))
 		}
 		sz := ""
-		if data.TotalBytes > 0 {
+		if data.TotalBytes > 0 && data.TotalObjects > 0 {
 			sz = fmt.Sprintf("Size: %d bytes. ", data.TotalBytes/int64(data.TotalObjects))
 		}
 		printfColor(color.FgWhite, "Report: %v (%d reqs). Ran %v\n", opCol, data.TotalRequests, data.Throughput.StringDuration())
+		objPerReq := 0
+		if data.TotalRequests > 0 {
+			objPerReq = data.TotalObjects / data.TotalRequests
+		}
 		printfColor(color.FgWhite, " * Objects per request: %d. %vConcurrency: %d.%s\n",
-			data.TotalObjects/data.TotalRequests, sz,
+			objPerReq, sz,
 			data.Concurrency, hostsString)
 	} else {
 		printfColor(color.FgHiWhite, "Report: %s. Concurrency: %d. Ran: %v\n", opCol, data.Concurrency, time.Duration(data.Throughput.MeasureDurationMillis)*time.Millisecond)
