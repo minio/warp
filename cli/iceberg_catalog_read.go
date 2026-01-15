@@ -67,20 +67,44 @@ var catalogReadCmd = cli.Command{
 USAGE:
   {{.HelpName}} [FLAGS]
 
+DESCRIPTION:
+  Benchmarks Iceberg REST catalog read operations.
+
+  Prepare phase:
+  1. Creates N-ary tree of namespaces (--namespace-width, --namespace-depth)
+  2. Creates tables in leaf namespaces (--tables-per-ns)
+  3. Creates views in leaf namespaces (--views-per-ns)
+
+  Benchmark phase:
+  - Spawns --concurrent workers (default 20)
+  - Each worker loops through all namespaces/tables/views
+  - Performs read operations: GET, HEAD, LIST
+
+  Operations recorded:
+  - NS_GET: LoadNamespaceProperties
+  - NS_HEAD: CheckNamespaceExists
+  - NS_LIST: ListNamespaces (on non-leaf namespaces)
+  - TABLE_GET: LoadTable
+  - TABLE_HEAD: CheckTableExists
+  - TABLE_LIST: ListTables
+  - VIEW_GET: LoadView
+  - VIEW_HEAD: CheckViewExists
+  - VIEW_LIST: ListViews
+
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
 
 EXAMPLES:
-  1. Run Iceberg read benchmark against MinIO S3 Tables:
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
+  # Basic read benchmark
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
-  2. Create a larger dataset with more tables:
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
-       --namespace-width 3 --namespace-depth 4 --tables-per-ns 10
+  # Larger dataset
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --namespace-width 3 --namespace-depth 4 --tables-per-ns 10
 
-  3. Run with multiple hosts (round-robin):
-     {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
+  # Multiple hosts
+  {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
 `,
 }
 

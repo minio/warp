@@ -127,20 +127,44 @@ var catalogMixedCmd = cli.Command{
 USAGE:
   {{.HelpName}} [FLAGS]
 
+DESCRIPTION:
+  Benchmarks mixed read/write workload with configurable operation distribution.
+
+  Prepare phase:
+  1. Creates N-ary tree of namespaces (--namespace-width, --namespace-depth)
+  2. Creates tables in leaf namespaces (--tables-per-ns)
+  3. Creates views in leaf namespaces (--views-per-ns)
+
+  Benchmark phase:
+  - Spawns --concurrent workers (default 20)
+  - All workers share a pre-shuffled pool of 1000 operations
+  - Each worker picks next operation from pool, executes it, repeats
+
+  Operation distribution:
+  - Weights are proportional, not percentages
+  - Example: 10,10,5 is same ratio as 2,2,1 or 100,100,50
+  - Pool is shuffled for random distribution
+
+  Operations (default weights):
+  - NS_LIST (10), NS_HEAD (10), NS_GET (10), NS_UPDATE (5)
+  - TABLE_LIST (10), TABLE_HEAD (10), TABLE_GET (10), TABLE_UPDATE (5)
+  - VIEW_LIST (10), VIEW_HEAD (10), VIEW_GET (10), VIEW_UPDATE (5)
+
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
 
 EXAMPLES:
-  1. Run mixed benchmark with default distribution:
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
+  # Default mixed workload
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
-  2. Run read-heavy workload (disable updates):
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
-       --ns-update-distrib 0 --table-update-distrib 0 --view-update-distrib 0
+  # Read-only (disable all updates)
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --ns-update-distrib 0 --table-update-distrib 0 --view-update-distrib 0
 
-  3. Run with multiple hosts (round-robin):
-     {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
+  # Heavy writes
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --ns-update-distrib 20 --table-update-distrib 20 --view-update-distrib 20
 `,
 }
 

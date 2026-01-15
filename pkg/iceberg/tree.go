@@ -85,7 +85,7 @@ func (t *Tree) DepthOf(ordinal int) int {
 }
 
 func (t *Tree) PathToRoot(ordinal int) []string {
-	// Build hierarchical path from root to this node (matching Polaris NAryTreeBuilder)
+	// Build hierarchical path from root to this node
 	var path []int
 	current := ordinal
 	for current >= 0 {

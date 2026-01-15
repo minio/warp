@@ -78,20 +78,41 @@ var catalogCommitsCmd = cli.Command{
 USAGE:
   {{.HelpName}} [FLAGS]
 
+DESCRIPTION:
+  Benchmarks Iceberg REST catalog commit generation by updating table/view properties.
+
+  Prepare phase:
+  1. Creates N-ary tree of namespaces (--namespace-width, --namespace-depth)
+  2. Creates tables in leaf namespaces (--tables-per-ns)
+  3. Creates views in leaf namespaces (--views-per-ns)
+
+  Benchmark phase:
+  - Two separate worker pools:
+    - Table workers: --table-commits-throughput (default: --concurrent/2)
+    - View workers: --view-commits-throughput (default: --concurrent/2)
+  - Each worker round-robins through tables/views
+  - Updates properties with incrementing attribute to create commits
+  - Retries on 409 Conflict or 500 errors
+
+  Operations recorded:
+  - TABLE_UPDATE: UpdateTable (sets new property)
+  - VIEW_UPDATE: UpdateView (sets new property)
+
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}
 
 EXAMPLES:
-  1. Generate commits on existing dataset:
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
+  # Basic commit benchmark
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
-  2. Generate commits with specific throughput:
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
-       --table-commits-throughput 10 --view-commits-throughput 5
+  # More table commits than view commits
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --table-commits-throughput 15 --view-commits-throughput 5
 
-  3. Run with multiple hosts (round-robin):
-     {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
+  # Tables only (no views)
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --views-per-ns 0
 `,
 }
 
