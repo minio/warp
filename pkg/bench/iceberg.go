@@ -54,7 +54,6 @@ type Iceberg struct {
 	TPCDSTable  string
 
 	// Benchmark parameters
-	Iterations  int
 	MaxRetries  int
 	BackoffBase time.Duration
 
@@ -221,7 +220,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 			done := ctx.Done()
 			<-wait
 
-			for iter := 0; iter < b.Iterations; iter++ {
+			for iter := 0; ; iter++ {
 				select {
 				case <-done:
 					return

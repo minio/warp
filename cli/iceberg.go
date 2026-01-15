@@ -63,11 +63,7 @@ var icebergFlags = []cli.Flag{
 		Usage: "Local cache directory for generated/downloaded data",
 		Value: "/tmp/warp-iceberg-cache",
 	},
-	cli.IntFlag{
-		Name:  "iterations",
-		Usage: "Number of upload+commit iterations per worker",
-		Value: 10,
-	},
+
 	cli.IntFlag{
 		Name:  "max-retries",
 		Usage: "Maximum commit retries on conflict",
@@ -136,7 +132,7 @@ EXAMPLES:
   # Benchmark with generated data
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
-    --bucket=my-warehouse --num-files=10 --iterations=5
+    --bucket=my-warehouse --num-files=10 --duration=1m
 
   # Benchmark with TPC-DS data (auto-downloads if not cached)
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
@@ -188,7 +184,6 @@ func mainIceberg(ctx *cli.Context) error {
 		NumFiles:    ctx.Int("num-files"),
 		RowsPerFile: ctx.Int("rows-per-file"),
 		CacheDir:    ctx.String("cache-dir"),
-		Iterations:  ctx.Int("iterations"),
 		MaxRetries:  ctx.Int("max-retries"),
 		BackoffBase: backoffBase,
 		UseTPCDS:    ctx.Bool("tpcds"),
