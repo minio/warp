@@ -44,6 +44,8 @@ type Throughput struct {
 	Objects float64 `json:"objects"`
 	// Number of full operations
 	Operations int `json:"ops"`
+	// Operation type (e.g., "GET", "PUT", "COMMIT", "UPLOAD")
+	OpType string `json:"op_type,omitempty"`
 }
 
 func (t Throughput) Add(o bench.Operation) Throughput {
@@ -124,8 +126,13 @@ func (t Throughput) StringDetails(details bool) string {
 	if details {
 		dur = fmt.Sprintf(" (%vs)", (t.MeasureDurationMillis+500)/1000)
 	}
-	return fmt.Sprintf("%s%.02f obj/s%s%s",
-		speed, t.ObjectsPS(), errs, dur)
+	// Use appropriate unit based on operation type
+	unit := "obj/s"
+	if t.OpType == "COMMIT" {
+		unit = "commits/s"
+	}
+	return fmt.Sprintf("%s%.02f %s%s%s",
+		speed, t.ObjectsPS(), unit, errs, dur)
 }
 
 func (t *Throughput) fill(total bench.Segment) {
@@ -305,6 +312,11 @@ func (s *SegmentSmall) add(other SegmentSmall) SegmentSmall {
 
 // StringLong returns a long string representation of the segment.
 func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
+	return s.StringLongOp(d, details, "")
+}
+
+// StringLongOp returns a long string representation with operation-specific unit.
+func (s SegmentSmall) StringLongOp(d time.Duration, details bool, opType string) string {
 	speed := ""
 	if s.BPS > 0 {
 		speed = bench.Throughput(s.BPS).String() + ", "
@@ -313,8 +325,12 @@ func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
 	if details {
 		detail = fmt.Sprintf(" (%v, starting %v)", d, s.Start.Format("15:04:05 MST"))
 	}
-	return fmt.Sprintf("%s%.02f obj/s%s",
-		speed, s.OPS, detail)
+	unit := "obj/s"
+	if opType == "COMMIT" {
+		unit = "commits/s"
+	}
+	return fmt.Sprintf("%s%.02f %s%s",
+		speed, s.OPS, unit, detail)
 }
 
 func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
