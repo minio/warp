@@ -12,10 +12,9 @@ use_semver: true  # Requires Q_VERSION_TAG env var
 dl_upload_enabled: true  # Upload binaries to dl.min.io
 
 # Container images
-# TODO: Before production use, evaluate if this should be quay.io/minio/aistor/warp
 containers:
   image:
-    - quay.io/minio/warp
+    - quay.io/minio/aistor/warp
   archs: [amd64, arm64]
   fips_enabled: false
   dockerfile: Dockerfile.v2.release
