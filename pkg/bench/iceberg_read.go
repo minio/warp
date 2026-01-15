@@ -248,6 +248,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 			rcv := c.Receiver()
 			done := ctx.Done()
 			catalogName := b.TreeConfig.CatalogName
+			opCtx := context.Background()
 
 			<-wait
 
@@ -266,16 +267,16 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				}
 
-				b.readNamespace(ctx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)])
+				b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)])
 				nsIdx++
 
 				if len(b.tables) > 0 {
-					b.readTable(ctx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)])
+					b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)])
 					tblIdx++
 				}
 
 				if len(b.views) > 0 {
-					b.readView(ctx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)])
+					b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)])
 					vwIdx++
 				}
 			}

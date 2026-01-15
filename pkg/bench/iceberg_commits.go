@@ -101,6 +101,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 	rcv := b.Collector.Receiver()
 	done := ctx.Done()
 	catalogName := b.TreeConfig.CatalogName
+	opCtx := context.Background()
 
 	<-wait
 
@@ -144,7 +145,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.Catalog.UpdateTable(ctx, ident, nil, updates)
+			_, err = b.Catalog.UpdateTable(opCtx, ident, nil, updates)
 			if err == nil || !isRetryable(err) {
 				break
 			}
@@ -165,6 +166,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 	rcv := b.Collector.Receiver()
 	done := ctx.Done()
 	catalogName := b.TreeConfig.CatalogName
+	opCtx := context.Background()
 
 	<-wait
 
@@ -208,7 +210,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.Catalog.UpdateView(ctx, ident, nil, updates)
+			_, err = b.Catalog.UpdateView(opCtx, ident, nil, updates)
 			if err == nil || !isRetryable(err) {
 				break
 			}

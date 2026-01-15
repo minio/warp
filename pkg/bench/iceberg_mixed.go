@@ -128,6 +128,7 @@ func (b *IcebergMixed) Start(ctx context.Context, wait chan struct{}) error {
 			rcv := c.Receiver()
 			done := ctx.Done()
 			catalogName := b.TreeConfig.CatalogName
+			opCtx := context.Background()
 
 			nsListIdx := 0
 			nsExistsIdx := 0
@@ -159,69 +160,69 @@ func (b *IcebergMixed) Start(ctx context.Context, wait chan struct{}) error {
 				case OpNSList:
 					ns := b.namespaces[nsListIdx%len(b.namespaces)]
 					nsListIdx++
-					b.doFetchAllChildrenNamespaces(ctx, rcv, thread, catalogName, ns)
+					b.doFetchAllChildrenNamespaces(opCtx, rcv, thread, catalogName, ns)
 				case OpNSHead:
 					ns := b.namespaces[nsExistsIdx%len(b.namespaces)]
 					nsExistsIdx++
-					b.doCheckNamespaceExists(ctx, rcv, thread, catalogName, ns)
+					b.doCheckNamespaceExists(opCtx, rcv, thread, catalogName, ns)
 				case OpNSGet:
 					ns := b.namespaces[nsFetchIdx%len(b.namespaces)]
 					nsFetchIdx++
-					b.doFetchNamespace(ctx, rcv, thread, catalogName, ns)
+					b.doFetchNamespace(opCtx, rcv, thread, catalogName, ns)
 				case OpNSUpdate:
-					b.doUpdateNamespaceProperties(ctx, rcv, thread, catalogName)
+					b.doUpdateNamespaceProperties(opCtx, rcv, thread, catalogName)
 				case OpTableList:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblListIdx%len(b.tables)]
 					tblListIdx++
-					b.doFetchAllTables(ctx, rcv, thread, catalogName, tbl)
+					b.doFetchAllTables(opCtx, rcv, thread, catalogName, tbl)
 				case OpTableHead:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblExistsIdx%len(b.tables)]
 					tblExistsIdx++
-					b.doCheckTableExists(ctx, rcv, thread, catalogName, tbl)
+					b.doCheckTableExists(opCtx, rcv, thread, catalogName, tbl)
 				case OpTableGet:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblFetchIdx%len(b.tables)]
 					tblFetchIdx++
-					b.doFetchTable(ctx, rcv, thread, catalogName, tbl)
+					b.doFetchTable(opCtx, rcv, thread, catalogName, tbl)
 				case OpTableUpdate:
 					if len(b.tables) == 0 {
 						continue
 					}
-					b.doUpdateTable(ctx, rcv, thread, catalogName)
+					b.doUpdateTable(opCtx, rcv, thread, catalogName)
 				case OpViewList:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewListIdx%len(b.views)]
 					viewListIdx++
-					b.doFetchAllViews(ctx, rcv, thread, catalogName, vw)
+					b.doFetchAllViews(opCtx, rcv, thread, catalogName, vw)
 				case OpViewHead:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewExistsIdx%len(b.views)]
 					viewExistsIdx++
-					b.doCheckViewExists(ctx, rcv, thread, catalogName, vw)
+					b.doCheckViewExists(opCtx, rcv, thread, catalogName, vw)
 				case OpViewGet:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewFetchIdx%len(b.views)]
 					viewFetchIdx++
-					b.doFetchView(ctx, rcv, thread, catalogName, vw)
+					b.doFetchView(opCtx, rcv, thread, catalogName, vw)
 				case OpViewUpdate:
 					if len(b.views) == 0 {
 						continue
 					}
-					b.doUpdateView(ctx, rcv, thread, catalogName)
+					b.doUpdateView(opCtx, rcv, thread, catalogName)
 				}
 			}
 		}(i)

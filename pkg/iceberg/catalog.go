@@ -228,6 +228,7 @@ func DeleteWarehouse(ctx context.Context, cfg CatalogConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	if cfg.Region == "" {
 		cfg.Region = "us-east-1"
