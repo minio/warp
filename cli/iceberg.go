@@ -132,18 +132,17 @@ EXAMPLES:
   # Benchmark with generated data
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
-    --bucket=my-warehouse --num-files=10 --duration=1m
+    --num-files=10 --duration=1m
 
   # Benchmark with TPC-DS data (auto-downloads if not cached)
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
-    --bucket=my-warehouse --tpcds --scale-factor=sf100
+    --tpcds --scale-factor=sf100
 
   # Distributed benchmark
   {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
     --catalog-uri=http://minio:9000/_iceberg --warehouse=my-warehouse \
-    --bucket=my-warehouse --warp-client=node1:7761,node2:7761 \
-    --tpcds --scale-factor=sf100
+    --warp-client=node1:7761,node2:7761 --tpcds --scale-factor=sf100
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
@@ -172,11 +171,14 @@ func mainIceberg(ctx *cli.Context) error {
 
 	warehouse := ctx.String("warehouse")
 	if warehouse == "" {
-		warehouse = ctx.String("bucket")
+		console.Fatal("--warehouse is required")
 	}
 
+	common := getCommon(ctx, nil)
+	common.Bucket = warehouse
+
 	b := bench.Iceberg{
-		Common:      getCommon(ctx, nil),
+		Common:      common,
 		CatalogURI:  catalogURI,
 		Warehouse:   warehouse,
 		Namespace:   ctx.String("namespace"),
