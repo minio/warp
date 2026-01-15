@@ -17,3 +17,6 @@ dist
 
 # zst files
 *.zst
+
+# qreleaser state file
+.release-state.sh
