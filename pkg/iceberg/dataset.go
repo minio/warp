@@ -2,13 +2,18 @@ package iceberg
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/apache/iceberg-go/catalog"
+	restcat "github.com/apache/iceberg-go/catalog/rest"
+	"github.com/apache/iceberg-go/table"
 	"github.com/minio/warp/pkg/iceberg/rest"
 )
 
 type DatasetCreator struct {
-	RestClient *rest.Client
+	Catalog    *restcat.Catalog
 	Tree       *Tree
 	CatalogURI string
 	AccessKey  string
@@ -19,7 +24,6 @@ type DatasetCreator struct {
 
 func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 	namespaces := d.Tree.AllNamespaces()
-	catalog := d.Tree.Config().CatalogName
 	cfg := d.Tree.Config()
 
 	for i, ns := range namespaces {
@@ -30,8 +34,8 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 		}
 
 		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
-		_, err := d.RestClient.CreateNamespace(ctx, catalog, ns.Path, props)
-		if err != nil && !rest.IsConflict(err) {
+		err := d.Catalog.CreateNamespace(ctx, ns.Path, props)
+		if err != nil && !isAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("namespace create error:", err)
 			}
@@ -49,8 +53,9 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 		return nil
 	}
 
-	catalog := d.Tree.Config().CatalogName
 	cfg := d.Tree.Config()
+	schema := rest.BuildIcebergSchema(cfg.ColumnsPerTable)
+	props := rest.BuildTableProperties(cfg.PropertiesPerTbl, "tbl_prop")
 
 	for i, tbl := range tables {
 		select {
@@ -59,14 +64,12 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 		default:
 		}
 
-		req := rest.CreateTableRequest{
-			Name:       tbl.Name,
-			Location:   tbl.Location,
-			Schema:     rest.BuildTableSchema(cfg.ColumnsPerTable),
-			Properties: rest.BuildTableProperties(cfg.PropertiesPerTbl, "tbl_prop"),
-		}
-		_, err := d.RestClient.CreateTable(ctx, catalog, tbl.Namespace, req)
-		if err != nil && !rest.IsConflict(err) {
+		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+		_, err := d.Catalog.CreateTable(ctx, ident, schema,
+			catalog.WithLocation(tbl.Location),
+			catalog.WithProperties(props),
+		)
+		if err != nil && !isAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("table create error:", err)
 			}
@@ -84,8 +87,9 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 		return nil
 	}
 
-	catalog := d.Tree.Config().CatalogName
 	cfg := d.Tree.Config()
+	schema := rest.BuildIcebergSchema(cfg.ColumnsPerView)
+	props := rest.BuildTableProperties(cfg.PropertiesPerVw, "view_prop")
 
 	for i, vw := range views {
 		select {
@@ -94,15 +98,13 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 		default:
 		}
 
-		req := rest.CreateViewRequest{
-			Name:        vw.Name,
-			Location:    vw.Location,
-			Schema:      rest.BuildViewSchema(cfg.ColumnsPerView),
-			ViewVersion: rest.BuildViewVersion(catalog, vw.Namespace, vw.Name),
-			Properties:  rest.BuildTableProperties(cfg.PropertiesPerVw, "view_prop"),
-		}
-		_, err := d.RestClient.CreateView(ctx, catalog, vw.Namespace, req)
-		if err != nil && !rest.IsConflict(err) {
+		ident := toTableIdentifier(vw.Namespace, vw.Name)
+		version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
+		_, err := d.Catalog.CreateView(ctx, ident, version, schema,
+			catalog.WithViewLocation(vw.Location),
+			catalog.WithViewProperties(props),
+		)
+		if err != nil && !isAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("view create error:", err)
 			}
@@ -115,29 +117,27 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 }
 
 func (d *DatasetCreator) DeleteAll(ctx context.Context) {
-	catalog := d.Tree.Config().CatalogName
+	catalogName := d.Tree.Config().CatalogName
 
-	// Delete views first
 	for _, vw := range d.Tree.AllViews() {
-		_ = d.RestClient.DropView(ctx, catalog, vw.Namespace, vw.Name)
+		ident := toTableIdentifier(vw.Namespace, vw.Name)
+		_ = d.Catalog.DropView(ctx, ident)
 	}
 
-	// Delete tables
 	for _, tbl := range d.Tree.AllTables() {
-		_ = d.RestClient.DropTable(ctx, catalog, tbl.Namespace, tbl.Name, true)
+		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+		_ = d.Catalog.DropTable(ctx, ident)
 	}
 
-	// Delete namespaces (reverse order - leaf to root)
 	namespaces := d.Tree.AllNamespaces()
 	for i := len(namespaces) - 1; i >= 0; i-- {
-		_ = d.RestClient.DropNamespace(ctx, catalog, namespaces[i].Path)
+		_ = d.Catalog.DropNamespace(ctx, namespaces[i].Path)
 	}
 
-	// Delete warehouse
 	if d.CatalogURI != "" && d.AccessKey != "" {
 		_ = DeleteWarehouse(ctx, CatalogConfig{
 			CatalogURI: d.CatalogURI,
-			Warehouse:  catalog,
+			Warehouse:  catalogName,
 			AccessKey:  d.AccessKey,
 			SecretKey:  d.SecretKey,
 		})
@@ -150,7 +150,6 @@ func (d *DatasetCreator) CreateAll(ctx context.Context, updateStatus func(string
 			d.Tree.TotalNamespaces(), d.Tree.TotalTables(), d.Tree.TotalViews()))
 	}
 
-	// Ensure warehouse exists
 	if d.CatalogURI != "" && d.AccessKey != "" {
 		if updateStatus != nil {
 			updateStatus("Ensuring warehouse exists...")
@@ -195,4 +194,23 @@ func (d *DatasetCreator) CreateAll(ctx context.Context, updateStatus func(string
 		updateStatus("Preparation complete")
 	}
 	return nil
+}
+
+func toTableIdentifier(namespace []string, name string) table.Identifier {
+	return append(namespace, name)
+}
+
+func isAlreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, catalog.ErrNamespaceAlreadyExists) ||
+		errors.Is(err, catalog.ErrTableAlreadyExists) ||
+		errors.Is(err, catalog.ErrViewAlreadyExists) {
+		return true
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "AlreadyExists") ||
+		strings.Contains(errStr, "already exists") ||
+		strings.Contains(errStr, "Conflict")
 }

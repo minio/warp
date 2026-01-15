@@ -1,13 +1,14 @@
 package cli
 
 import (
+	"context"
 	"time"
 
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/iceberg"
-	"github.com/minio/warp/pkg/iceberg/rest"
 )
 
 var catalogCommitsFlags = []cli.Flag{
@@ -101,13 +102,19 @@ func mainCatalogCommits(ctx *cli.Context) error {
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	catalogURLs := buildCatalogURLs(hosts, useTLS)
 
-	restClient := rest.NewClient(rest.ClientConfig{
-		BaseURLs:  catalogURLs,
-		APIPrefix: "/v1",
-		AccessKey: ctx.String("access-key"),
-		SecretKey: ctx.String("secret-key"),
-		Region:    ctx.String("region"),
-	})
+	catalogCfg := iceberg.CatalogConfig{
+		CatalogURI: catalogURLs[0],
+		Warehouse:  ctx.String("catalog-name"),
+		AccessKey:  ctx.String("access-key"),
+		SecretKey:  ctx.String("secret-key"),
+		Region:     ctx.String("region"),
+	}
+
+	err := iceberg.EnsureWarehouse(context.Background(), catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to ensure warehouse")
+
+	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to create catalog")
 
 	treeCfg := iceberg.TreeConfig{
 		NamespaceWidth: ctx.Int("namespace-width"),
@@ -120,7 +127,7 @@ func mainCatalogCommits(ctx *cli.Context) error {
 
 	b := bench.IcebergCommits{
 		Common:                 getIcebergCommon(ctx),
-		RestClient:             restClient,
+		Catalog:                cat,
 		TreeConfig:             treeCfg,
 		CatalogURI:             catalogURLs[0],
 		AccessKey:              ctx.String("access-key"),

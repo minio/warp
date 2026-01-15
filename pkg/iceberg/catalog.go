@@ -36,7 +36,7 @@ type CatalogConfig struct {
 }
 
 // NewCatalog creates a new Iceberg REST catalog connection.
-func NewCatalog(ctx context.Context, cfg CatalogConfig) (catalog.Catalog, error) {
+func NewCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
 	u, err := url.Parse(cfg.CatalogURI)
 	if err != nil {
 		return nil, fmt.Errorf("invalid catalog URI: %w", err)

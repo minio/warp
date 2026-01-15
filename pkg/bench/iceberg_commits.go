@@ -7,15 +7,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/minio/warp/pkg/iceberg"
-	"github.com/minio/warp/pkg/iceberg/rest"
+	"github.com/apache/iceberg-go"
+	"github.com/apache/iceberg-go/catalog/rest"
+	"github.com/apache/iceberg-go/table"
+	"github.com/apache/iceberg-go/view"
+	icebergpkg "github.com/minio/warp/pkg/iceberg"
 )
 
 type IcebergCommits struct {
 	Common
-	RestClient *rest.Client
-	Tree       *iceberg.Tree
-	TreeConfig iceberg.TreeConfig
+	Catalog    *rest.Catalog
+	Tree       *icebergpkg.Tree
+	TreeConfig icebergpkg.TreeConfig
 
 	CatalogURI string
 	AccessKey  string
@@ -26,12 +29,12 @@ type IcebergCommits struct {
 	MaxRetries             int
 	RetryBackoff           time.Duration
 
-	tables []iceberg.TableInfo
-	views  []iceberg.ViewInfo
+	tables []icebergpkg.TableInfo
+	views  []icebergpkg.ViewInfo
 }
 
 func (b *IcebergCommits) Prepare(ctx context.Context) error {
-	b.Tree = iceberg.NewTree(b.TreeConfig)
+	b.Tree = icebergpkg.NewTree(b.TreeConfig)
 
 	b.tables = b.Tree.AllTables()
 	b.views = b.Tree.AllViews()
@@ -40,8 +43,8 @@ func (b *IcebergCommits) Prepare(ctx context.Context) error {
 		return fmt.Errorf("no tables or views found: check tree configuration")
 	}
 
-	creator := &iceberg.DatasetCreator{
-		RestClient: b.RestClient,
+	creator := &icebergpkg.DatasetCreator{
+		Catalog:    b.Catalog,
 		Tree:       b.Tree,
 		CatalogURI: b.CatalogURI,
 		AccessKey:  b.AccessKey,
@@ -97,7 +100,7 @@ func (b *IcebergCommits) Start(ctx context.Context, wait chan struct{}) error {
 func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}, thread int) {
 	rcv := b.Collector.Receiver()
 	done := ctx.Done()
-	catalog := b.TreeConfig.CatalogName
+	catalogName := b.TreeConfig.CatalogName
 
 	<-wait
 
@@ -124,30 +127,25 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 
 		updateID := atomic.LoadUint64(&globalUpdateID)
 
-		req := rest.CommitTableRequest{
-			Updates: []rest.TableUpdate{
-				{
-					Action: "set-properties",
-					Updates: map[string]string{
-						fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
-					},
-				},
-			},
+		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+		updates := []table.Update{
+			table.NewSetPropertiesUpdate(iceberg.Properties{
+				fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
+			}),
 		}
 
 		op := Operation{
 			OpType:   OpTableUpdate,
 			Thread:   uint32(thread),
-			File:     fmt.Sprintf("%s/%v/%s", catalog, tbl.Namespace, tbl.Name),
-			ObjPerOp: 0,
-			Endpoint: catalog,
+			File:     fmt.Sprintf("%s/%v/%s", catalogName, tbl.Namespace, tbl.Name),
+			Endpoint: catalogName,
 		}
 
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.RestClient.UpdateTable(ctx, catalog, tbl.Namespace, tbl.Name, req)
-			if err == nil || !rest.IsRetryable(err) {
+			_, err = b.Catalog.UpdateTable(ctx, ident, nil, updates)
+			if err == nil || !isRetryable(err) {
 				break
 			}
 			if b.RetryBackoff > 0 {
@@ -166,7 +164,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{}, thread int) {
 	rcv := b.Collector.Receiver()
 	done := ctx.Done()
-	catalog := b.TreeConfig.CatalogName
+	catalogName := b.TreeConfig.CatalogName
 
 	<-wait
 
@@ -193,30 +191,25 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 
 		updateID := atomic.LoadUint64(&globalUpdateID)
 
-		req := rest.CommitViewRequest{
-			Updates: []rest.ViewUpdate{
-				{
-					Action: "set-properties",
-					Updates: map[string]string{
-						fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
-					},
-				},
-			},
+		ident := toTableIdentifier(vw.Namespace, vw.Name)
+		updates := []view.Update{
+			view.NewSetPropertiesUpdate(iceberg.Properties{
+				fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
+			}),
 		}
 
 		op := Operation{
 			OpType:   OpViewUpdate,
 			Thread:   uint32(thread),
-			File:     fmt.Sprintf("%s/%v/%s", catalog, vw.Namespace, vw.Name),
-			ObjPerOp: 0,
-			Endpoint: catalog,
+			File:     fmt.Sprintf("%s/%v/%s", catalogName, vw.Namespace, vw.Name),
+			Endpoint: catalogName,
 		}
 
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.RestClient.UpdateView(ctx, catalog, vw.Namespace, vw.Name, req)
-			if err == nil || !rest.IsRetryable(err) {
+			_, err = b.Catalog.UpdateView(ctx, ident, nil, updates)
+			if err == nil || !isRetryable(err) {
 				break
 			}
 			if b.RetryBackoff > 0 {
@@ -233,12 +226,20 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 }
 
 func (b *IcebergCommits) Cleanup(ctx context.Context) {
-	d := &iceberg.DatasetCreator{
-		RestClient: b.RestClient,
+	d := &icebergpkg.DatasetCreator{
+		Catalog:    b.Catalog,
 		Tree:       b.Tree,
 		CatalogURI: b.CatalogURI,
 		AccessKey:  b.AccessKey,
 		SecretKey:  b.SecretKey,
 	}
 	d.DeleteAll(ctx)
+}
+
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return errStr == "Conflict" || errStr == "Internal Server Error"
 }
