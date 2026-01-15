@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/iceberg"
@@ -50,9 +51,64 @@ var catalogMixedFlags = []cli.Flag{
 		Value: "s3://benchmark",
 	},
 	cli.Float64Flag{
-		Name:  "read-ratio",
-		Usage: "Ratio of read operations (0.0-1.0). Rest are updates.",
-		Value: 0.5,
+		Name:  "ns-list-distrib",
+		Usage: "Weight of namespace list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "ns-head-distrib",
+		Usage: "Weight of namespace exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "ns-get-distrib",
+		Usage: "Weight of namespace get operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "ns-update-distrib",
+		Usage: "Weight of namespace update operations",
+		Value: 5,
+	},
+	cli.Float64Flag{
+		Name:  "table-list-distrib",
+		Usage: "Weight of table list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-head-distrib",
+		Usage: "Weight of table exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-get-distrib",
+		Usage: "Weight of table get operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-update-distrib",
+		Usage: "Weight of table update operations",
+		Value: 5,
+	},
+	cli.Float64Flag{
+		Name:  "view-list-distrib",
+		Usage: "Weight of view list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-head-distrib",
+		Usage: "Weight of view exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-get-distrib",
+		Usage: "Weight of view get operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-update-distrib",
+		Usage: "Weight of view update operations",
+		Value: 5,
 	},
 }
 
@@ -75,16 +131,14 @@ FLAGS:
   {{end}}
 
 EXAMPLES:
-  1. Run mixed read/update benchmark with 50% reads:
+  1. Run mixed benchmark with default distribution:
      {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
-  2. Run read-heavy workload (80% reads):
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin --read-ratio 0.8
+  2. Run read-heavy workload (disable updates):
+     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+       --ns-update-distrib 0 --table-update-distrib 0 --view-update-distrib 0
 
-  3. Run write-heavy workload (20% reads):
-     {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin --read-ratio 0.2
-
-  4. Run with multiple hosts (round-robin):
+  3. Run with multiple hosts (round-robin):
      {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
 `,
 }
@@ -118,6 +172,25 @@ func mainCatalogMixed(ctx *cli.Context) error {
 		CatalogName:      ctx.String("catalog-name"),
 	}
 
+	dist := bench.IcebergMixedDistribution{
+		Distribution: map[string]float64{
+			bench.OpNSList:      ctx.Float64("ns-list-distrib"),
+			bench.OpNSHead:      ctx.Float64("ns-head-distrib"),
+			bench.OpNSGet:       ctx.Float64("ns-get-distrib"),
+			bench.OpNSUpdate:    ctx.Float64("ns-update-distrib"),
+			bench.OpTableList:   ctx.Float64("table-list-distrib"),
+			bench.OpTableHead:   ctx.Float64("table-head-distrib"),
+			bench.OpTableGet:    ctx.Float64("table-get-distrib"),
+			bench.OpTableUpdate: ctx.Float64("table-update-distrib"),
+			bench.OpViewList:    ctx.Float64("view-list-distrib"),
+			bench.OpViewHead:    ctx.Float64("view-head-distrib"),
+			bench.OpViewGet:     ctx.Float64("view-get-distrib"),
+			bench.OpViewUpdate:  ctx.Float64("view-update-distrib"),
+		},
+	}
+	err := dist.Generate()
+	fatalIf(probe.NewError(err), "Invalid distribution")
+
 	b := bench.IcebergMixed{
 		Common:     getIcebergCommon(ctx),
 		RestClient: restClient,
@@ -125,7 +198,7 @@ func mainCatalogMixed(ctx *cli.Context) error {
 		CatalogURI: catalogURLs[0],
 		AccessKey:  ctx.String("access-key"),
 		SecretKey:  ctx.String("secret-key"),
-		ReadRatio:  ctx.Float64("read-ratio"),
+		Dist:       &dist,
 	}
 
 	return runBench(ctx, &b)
@@ -149,10 +222,6 @@ func checkCatalogMixedSyntax(ctx *cli.Context) {
 	}
 	if ctx.Int("namespace-depth") < 1 {
 		console.Fatal("--namespace-depth must be at least 1")
-	}
-	readRatio := ctx.Float64("read-ratio")
-	if readRatio < 0.0 || readRatio > 1.0 {
-		console.Fatal("--read-ratio must be between 0.0 and 1.0")
 	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)

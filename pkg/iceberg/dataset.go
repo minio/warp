@@ -114,6 +114,36 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	return nil
 }
 
+func (d *DatasetCreator) DeleteAll(ctx context.Context) {
+	catalog := d.Tree.Config().CatalogName
+
+	// Delete views first
+	for _, vw := range d.Tree.AllViews() {
+		_ = d.RestClient.DropView(ctx, catalog, vw.Namespace, vw.Name)
+	}
+
+	// Delete tables
+	for _, tbl := range d.Tree.AllTables() {
+		_ = d.RestClient.DropTable(ctx, catalog, tbl.Namespace, tbl.Name, true)
+	}
+
+	// Delete namespaces (reverse order - leaf to root)
+	namespaces := d.Tree.AllNamespaces()
+	for i := len(namespaces) - 1; i >= 0; i-- {
+		_ = d.RestClient.DropNamespace(ctx, catalog, namespaces[i].Path)
+	}
+
+	// Delete warehouse
+	if d.CatalogURI != "" && d.AccessKey != "" {
+		_ = DeleteWarehouse(ctx, CatalogConfig{
+			CatalogURI: d.CatalogURI,
+			Warehouse:  catalog,
+			AccessKey:  d.AccessKey,
+			SecretKey:  d.SecretKey,
+		})
+	}
+}
+
 func (d *DatasetCreator) CreateAll(ctx context.Context, updateStatus func(string)) error {
 	if updateStatus != nil {
 		updateStatus(fmt.Sprintf("Preparing dataset: %d namespaces, %d tables, %d views",

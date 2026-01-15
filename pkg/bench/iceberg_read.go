@@ -12,21 +12,21 @@ import (
 
 // Iceberg REST catalog operation types.
 const (
-	OpNamespaceCreate = "NAMESPACE_CREATE"
-	OpNamespaceGet    = "NAMESPACE_GET"
-	OpNamespaceHead   = "NAMESPACE_HEAD"
-	OpNamespaceList   = "NAMESPACE_LIST"
-	OpNamespaceUpdate = "NAMESPACE_UPDATE"
-	OpTableCreate     = "TABLE_CREATE"
-	OpTableGet        = "TABLE_GET"
-	OpTableHead       = "TABLE_HEAD"
-	OpTableList       = "TABLE_LIST"
-	OpTableCommit     = "TABLE_COMMIT"
-	OpViewCreate      = "VIEW_CREATE"
-	OpViewGet         = "VIEW_GET"
-	OpViewHead        = "VIEW_HEAD"
-	OpViewList        = "VIEW_LIST"
-	OpViewCommit      = "VIEW_COMMIT"
+	OpNSCreate    = "NS_CREATE"
+	OpNSGet       = "NS_GET"
+	OpNSHead      = "NS_HEAD"
+	OpNSList      = "NS_LIST"
+	OpNSUpdate    = "NS_UPDATE"
+	OpTableCreate = "TABLE_CREATE"
+	OpTableGet    = "TABLE_GET"
+	OpTableHead   = "TABLE_HEAD"
+	OpTableList   = "TABLE_LIST"
+	OpTableUpdate = "TABLE_UPDATE"
+	OpViewCreate  = "VIEW_CREATE"
+	OpViewGet     = "VIEW_GET"
+	OpViewHead    = "VIEW_HEAD"
+	OpViewList    = "VIEW_LIST"
+	OpViewUpdate  = "VIEW_UPDATE"
 )
 
 type IcebergRead struct {
@@ -111,7 +111,7 @@ func (b *IcebergRead) createNamespaces(ctx context.Context) error {
 		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
 
 		op := Operation{
-			OpType:   OpNamespaceCreate,
+			OpType:   OpNSCreate,
 			Thread:   0,
 			Size:     0,
 			File:     fmt.Sprintf("%s/%v", catalog, ns.Path),
@@ -230,7 +230,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 	c := b.Collector
 
 	if b.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, OpNamespaceGet, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
+		ctx = c.AutoTerm(ctx, OpNSGet, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
 	}
 
 	for i := 0; i < b.Concurrency; i++ {
@@ -279,7 +279,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 
 func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalog string, ns iceberg.NamespaceInfo) {
 	op := Operation{
-		OpType:   OpNamespaceGet,
+		OpType:   OpNSGet,
 		Thread:   uint32(thread),
 		Size:     0,
 		File:     fmt.Sprintf("%s/%v", catalog, ns.Path),
@@ -297,7 +297,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 	rcv <- op
 
 	op = Operation{
-		OpType:   OpNamespaceHead,
+		OpType:   OpNSHead,
 		Thread:   uint32(thread),
 		Size:     0,
 		File:     fmt.Sprintf("%s/%v", catalog, ns.Path),
@@ -316,7 +316,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 
 	if !ns.IsLeaf {
 		op = Operation{
-			OpType:   OpNamespaceList,
+			OpType:   OpNSList,
 			Thread:   uint32(thread),
 			Size:     0,
 			File:     fmt.Sprintf("%s/%v", catalog, ns.Path),
@@ -447,6 +447,13 @@ func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread
 	rcv <- op
 }
 
-func (b *IcebergRead) Cleanup(_ context.Context) {
-	b.UpdateStatus("Cleanup: skipping (use --noclear=false to delete)")
+func (b *IcebergRead) Cleanup(ctx context.Context) {
+	d := &iceberg.DatasetCreator{
+		RestClient: b.RestClient,
+		Tree:       b.Tree,
+		CatalogURI: b.CatalogURI,
+		AccessKey:  b.AccessKey,
+		SecretKey:  b.SecretKey,
+	}
+	d.DeleteAll(ctx)
 }

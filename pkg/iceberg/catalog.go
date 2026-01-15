@@ -215,6 +215,41 @@ func EnsureWarehouse(ctx context.Context, cfg CatalogConfig) error {
 	return fmt.Errorf("failed to create warehouse %s: %s - %s", cfg.Warehouse, resp.Status, string(respBody))
 }
 
+// DeleteWarehouse deletes a warehouse.
+func DeleteWarehouse(ctx context.Context, cfg CatalogConfig) error {
+	u, err := url.Parse(cfg.CatalogURI)
+	if err != nil {
+		return fmt.Errorf("invalid catalog URI: %w", err)
+	}
+
+	warehouseURL := fmt.Sprintf("%s://%s/_iceberg/v1/warehouses/%s", u.Scheme, u.Host, cfg.Warehouse)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, warehouseURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if cfg.Region == "" {
+		cfg.Region = "us-east-1"
+	}
+	signRequest(req, nil, cfg.AccessKey, cfg.SecretKey, cfg.Region)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete warehouse: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent ||
+		resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("failed to delete warehouse %s: %s - %s", cfg.Warehouse, resp.Status, string(respBody))
+}
+
 // signRequest signs an HTTP request using AWS SigV4.
 func signRequest(req *http.Request, payload []byte, accessKey, secretKey, region string) {
 	t := time.Now().UTC()

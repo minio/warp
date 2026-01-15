@@ -29,7 +29,6 @@ import (
 
 	"github.com/apache/iceberg-go"
 	"github.com/apache/iceberg-go/catalog"
-	"github.com/minio/minio-go/v7"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
 )
 
@@ -286,10 +285,11 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 					info, _ := f.Stat()
 					op.Size = info.Size()
+					opts := b.PutOpts
+					opts.ContentType = "application/octet-stream"
 					op.Start = time.Now()
 
-					_, err = client.PutObject(ctx, bucket, objName, f, info.Size(),
-						minio.PutObjectOptions{ContentType: "application/octet-stream"})
+					_, err = client.PutObject(ctx, bucket, objName, f, info.Size(), opts)
 					op.End = time.Now()
 					f.Close()
 

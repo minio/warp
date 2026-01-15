@@ -58,7 +58,7 @@ func (b *IcebergCommits) Start(ctx context.Context, wait chan struct{}) error {
 	c := b.Collector
 
 	if b.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, OpTableCommit, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
+		ctx = c.AutoTerm(ctx, OpTableUpdate, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
 	}
 
 	tableWorkers := b.TableCommitsThroughput
@@ -136,7 +136,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		}
 
 		op := Operation{
-			OpType:   OpTableCommit,
+			OpType:   OpTableUpdate,
 			Thread:   uint32(thread),
 			File:     fmt.Sprintf("%s/%v/%s", catalog, tbl.Namespace, tbl.Name),
 			ObjPerOp: 0,
@@ -205,7 +205,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		}
 
 		op := Operation{
-			OpType:   OpViewCommit,
+			OpType:   OpViewUpdate,
 			Thread:   uint32(thread),
 			File:     fmt.Sprintf("%s/%v/%s", catalog, vw.Namespace, vw.Name),
 			ObjPerOp: 0,
@@ -232,6 +232,13 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 	}
 }
 
-func (b *IcebergCommits) Cleanup(_ context.Context) {
-	b.UpdateStatus("Cleanup: skipping (commits benchmark does not delete data)")
+func (b *IcebergCommits) Cleanup(ctx context.Context) {
+	d := &iceberg.DatasetCreator{
+		RestClient: b.RestClient,
+		Tree:       b.Tree,
+		CatalogURI: b.CatalogURI,
+		AccessKey:  b.AccessKey,
+		SecretKey:  b.SecretKey,
+	}
+	d.DeleteAll(ctx)
 }
