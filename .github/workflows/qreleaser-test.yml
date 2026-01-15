@@ -1,0 +1,122 @@
+name: Q Release Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release type"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - release
+          - edge
+      version_tag:
+        description: "Version tag (e.g., v1.5.0)"
+        required: true
+        type: string
+
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: false
+
+      - name: Configure git
+        run: |
+          git config --global user.name "MinIO Bot"
+          git config --global user.email "dev@min.io"
+
+      - name: Install Just
+        uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Q Release Toolkit
+        run: |
+          curl -fsSL https://dl.min.io/download-info/qreleaser.tar.zst -o /tmp/qreleaser.tar.zst
+          tar --zstd -xf /tmp/qreleaser.tar.zst -C /tmp/
+          echo y | just -f /tmp/qreleaser/Justfile install
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          qreleaser setup-deps --install
+
+      - name: Determine release type and version
+        id: release-type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.release_type }}" >> $GITHUB_OUTPUT
+            echo "version=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
+          else
+            # For PRs, use a test version
+            echo "type=release" >> $GITHUB_OUTPUT
+            echo "version=v0.0.0-test" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Q Release (Test Mode)
+        env:
+          CI: "1"
+          DEBUG: "1"
+          Q_CI_SRC_DIR: ${{ github.workspace }}
+          Q_VERSION_TAG: ${{ steps.release-type.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          qreleaser main ${{ github.repository }} ${{ steps.release-type.outputs.type }}
+
+      - name: Verify Release Artifacts
+        run: |
+          find ${{ github.workspace }}/warp-release -type f
+          ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type }}/linux-amd64/warp --version
+
+      - name: Verify Version Format (ldflags check)
+        run: |
+          BINARY="${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type }}/linux-amd64/warp"
+          EXPECTED_VERSION="${{ steps.release-type.outputs.version }}"
+
+          echo "Checking binary for expected version: $EXPECTED_VERSION"
+
+          # Run version command and capture output
+          VERSION_OUTPUT=$("$BINARY" --version 2>&1 || true)
+          echo "Version output:"
+          echo "$VERSION_OUTPUT"
+
+          # For semver releases, check that the version tag appears in the binary
+          if echo "$VERSION_OUTPUT" | grep -qF "$EXPECTED_VERSION"; then
+            echo "✓ Version format verified: found '$EXPECTED_VERSION' in version output"
+          elif strings "$BINARY" | grep -qF "$EXPECTED_VERSION"; then
+            echo "✓ Version format verified: found '$EXPECTED_VERSION' in binary strings"
+          else
+            echo "ERROR: Expected version string not found in binary"
+            echo "Expected: $EXPECTED_VERSION"
+            echo ""
+            echo "Version-like strings in binary:"
+            strings "$BINARY" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+' | head -10
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-artifacts-${{ steps.release-type.outputs.type }}
+          path: warp-release/
+          retention-days: 7
