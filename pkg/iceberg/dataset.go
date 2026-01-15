@@ -35,7 +35,7 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 
 		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
 		err := d.Catalog.CreateNamespace(ctx, ns.Path, props)
-		if err != nil && !isAlreadyExists(err) {
+		if err != nil && !IsAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("namespace create error:", err)
 			}
@@ -69,7 +69,7 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 			catalog.WithLocation(tbl.Location),
 			catalog.WithProperties(props),
 		)
-		if err != nil && !isAlreadyExists(err) {
+		if err != nil && !IsAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("table create error:", err)
 			}
@@ -104,7 +104,7 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 			catalog.WithViewLocation(vw.Location),
 			catalog.WithViewProperties(props),
 		)
-		if err != nil && !isAlreadyExists(err) {
+		if err != nil && !IsAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("view create error:", err)
 			}
@@ -200,7 +200,7 @@ func toTableIdentifier(namespace []string, name string) table.Identifier {
 	return append(namespace, name)
 }
 
-func isAlreadyExists(err error) bool {
+func IsAlreadyExists(err error) bool {
 	if err == nil {
 		return false
 	}

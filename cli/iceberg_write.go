@@ -18,35 +18,51 @@
 package cli
 
 import (
+	"context"
 	"time"
 
 	"github.com/minio/cli"
+	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/pkg/iceberg"
 )
 
-var icebergFlags = []cli.Flag{
+var icebergWriteFlags = []cli.Flag{
 	cli.StringFlag{
-		Name:   "catalog-uri",
-		Usage:  "Iceberg REST catalog URI",
-		EnvVar: "ICEBERG_CATALOG_URI",
-		Value:  "",
+		Name:  "catalog-name",
+		Usage: "Catalog name to use",
+		Value: "benchmarkcatalog",
+	},
+	cli.IntFlag{
+		Name:  "namespace-width",
+		Usage: "Width of the N-ary namespace tree (children per namespace)",
+		Value: 1,
+	},
+	cli.IntFlag{
+		Name:  "namespace-depth",
+		Usage: "Depth of the N-ary namespace tree",
+		Value: 1,
+	},
+	cli.IntFlag{
+		Name:  "tables-per-ns",
+		Usage: "Number of tables per leaf namespace",
+		Value: 3,
+	},
+	cli.IntFlag{
+		Name:  "columns",
+		Usage: "Number of columns per table schema",
+		Value: 10,
+	},
+	cli.IntFlag{
+		Name:  "properties",
+		Usage: "Number of properties per entity",
+		Value: 5,
 	},
 	cli.StringFlag{
-		Name:   "warehouse",
-		Usage:  "Iceberg warehouse name or location",
-		EnvVar: "ICEBERG_WAREHOUSE",
-		Value:  "",
-	},
-	cli.StringFlag{
-		Name:  "namespace",
-		Usage: "Iceberg namespace",
-		Value: "benchmark",
-	},
-	cli.StringFlag{
-		Name:  "table",
-		Usage: "Iceberg table name",
-		Value: "warp_benchmark",
+		Name:  "base-location",
+		Usage: "Base storage location for tables",
+		Value: "s3://benchmark",
 	},
 	cli.IntFlag{
 		Name:  "num-files",
@@ -63,7 +79,6 @@ var icebergFlags = []cli.Flag{
 		Usage: "Local cache directory for generated/downloaded data",
 		Value: "/tmp/warp-iceberg-cache",
 	},
-
 	cli.IntFlag{
 		Name:  "max-retries",
 		Usage: "Maximum commit retries on conflict",
@@ -90,7 +105,7 @@ var icebergFlags = []cli.Flag{
 	},
 }
 
-var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergFlags, benchFlags, analyzeFlags)
+var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteFlags, benchFlags, analyzeFlags)
 
 var icebergWriteCmd = cli.Command{
 	Name:   "write",
@@ -114,29 +129,34 @@ DESCRIPTION:
   2. TPC-DS data (--tpcds): Uses real TPC-DS benchmark data from GCS
 
   The benchmark automatically:
-  - Creates warehouse, bucket, namespace, and table if they don't exist
+  - Creates warehouse, namespaces, and tables using the tree structure
   - Downloads TPC-DS data from GCS if --tpcds is used and data isn't cached
 
+  Workers round-robin across tables in the tree, creating commit conflicts
+  when multiple workers target the same table.
+
   Workflow:
-  1. Creates warehouse and bucket (if needed)
+  1. Creates warehouse and dataset tree (namespaces + tables)
   2. Downloads/generates data files
-  3. Creates Iceberg namespace and table (if needed)
-  4. Uploads parquet files to S3 storage
-  5. Commits file references to Iceberg table via REST catalog
-  6. Handles commit conflicts with exponential backoff retry
+  3. Uploads parquet files to S3 storage
+  4. Commits file references to Iceberg tables via REST catalog
+  5. Handles commit conflicts with exponential backoff retry
 
 EXAMPLES:
-  # Benchmark with generated data
-  {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --warehouse=my-warehouse --num-files=10 --duration=1m
+  # Benchmark with generated data (default: 1 namespace, 3 tables)
+  {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin
 
-  # Benchmark with TPC-DS data (auto-downloads if not cached)
-  {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --warehouse=my-warehouse --tpcds --scale-factor=sf100
+  # More tables for higher concurrency
+  {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
+    --tables-per-ns=10 --concurrent=20
 
-  # Distributed benchmark
-  {{.HelpName}} --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --warehouse=my-warehouse --warp-client=node1:7761,node2:7761 --tpcds
+  # Benchmark with TPC-DS data
+  {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
+    --tpcds --scale-factor=sf100
+
+  # Hierarchical namespace structure
+  {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
+    --namespace-width=2 --namespace-depth=2 --tables-per-ns=5
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
@@ -151,32 +171,45 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		backoffBase = 100 * time.Millisecond
 	}
 
-	host := ctx.String("host")
-	useTLS := ctx.Bool("tls")
+	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
+	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
+	catalogURLs := buildCatalogURLs(hosts, useTLS)
 
-	catalogURI := ctx.String("catalog-uri")
-	if catalogURI == "" {
-		scheme := "http"
-		if useTLS {
-			scheme = "https"
-		}
-		catalogURI = scheme + "://" + host + "/_iceberg"
+	catalogCfg := iceberg.CatalogConfig{
+		CatalogURI: catalogURLs[0],
+		Warehouse:  ctx.String("catalog-name"),
+		AccessKey:  ctx.String("access-key"),
+		SecretKey:  ctx.String("secret-key"),
+		Region:     ctx.String("region"),
 	}
 
-	warehouse := ctx.String("warehouse")
-	if warehouse == "" {
-		console.Fatal("--warehouse is required")
-	}
+	err = iceberg.EnsureWarehouse(context.Background(), catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to ensure warehouse")
 
-	common := getCommon(ctx, nil)
-	common.Bucket = warehouse
+	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to create catalog")
+
+	treeCfg := iceberg.TreeConfig{
+		NamespaceWidth:   ctx.Int("namespace-width"),
+		NamespaceDepth:   ctx.Int("namespace-depth"),
+		TablesPerNS:      ctx.Int("tables-per-ns"),
+		ViewsPerNS:       0,
+		ColumnsPerTable:  ctx.Int("columns"),
+		ColumnsPerView:   0,
+		PropertiesPerNS:  ctx.Int("properties"),
+		PropertiesPerTbl: ctx.Int("properties"),
+		PropertiesPerVw:  0,
+		BaseLocation:     ctx.String("base-location"),
+		CatalogName:      ctx.String("catalog-name"),
+	}
 
 	b := bench.Iceberg{
-		Common:      common,
-		CatalogURI:  catalogURI,
-		Warehouse:   warehouse,
-		Namespace:   ctx.String("namespace"),
-		TableName:   ctx.String("table"),
+		Common:      getCommon(ctx, nil),
+		Catalog:     cat,
+		TreeConfig:  treeCfg,
+		CatalogURI:  catalogURLs[0],
+		AccessKey:   ctx.String("access-key"),
+		SecretKey:   ctx.String("secret-key"),
 		NumFiles:    ctx.Int("num-files"),
 		RowsPerFile: ctx.Int("rows-per-file"),
 		CacheDir:    ctx.String("cache-dir"),
@@ -187,12 +220,6 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		TPCDSTable:  ctx.String("tpcds-table"),
 	}
 
-	if b.ExtraFlags == nil {
-		b.ExtraFlags = make(map[string]string)
-	}
-	b.ExtraFlags["access-key"] = ctx.String("access-key")
-	b.ExtraFlags["secret-key"] = ctx.String("secret-key")
-
 	return runBench(ctx, &b)
 }
 
@@ -200,7 +227,24 @@ func checkIcebergWriteSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
-
+	if ctx.String("host") == "" {
+		console.Fatal("--host is required")
+	}
+	if ctx.String("access-key") == "" {
+		console.Fatal("--access-key is required")
+	}
+	if ctx.String("secret-key") == "" {
+		console.Fatal("--secret-key is required")
+	}
+	if ctx.Int("namespace-width") < 1 {
+		console.Fatal("--namespace-width must be at least 1")
+	}
+	if ctx.Int("namespace-depth") < 1 {
+		console.Fatal("--namespace-depth must be at least 1")
+	}
+	if ctx.Int("tables-per-ns") < 1 {
+		console.Fatal("--tables-per-ns must be at least 1")
+	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
 }
