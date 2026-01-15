@@ -361,13 +361,14 @@ func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 	}
 
 	// Sort to get correct medians.
-	if totalBytes > 0 {
+	switch {
+	case totalBytes > 0:
 		segs.SortByThroughput()
 		t.SortedBy = "bps"
-	} else if hasObjects {
+	case hasObjects:
 		segs.SortByObjsPerSec()
 		t.SortedBy = "ops"
-	} else {
+	default:
 		segs.SortByOpsEnded()
 		t.SortedBy = "ops"
 	}
