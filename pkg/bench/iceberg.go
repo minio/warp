@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,8 +59,9 @@ type Iceberg struct {
 	BackoffBase time.Duration
 
 	// Internal state
-	dataFiles []string
-	prefixes  map[string]struct{}
+	dataFiles     []string
+	prefixes      map[string]struct{}
+	tableLocation string // Table location from catalog (e.g., s3://warehouse/table-uuid)
 }
 
 // Prepare generates test data and initializes the Iceberg catalog.
@@ -165,9 +167,15 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 	} else {
 		schema = warpiceberg.BenchmarkDataSchema()
 	}
-	_, err = warpiceberg.LoadOrCreateTable(ctx, cat, b.Namespace, b.TableName, schema)
+	tbl, err := warpiceberg.LoadOrCreateTable(ctx, cat, b.Namespace, b.TableName, schema)
 	if err != nil {
 		return fmt.Errorf("failed to load/create Iceberg table: %w", err)
+	}
+
+	// Store the table location for uploading data files
+	b.tableLocation = tbl.Location()
+	if b.UpdateStatus != nil {
+		b.UpdateStatus(fmt.Sprintf("Table location: %s", b.tableLocation))
 	}
 
 	return nil
@@ -185,6 +193,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 	b.prefixes = make(map[string]struct{}, b.Concurrency)
 
+	// Parse table location to get bucket and table UUID prefix
+	tableBucket, tablePrefix := b.parseTableLocation()
+	if tableBucket == "" {
+		tableBucket = b.Bucket // Fallback to configured bucket
+	}
+
 	// Calculate files per worker
 	filesPerWorker := len(b.dataFiles) / b.Concurrency
 	if filesPerWorker == 0 {
@@ -196,10 +210,11 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 	for i := 0; i < b.Concurrency; i++ {
 		workerFiles := b.getWorkerFiles(i, filesPerWorker)
-		prefix := fmt.Sprintf("iceberg/%s/worker-%d", b.TableName, i)
+		// Upload to {table-uuid}/data/worker-{N}/ inside the warehouse bucket
+		prefix := fmt.Sprintf("%s/data/worker-%d", tablePrefix, i)
 		b.prefixes[prefix] = struct{}{}
 
-		go func(workerID int, files []string, prefix string) {
+		go func(workerID int, files []string, prefix, bucket string) {
 			rcv := c.Receiver()
 			defer wg.Done()
 
@@ -251,7 +266,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					op.Size = info.Size()
 					op.Start = time.Now()
 
-					_, err = client.PutObject(ctx, b.Bucket, objName, f, info.Size(),
+					_, err = client.PutObject(ctx, bucket, objName, f, info.Size(),
 						minio.PutObjectOptions{ContentType: "application/octet-stream"})
 					op.End = time.Now()
 					f.Close()
@@ -259,7 +274,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					if err != nil {
 						op.Err = err.Error()
 					} else {
-						uploadedPaths = append(uploadedPaths, fmt.Sprintf("s3://%s/%s", b.Bucket, objName))
+						uploadedPaths = append(uploadedPaths, fmt.Sprintf("s3://%s/%s", bucket, objName))
 						totalUploads.Add(1)
 					}
 
@@ -339,7 +354,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					rcv <- commitOp
 				}
 			}
-		}(i, workerFiles, prefix)
+		}(i, workerFiles, prefix, tableBucket)
 	}
 
 	wg.Wait()
@@ -352,7 +367,18 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 	for p := range b.prefixes {
 		pf = append(pf, p)
 	}
+
+	// Use table bucket for cleanup (parsed from table location)
+	tableBucket, _ := b.parseTableLocation()
+	if tableBucket == "" {
+		tableBucket = b.Bucket
+	}
+
+	// Temporarily set bucket to table bucket for cleanup
+	origBucket := b.Bucket
+	b.Bucket = tableBucket
 	b.deleteAllInBucket(ctx, pf...)
+	b.Bucket = origBucket
 }
 
 // getWorkerFiles returns the subset of files for a specific worker.
@@ -398,4 +424,23 @@ func (b *Iceberg) getS3Endpoint() string {
 	cl, done := b.Client()
 	defer done()
 	return cl.EndpointURL().Scheme + "://" + cl.EndpointURL().Host
+}
+
+// parseTableLocation extracts bucket and prefix from table location.
+// e.g., "s3://my-warehouse/abc-123-uuid" -> ("my-warehouse", "abc-123-uuid")
+func (b *Iceberg) parseTableLocation() (bucket, prefix string) {
+	loc := b.tableLocation
+	// Remove s3:// prefix
+	loc = strings.TrimPrefix(loc, "s3://")
+	loc = strings.TrimPrefix(loc, "s3a://")
+
+	// Split into bucket and path
+	parts := strings.SplitN(loc, "/", 2)
+	if len(parts) >= 1 {
+		bucket = parts[0]
+	}
+	if len(parts) >= 2 {
+		prefix = parts[1]
+	}
+	return bucket, prefix
 }
