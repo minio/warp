@@ -1,0 +1,30 @@
+# qreleaser configuration for warp
+# This file controls the v2 release system behavior
+
+# Binary configuration
+binary_name: warp
+goreleaser_config: .goreleaser/qreleaser.yaml
+
+# Versioning - warp uses semantic versions (v1.4.0) not date-based
+use_semver: true  # Requires Q_VERSION_TAG env var
+
+# Distribution
+dl_upload_enabled: true  # Upload binaries to dl.min.io
+
+# Container images
+# TODO: Before production use, evaluate if this should be quay.io/minio/aistor/warp
+containers:
+  image:
+    - quay.io/minio/warp
+  archs: [amd64, arm64]
+  fips_enabled: false
+  dockerfile: Dockerfile.v2.release
+
+# Package generation (deb/rpm/apk via pkger)
+packaging:
+  enabled: true
+  app_name: warp
+  license: "AGPLv3"
+  service_file:
+    url: https://raw.githubusercontent.com/minio/warp/master/systemd/warp.service
+    dest: warp.service

@@ -1,0 +1,26 @@
+FROM alpine:latest
+
+ARG TARGETARCH
+ARG RELEASE
+ARG RELEASE_TYPE=release
+
+LABEL name="Warp" \
+      vendor="MinIO Inc <dev@min.io>" \
+      maintainer="MinIO Inc <dev@min.io>" \
+      version="${RELEASE}" \
+      org.opencontainers.image.source="https://github.com/minio/warp" \
+      summary="Warp is a S3 API Benchmark Tool" \
+      description="Warp is a high-performance S3 benchmarking tool for testing object storage systems."
+
+# Install ca-certificates
+RUN apk add -U --no-cache ca-certificates
+
+# Copy warp binary and signature files from local Q layout
+# Expected context: warp-release/{release,edge}/linux-{amd64,arm64}/
+COPY --chmod=755 warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE} /warp
+COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}.sha256sum /warp.sha256sum
+COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}.minisig /warp.minisig
+
+EXPOSE 7761
+
+ENTRYPOINT ["/warp"]
