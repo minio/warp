@@ -75,6 +75,11 @@ func (t Throughput) ObjectsPS() float64 {
 	return 1000 * float64(t.Objects) / float64(t.MeasureDurationMillis)
 }
 
+// OpsPS returns the operations per second for the segment.
+func (t Throughput) OpsPS() float64 {
+	return 1000 * float64(t.Operations) / float64(t.MeasureDurationMillis)
+}
+
 // Merge currently running measurements.
 func (t *Throughput) Merge(other Throughput) {
 	if other.Operations == 0 {
@@ -281,10 +286,14 @@ type SegmentSmall struct {
 func cloneBenchSegments(s bench.Segments) []SegmentSmall {
 	res := make([]SegmentSmall, len(s))
 	for i, seg := range s {
-		mbps, _, ops := seg.SpeedPerSec()
+		mbps, opsEnded, objs := seg.SpeedPerSec()
+		opsVal := objs
+		if objs == 0 {
+			opsVal = opsEnded
+		}
 		res[i] = SegmentSmall{
 			BPS:    math.Round(mbps * (1 << 20)),
-			OPS:    math.Round(ops*100) / 100,
+			OPS:    math.Round(opsVal*100) / 100,
 			Errors: seg.Errors,
 			Start:  seg.Start,
 		}
@@ -356,7 +365,10 @@ func (t *ThroughputSegmented) fill(segs bench.Segments, totalBytes int64) {
 		return math.Round(mib * (1 << 20))
 	}
 	ops := func(s bench.Segment) float64 {
-		_, _, objs := s.SpeedPerSec()
+		_, opsEnded, objs := s.SpeedPerSec()
+		if objs == 0 {
+			return math.Round(opsEnded*100) / 100
+		}
 		return math.Round(objs*100) / 100
 	}
 

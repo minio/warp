@@ -67,7 +67,7 @@ func (c *Client) ListNamespaces(ctx context.Context, catalog string, parent []st
 
 	query := url.Values{}
 	if len(parent) > 0 {
-		query.Set("parent", encodeNamespace(parent))
+		query.Set("parent", strings.Join(parent, "\x1f"))
 	}
 
 	resp, err := c.do(ctx, "GET", path, query, nil)

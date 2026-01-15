@@ -193,10 +193,12 @@ func (u *ui) View() string {
 					tpBytes = ", " + tp.BytesPS().String()
 				}
 				unit := "Obj/s"
+				avgPS := tp.ObjectsPS()
 				if tp.Objects == 0 {
 					unit = "ops/s"
+					avgPS = tp.OpsPS()
 				}
-				stats += fmt.Sprintf(" -%10s Average: %.0f %s%s", op, tp.ObjectsPS(), unit, tpBytes)
+				stats += fmt.Sprintf(" -%10s Average: %.0f %s%s", op, avgPS, unit, tpBytes)
 				segs.Segments.SortByStartTime()
 				lastOps := segs.Segments[len(segs.Segments)-1]
 				if time.Since(lastOps.Start) > 15*time.Second {
