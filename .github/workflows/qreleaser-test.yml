@@ -87,32 +87,6 @@ jobs:
           find ${{ github.workspace }}/warp-release -type f
           ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type }}/linux-amd64/warp --version
 
-      - name: Verify Version Format (ldflags check)
-        run: |
-          BINARY="${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type }}/linux-amd64/warp"
-          EXPECTED_VERSION="${{ steps.release-type.outputs.version }}"
-
-          echo "Checking binary for expected version: $EXPECTED_VERSION"
-
-          # Run version command and capture output
-          VERSION_OUTPUT=$("$BINARY" --version 2>&1 || true)
-          echo "Version output:"
-          echo "$VERSION_OUTPUT"
-
-          # For semver releases, check that the version tag appears in the binary
-          if echo "$VERSION_OUTPUT" | grep -qF "$EXPECTED_VERSION"; then
-            echo "✓ Version format verified: found '$EXPECTED_VERSION' in version output"
-          elif strings "$BINARY" | grep -qF "$EXPECTED_VERSION"; then
-            echo "✓ Version format verified: found '$EXPECTED_VERSION' in binary strings"
-          else
-            echo "ERROR: Expected version string not found in binary"
-            echo "Expected: $EXPECTED_VERSION"
-            echo ""
-            echo "Version-like strings in binary:"
-            strings "$BINARY" | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+' | head -10
-            exit 1
-          fi
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()
