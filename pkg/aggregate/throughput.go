@@ -126,10 +126,9 @@ func (t Throughput) StringDetails(details bool) string {
 	if details {
 		dur = fmt.Sprintf(" (%vs)", (t.MeasureDurationMillis+500)/1000)
 	}
-	// Use appropriate unit based on operation type
 	unit := "obj/s"
-	if t.OpType == "COMMIT" {
-		unit = "commits/s"
+	if t.Objects == 0 {
+		unit = "ops/s"
 	}
 	return fmt.Sprintf("%s%.02f %s%s%s",
 		speed, t.ObjectsPS(), unit, errs, dur)
@@ -312,11 +311,12 @@ func (s *SegmentSmall) add(other SegmentSmall) SegmentSmall {
 
 // StringLong returns a long string representation of the segment.
 func (s SegmentSmall) StringLong(d time.Duration, details bool) string {
-	return s.StringLongOp(d, details, "")
+	return s.StringLongOp(d, details, 1)
 }
 
 // StringLongOp returns a long string representation with operation-specific unit.
-func (s SegmentSmall) StringLongOp(d time.Duration, details bool, opType string) string {
+// If objects is 0, displays "ops/s" instead of "obj/s".
+func (s SegmentSmall) StringLongOp(d time.Duration, details bool, objects float64) string {
 	speed := ""
 	if s.BPS > 0 {
 		speed = bench.Throughput(s.BPS).String() + ", "
@@ -326,8 +326,8 @@ func (s SegmentSmall) StringLongOp(d time.Duration, details bool, opType string)
 		detail = fmt.Sprintf(" (%v, starting %v)", d, s.Start.Format("15:04:05 MST"))
 	}
 	unit := "obj/s"
-	if opType == "COMMIT" {
-		unit = "commits/s"
+	if objects == 0 {
+		unit = "ops/s"
 	}
 	return fmt.Sprintf("%s%.02f %s%s",
 		speed, s.OPS, unit, detail)

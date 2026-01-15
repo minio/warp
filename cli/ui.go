@@ -193,8 +193,8 @@ func (u *ui) View() string {
 					tpBytes = ", " + tp.BytesPS().String()
 				}
 				unit := "Obj/s"
-				if op == "COMMIT" {
-					unit = "commits/s"
+				if tp.Objects == 0 {
+					unit = "ops/s"
 				}
 				stats += fmt.Sprintf(" -%10s Average: %.0f %s%s", op, tp.ObjectsPS(), unit, tpBytes)
 				segs.Segments.SortByStartTime()
