@@ -312,6 +312,18 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		fmt.Println("")
 		fmt.Println(rep)
 	}
+	// Print custom stats summary if benchmark provides one
+	if ss, ok := b.(StatsSummary); ok {
+		stats := ss.StatsSummary()
+		if len(stats) > 0 {
+			fmt.Println("\n=== Benchmark Summary ===")
+			for k, v := range stats {
+				fmt.Printf("%-20s %s\n", k+":", v)
+			}
+			fmt.Println()
+		}
+	}
+
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		ui.SetPhase("Cleanup")
 		monitor.InfoLn("Starting cleanup...")

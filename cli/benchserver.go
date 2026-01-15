@@ -69,6 +69,10 @@ type AfterPreparer interface {
 	AfterPrepare(ctx context.Context) error
 }
 
+type StatsSummary interface {
+	StatsSummary() map[string]string
+}
+
 // validate the serverinfo.
 func (s serverInfo) validate() error {
 	if s.ID == "" {

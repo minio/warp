@@ -61,6 +61,12 @@ type Iceberg struct {
 	dataFiles     []string
 	prefixes      map[string]struct{}
 	tableLocation string // Table location from catalog (e.g., s3://warehouse/table-uuid)
+
+	// Stats tracking
+	totalUploads       atomic.Int64
+	totalCommits       atomic.Int64
+	totalRetries       atomic.Int64
+	totalFailedCommits atomic.Int64
 }
 
 // Prepare generates test data and initializes the Iceberg catalog.
@@ -204,8 +210,11 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 		filesPerWorker = 1
 	}
 
-	// Stats tracking
-	var totalUploads, totalCommits, totalRetries, totalFailedCommits atomic.Int64
+	// Reset stats
+	b.totalUploads.Store(0)
+	b.totalCommits.Store(0)
+	b.totalRetries.Store(0)
+	b.totalFailedCommits.Store(0)
 
 	for i := 0; i < b.Concurrency; i++ {
 		workerFiles := b.getWorkerFiles(i, filesPerWorker)
@@ -274,7 +283,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 						op.Err = err.Error()
 					} else {
 						uploadedPaths = append(uploadedPaths, fmt.Sprintf("s3://%s/%s", bucket, objName))
-						totalUploads.Add(1)
+						b.totalUploads.Add(1)
 					}
 
 					cldone()
@@ -312,7 +321,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					if err != nil {
 						commitOp.End = time.Now()
 						commitOp.Err = err.Error()
-						totalFailedCommits.Add(1)
+						b.totalFailedCommits.Add(1)
 						rcv <- commitOp
 						continue
 					}
@@ -321,7 +330,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					if err != nil {
 						commitOp.End = time.Now()
 						commitOp.Err = err.Error()
-						totalFailedCommits.Add(1)
+						b.totalFailedCommits.Add(1)
 						rcv <- commitOp
 						continue
 					}
@@ -334,17 +343,17 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 					commitOp.End = time.Now()
 					if result.Retries > 0 {
-						totalRetries.Add(int64(result.Retries))
+						b.totalRetries.Add(int64(result.Retries))
 					}
 
 					if result.Success {
-						totalCommits.Add(1)
+						b.totalCommits.Add(1)
 					} else {
-						totalFailedCommits.Add(1)
+						b.totalFailedCommits.Add(1)
 						if result.Err != nil {
 							commitOp.Err = result.Err.Error()
 							// Log first few errors for debugging
-							if totalFailedCommits.Load() <= 3 {
+							if b.totalFailedCommits.Load() <= 3 {
 								b.Error("Commit error: ", result.Err.Error())
 							}
 						}
@@ -378,6 +387,16 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 	b.Bucket = tableBucket
 	b.deleteAllInBucket(ctx, pf...)
 	b.Bucket = origBucket
+}
+
+// StatsSummary returns iceberg-specific statistics.
+func (b *Iceberg) StatsSummary() map[string]string {
+	return map[string]string{
+		"Total Uploads":        fmt.Sprintf("%d", b.totalUploads.Load()),
+		"Total Commits":        fmt.Sprintf("%d", b.totalCommits.Load()),
+		"Total Retries":        fmt.Sprintf("%d", b.totalRetries.Load()),
+		"Total Failed Commits": fmt.Sprintf("%d", b.totalFailedCommits.Load()),
+	}
 }
 
 // getWorkerFiles returns the subset of files for a specific worker.
