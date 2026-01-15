@@ -130,7 +130,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
 		updates := []table.Update{
 			table.NewSetPropertiesUpdate(iceberg.Properties{
-				fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
+				fmt.Sprintf("new_attribute_%d", updateID): fmt.Sprintf("new_value_%d", updateID),
 			}),
 		}
 
@@ -194,7 +194,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		ident := toTableIdentifier(vw.Namespace, vw.Name)
 		updates := []view.Update{
 			view.NewSetPropertiesUpdate(iceberg.Properties{
-				fmt.Sprintf("NewAttribute_%d", updateID): fmt.Sprintf("NewValue_%d", updateID),
+				fmt.Sprintf("new_attribute_%d", updateID): fmt.Sprintf("new_value_%d", updateID),
 			}),
 		}
 
