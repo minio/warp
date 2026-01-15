@@ -69,7 +69,7 @@ jobs:
           else
             # For PRs, use a test version
             echo "type=release" >> $GITHUB_OUTPUT
-            echo "version=v0.0.0-test" >> $GITHUB_OUTPUT
+            echo "version=v10.0.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Q Release (Test Mode)
