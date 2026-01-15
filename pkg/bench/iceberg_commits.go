@@ -23,6 +23,8 @@ type IcebergCommits struct {
 
 	TableCommitsThroughput int
 	ViewCommitsThroughput  int
+	MaxRetries             int
+	RetryBackoff           time.Duration
 
 	tables []iceberg.TableInfo
 	views  []iceberg.ViewInfo
@@ -56,7 +58,7 @@ func (b *IcebergCommits) Start(ctx context.Context, wait chan struct{}) error {
 	c := b.Collector
 
 	if b.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, OpTableUpdate, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
+		ctx = c.AutoTerm(ctx, OpTableCommit, b.AutoTermScale, autoTermCheck, autoTermSamples, b.AutoTermDur)
 	}
 
 	tableWorkers := b.TableCommitsThroughput
@@ -134,7 +136,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		}
 
 		op := Operation{
-			OpType:   OpTableUpdate,
+			OpType:   OpTableCommit,
 			Thread:   uint32(thread),
 			File:     fmt.Sprintf("%s/%v/%s", catalog, tbl.Namespace, tbl.Name),
 			ObjPerOp: 0,
@@ -142,7 +144,16 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		}
 
 		op.Start = time.Now()
-		_, err := b.RestClient.UpdateTable(ctx, catalog, tbl.Namespace, tbl.Name, req)
+		var err error
+		for retry := 0; retry < b.MaxRetries; retry++ {
+			_, err = b.RestClient.UpdateTable(ctx, catalog, tbl.Namespace, tbl.Name, req)
+			if err == nil || !rest.IsRetryable(err) {
+				break
+			}
+			if b.RetryBackoff > 0 {
+				time.Sleep(b.RetryBackoff)
+			}
+		}
 		op.End = time.Now()
 
 		if err != nil {
@@ -194,7 +205,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		}
 
 		op := Operation{
-			OpType:   OpViewUpdate,
+			OpType:   OpViewCommit,
 			Thread:   uint32(thread),
 			File:     fmt.Sprintf("%s/%v/%s", catalog, vw.Namespace, vw.Name),
 			ObjPerOp: 0,
@@ -202,7 +213,16 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		}
 
 		op.Start = time.Now()
-		_, err := b.RestClient.UpdateView(ctx, catalog, vw.Namespace, vw.Name, req)
+		var err error
+		for retry := 0; retry < b.MaxRetries; retry++ {
+			_, err = b.RestClient.UpdateView(ctx, catalog, vw.Namespace, vw.Name, req)
+			if err == nil || !rest.IsRetryable(err) {
+				break
+			}
+			if b.RetryBackoff > 0 {
+				time.Sleep(b.RetryBackoff)
+			}
+		}
 		op.End = time.Now()
 
 		if err != nil {

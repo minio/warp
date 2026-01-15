@@ -268,3 +268,11 @@ func IsConflict(err error) bool {
 	}
 	return false
 }
+
+func IsRetryable(err error) bool {
+	if apiErr, ok := err.(*APIError); ok {
+		return apiErr.StatusCode == http.StatusConflict ||
+			apiErr.StatusCode == http.StatusInternalServerError
+	}
+	return false
+}

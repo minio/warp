@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"time"
+
 	"github.com/minio/cli"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
@@ -32,7 +34,7 @@ var catalogCommitsFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "views-per-ns",
 		Usage: "Number of views per leaf namespace",
-		Value: 0,
+		Value: 5,
 	},
 	cli.StringFlag{
 		Name:  "base-location",
@@ -48,6 +50,16 @@ var catalogCommitsFlags = []cli.Flag{
 		Name:  "view-commits-throughput",
 		Usage: "Number of concurrent view commit workers (0 = half of --concurrent)",
 		Value: 0,
+	},
+	cli.IntFlag{
+		Name:  "max-retries",
+		Usage: "Maximum number of retries on 409/500 errors",
+		Value: 10,
+	},
+	cli.DurationFlag{
+		Name:  "retry-backoff",
+		Usage: "Backoff duration between retries",
+		Value: 100 * time.Millisecond,
 	},
 }
 
@@ -115,6 +127,8 @@ func mainCatalogCommits(ctx *cli.Context) error {
 		SecretKey:              ctx.String("secret-key"),
 		TableCommitsThroughput: ctx.Int("table-commits-throughput"),
 		ViewCommitsThroughput:  ctx.Int("view-commits-throughput"),
+		MaxRetries:             ctx.Int("max-retries"),
+		RetryBackoff:           ctx.Duration("retry-backoff"),
 	}
 
 	return runBench(ctx, &b)

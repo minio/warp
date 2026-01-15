@@ -32,7 +32,7 @@ var catalogReadFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "views-per-ns",
 		Usage: "Number of views per leaf namespace",
-		Value: 0,
+		Value: 5,
 	},
 	cli.IntFlag{
 		Name:  "columns",

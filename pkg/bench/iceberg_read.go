@@ -21,12 +21,12 @@ const (
 	OpTableGet        = "TABLE_GET"
 	OpTableHead       = "TABLE_HEAD"
 	OpTableList       = "TABLE_LIST"
-	OpTableUpdate     = "TABLE_UPDATE"
+	OpTableCommit     = "TABLE_COMMIT"
 	OpViewCreate      = "VIEW_CREATE"
 	OpViewGet         = "VIEW_GET"
 	OpViewHead        = "VIEW_HEAD"
 	OpViewList        = "VIEW_LIST"
-	OpViewUpdate      = "VIEW_UPDATE"
+	OpViewCommit      = "VIEW_COMMIT"
 )
 
 type IcebergRead struct {

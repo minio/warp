@@ -381,7 +381,7 @@ func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, 
 	}
 
 	op := Operation{
-		OpType:   OpTableUpdate,
+		OpType:   OpTableCommit,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalog, tbl.Namespace, tbl.Name),
 		ObjPerOp: 0,
@@ -415,7 +415,7 @@ func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, t
 	}
 
 	op := Operation{
-		OpType:   OpViewUpdate,
+		OpType:   OpViewCommit,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalog, vw.Namespace, vw.Name),
 		ObjPerOp: 0,
