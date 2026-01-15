@@ -2,10 +2,18 @@
 package iceberg
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -152,3 +160,120 @@ func EnsureNamespace(ctx context.Context, cat catalog.Catalog, namespace string)
 	// Namespace doesn't exist, create it
 	return cat.CreateNamespace(ctx, ident, nil)
 }
+
+// EnsureWarehouse creates the warehouse if it doesn't exist.
+// This uses the MinIO AIStor Tables API directly since the standard
+// Iceberg REST catalog API doesn't support warehouse creation.
+func EnsureWarehouse(ctx context.Context, cfg CatalogConfig) error {
+	u, err := url.Parse(cfg.CatalogURI)
+	if err != nil {
+		return fmt.Errorf("invalid catalog URI: %w", err)
+	}
+
+	// Build the warehouses endpoint URL
+	warehousesURL := fmt.Sprintf("%s://%s/_iceberg/v1/warehouses", u.Scheme, u.Host)
+
+	// Create warehouse request
+	reqBody := struct {
+		Name string `json:"name"`
+	}{
+		Name: cfg.Warehouse,
+	}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, warehousesURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Sign the request with AWS SigV4
+	if cfg.Region == "" {
+		cfg.Region = "us-east-1"
+	}
+	signRequest(req, body, cfg.AccessKey, cfg.SecretKey, cfg.Region)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create warehouse: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body for error details
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// 200/201 = success, 409 = already exists (also success for us)
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated ||
+		resp.StatusCode == http.StatusConflict {
+		return nil
+	}
+
+	return fmt.Errorf("failed to create warehouse %s: %s - %s", cfg.Warehouse, resp.Status, string(respBody))
+}
+
+// signRequest signs an HTTP request using AWS SigV4.
+func signRequest(req *http.Request, payload []byte, accessKey, secretKey, region string) {
+	t := time.Now().UTC()
+	amzDate := t.Format("20060102T150405Z")
+	dateStamp := t.Format("20060102")
+
+	req.Header.Set("X-Amz-Date", amzDate)
+	req.Header.Set("Host", req.URL.Host)
+
+	// Create canonical request
+	payloadHash := sha256Hash(payload)
+	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
+
+	signedHeaders := "content-type;host;x-amz-content-sha256;x-amz-date"
+	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n",
+		req.Header.Get("Content-Type"), req.URL.Host, payloadHash, amzDate)
+
+	canonicalRequest := strings.Join([]string{
+		req.Method,
+		req.URL.Path,
+		req.URL.RawQuery,
+		canonicalHeaders,
+		signedHeaders,
+		payloadHash,
+	}, "\n")
+
+	// Create string to sign
+	service := "s3tables"
+	credentialScope := fmt.Sprintf("%s/%s/%s/aws4_request", dateStamp, region, service)
+	stringToSign := strings.Join([]string{
+		"AWS4-HMAC-SHA256",
+		amzDate,
+		credentialScope,
+		sha256Hash([]byte(canonicalRequest)),
+	}, "\n")
+
+	// Calculate signature
+	kDate := hmacSHA256([]byte("AWS4"+secretKey), []byte(dateStamp))
+	kRegion := hmacSHA256(kDate, []byte(region))
+	kService := hmacSHA256(kRegion, []byte(service))
+	kSigning := hmacSHA256(kService, []byte("aws4_request"))
+	signature := hex.EncodeToString(hmacSHA256(kSigning, []byte(stringToSign)))
+
+	// Add authorization header
+	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
+		accessKey, credentialScope, signedHeaders, signature)
+	req.Header.Set("Authorization", authHeader)
+}
+
+func sha256Hash(data []byte) string {
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+func hmacSHA256(key, data []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write(data)
+	return h.Sum(nil)
+}
+
+// Keep sort import used
+var _ = sort.Strings

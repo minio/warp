@@ -72,6 +72,20 @@ type Iceberg struct {
 // Prepare generates test data and initializes the Iceberg catalog.
 func (b *Iceberg) Prepare(ctx context.Context) error {
 	// Create bucket if needed
+	// Ensure warehouse exists (auto-create if not)
+	if b.UpdateStatus != nil {
+		b.UpdateStatus("Ensuring warehouse exists...")
+	}
+	if err := warpiceberg.EnsureWarehouse(ctx, warpiceberg.CatalogConfig{
+		CatalogURI: b.CatalogURI,
+		Warehouse:  b.Warehouse,
+		AccessKey:  b.getAccessKey(),
+		SecretKey:  b.getSecretKey(),
+		S3Endpoint: b.getS3Endpoint(),
+	}); err != nil {
+		b.Error("Note: warehouse creation returned: ", err)
+	}
+
 	if err := b.createEmptyBucket(ctx); err != nil {
 		return err
 	}
