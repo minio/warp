@@ -268,6 +268,9 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 }
 
 func (b *IcebergCommits) Cleanup(ctx context.Context) {
+	if b.Tree == nil {
+		return
+	}
 	d := &icebergpkg.DatasetCreator{
 		Catalog:    b.Catalog,
 		Tree:       b.Tree,

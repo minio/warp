@@ -490,6 +490,9 @@ func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, t
 }
 
 func (b *IcebergMixed) Cleanup(ctx context.Context) {
+	if b.Tree == nil {
+		return
+	}
 	d := &icebergpkg.DatasetCreator{
 		Catalog:    b.Catalog,
 		Tree:       b.Tree,

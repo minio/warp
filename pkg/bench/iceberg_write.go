@@ -343,6 +343,9 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 }
 
 func (b *Iceberg) Cleanup(ctx context.Context) {
+	if b.Tree == nil {
+		return
+	}
 	creator := &warpiceberg.DatasetCreator{
 		Catalog:    b.Catalog,
 		Tree:       b.Tree,

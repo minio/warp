@@ -472,6 +472,9 @@ func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread
 }
 
 func (b *IcebergRead) Cleanup(ctx context.Context) {
+	if b.Tree == nil {
+		return
+	}
 	d := &iceberg.DatasetCreator{
 		Catalog:    b.Catalog,
 		Tree:       b.Tree,
