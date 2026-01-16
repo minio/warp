@@ -397,6 +397,7 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
 		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
 	}
 	creator.DeleteAll(ctx)
 }

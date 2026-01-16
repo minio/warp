@@ -280,6 +280,7 @@ func (b *IcebergCommits) Cleanup(ctx context.Context) {
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
 		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
 	}
 	d.DeleteAll(ctx)
 }

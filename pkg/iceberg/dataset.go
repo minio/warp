@@ -193,16 +193,51 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 	catalogName := d.Tree.Config().CatalogName
 
-	for _, vw := range d.Tree.AllViews() {
-		ident := toTableIdentifier(vw.Namespace, vw.Name)
-		_ = d.getCatalog().DropView(ctx, ident)
+	concurrency := d.Concurrency
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if concurrency > 100 {
+		concurrency = 100
 	}
 
-	for _, tbl := range d.Tree.AllTables() {
-		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-		_ = d.getCatalog().DropTable(ctx, ident)
+	// Delete views concurrently
+	views := d.Tree.AllViews()
+	if len(views) > 0 {
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, concurrency)
+		for _, vw := range views {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(vw ViewInfo) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				ident := toTableIdentifier(vw.Namespace, vw.Name)
+				_ = d.getCatalog().DropView(ctx, ident)
+			}(vw)
+		}
+		wg.Wait()
 	}
 
+	// Delete tables concurrently
+	tables := d.Tree.AllTables()
+	if len(tables) > 0 {
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, concurrency)
+		for _, tbl := range tables {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(tbl TableInfo) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+				_ = d.getCatalog().DropTable(ctx, ident)
+			}(tbl)
+		}
+		wg.Wait()
+	}
+
+	// Delete namespaces sequentially in reverse order (children before parents)
 	namespaces := d.Tree.AllNamespaces()
 	for i := len(namespaces) - 1; i >= 0; i-- {
 		_ = d.getCatalog().DropNamespace(ctx, namespaces[i].Path)
