@@ -20,6 +20,7 @@ package iceberg
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -64,6 +65,8 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 			if backoff > cfg.BackoffMax {
 				backoff = cfg.BackoffMax
 			}
+			jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
+			backoff += jitter
 
 			select {
 			case <-ctx.Done():

@@ -20,6 +20,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -166,9 +167,13 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 			if err == nil || !isRetryable(err) {
 				break
 			}
-			if b.RetryBackoff > 0 {
-				time.Sleep(b.RetryBackoff)
+			backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
+			if backoff > 5*time.Second {
+				backoff = 5 * time.Second
 			}
+			jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
+			backoff += jitter
+			time.Sleep(backoff)
 		}
 		op.End = time.Now()
 
@@ -231,9 +236,13 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 			if err == nil || !isRetryable(err) {
 				break
 			}
-			if b.RetryBackoff > 0 {
-				time.Sleep(b.RetryBackoff)
+			backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
+			if backoff > 5*time.Second {
+				backoff = 5 * time.Second
 			}
+			jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
+			backoff += jitter
+			time.Sleep(backoff)
 		}
 		op.End = time.Now()
 
