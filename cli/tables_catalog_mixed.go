@@ -19,6 +19,7 @@ package cli
 
 import (
 	"context"
+	"time"
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -127,6 +128,21 @@ var tablesCatalogMixedFlags = []cli.Flag{
 		Name:  "view-update-distrib",
 		Usage: "Weight of view update operations",
 		Value: 5,
+	},
+	cli.IntFlag{
+		Name:  "max-retries",
+		Usage: "Maximum retries for update operations on conflict",
+		Value: 5,
+	},
+	cli.DurationFlag{
+		Name:  "retry-backoff",
+		Usage: "Initial backoff duration for retries",
+		Value: 100 * time.Millisecond,
+	},
+	cli.DurationFlag{
+		Name:  "backoff-max",
+		Usage: "Maximum backoff duration for retries",
+		Value: 2 * time.Second,
 	},
 }
 
@@ -243,14 +259,17 @@ func mainTablesCatalogMixed(ctx *cli.Context) error {
 	fatalIf(probe.NewError(err), "Invalid distribution")
 
 	b := bench.IcebergMixed{
-		Common:      getTablesCommon(ctx),
-		Catalog:     cat,
-		CatalogPool: catalogPool,
-		TreeConfig:  treeCfg,
-		CatalogURI:  catalogURLs[0],
-		AccessKey:   ctx.String("access-key"),
-		SecretKey:   ctx.String("secret-key"),
-		Dist:        &dist,
+		Common:       getTablesCommon(ctx),
+		Catalog:      cat,
+		CatalogPool:  catalogPool,
+		TreeConfig:   treeCfg,
+		CatalogURI:   catalogURLs[0],
+		AccessKey:    ctx.String("access-key"),
+		SecretKey:    ctx.String("secret-key"),
+		Dist:         &dist,
+		MaxRetries:   ctx.Int("max-retries"),
+		RetryBackoff: ctx.Duration("retry-backoff"),
+		BackoffMax:   ctx.Duration("backoff-max"),
 	}
 
 	return runBench(ctx, &b)

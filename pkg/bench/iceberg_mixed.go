@@ -20,7 +20,7 @@ package bench
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +44,10 @@ type IcebergMixed struct {
 	SecretKey  string
 
 	Dist *IcebergMixedDistribution
+
+	MaxRetries   int
+	RetryBackoff time.Duration
+	BackoffMax   time.Duration
 
 	namespaces []icebergpkg.NamespaceInfo
 	tables     []icebergpkg.TableInfo
@@ -75,7 +79,7 @@ func (d *IcebergMixedDistribution) Generate() error {
 		}
 	}
 
-	rng := rand.New(rand.NewSource(0xabad1dea))
+	rng := rand.New(rand.NewPCG(0xabad1dea, 0xcafebabe))
 	rng.Shuffle(len(d.ops), func(i, j int) {
 		d.ops[i], d.ops[j] = d.ops[j], d.ops[i]
 	})
@@ -453,7 +457,20 @@ func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, 
 	}
 
 	op.Start = time.Now()
-	_, err := cat.UpdateTable(ctx, ident, nil, updates)
+	var err error
+	for retry := 0; retry < b.MaxRetries; retry++ {
+		_, err = cat.UpdateTable(ctx, ident, nil, updates)
+		if err == nil || !isRetryable(err) {
+			break
+		}
+		backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
+		if backoff > b.BackoffMax {
+			backoff = b.BackoffMax
+		}
+		jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
+		backoff += jitter
+		time.Sleep(backoff)
+	}
 	op.End = time.Now()
 
 	if err != nil {
@@ -482,7 +499,20 @@ func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, t
 	}
 
 	op.Start = time.Now()
-	_, err := cat.UpdateView(ctx, ident, nil, updates)
+	var err error
+	for retry := 0; retry < b.MaxRetries; retry++ {
+		_, err = cat.UpdateView(ctx, ident, nil, updates)
+		if err == nil || !isRetryable(err) {
+			break
+		}
+		backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
+		if backoff > b.BackoffMax {
+			backoff = b.BackoffMax
+		}
+		jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
+		backoff += jitter
+		time.Sleep(backoff)
+	}
 	op.End = time.Now()
 
 	if err != nil {

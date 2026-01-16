@@ -68,6 +68,51 @@ var tablesCatalogReadFlags = []cli.Flag{
 		Usage: "Base storage location for tables",
 		Value: "s3://benchmark",
 	},
+	cli.Float64Flag{
+		Name:  "ns-list-distrib",
+		Usage: "Weight of namespace list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "ns-head-distrib",
+		Usage: "Weight of namespace exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "ns-get-distrib",
+		Usage: "Weight of namespace get operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-list-distrib",
+		Usage: "Weight of table list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-head-distrib",
+		Usage: "Weight of table exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "table-get-distrib",
+		Usage: "Weight of table get operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-list-distrib",
+		Usage: "Weight of view list operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-head-distrib",
+		Usage: "Weight of view exists operations",
+		Value: 10,
+	},
+	cli.Float64Flag{
+		Name:  "view-get-distrib",
+		Usage: "Weight of view get operations",
+		Value: 10,
+	},
 }
 
 var tablesCatalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, tablesCatalogReadFlags, benchFlags, analyzeFlags)
@@ -94,19 +139,18 @@ DESCRIPTION:
 
   Benchmark phase:
   - Spawns --concurrent workers (default 20)
-  - Each worker loops through all namespaces/tables/views
-  - Performs read operations: GET, HEAD, LIST
+  - All workers share a pre-shuffled pool of 1000 operations
+  - Each worker picks next operation from pool, executes it, repeats
 
-  Operations recorded:
-  - NS_GET: LoadNamespaceProperties
-  - NS_HEAD: CheckNamespaceExists
-  - NS_LIST: ListNamespaces (on non-leaf namespaces)
-  - TABLE_GET: LoadTable
-  - TABLE_HEAD: CheckTableExists
-  - TABLE_LIST: ListTables
-  - VIEW_GET: LoadView
-  - VIEW_HEAD: CheckViewExists
-  - VIEW_LIST: ListViews
+  Operation distribution:
+  - Weights are proportional, not percentages
+  - Example: 10,10,5 is same ratio as 2,2,1 or 100,100,50
+  - Pool is shuffled for random distribution
+
+  Operations (default weights):
+  - NS_LIST (10), NS_HEAD (10), NS_GET (10)
+  - TABLE_LIST (10), TABLE_HEAD (10), TABLE_GET (10)
+  - VIEW_LIST (10), VIEW_HEAD (10), VIEW_GET (10)
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
@@ -119,6 +163,10 @@ EXAMPLES:
   # Larger dataset
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
     --namespace-width 3 --namespace-depth 4 --tables-per-ns 10
+
+  # Heavy table reads
+  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
+    --table-get-distrib 50 --table-list-distrib 20
 
   # Multiple hosts
   {{.HelpName}} --host localhost:9001,localhost:9002 --access-key minioadmin --secret-key minioadmin
@@ -164,6 +212,22 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 		CatalogName:      ctx.String("catalog-name"),
 	}
 
+	dist := bench.IcebergMixedDistribution{
+		Distribution: map[string]float64{
+			bench.OpNSList:    ctx.Float64("ns-list-distrib"),
+			bench.OpNSHead:    ctx.Float64("ns-head-distrib"),
+			bench.OpNSGet:     ctx.Float64("ns-get-distrib"),
+			bench.OpTableList: ctx.Float64("table-list-distrib"),
+			bench.OpTableHead: ctx.Float64("table-head-distrib"),
+			bench.OpTableGet:  ctx.Float64("table-get-distrib"),
+			bench.OpViewList:  ctx.Float64("view-list-distrib"),
+			bench.OpViewHead:  ctx.Float64("view-head-distrib"),
+			bench.OpViewGet:   ctx.Float64("view-get-distrib"),
+		},
+	}
+	err = dist.Generate()
+	fatalIf(probe.NewError(err), "Invalid distribution")
+
 	b := bench.IcebergRead{
 		Common:      getTablesCommon(ctx),
 		Catalog:     cat,
@@ -172,6 +236,7 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 		CatalogURI:  catalogURLs[0],
 		AccessKey:   ctx.String("access-key"),
 		SecretKey:   ctx.String("secret-key"),
+		Dist:        &dist,
 	}
 
 	return runBench(ctx, &b)

@@ -20,7 +20,6 @@ package bench
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -58,6 +57,7 @@ type IcebergRead struct {
 	CatalogPool *iceberg.CatalogPool
 	Tree        *iceberg.Tree
 	TreeConfig  iceberg.TreeConfig
+	Dist        *IcebergMixedDistribution
 
 	CatalogURI string
 	AccessKey  string
@@ -117,19 +117,13 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 			done := ctx.Done()
 			catalogName := b.TreeConfig.CatalogName
 			opCtx := context.Background()
-			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(thread)))
 
 			<-wait
 
-			nsIdx := thread % len(b.namespaces)
+			nsIdx := thread % max(len(b.namespaces), 1)
 			tblIdx := thread % max(len(b.tables), 1)
 			vwIdx := thread % max(len(b.views), 1)
 
-			hasNs := len(b.namespaces) > 0
-			hasTables := len(b.tables) > 0
-			hasViews := len(b.views) > 0
-
-			ops := []int{0, 1, 2}
 			for {
 				select {
 				case <-done:
@@ -143,25 +137,61 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 
 				cat := b.getCatalog()
 
-				rng.Shuffle(len(ops), func(i, j int) { ops[i], ops[j] = ops[j], ops[i] })
-
-				for _, op := range ops {
-					switch op {
-					case 0:
-						if hasNs {
-							b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
-							nsIdx++
-						}
-					case 1:
-						if hasTables {
-							b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
-							tblIdx++
-						}
-					case 2:
-						if hasViews {
-							b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
-							vwIdx++
-						}
+				operation := b.Dist.getOp()
+				switch operation {
+				case OpNSList:
+					if len(b.namespaces) > 0 {
+						ns := b.namespaces[nsIdx%len(b.namespaces)]
+						nsIdx++
+						b.listNamespaces(opCtx, rcv, thread, catalogName, ns, cat)
+					}
+				case OpNSHead:
+					if len(b.namespaces) > 0 {
+						ns := b.namespaces[nsIdx%len(b.namespaces)]
+						nsIdx++
+						b.checkNamespaceExists(opCtx, rcv, thread, catalogName, ns, cat)
+					}
+				case OpNSGet:
+					if len(b.namespaces) > 0 {
+						ns := b.namespaces[nsIdx%len(b.namespaces)]
+						nsIdx++
+						b.loadNamespaceProperties(opCtx, rcv, thread, catalogName, ns, cat)
+					}
+				case OpTableList:
+					if len(b.tables) > 0 {
+						tbl := b.tables[tblIdx%len(b.tables)]
+						tblIdx++
+						b.listTables(opCtx, rcv, thread, catalogName, tbl, cat)
+					}
+				case OpTableHead:
+					if len(b.tables) > 0 {
+						tbl := b.tables[tblIdx%len(b.tables)]
+						tblIdx++
+						b.checkTableExists(opCtx, rcv, thread, catalogName, tbl, cat)
+					}
+				case OpTableGet:
+					if len(b.tables) > 0 {
+						tbl := b.tables[tblIdx%len(b.tables)]
+						tblIdx++
+						b.loadTable(opCtx, rcv, thread, catalogName, tbl, cat)
+					}
+				case OpViewList:
+					if len(b.views) > 0 {
+						vw := b.views[vwIdx%len(b.views)]
+						vwIdx++
+						b.listViews(opCtx, rcv, thread, catalogName, vw, cat)
+					}
+				case OpViewHead:
+					if len(b.views) > 0 {
+						vw := b.views[vwIdx%len(b.views)]
+						vwIdx++
+						b.checkViewExists(opCtx, rcv, thread, catalogName, vw, cat)
+					}
+				case OpViewGet:
+					if len(b.views) > 0 {
+						vw := b.views[vwIdx%len(b.views)]
+						vwIdx++
+						b.loadView(opCtx, rcv, thread, catalogName, vw, cat)
 					}
 				}
 			}
@@ -172,102 +202,95 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 	return nil
 }
 
-func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo, cat *rest.Catalog) {
-	ident := ns.Path
-
+func (b *IcebergRead) loadNamespaceProperties(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpNSGet,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v", catalogName, ns.Path),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
-	_, err := cat.LoadNamespaceProperties(ctx, ident)
+	_, err := cat.LoadNamespaceProperties(ctx, ns.Path)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
+}
 
-	op = Operation{
+func (b *IcebergRead) checkNamespaceExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo, cat *rest.Catalog) {
+	op := Operation{
 		OpType:   OpNSHead,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v", catalogName, ns.Path),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
-	_, err = cat.CheckNamespaceExists(ctx, ident)
+	_, err := cat.CheckNamespaceExists(ctx, ns.Path)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
-
-	if !ns.IsLeaf {
-		op = Operation{
-			OpType:   OpNSList,
-			Thread:   uint32(thread),
-			File:     fmt.Sprintf("%s/%v", catalogName, ns.Path),
-			Endpoint: catalogName,
-		}
-
-		op.Start = time.Now()
-		_, err = cat.ListNamespaces(ctx, ident)
-		op.End = time.Now()
-
-		if err != nil {
-			op.Err = err.Error()
-		}
-		rcv <- op
-	}
 }
 
-func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
-	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+func (b *IcebergRead) listNamespaces(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo, cat *rest.Catalog) {
+	op := Operation{
+		OpType:   OpNSList,
+		Thread:   uint32(thread),
+		File:     fmt.Sprintf("%s/%v", catalogName, ns.Path),
+		Endpoint: catalogName,
+	}
+	op.Start = time.Now()
+	_, err := cat.ListNamespaces(ctx, ns.Path)
+	op.End = time.Now()
+	if err != nil {
+		op.Err = err.Error()
+	}
+	rcv <- op
+}
 
+func (b *IcebergRead) loadTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
+	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
 	op := Operation{
 		OpType:   OpTableGet,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalogName, tbl.Namespace, tbl.Name),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
 	_, err := cat.LoadTable(ctx, ident)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
+}
 
-	op = Operation{
+func (b *IcebergRead) checkTableExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
+	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+	op := Operation{
 		OpType:   OpTableHead,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalogName, tbl.Namespace, tbl.Name),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
-	_, err = cat.CheckTableExists(ctx, ident)
+	_, err := cat.CheckTableExists(ctx, ident)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
+}
 
-	op = Operation{
+func (b *IcebergRead) listTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
+	op := Operation{
 		OpType:   OpTableList,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v", catalogName, tbl.Namespace),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
 	for _, err := range cat.ListTables(ctx, tbl.Namespace) {
 		if err != nil {
@@ -275,52 +298,50 @@ func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, threa
 		}
 	}
 	op.End = time.Now()
-
 	rcv <- op
 }
 
-func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
+func (b *IcebergRead) loadView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(vw.Namespace, vw.Name)
-
 	op := Operation{
 		OpType:   OpViewGet,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalogName, vw.Namespace, vw.Name),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
 	_, err := cat.LoadView(ctx, ident)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
+}
 
-	op = Operation{
+func (b *IcebergRead) checkViewExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
+	ident := toTableIdentifier(vw.Namespace, vw.Name)
+	op := Operation{
 		OpType:   OpViewHead,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v/%s", catalogName, vw.Namespace, vw.Name),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
-	_, err = cat.CheckViewExists(ctx, ident)
+	_, err := cat.CheckViewExists(ctx, ident)
 	op.End = time.Now()
-
 	if err != nil {
 		op.Err = err.Error()
 	}
 	rcv <- op
+}
 
-	op = Operation{
+func (b *IcebergRead) listViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
+	op := Operation{
 		OpType:   OpViewList,
 		Thread:   uint32(thread),
 		File:     fmt.Sprintf("%s/%v", catalogName, vw.Namespace),
 		Endpoint: catalogName,
 	}
-
 	op.Start = time.Now()
 	for _, err := range cat.ListViews(ctx, vw.Namespace) {
 		if err != nil {
