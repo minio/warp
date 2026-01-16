@@ -53,6 +53,7 @@ type Iceberg struct {
 
 	MaxRetries  int
 	BackoffBase time.Duration
+	BackoffMax  time.Duration
 
 	dataFiles []string
 	tables    []warpiceberg.TableInfo
@@ -323,7 +324,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					result := warpiceberg.CommitWithRetry(opCtx, loadedTbl, uploadedPaths, warpiceberg.CommitConfig{
 						MaxRetries:  b.MaxRetries,
 						BackoffBase: b.BackoffBase,
-						BackoffMax:  5 * time.Second,
+						BackoffMax:  b.BackoffMax,
 					})
 
 					commitOp.End = time.Now()

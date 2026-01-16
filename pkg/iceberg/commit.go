@@ -36,11 +36,12 @@ type CommitConfig struct {
 }
 
 // DefaultCommitConfig returns sensible defaults for commit retries.
+// These match Apache Iceberg's defaults: 4 retries, 100ms min, 60s max.
 func DefaultCommitConfig() CommitConfig {
 	return CommitConfig{
-		MaxRetries:  10,
+		MaxRetries:  4,
 		BackoffBase: 100 * time.Millisecond,
-		BackoffMax:  5 * time.Second,
+		BackoffMax:  60 * time.Second,
 	}
 }
 

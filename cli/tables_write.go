@@ -82,12 +82,17 @@ var tablesWriteFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "max-retries",
 		Usage: "Maximum commit retries on conflict",
-		Value: 10,
+		Value: 4,
 	},
 	cli.StringFlag{
 		Name:  "backoff-base",
 		Usage: "Base backoff duration for commit retries",
 		Value: "100ms",
+	},
+	cli.StringFlag{
+		Name:  "backoff-max",
+		Usage: "Maximum backoff duration for commit retries",
+		Value: "60s",
 	},
 	cli.BoolFlag{
 		Name:  "tpcds",
@@ -171,6 +176,11 @@ func mainTablesWrite(ctx *cli.Context) error {
 		backoffBase = 100 * time.Millisecond
 	}
 
+	backoffMax, err := time.ParseDuration(ctx.String("backoff-max"))
+	if err != nil {
+		backoffMax = 60 * time.Second
+	}
+
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	catalogURLs := buildCatalogURLs(hosts, useTLS)
@@ -219,6 +229,7 @@ func mainTablesWrite(ctx *cli.Context) error {
 		CacheDir:    ctx.String("cache-dir"),
 		MaxRetries:  ctx.Int("max-retries"),
 		BackoffBase: backoffBase,
+		BackoffMax:  backoffMax,
 		UseTPCDS:    ctx.Bool("tpcds"),
 		ScaleFactor: ctx.String("scale-factor"),
 		TPCDSTable:  ctx.String("tpcds-table"),

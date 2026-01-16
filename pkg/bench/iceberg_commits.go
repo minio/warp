@@ -47,6 +47,7 @@ type IcebergCommits struct {
 	ViewCommitsThroughput  int
 	MaxRetries             int
 	RetryBackoff           time.Duration
+	BackoffMax             time.Duration
 
 	tables []icebergpkg.TableInfo
 	views  []icebergpkg.ViewInfo
@@ -175,8 +176,8 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 				break
 			}
 			backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
-			if backoff > 5*time.Second {
-				backoff = 5 * time.Second
+			if backoff > b.BackoffMax {
+				backoff = b.BackoffMax
 			}
 			jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
 			backoff += jitter
@@ -250,8 +251,8 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 				break
 			}
 			backoff := b.RetryBackoff * time.Duration(1<<uint(retry))
-			if backoff > 5*time.Second {
-				backoff = 5 * time.Second
+			if backoff > b.BackoffMax {
+				backoff = b.BackoffMax
 			}
 			jitter := time.Duration(rand.Int64N(int64(backoff) / 2))
 			backoff += jitter

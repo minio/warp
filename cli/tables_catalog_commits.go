@@ -72,12 +72,17 @@ var tablesCatalogCommitsFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "max-retries",
 		Usage: "Maximum number of retries on 409/500 errors",
-		Value: 10,
+		Value: 4,
 	},
 	cli.DurationFlag{
 		Name:  "retry-backoff",
-		Usage: "Backoff duration between retries",
+		Usage: "Base backoff duration between retries",
 		Value: 100 * time.Millisecond,
+	},
+	cli.DurationFlag{
+		Name:  "backoff-max",
+		Usage: "Maximum backoff duration for retries",
+		Value: 60 * time.Second,
 	},
 }
 
@@ -179,6 +184,7 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 		ViewCommitsThroughput:  ctx.Int("view-commits-throughput"),
 		MaxRetries:             ctx.Int("max-retries"),
 		RetryBackoff:           ctx.Duration("retry-backoff"),
+		BackoffMax:             ctx.Duration("backoff-max"),
 	}
 
 	return runBench(ctx, &b)
