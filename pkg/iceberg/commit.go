@@ -19,7 +19,6 @@ package iceberg
 
 import (
 	"context"
-	"errors"
 	"math/rand/v2"
 	"strings"
 	"time"
@@ -57,6 +56,7 @@ type CommitResult struct {
 func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg CommitConfig) CommitResult {
 	start := time.Now()
 	result := CommitResult{}
+	var lastErr error
 
 	for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -79,6 +79,7 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 
 			// Refresh table metadata before retry
 			if err := tbl.Refresh(ctx); err != nil {
+				lastErr = err
 				continue
 			}
 		}
@@ -90,6 +91,7 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 			return result
 		}
 
+		lastErr = err
 		if !IsConflictError(err) {
 			result.Err = err
 			result.Duration = time.Since(start)
@@ -97,7 +99,7 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 		}
 	}
 
-	result.Err = errors.New("max retries exceeded for commit")
+	result.Err = lastErr
 	result.Duration = time.Since(start)
 	return result
 }
