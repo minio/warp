@@ -326,3 +326,15 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	cl.SetAppInfo(appName, pkg.Version)
 	return cl
 }
+
+func buildCatalogURLs(hosts []string, useTLS bool) []string {
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
+	urls := make([]string, len(hosts))
+	for i, host := range hosts {
+		urls[i] = scheme + "://" + host + "/_iceberg"
+	}
+	return urls
+}
