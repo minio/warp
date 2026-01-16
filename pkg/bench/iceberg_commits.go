@@ -70,6 +70,7 @@ func (b *IcebergCommits) Prepare(ctx context.Context) error {
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
 		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
 		OnProgress:  b.prepareProgress,
 		OnError:     b.Error,
 	}
@@ -127,7 +128,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 	<-wait
 
 	var globalUpdateID uint64
-	tableIdx := 0
+	tableIdx := thread % max(len(b.tables), 1)
 
 	for {
 		select {
@@ -202,7 +203,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 	<-wait
 
 	var globalUpdateID uint64
-	viewIdx := 0
+	viewIdx := thread % max(len(b.views), 1)
 
 	for {
 		select {

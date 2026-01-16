@@ -60,6 +60,13 @@ type Iceberg struct {
 	prefixes  map[string]struct{}
 }
 
+func (b *Iceberg) getCatalog() *rest.Catalog {
+	if b.CatalogPool != nil {
+		return b.CatalogPool.Get()
+	}
+	return b.Catalog
+}
+
 func (b *Iceberg) Prepare(ctx context.Context) error {
 	b.Tree = warpiceberg.NewTree(b.TreeConfig)
 
@@ -74,6 +81,7 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
 		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
 	}
 
 	if err := creator.CreateNamespaces(ctx); err != nil {
@@ -96,28 +104,63 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		schema = warpiceberg.BenchmarkDataSchema()
 	}
 
-	b.tables = make([]warpiceberg.TableInfo, 0, len(treeTables))
-	for _, tbl := range treeTables {
-		ident := append([]string{}, tbl.Namespace...)
-		ident = append(ident, tbl.Name)
-		loadedTbl, err := b.Catalog.CreateTable(ctx, ident, schema,
-			catalogpkg.WithLocation(tbl.Location),
-		)
-		if err != nil {
-			if !warpiceberg.IsAlreadyExists(err) {
-				return fmt.Errorf("failed to create table %s: %w", tbl.Name, err)
-			}
-			loadedTbl, err = b.Catalog.LoadTable(ctx, ident)
+	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
+	concurrency := b.Concurrency
+	if concurrency > 100 {
+		concurrency = 100
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, concurrency)
+	var firstErr error
+	var errMu sync.Mutex
+
+	for i, tbl := range treeTables {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(i int, tbl warpiceberg.TableInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			ident := append([]string{}, tbl.Namespace...)
+			ident = append(ident, tbl.Name)
+
+			cat := b.getCatalog()
+			loadedTbl, err := cat.CreateTable(ctx, ident, schema,
+				catalogpkg.WithLocation(tbl.Location),
+			)
 			if err != nil {
-				return fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+				if !warpiceberg.IsAlreadyExists(err) {
+					errMu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("failed to create table %s: %w", tbl.Name, err)
+					}
+					errMu.Unlock()
+					return
+				}
+				loadedTbl, err = cat.LoadTable(ctx, ident)
+				if err != nil {
+					errMu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+					}
+					errMu.Unlock()
+					return
+				}
 			}
-		}
-		b.tables = append(b.tables, warpiceberg.TableInfo{
-			Index:     tbl.Index,
-			Name:      tbl.Name,
-			Namespace: tbl.Namespace,
-			Location:  loadedTbl.Location(),
-		})
+			b.tables[i] = warpiceberg.TableInfo{
+				Index:     tbl.Index,
+				Name:      tbl.Name,
+				Namespace: tbl.Namespace,
+				Location:  loadedTbl.Location(),
+			}
+		}(i, tbl)
+	}
+	wg.Wait()
+
+	if firstErr != nil {
+		return firstErr
 	}
 
 	if b.UpdateStatus != nil {

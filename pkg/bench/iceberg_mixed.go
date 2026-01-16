@@ -125,6 +125,7 @@ func (b *IcebergMixed) Prepare(ctx context.Context) error {
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
 		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
 		OnProgress:  b.prepareProgress,
 		OnError:     b.Error,
 	}
@@ -149,17 +150,17 @@ func (b *IcebergMixed) Start(ctx context.Context, wait chan struct{}) error {
 			catalogName := b.TreeConfig.CatalogName
 			opCtx := context.Background()
 
-			nsListIdx := 0
-			nsExistsIdx := 0
-			nsFetchIdx := 0
+			nsListIdx := thread % max(len(b.namespaces), 1)
+			nsExistsIdx := thread % max(len(b.namespaces), 1)
+			nsFetchIdx := thread % max(len(b.namespaces), 1)
 
-			tblListIdx := 0
-			tblExistsIdx := 0
-			tblFetchIdx := 0
+			tblListIdx := thread % max(len(b.tables), 1)
+			tblExistsIdx := thread % max(len(b.tables), 1)
+			tblFetchIdx := thread % max(len(b.tables), 1)
 
-			viewListIdx := 0
-			viewExistsIdx := 0
-			viewFetchIdx := 0
+			viewListIdx := thread % max(len(b.views), 1)
+			viewExistsIdx := thread % max(len(b.views), 1)
+			viewFetchIdx := thread % max(len(b.views), 1)
 
 			<-wait
 

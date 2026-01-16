@@ -19,13 +19,11 @@ package bench
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
+	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/apache/iceberg-go/catalog"
 	"github.com/apache/iceberg-go/catalog/rest"
 	"github.com/apache/iceberg-go/table"
 	"github.com/minio/warp/pkg/iceberg"
@@ -73,52 +71,27 @@ type IcebergRead struct {
 func (b *IcebergRead) Prepare(ctx context.Context) error {
 	b.Tree = iceberg.NewTree(b.TreeConfig)
 
-	b.UpdateStatus(fmt.Sprintf("Preparing dataset: %d namespaces, %d tables, %d views",
-		b.Tree.TotalNamespaces(), b.Tree.TotalTables(), b.Tree.TotalViews()))
-
 	b.namespaces = b.Tree.AllNamespaces()
 	b.tables = b.Tree.AllTables()
 	b.views = b.Tree.AllViews()
 
-	totalOps := len(b.namespaces) + len(b.tables) + len(b.views)
-	if totalOps == 0 {
-		return fmt.Errorf("no operations to perform: check tree configuration")
+	if len(b.namespaces) == 0 {
+		return fmt.Errorf("no namespaces found: check tree configuration")
 	}
 
-	if b.CatalogURI != "" && b.AccessKey != "" {
-		b.UpdateStatus("Ensuring warehouse exists...")
-		err := iceberg.EnsureWarehouse(ctx, iceberg.CatalogConfig{
-			CatalogURI: b.CatalogURI,
-			Warehouse:  b.TreeConfig.CatalogName,
-			AccessKey:  b.AccessKey,
-			SecretKey:  b.SecretKey,
-		})
-		if err != nil {
-			b.Error("Note: warehouse creation returned:", err)
-		}
+	creator := &iceberg.DatasetCreator{
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
+		Concurrency: b.Concurrency,
+		OnProgress:  b.prepareProgress,
+		OnError:     b.Error,
 	}
 
-	b.UpdateStatus("Creating namespaces...")
-	if err := b.createNamespaces(ctx); err != nil {
-		return fmt.Errorf("create namespaces: %w", err)
-	}
-
-	if len(b.tables) > 0 {
-		b.UpdateStatus("Creating tables...")
-		if err := b.createTables(ctx); err != nil {
-			return fmt.Errorf("create tables: %w", err)
-		}
-	}
-
-	if len(b.views) > 0 {
-		b.UpdateStatus("Creating views...")
-		if err := b.createViews(ctx); err != nil {
-			return fmt.Errorf("create views: %w", err)
-		}
-	}
-
-	b.UpdateStatus("Preparation complete")
-	return nil
+	return creator.CreateAll(ctx, b.UpdateStatus)
 }
 
 func (b *IcebergRead) getCatalog() *rest.Catalog {
@@ -126,136 +99,6 @@ func (b *IcebergRead) getCatalog() *rest.Catalog {
 		return b.CatalogPool.Get()
 	}
 	return b.Catalog
-}
-
-func (b *IcebergRead) createNamespaces(ctx context.Context) error {
-	rcv := b.Collector.Receiver()
-	catalogName := b.TreeConfig.CatalogName
-	cfg := b.Tree.Config()
-
-	for i, ns := range b.namespaces {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		props := warprest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
-
-		op := Operation{
-			OpType:   OpNSCreate,
-			Thread:   0,
-			Size:     0,
-			File:     fmt.Sprintf("%s/%v", catalogName, ns.Path),
-			ObjPerOp: 0,
-			Endpoint: catalogName,
-		}
-
-		op.Start = time.Now()
-		err := b.getCatalog().CreateNamespace(ctx, ns.Path, props)
-		op.End = time.Now()
-
-		if err != nil && !isAlreadyExists(err) {
-			op.Err = err.Error()
-			b.Error("namespace create error:", err)
-		}
-
-		rcv <- op
-		b.prepareProgress(float64(i+1) / float64(len(b.namespaces)))
-	}
-
-	return nil
-}
-
-func (b *IcebergRead) createTables(ctx context.Context) error {
-	rcv := b.Collector.Receiver()
-	catalogName := b.TreeConfig.CatalogName
-	cfg := b.Tree.Config()
-
-	schema := warprest.BuildIcebergSchema(cfg.ColumnsPerTable)
-	props := warprest.BuildTableProperties(cfg.PropertiesPerTbl, "tbl_prop")
-
-	for i, tbl := range b.tables {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-
-		op := Operation{
-			OpType:   OpTableCreate,
-			Thread:   0,
-			Size:     0,
-			File:     fmt.Sprintf("%s/%v/%s", catalogName, tbl.Namespace, tbl.Name),
-			ObjPerOp: 0,
-			Endpoint: catalogName,
-		}
-
-		op.Start = time.Now()
-		_, err := b.getCatalog().CreateTable(ctx, ident, schema,
-			catalog.WithLocation(tbl.Location),
-			catalog.WithProperties(props),
-		)
-		op.End = time.Now()
-
-		if err != nil && !isAlreadyExists(err) {
-			op.Err = err.Error()
-			b.Error("table create error:", err)
-		}
-
-		rcv <- op
-		b.prepareProgress(float64(i+1) / float64(len(b.tables)))
-	}
-
-	return nil
-}
-
-func (b *IcebergRead) createViews(ctx context.Context) error {
-	rcv := b.Collector.Receiver()
-	catalogName := b.TreeConfig.CatalogName
-	cfg := b.Tree.Config()
-
-	schema := warprest.BuildIcebergSchema(cfg.ColumnsPerView)
-	props := warprest.BuildTableProperties(cfg.PropertiesPerVw, "view_prop")
-
-	for i, vw := range b.views {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		ident := toTableIdentifier(vw.Namespace, vw.Name)
-		version := warprest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
-
-		op := Operation{
-			OpType:   OpViewCreate,
-			Thread:   0,
-			Size:     0,
-			File:     fmt.Sprintf("%s/%v/%s", catalogName, vw.Namespace, vw.Name),
-			ObjPerOp: 0,
-			Endpoint: catalogName,
-		}
-
-		op.Start = time.Now()
-		_, err := b.getCatalog().CreateView(ctx, ident, version, schema,
-			catalog.WithViewLocation(vw.Location),
-			catalog.WithViewProperties(props),
-		)
-		op.End = time.Now()
-
-		if err != nil && !isAlreadyExists(err) {
-			op.Err = err.Error()
-			b.Error("view create error:", err)
-		}
-
-		rcv <- op
-		b.prepareProgress(float64(i+1) / float64(len(b.views)))
-	}
-
-	return nil
 }
 
 func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
@@ -274,12 +117,17 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 			done := ctx.Done()
 			catalogName := b.TreeConfig.CatalogName
 			opCtx := context.Background()
+			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(thread)))
 
 			<-wait
 
-			nsIdx := 0
-			tblIdx := 0
-			vwIdx := 0
+			nsIdx := thread % len(b.namespaces)
+			tblIdx := thread % max(len(b.tables), 1)
+			vwIdx := thread % max(len(b.views), 1)
+
+			hasNs := len(b.namespaces) > 0
+			hasTables := len(b.tables) > 0
+			hasViews := len(b.views) > 0
 
 			for {
 				select {
@@ -294,17 +142,22 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 
 				cat := b.getCatalog()
 
-				b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
-				nsIdx++
-
-				if len(b.tables) > 0 {
-					b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
-					tblIdx++
-				}
-
-				if len(b.views) > 0 {
-					b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
-					vwIdx++
+				switch rng.Intn(3) {
+				case 0:
+					if hasNs {
+						b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
+						nsIdx++
+					}
+				case 1:
+					if hasTables {
+						b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
+						tblIdx++
+					}
+				case 2:
+					if hasViews {
+						b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
+						vwIdx++
+					}
 				}
 			}
 		}(i)
@@ -491,19 +344,4 @@ func (b *IcebergRead) Cleanup(ctx context.Context) {
 
 func toTableIdentifier(namespace []string, name string) table.Identifier {
 	return append(namespace, name)
-}
-
-func isAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, catalog.ErrNamespaceAlreadyExists) ||
-		errors.Is(err, catalog.ErrTableAlreadyExists) ||
-		errors.Is(err, catalog.ErrViewAlreadyExists) {
-		return true
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "AlreadyExists") ||
-		strings.Contains(errStr, "already exists") ||
-		strings.Contains(errStr, "Conflict")
 }

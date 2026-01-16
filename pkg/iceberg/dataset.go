@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/apache/iceberg-go/catalog"
 	restcat "github.com/apache/iceberg-go/catalog/rest"
@@ -36,6 +38,7 @@ type DatasetCreator struct {
 	CatalogURI  string
 	AccessKey   string
 	SecretKey   string
+	Concurrency int
 	OnProgress  func(float64)
 	OnError     func(data ...any)
 }
@@ -82,27 +85,50 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 	schema := rest.BuildIcebergSchema(cfg.ColumnsPerTable)
 	props := rest.BuildTableProperties(cfg.PropertiesPerTbl, "tbl_prop")
 
-	for i, tbl := range tables {
+	concurrency := d.Concurrency
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if concurrency > 100 {
+		concurrency = 100
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, concurrency)
+	var completed uint64
+
+	for _, tbl := range tables {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-		_, err := d.getCatalog().CreateTable(ctx, ident, schema,
-			catalog.WithLocation(tbl.Location),
-			catalog.WithProperties(props),
-		)
-		if err != nil && !IsAlreadyExists(err) {
-			if d.OnError != nil {
-				d.OnError("table create error:", err)
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(tbl TableInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			ident := toTableIdentifier(tbl.Namespace, tbl.Name)
+			_, err := d.getCatalog().CreateTable(ctx, ident, schema,
+				catalog.WithLocation(tbl.Location),
+				catalog.WithProperties(props),
+			)
+			if err != nil && !IsAlreadyExists(err) {
+				if d.OnError != nil {
+					d.OnError("table create error:", err)
+				}
 			}
-		}
-		if d.OnProgress != nil {
-			d.OnProgress(float64(i+1) / float64(len(tables)))
-		}
+			if d.OnProgress != nil {
+				done := atomic.AddUint64(&completed, 1)
+				d.OnProgress(float64(done) / float64(len(tables)))
+			}
+		}(tbl)
 	}
+
+	wg.Wait()
 	return nil
 }
 
@@ -116,28 +142,51 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	schema := rest.BuildIcebergSchema(cfg.ColumnsPerView)
 	props := rest.BuildTableProperties(cfg.PropertiesPerVw, "view_prop")
 
-	for i, vw := range views {
+	concurrency := d.Concurrency
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if concurrency > 100 {
+		concurrency = 100
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, concurrency)
+	var completed uint64
+
+	for _, vw := range views {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		ident := toTableIdentifier(vw.Namespace, vw.Name)
-		version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
-		_, err := d.getCatalog().CreateView(ctx, ident, version, schema,
-			catalog.WithViewLocation(vw.Location),
-			catalog.WithViewProperties(props),
-		)
-		if err != nil && !IsAlreadyExists(err) {
-			if d.OnError != nil {
-				d.OnError("view create error:", err)
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(vw ViewInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			ident := toTableIdentifier(vw.Namespace, vw.Name)
+			version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
+			_, err := d.getCatalog().CreateView(ctx, ident, version, schema,
+				catalog.WithViewLocation(vw.Location),
+				catalog.WithViewProperties(props),
+			)
+			if err != nil && !IsAlreadyExists(err) {
+				if d.OnError != nil {
+					d.OnError("view create error:", err)
+				}
 			}
-		}
-		if d.OnProgress != nil {
-			d.OnProgress(float64(i+1) / float64(len(views)))
-		}
+			if d.OnProgress != nil {
+				done := atomic.AddUint64(&completed, 1)
+				d.OnProgress(float64(done) / float64(len(views)))
+			}
+		}(vw)
 	}
+
+	wg.Wait()
 	return nil
 }
 
