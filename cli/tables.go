@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2024 MinIO, Inc.
+ * Warp (C) 2019-2026 MinIO, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,19 +19,19 @@ package cli
 
 import "github.com/minio/cli"
 
-var icebergSubcommands = []cli.Command{
-	icebergWriteCmd,
-	catalogReadCmd,
-	catalogCommitsCmd,
-	catalogMixedCmd,
+var tablesSubcommands = []cli.Command{
+	tablesWriteCmd,
+	tablesCatalogReadCmd,
+	tablesCatalogCommitsCmd,
+	tablesCatalogMixedCmd,
 }
 
-var icebergCmd = cli.Command{
-	Name:            "iceberg",
+var tablesCmd = cli.Command{
+	Name:            "tables",
 	Usage:           "benchmark Iceberg catalog operations",
-	Action:          icebergCmdNotFound,
+	Action:          tablesCmdNotFound,
 	Before:          setGlobalsFromContext,
-	Subcommands:     icebergSubcommands,
+	Subcommands:     tablesSubcommands,
 	HideHelpCommand: true,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
@@ -61,7 +61,7 @@ FLAGS:
   {{end}}`,
 }
 
-func icebergCmdNotFound(ctx *cli.Context) error {
+func tablesCmdNotFound(ctx *cli.Context) error {
 	if ctx.Args().First() != "" {
 		return cli.ShowCommandHelp(ctx, ctx.Args().First())
 	}

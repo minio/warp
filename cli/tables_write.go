@@ -1,5 +1,5 @@
 /*
- * Warp (C) 2019-2024 MinIO, Inc.
+ * Warp (C) 2019-2026 MinIO, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -28,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var icebergWriteFlags = []cli.Flag{
+var tablesWriteFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "catalog-name",
 		Usage: "Catalog name to use",
@@ -105,14 +105,14 @@ var icebergWriteFlags = []cli.Flag{
 	},
 }
 
-var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteFlags, benchFlags, analyzeFlags)
+var tablesWriteCombinedFlags = combineFlags(globalFlags, ioFlags, tablesWriteFlags, benchFlags, analyzeFlags)
 
-var icebergWriteCmd = cli.Command{
+var tablesWriteCmd = cli.Command{
 	Name:   "write",
 	Usage:  "benchmark Iceberg table write performance",
-	Action: mainIcebergWrite,
+	Action: mainTablesWrite,
 	Before: setGlobalsFromContext,
-	Flags:  icebergWriteCombinedFlags,
+	Flags:  tablesWriteCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -163,8 +163,8 @@ FLAGS:
   {{end}}`,
 }
 
-func mainIcebergWrite(ctx *cli.Context) error {
-	checkIcebergWriteSyntax(ctx)
+func mainTablesWrite(ctx *cli.Context) error {
+	checkTablesWriteSyntax(ctx)
 
 	backoffBase, err := time.ParseDuration(ctx.String("backoff-base"))
 	if err != nil {
@@ -223,7 +223,7 @@ func mainIcebergWrite(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkIcebergWriteSyntax(ctx *cli.Context) {
+func checkTablesWriteSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}

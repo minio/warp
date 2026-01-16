@@ -18,22 +18,6 @@ type TreeConfig struct {
 	CatalogName      string
 }
 
-func DefaultTreeConfig() TreeConfig {
-	return TreeConfig{
-		NamespaceWidth:   2,
-		NamespaceDepth:   3,
-		TablesPerNS:      5,
-		ViewsPerNS:       0,
-		ColumnsPerTable:  10,
-		ColumnsPerView:   10,
-		PropertiesPerNS:  5,
-		PropertiesPerTbl: 5,
-		PropertiesPerVw:  5,
-		BaseLocation:     "s3://benchmark",
-		CatalogName:      "benchmark_catalog",
-	}
-}
-
 type Tree struct {
 	cfg TreeConfig
 }

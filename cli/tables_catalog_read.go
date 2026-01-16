@@ -1,3 +1,20 @@
+/*
+ * Warp (C) 2019-2026 MinIO, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package cli
 
 import (
@@ -10,7 +27,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var catalogReadFlags = []cli.Flag{
+var tablesCatalogReadFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "catalog-name",
 		Usage: "Catalog name to use",
@@ -53,14 +70,14 @@ var catalogReadFlags = []cli.Flag{
 	},
 }
 
-var catalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, catalogReadFlags, benchFlags, analyzeFlags)
+var tablesCatalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, tablesCatalogReadFlags, benchFlags, analyzeFlags)
 
-var catalogReadCmd = cli.Command{
+var tablesCatalogReadCmd = cli.Command{
 	Name:   "catalog-read",
 	Usage:  "benchmark Iceberg REST catalog read operations (creates dataset in prepare, then benchmarks reads)",
-	Action: mainCatalogRead,
+	Action: mainTablesCatalogRead,
 	Before: setGlobalsFromContext,
-	Flags:  catalogReadCombinedFlags,
+	Flags:  tablesCatalogReadCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -108,8 +125,8 @@ EXAMPLES:
 `,
 }
 
-func mainCatalogRead(ctx *cli.Context) error {
-	checkCatalogReadSyntax(ctx)
+func mainTablesCatalogRead(ctx *cli.Context) error {
+	checkTablesCatalogReadSyntax(ctx)
 
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
@@ -144,7 +161,7 @@ func mainCatalogRead(ctx *cli.Context) error {
 	}
 
 	b := bench.IcebergRead{
-		Common:     getIcebergCommon(ctx),
+		Common:     getTablesCommon(ctx),
 		Catalog:    cat,
 		TreeConfig: treeCfg,
 		CatalogURI: catalogURLs[0],
@@ -155,7 +172,7 @@ func mainCatalogRead(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkCatalogReadSyntax(ctx *cli.Context) {
+func checkTablesCatalogReadSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
@@ -178,7 +195,7 @@ func checkCatalogReadSyntax(ctx *cli.Context) {
 	checkBenchmark(ctx)
 }
 
-func getIcebergCommon(ctx *cli.Context) bench.Common {
+func getTablesCommon(ctx *cli.Context) bench.Common {
 	statusln := func(s string) {
 		console.Eraseline()
 		console.Print(s)
