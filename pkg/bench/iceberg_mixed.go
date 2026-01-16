@@ -34,9 +34,10 @@ import (
 
 type IcebergMixed struct {
 	Common
-	Catalog    *rest.Catalog
-	Tree       *icebergpkg.Tree
-	TreeConfig icebergpkg.TreeConfig
+	Catalog     *rest.Catalog
+	CatalogPool *icebergpkg.CatalogPool
+	Tree        *icebergpkg.Tree
+	TreeConfig  icebergpkg.TreeConfig
 
 	CatalogURI string
 	AccessKey  string
@@ -172,74 +173,79 @@ func (b *IcebergMixed) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				}
 
+				cat := b.Catalog
+				if b.CatalogPool != nil {
+					cat = b.CatalogPool.Get()
+				}
+
 				operation := b.Dist.getOp()
 				switch operation {
 				case OpNSList:
 					ns := b.namespaces[nsListIdx%len(b.namespaces)]
 					nsListIdx++
-					b.doFetchAllChildrenNamespaces(opCtx, rcv, thread, catalogName, ns)
+					b.doFetchAllChildrenNamespaces(opCtx, rcv, thread, catalogName, ns, cat)
 				case OpNSHead:
 					ns := b.namespaces[nsExistsIdx%len(b.namespaces)]
 					nsExistsIdx++
-					b.doCheckNamespaceExists(opCtx, rcv, thread, catalogName, ns)
+					b.doCheckNamespaceExists(opCtx, rcv, thread, catalogName, ns, cat)
 				case OpNSGet:
 					ns := b.namespaces[nsFetchIdx%len(b.namespaces)]
 					nsFetchIdx++
-					b.doFetchNamespace(opCtx, rcv, thread, catalogName, ns)
+					b.doFetchNamespace(opCtx, rcv, thread, catalogName, ns, cat)
 				case OpNSUpdate:
-					b.doUpdateNamespaceProperties(opCtx, rcv, thread, catalogName)
+					b.doUpdateNamespaceProperties(opCtx, rcv, thread, catalogName, cat)
 				case OpTableList:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblListIdx%len(b.tables)]
 					tblListIdx++
-					b.doFetchAllTables(opCtx, rcv, thread, catalogName, tbl)
+					b.doFetchAllTables(opCtx, rcv, thread, catalogName, tbl, cat)
 				case OpTableHead:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblExistsIdx%len(b.tables)]
 					tblExistsIdx++
-					b.doCheckTableExists(opCtx, rcv, thread, catalogName, tbl)
+					b.doCheckTableExists(opCtx, rcv, thread, catalogName, tbl, cat)
 				case OpTableGet:
 					if len(b.tables) == 0 {
 						continue
 					}
 					tbl := b.tables[tblFetchIdx%len(b.tables)]
 					tblFetchIdx++
-					b.doFetchTable(opCtx, rcv, thread, catalogName, tbl)
+					b.doFetchTable(opCtx, rcv, thread, catalogName, tbl, cat)
 				case OpTableUpdate:
 					if len(b.tables) == 0 {
 						continue
 					}
-					b.doUpdateTable(opCtx, rcv, thread, catalogName)
+					b.doUpdateTable(opCtx, rcv, thread, catalogName, cat)
 				case OpViewList:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewListIdx%len(b.views)]
 					viewListIdx++
-					b.doFetchAllViews(opCtx, rcv, thread, catalogName, vw)
+					b.doFetchAllViews(opCtx, rcv, thread, catalogName, vw, cat)
 				case OpViewHead:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewExistsIdx%len(b.views)]
 					viewExistsIdx++
-					b.doCheckViewExists(opCtx, rcv, thread, catalogName, vw)
+					b.doCheckViewExists(opCtx, rcv, thread, catalogName, vw, cat)
 				case OpViewGet:
 					if len(b.views) == 0 {
 						continue
 					}
 					vw := b.views[viewFetchIdx%len(b.views)]
 					viewFetchIdx++
-					b.doFetchView(opCtx, rcv, thread, catalogName, vw)
+					b.doFetchView(opCtx, rcv, thread, catalogName, vw, cat)
 				case OpViewUpdate:
 					if len(b.views) == 0 {
 						continue
 					}
-					b.doUpdateView(opCtx, rcv, thread, catalogName)
+					b.doUpdateView(opCtx, rcv, thread, catalogName, cat)
 				}
 			}
 		}(i)
@@ -249,7 +255,7 @@ func (b *IcebergMixed) Start(ctx context.Context, wait chan struct{}) error {
 	return nil
 }
 
-func (b *IcebergMixed) doFetchAllChildrenNamespaces(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo) {
+func (b *IcebergMixed) doFetchAllChildrenNamespaces(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpNSList,
 		Thread:   uint32(thread),
@@ -257,7 +263,7 @@ func (b *IcebergMixed) doFetchAllChildrenNamespaces(ctx context.Context, rcv cha
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.ListNamespaces(ctx, ns.Path)
+	_, err := cat.ListNamespaces(ctx, ns.Path)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -265,7 +271,7 @@ func (b *IcebergMixed) doFetchAllChildrenNamespaces(ctx context.Context, rcv cha
 	rcv <- op
 }
 
-func (b *IcebergMixed) doCheckNamespaceExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo) {
+func (b *IcebergMixed) doCheckNamespaceExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpNSHead,
 		Thread:   uint32(thread),
@@ -273,7 +279,7 @@ func (b *IcebergMixed) doCheckNamespaceExists(ctx context.Context, rcv chan<- Op
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.CheckNamespaceExists(ctx, ns.Path)
+	_, err := cat.CheckNamespaceExists(ctx, ns.Path)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -281,7 +287,7 @@ func (b *IcebergMixed) doCheckNamespaceExists(ctx context.Context, rcv chan<- Op
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo) {
+func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns icebergpkg.NamespaceInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpNSGet,
 		Thread:   uint32(thread),
@@ -289,7 +295,7 @@ func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operatio
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadNamespaceProperties(ctx, ns.Path)
+	_, err := cat.LoadNamespaceProperties(ctx, ns.Path)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -297,7 +303,7 @@ func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operatio
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo) {
+func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpTableList,
 		Thread:   uint32(thread),
@@ -305,7 +311,7 @@ func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operatio
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	for _, err := range b.Catalog.ListTables(ctx, tbl.Namespace) {
+	for _, err := range cat.ListTables(ctx, tbl.Namespace) {
 		if err != nil {
 			op.Err = err.Error()
 		}
@@ -314,7 +320,7 @@ func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operatio
 	rcv <- op
 }
 
-func (b *IcebergMixed) doCheckTableExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo) {
+func (b *IcebergMixed) doCheckTableExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
 	op := Operation{
 		OpType:   OpTableHead,
@@ -323,7 +329,7 @@ func (b *IcebergMixed) doCheckTableExists(ctx context.Context, rcv chan<- Operat
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.CheckTableExists(ctx, ident)
+	_, err := cat.CheckTableExists(ctx, ident)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -331,7 +337,7 @@ func (b *IcebergMixed) doCheckTableExists(ctx context.Context, rcv chan<- Operat
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo) {
+func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
 	op := Operation{
 		OpType:   OpTableGet,
@@ -340,7 +346,7 @@ func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, t
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadTable(ctx, ident)
+	_, err := cat.LoadTable(ctx, ident)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -348,7 +354,7 @@ func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, t
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo) {
+func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {
 	op := Operation{
 		OpType:   OpViewList,
 		Thread:   uint32(thread),
@@ -356,7 +362,7 @@ func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	for _, err := range b.Catalog.ListViews(ctx, vw.Namespace) {
+	for _, err := range cat.ListViews(ctx, vw.Namespace) {
 		if err != nil {
 			op.Err = err.Error()
 		}
@@ -365,7 +371,7 @@ func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation
 	rcv <- op
 }
 
-func (b *IcebergMixed) doCheckViewExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo) {
+func (b *IcebergMixed) doCheckViewExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(vw.Namespace, vw.Name)
 	op := Operation{
 		OpType:   OpViewHead,
@@ -374,7 +380,7 @@ func (b *IcebergMixed) doCheckViewExists(ctx context.Context, rcv chan<- Operati
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.CheckViewExists(ctx, ident)
+	_, err := cat.CheckViewExists(ctx, ident)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -382,7 +388,7 @@ func (b *IcebergMixed) doCheckViewExists(ctx context.Context, rcv chan<- Operati
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo) {
+func (b *IcebergMixed) doFetchView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(vw.Namespace, vw.Name)
 	op := Operation{
 		OpType:   OpViewGet,
@@ -391,7 +397,7 @@ func (b *IcebergMixed) doFetchView(ctx context.Context, rcv chan<- Operation, th
 		Endpoint: catalogName,
 	}
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadView(ctx, ident)
+	_, err := cat.LoadView(ctx, ident)
 	op.End = time.Now()
 	if err != nil {
 		op.Err = err.Error()
@@ -399,7 +405,7 @@ func (b *IcebergMixed) doFetchView(ctx context.Context, rcv chan<- Operation, th
 	rcv <- op
 }
 
-func (b *IcebergMixed) doUpdateNamespaceProperties(ctx context.Context, rcv chan<- Operation, thread int, catalogName string) {
+func (b *IcebergMixed) doUpdateNamespaceProperties(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, cat *rest.Catalog) {
 	updateID := atomic.AddUint64(&b.nsUpdateID, 1)
 	nsIdx := int((updateID - 1) % uint64(len(b.namespaces)))
 	ns := b.namespaces[nsIdx]
@@ -416,7 +422,7 @@ func (b *IcebergMixed) doUpdateNamespaceProperties(ctx context.Context, rcv chan
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.UpdateNamespaceProperties(ctx, ns.Path, nil, updates)
+	_, err := cat.UpdateNamespaceProperties(ctx, ns.Path, nil, updates)
 	op.End = time.Now()
 
 	if err != nil {
@@ -425,7 +431,7 @@ func (b *IcebergMixed) doUpdateNamespaceProperties(ctx context.Context, rcv chan
 	rcv <- op
 }
 
-func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string) {
+func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, cat *rest.Catalog) {
 	updateID := atomic.AddUint64(&b.tableUpdateID, 1)
 	tblIdx := int((updateID - 1) % uint64(len(b.tables)))
 	tbl := b.tables[tblIdx]
@@ -445,7 +451,7 @@ func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, 
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.UpdateTable(ctx, ident, nil, updates)
+	_, err := cat.UpdateTable(ctx, ident, nil, updates)
 	op.End = time.Now()
 
 	if err != nil {
@@ -454,7 +460,7 @@ func (b *IcebergMixed) doUpdateTable(ctx context.Context, rcv chan<- Operation, 
 	rcv <- op
 }
 
-func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string) {
+func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, cat *rest.Catalog) {
 	updateID := atomic.AddUint64(&b.viewUpdateID, 1)
 	vwIdx := int((updateID - 1) % uint64(len(b.views)))
 	vw := b.views[vwIdx]
@@ -474,7 +480,7 @@ func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, t
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.UpdateView(ctx, ident, nil, updates)
+	_, err := cat.UpdateView(ctx, ident, nil, updates)
 	op.End = time.Now()
 
 	if err != nil {

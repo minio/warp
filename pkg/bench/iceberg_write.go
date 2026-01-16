@@ -35,12 +35,13 @@ import (
 type Iceberg struct {
 	Common
 
-	Catalog    *rest.Catalog
-	TreeConfig warpiceberg.TreeConfig
-	Tree       *warpiceberg.Tree
-	CatalogURI string
-	AccessKey  string
-	SecretKey  string
+	Catalog     *rest.Catalog
+	CatalogPool *warpiceberg.CatalogPool
+	TreeConfig  warpiceberg.TreeConfig
+	Tree        *warpiceberg.Tree
+	CatalogURI  string
+	AccessKey   string
+	SecretKey   string
 
 	NumFiles    int
 	RowsPerFile int
@@ -305,8 +306,13 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 					commitOp.Start = time.Now()
 
+					cat := b.Catalog
+					if b.CatalogPool != nil {
+						cat = b.CatalogPool.Get()
+					}
+
 					ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
-					loadedTbl, err := b.Catalog.LoadTable(opCtx, ident)
+					loadedTbl, err := cat.LoadTable(opCtx, ident)
 					if err != nil {
 						commitOp.End = time.Now()
 						commitOp.Err = err.Error()

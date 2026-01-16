@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/apache/iceberg-go"
@@ -330,3 +331,56 @@ func hmacSHA256(key, data []byte) []byte {
 
 // Keep sort import used
 var _ = sort.Strings
+
+// CatalogPool provides round-robin access to multiple catalog clients.
+type CatalogPool struct {
+	catalogs []*rest.Catalog
+	urls     []string
+	counter  atomic.Uint64
+}
+
+// NewCatalogPool creates a pool of catalog clients for round-robin access.
+// It takes a base config and a list of catalog URLs, creating one client per URL.
+func NewCatalogPool(ctx context.Context, catalogURLs []string, baseCfg CatalogConfig) (*CatalogPool, error) {
+	if len(catalogURLs) == 0 {
+		return nil, fmt.Errorf("no catalog URLs provided")
+	}
+
+	pool := &CatalogPool{
+		catalogs: make([]*rest.Catalog, len(catalogURLs)),
+		urls:     catalogURLs,
+	}
+
+	for i, catalogURL := range catalogURLs {
+		cfg := baseCfg
+		cfg.CatalogURI = catalogURL
+		cat, err := NewCatalog(ctx, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create catalog for %s: %w", catalogURL, err)
+		}
+		pool.catalogs[i] = cat
+	}
+
+	return pool, nil
+}
+
+// Get returns the next catalog client in round-robin order.
+func (p *CatalogPool) Get() *rest.Catalog {
+	idx := p.counter.Add(1) - 1
+	return p.catalogs[idx%uint64(len(p.catalogs))]
+}
+
+// First returns the first catalog client (for setup/cleanup operations).
+func (p *CatalogPool) First() *rest.Catalog {
+	return p.catalogs[0]
+}
+
+// Len returns the number of catalogs in the pool.
+func (p *CatalogPool) Len() int {
+	return len(p.catalogs)
+}
+
+// URLs returns the catalog URLs.
+func (p *CatalogPool) URLs() []string {
+	return p.urls
+}

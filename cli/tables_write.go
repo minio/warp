@@ -189,6 +189,9 @@ func mainTablesWrite(ctx *cli.Context) error {
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog")
 
+	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to create catalog pool")
+
 	treeCfg := iceberg.TreeConfig{
 		NamespaceWidth:   ctx.Int("namespace-width"),
 		NamespaceDepth:   ctx.Int("namespace-depth"),
@@ -206,6 +209,7 @@ func mainTablesWrite(ctx *cli.Context) error {
 	b := bench.Iceberg{
 		Common:      getCommon(ctx, nil),
 		Catalog:     cat,
+		CatalogPool: catalogPool,
 		TreeConfig:  treeCfg,
 		CatalogURI:  catalogURLs[0],
 		AccessKey:   ctx.String("access-key"),

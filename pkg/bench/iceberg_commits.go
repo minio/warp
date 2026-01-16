@@ -34,9 +34,10 @@ import (
 
 type IcebergCommits struct {
 	Common
-	Catalog    *rest.Catalog
-	Tree       *icebergpkg.Tree
-	TreeConfig icebergpkg.TreeConfig
+	Catalog     *rest.Catalog
+	CatalogPool *icebergpkg.CatalogPool
+	Tree        *icebergpkg.Tree
+	TreeConfig  icebergpkg.TreeConfig
 
 	CatalogURI string
 	AccessKey  string
@@ -137,6 +138,12 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 			return
 		}
 
+		// Get catalog from pool for round-robin, or use single catalog
+		cat := b.Catalog
+		if b.CatalogPool != nil {
+			cat = b.CatalogPool.Get()
+		}
+
 		tbl := b.tables[tableIdx%len(b.tables)]
 		tableIdx++
 
@@ -163,7 +170,7 @@ func (b *IcebergCommits) runTableCommits(ctx context.Context, wait chan struct{}
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.Catalog.UpdateTable(opCtx, ident, nil, updates)
+			_, err = cat.UpdateTable(opCtx, ident, nil, updates)
 			if err == nil || !isRetryable(err) {
 				break
 			}
@@ -206,6 +213,12 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 			return
 		}
 
+		// Get catalog from pool for round-robin, or use single catalog
+		cat := b.Catalog
+		if b.CatalogPool != nil {
+			cat = b.CatalogPool.Get()
+		}
+
 		vw := b.views[viewIdx%len(b.views)]
 		viewIdx++
 
@@ -232,7 +245,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 		op.Start = time.Now()
 		var err error
 		for retry := 0; retry < b.MaxRetries; retry++ {
-			_, err = b.Catalog.UpdateView(opCtx, ident, nil, updates)
+			_, err = cat.UpdateView(opCtx, ident, nil, updates)
 			if err == nil || !isRetryable(err) {
 				break
 			}

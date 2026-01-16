@@ -154,6 +154,10 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog")
 
+	// Create catalog pool for round-robin access across all hosts
+	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
+	fatalIf(probe.NewError(err), "Failed to create catalog pool")
+
 	treeCfg := iceberg.TreeConfig{
 		NamespaceWidth: ctx.Int("namespace-width"),
 		NamespaceDepth: ctx.Int("namespace-depth"),
@@ -166,6 +170,7 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	b := bench.IcebergCommits{
 		Common:                 getTablesCommon(ctx),
 		Catalog:                cat,
+		CatalogPool:            catalogPool,
 		TreeConfig:             treeCfg,
 		CatalogURI:             catalogURLs[0],
 		AccessKey:              ctx.String("access-key"),

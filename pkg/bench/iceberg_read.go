@@ -56,9 +56,10 @@ const (
 
 type IcebergRead struct {
 	Common
-	Catalog    *rest.Catalog
-	Tree       *iceberg.Tree
-	TreeConfig iceberg.TreeConfig
+	Catalog     *rest.Catalog
+	CatalogPool *iceberg.CatalogPool
+	Tree        *iceberg.Tree
+	TreeConfig  iceberg.TreeConfig
 
 	CatalogURI string
 	AccessKey  string
@@ -284,16 +285,22 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				}
 
-				b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)])
+				// Get catalog from pool (round-robin) or use single catalog
+				cat := b.Catalog
+				if b.CatalogPool != nil {
+					cat = b.CatalogPool.Get()
+				}
+
+				b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
 				nsIdx++
 
 				if len(b.tables) > 0 {
-					b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)])
+					b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
 					tblIdx++
 				}
 
 				if len(b.views) > 0 {
-					b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)])
+					b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
 					vwIdx++
 				}
 			}
@@ -304,7 +311,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 	return nil
 }
 
-func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo) {
+func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, ns iceberg.NamespaceInfo, cat *rest.Catalog) {
 	ident := ns.Path
 
 	op := Operation{
@@ -315,7 +322,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadNamespaceProperties(ctx, ident)
+	_, err := cat.LoadNamespaceProperties(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -331,7 +338,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 	}
 
 	op.Start = time.Now()
-	_, err = b.Catalog.CheckNamespaceExists(ctx, ident)
+	_, err = cat.CheckNamespaceExists(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -348,7 +355,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 		}
 
 		op.Start = time.Now()
-		_, err = b.Catalog.ListNamespaces(ctx, ident)
+		_, err = cat.ListNamespaces(ctx, ident)
 		op.End = time.Now()
 
 		if err != nil {
@@ -358,7 +365,7 @@ func (b *IcebergRead) readNamespace(ctx context.Context, rcv chan<- Operation, t
 	}
 }
 
-func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo) {
+func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(tbl.Namespace, tbl.Name)
 
 	op := Operation{
@@ -369,7 +376,7 @@ func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, threa
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadTable(ctx, ident)
+	_, err := cat.LoadTable(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -385,7 +392,7 @@ func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, threa
 	}
 
 	op.Start = time.Now()
-	_, err = b.Catalog.CheckTableExists(ctx, ident)
+	_, err = cat.CheckTableExists(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -401,7 +408,7 @@ func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, threa
 	}
 
 	op.Start = time.Now()
-	for _, err := range b.Catalog.ListTables(ctx, tbl.Namespace) {
+	for _, err := range cat.ListTables(ctx, tbl.Namespace) {
 		if err != nil {
 			op.Err = err.Error()
 		}
@@ -411,7 +418,7 @@ func (b *IcebergRead) readTable(ctx context.Context, rcv chan<- Operation, threa
 	rcv <- op
 }
 
-func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo) {
+func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
 	ident := toTableIdentifier(vw.Namespace, vw.Name)
 
 	op := Operation{
@@ -422,7 +429,7 @@ func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread
 	}
 
 	op.Start = time.Now()
-	_, err := b.Catalog.LoadView(ctx, ident)
+	_, err := cat.LoadView(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -438,7 +445,7 @@ func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread
 	}
 
 	op.Start = time.Now()
-	_, err = b.Catalog.CheckViewExists(ctx, ident)
+	_, err = cat.CheckViewExists(ctx, ident)
 	op.End = time.Now()
 
 	if err != nil {
@@ -454,7 +461,7 @@ func (b *IcebergRead) readView(ctx context.Context, rcv chan<- Operation, thread
 	}
 
 	op.Start = time.Now()
-	for _, err := range b.Catalog.ListViews(ctx, vw.Namespace) {
+	for _, err := range cat.ListViews(ctx, vw.Namespace) {
 		if err != nil {
 			op.Err = err.Error()
 		}
