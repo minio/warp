@@ -129,6 +129,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 			hasTables := len(b.tables) > 0
 			hasViews := len(b.views) > 0
 
+			ops := []int{0, 1, 2}
 			for {
 				select {
 				case <-done:
@@ -142,21 +143,25 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 
 				cat := b.getCatalog()
 
-				switch rng.Intn(3) {
-				case 0:
-					if hasNs {
-						b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
-						nsIdx++
-					}
-				case 1:
-					if hasTables {
-						b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
-						tblIdx++
-					}
-				case 2:
-					if hasViews {
-						b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
-						vwIdx++
+				rng.Shuffle(len(ops), func(i, j int) { ops[i], ops[j] = ops[j], ops[i] })
+
+				for _, op := range ops {
+					switch op {
+					case 0:
+						if hasNs {
+							b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
+							nsIdx++
+						}
+					case 1:
+						if hasTables {
+							b.readTable(opCtx, rcv, thread, catalogName, b.tables[tblIdx%len(b.tables)], cat)
+							tblIdx++
+						}
+					case 2:
+						if hasViews {
+							b.readView(opCtx, rcv, thread, catalogName, b.views[vwIdx%len(b.views)], cat)
+							vwIdx++
+						}
 					}
 				}
 			}
