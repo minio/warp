@@ -121,6 +121,13 @@ func (b *IcebergRead) Prepare(ctx context.Context) error {
 	return nil
 }
 
+func (b *IcebergRead) getCatalog() *rest.Catalog {
+	if b.CatalogPool != nil {
+		return b.CatalogPool.Get()
+	}
+	return b.Catalog
+}
+
 func (b *IcebergRead) createNamespaces(ctx context.Context) error {
 	rcv := b.Collector.Receiver()
 	catalogName := b.TreeConfig.CatalogName
@@ -145,7 +152,7 @@ func (b *IcebergRead) createNamespaces(ctx context.Context) error {
 		}
 
 		op.Start = time.Now()
-		err := b.Catalog.CreateNamespace(ctx, ns.Path, props)
+		err := b.getCatalog().CreateNamespace(ctx, ns.Path, props)
 		op.End = time.Now()
 
 		if err != nil && !isAlreadyExists(err) {
@@ -187,7 +194,7 @@ func (b *IcebergRead) createTables(ctx context.Context) error {
 		}
 
 		op.Start = time.Now()
-		_, err := b.Catalog.CreateTable(ctx, ident, schema,
+		_, err := b.getCatalog().CreateTable(ctx, ident, schema,
 			catalog.WithLocation(tbl.Location),
 			catalog.WithProperties(props),
 		)
@@ -233,7 +240,7 @@ func (b *IcebergRead) createViews(ctx context.Context) error {
 		}
 
 		op.Start = time.Now()
-		_, err := b.Catalog.CreateView(ctx, ident, version, schema,
+		_, err := b.getCatalog().CreateView(ctx, ident, version, schema,
 			catalog.WithViewLocation(vw.Location),
 			catalog.WithViewProperties(props),
 		)
@@ -285,11 +292,7 @@ func (b *IcebergRead) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				}
 
-				// Get catalog from pool (round-robin) or use single catalog
-				cat := b.Catalog
-				if b.CatalogPool != nil {
-					cat = b.CatalogPool.Get()
-				}
+				cat := b.getCatalog()
 
 				b.readNamespace(opCtx, rcv, thread, catalogName, b.namespaces[nsIdx%len(b.namespaces)], cat)
 				nsIdx++
@@ -476,11 +479,12 @@ func (b *IcebergRead) Cleanup(ctx context.Context) {
 		return
 	}
 	d := &iceberg.DatasetCreator{
-		Catalog:    b.Catalog,
-		Tree:       b.Tree,
-		CatalogURI: b.CatalogURI,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
 	}
 	d.DeleteAll(ctx)
 }

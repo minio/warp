@@ -68,11 +68,12 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 	}
 
 	creator := &warpiceberg.DatasetCreator{
-		Catalog:    b.Catalog,
-		Tree:       b.Tree,
-		CatalogURI: b.CatalogURI,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
 	}
 
 	if err := creator.CreateNamespaces(ctx); err != nil {
@@ -347,11 +348,12 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 		return
 	}
 	creator := &warpiceberg.DatasetCreator{
-		Catalog:    b.Catalog,
-		Tree:       b.Tree,
-		CatalogURI: b.CatalogURI,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
 	}
 	creator.DeleteAll(ctx)
 }

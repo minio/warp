@@ -30,13 +30,21 @@ import (
 )
 
 type DatasetCreator struct {
-	Catalog    *restcat.Catalog
-	Tree       *Tree
-	CatalogURI string
-	AccessKey  string
-	SecretKey  string
-	OnProgress func(float64)
-	OnError    func(data ...any)
+	Catalog     *restcat.Catalog
+	CatalogPool *CatalogPool
+	Tree        *Tree
+	CatalogURI  string
+	AccessKey   string
+	SecretKey   string
+	OnProgress  func(float64)
+	OnError     func(data ...any)
+}
+
+func (d *DatasetCreator) getCatalog() *restcat.Catalog {
+	if d.CatalogPool != nil {
+		return d.CatalogPool.Get()
+	}
+	return d.Catalog
 }
 
 func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
@@ -51,7 +59,7 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 		}
 
 		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
-		err := d.Catalog.CreateNamespace(ctx, ns.Path, props)
+		err := d.getCatalog().CreateNamespace(ctx, ns.Path, props)
 		if err != nil && !IsAlreadyExists(err) {
 			if d.OnError != nil {
 				d.OnError("namespace create error:", err)
@@ -82,7 +90,7 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 		}
 
 		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-		_, err := d.Catalog.CreateTable(ctx, ident, schema,
+		_, err := d.getCatalog().CreateTable(ctx, ident, schema,
 			catalog.WithLocation(tbl.Location),
 			catalog.WithProperties(props),
 		)
@@ -117,7 +125,7 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 
 		ident := toTableIdentifier(vw.Namespace, vw.Name)
 		version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
-		_, err := d.Catalog.CreateView(ctx, ident, version, schema,
+		_, err := d.getCatalog().CreateView(ctx, ident, version, schema,
 			catalog.WithViewLocation(vw.Location),
 			catalog.WithViewProperties(props),
 		)
@@ -138,17 +146,17 @@ func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 
 	for _, vw := range d.Tree.AllViews() {
 		ident := toTableIdentifier(vw.Namespace, vw.Name)
-		_ = d.Catalog.DropView(ctx, ident)
+		_ = d.getCatalog().DropView(ctx, ident)
 	}
 
 	for _, tbl := range d.Tree.AllTables() {
 		ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-		_ = d.Catalog.DropTable(ctx, ident)
+		_ = d.getCatalog().DropTable(ctx, ident)
 	}
 
 	namespaces := d.Tree.AllNamespaces()
 	for i := len(namespaces) - 1; i >= 0; i-- {
-		_ = d.Catalog.DropNamespace(ctx, namespaces[i].Path)
+		_ = d.getCatalog().DropNamespace(ctx, namespaces[i].Path)
 	}
 
 	if d.CatalogURI != "" && d.AccessKey != "" {

@@ -119,13 +119,14 @@ func (b *IcebergMixed) Prepare(ctx context.Context) error {
 	}
 
 	creator := &icebergpkg.DatasetCreator{
-		Catalog:    b.Catalog,
-		Tree:       b.Tree,
-		CatalogURI: b.CatalogURI,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
-		OnProgress: b.prepareProgress,
-		OnError:    b.Error,
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
+		OnProgress:  b.prepareProgress,
+		OnError:     b.Error,
 	}
 
 	return creator.CreateAll(ctx, b.UpdateStatus)
@@ -494,11 +495,12 @@ func (b *IcebergMixed) Cleanup(ctx context.Context) {
 		return
 	}
 	d := &icebergpkg.DatasetCreator{
-		Catalog:    b.Catalog,
-		Tree:       b.Tree,
-		CatalogURI: b.CatalogURI,
-		AccessKey:  b.AccessKey,
-		SecretKey:  b.SecretKey,
+		Catalog:     b.Catalog,
+		CatalogPool: b.CatalogPool,
+		Tree:        b.Tree,
+		CatalogURI:  b.CatalogURI,
+		AccessKey:   b.AccessKey,
+		SecretKey:   b.SecretKey,
 	}
 	d.DeleteAll(ctx)
 }
