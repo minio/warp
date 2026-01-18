@@ -30,6 +30,11 @@ import (
 
 var tablesWriteFlags = []cli.Flag{
 	cli.StringFlag{
+		Name:  "external-catalog",
+		Usage: "External catalog type (polaris)",
+		Value: "",
+	},
+	cli.StringFlag{
 		Name:  "catalog-name",
 		Usage: "Catalog name to use",
 		Value: "benchmarkcatalog",
@@ -183,18 +188,21 @@ func mainTablesWrite(ctx *cli.Context) error {
 
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
-	catalogURLs := buildCatalogURLs(hosts, useTLS)
+	externalCatalog := iceberg.ExternalCatalogType(ctx.String("external-catalog"))
+	catalogURLs := buildCatalogURLs(hosts, useTLS, externalCatalog)
 
 	catalogCfg := iceberg.CatalogConfig{
 		CatalogURI: catalogURLs[0],
 		Warehouse:  ctx.String("catalog-name"),
 		AccessKey:  ctx.String("access-key"),
 		SecretKey:  ctx.String("secret-key"),
-		Region:     ctx.String("region"),
+		Region:          ctx.String("region"),
+		ExternalCatalog: externalCatalog,
 	}
 
-	err = iceberg.EnsureWarehouse(context.Background(), catalogCfg)
-	fatalIf(probe.NewError(err), "Failed to ensure warehouse")
+	if externalCatalog == iceberg.ExternalCatalogNone {
+		err = iceberg.EnsureWarehouse(context.Background(), catalogCfg)
+	}
 
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog")
@@ -223,7 +231,8 @@ func mainTablesWrite(ctx *cli.Context) error {
 		TreeConfig:  treeCfg,
 		CatalogURI:  catalogURLs[0],
 		AccessKey:   ctx.String("access-key"),
-		SecretKey:   ctx.String("secret-key"),
+		SecretKey:       ctx.String("secret-key"),
+		ExternalCatalog: externalCatalog,
 		NumFiles:    ctx.Int("num-files"),
 		RowsPerFile: ctx.Int("rows-per-file"),
 		CacheDir:    ctx.String("cache-dir"),

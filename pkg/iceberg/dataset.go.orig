@@ -38,8 +38,7 @@ type DatasetCreator struct {
 	CatalogURI  string
 	AccessKey   string
 	SecretKey   string
-	Concurrency     int
-	ExternalCatalog ExternalCatalogType
+	Concurrency int
 	OnProgress  func(float64)
 	OnError     func(data ...any)
 }
@@ -244,7 +243,7 @@ func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 		_ = d.getCatalog().DropNamespace(ctx, namespaces[i].Path)
 	}
 
-	if d.ExternalCatalog == ExternalCatalogNone && d.CatalogURI != "" && d.AccessKey != "" {
+	if d.CatalogURI != "" && d.AccessKey != "" {
 		_ = DeleteWarehouse(ctx, CatalogConfig{
 			CatalogURI: d.CatalogURI,
 			Warehouse:  catalogName,
@@ -260,7 +259,7 @@ func (d *DatasetCreator) CreateAll(ctx context.Context, updateStatus func(string
 			d.Tree.TotalNamespaces(), d.Tree.TotalTables(), d.Tree.TotalViews()))
 	}
 
-	if d.ExternalCatalog == ExternalCatalogNone && d.CatalogURI != "" && d.AccessKey != "" {
+	if d.CatalogURI != "" && d.AccessKey != "" {
 		if updateStatus != nil {
 			updateStatus("Ensuring warehouse exists...")
 		}

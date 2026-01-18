@@ -43,37 +43,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 )
 
-// ExternalCatalogType represents the type of external catalog
-type ExternalCatalogType string
-
-const (
-	ExternalCatalogNone    ExternalCatalogType = ""
-	ExternalCatalogPolaris ExternalCatalogType = "polaris"
-)
-
 // CatalogConfig holds configuration for connecting to an Iceberg catalog.
 type CatalogConfig struct {
-	CatalogURI      string
-	Warehouse       string
-	AccessKey       string
-	SecretKey       string
-	Region          string
-	S3Endpoint      string              // S3 endpoint for file IO (e.g., http://localhost:9000)
-	ExternalCatalog ExternalCatalogType // External catalog type (polaris, etc.)
+	CatalogURI string
+	Warehouse  string
+	AccessKey  string
+	SecretKey  string
+	Region     string
+	S3Endpoint string // S3 endpoint for file IO (e.g., http://localhost:9000)
 }
 
 // NewCatalog creates a new Iceberg REST catalog connection.
 func NewCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
-	switch cfg.ExternalCatalog {
-	case ExternalCatalogPolaris:
-		return newPolarisCatalog(ctx, cfg)
-	default:
-		return newAIStorCatalog(ctx, cfg)
-	}
-}
-
-// newAIStorCatalog creates a catalog connection for MinIO AIStor Tables (SigV4 auth).
-func newAIStorCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
 	u, err := url.Parse(cfg.CatalogURI)
 	if err != nil {
 		return nil, fmt.Errorf("invalid catalog URI: %w", err)
@@ -115,64 +96,6 @@ func newAIStorCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, er
 	}
 
 	return cat, nil
-}
-
-// newPolarisCatalog creates a catalog connection for Apache Polaris (OAuth2 auth).
-func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
-	u, err := url.Parse(cfg.CatalogURI)
-	if err != nil {
-		return nil, fmt.Errorf("invalid catalog URI: %w", err)
-	}
-
-	// For Polaris, AccessKey is client_id, SecretKey is client_secret
-	opts := []rest.Option{
-		rest.WithWarehouseLocation(cfg.Warehouse),
-		rest.WithCredential(cfg.AccessKey + ":" + cfg.SecretKey),
-		rest.WithScope("PRINCIPAL_ROLE:ALL"),
-	}
-
-	// Add S3 properties if S3 endpoint is configured
-	if cfg.S3Endpoint != "" {
-		s3Props := iceberg.Properties{
-			"s3.endpoint": cfg.S3Endpoint,
-		}
-		if cfg.Region != "" {
-			s3Props["s3.region"] = cfg.Region
-		}
-		opts = append(opts, rest.WithAdditionalProps(s3Props))
-	}
-
-	cat, err := rest.NewCatalog(ctx, "rest", u.String(), opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Polaris catalog: %w", err)
-	}
-
-	return cat, nil
-}
-
-// NewCatalogPool creates a pool of catalog clients for round-robin access.
-// It takes a base config and a list of catalog URLs, creating one client per URL.
-func NewCatalogPool(ctx context.Context, catalogURLs []string, baseCfg CatalogConfig) (*CatalogPool, error) {
-	if len(catalogURLs) == 0 {
-		return nil, fmt.Errorf("no catalog URLs provided")
-	}
-
-	pool := &CatalogPool{
-		catalogs: make([]*rest.Catalog, len(catalogURLs)),
-		urls:     catalogURLs,
-	}
-
-	for i, catalogURL := range catalogURLs {
-		cfg := baseCfg
-		cfg.CatalogURI = catalogURL
-		cat, err := NewCatalog(ctx, cfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create catalog for %s: %w", catalogURL, err)
-		}
-		pool.catalogs[i] = cat
-	}
-
-	return pool, nil
 }
 
 // LoadOrCreateTable loads an existing table or creates it if it doesn't exist.
@@ -259,13 +182,7 @@ func EnsureNamespace(ctx context.Context, cat catalog.Catalog, namespace string)
 // EnsureWarehouse creates the warehouse if it doesn't exist.
 // This uses the MinIO AIStor Tables API directly since the standard
 // Iceberg REST catalog API doesn't support warehouse creation.
-// For external catalogs like Polaris, this is a no-op (catalog must be created externally).
 func EnsureWarehouse(ctx context.Context, cfg CatalogConfig) error {
-	// External catalogs don't support warehouse creation via this API
-	if cfg.ExternalCatalog != ExternalCatalogNone {
-		return nil
-	}
-
 	u, err := url.Parse(cfg.CatalogURI)
 	if err != nil {
 		return fmt.Errorf("invalid catalog URI: %w", err)
@@ -317,13 +234,7 @@ func EnsureWarehouse(ctx context.Context, cfg CatalogConfig) error {
 }
 
 // DeleteWarehouse deletes a warehouse.
-// For external catalogs like Polaris, this is a no-op.
 func DeleteWarehouse(ctx context.Context, cfg CatalogConfig) error {
-	// External catalogs don't support warehouse deletion via this API
-	if cfg.ExternalCatalog != ExternalCatalogNone {
-		return nil
-	}
-
 	u, err := url.Parse(cfg.CatalogURI)
 	if err != nil {
 		return fmt.Errorf("invalid catalog URI: %w", err)
@@ -426,6 +337,31 @@ type CatalogPool struct {
 	catalogs []*rest.Catalog
 	urls     []string
 	counter  atomic.Uint64
+}
+
+// NewCatalogPool creates a pool of catalog clients for round-robin access.
+// It takes a base config and a list of catalog URLs, creating one client per URL.
+func NewCatalogPool(ctx context.Context, catalogURLs []string, baseCfg CatalogConfig) (*CatalogPool, error) {
+	if len(catalogURLs) == 0 {
+		return nil, fmt.Errorf("no catalog URLs provided")
+	}
+
+	pool := &CatalogPool{
+		catalogs: make([]*rest.Catalog, len(catalogURLs)),
+		urls:     catalogURLs,
+	}
+
+	for i, catalogURL := range catalogURLs {
+		cfg := baseCfg
+		cfg.CatalogURI = catalogURL
+		cat, err := NewCatalog(ctx, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create catalog for %s: %w", catalogURL, err)
+		}
+		pool.catalogs[i] = cat
+	}
+
+	return pool, nil
 }
 
 // Get returns the next catalog client in round-robin order.

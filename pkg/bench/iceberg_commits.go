@@ -41,7 +41,8 @@ type IcebergCommits struct {
 
 	CatalogURI string
 	AccessKey  string
-	SecretKey  string
+	SecretKey       string
+	ExternalCatalog icebergpkg.ExternalCatalogType
 
 	TableCommitsThroughput int
 	ViewCommitsThroughput  int
@@ -69,7 +70,8 @@ func (b *IcebergCommits) Prepare(ctx context.Context) error {
 		Tree:        b.Tree,
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
-		SecretKey:   b.SecretKey,
+		SecretKey:       b.SecretKey,
+		ExternalCatalog: b.ExternalCatalog,
 		Concurrency: b.Concurrency,
 		OnProgress:  b.prepareProgress,
 		OnError:     b.Error,
@@ -279,7 +281,8 @@ func (b *IcebergCommits) Cleanup(ctx context.Context) {
 		Tree:        b.Tree,
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
-		SecretKey:   b.SecretKey,
+		SecretKey:       b.SecretKey,
+		ExternalCatalog: b.ExternalCatalog,
 		Concurrency: b.Concurrency,
 	}
 	d.DeleteAll(ctx)

@@ -61,7 +61,8 @@ type IcebergRead struct {
 
 	CatalogURI string
 	AccessKey  string
-	SecretKey  string
+	SecretKey       string
+	ExternalCatalog iceberg.ExternalCatalogType
 
 	namespaces []iceberg.NamespaceInfo
 	tables     []iceberg.TableInfo
@@ -85,7 +86,8 @@ func (b *IcebergRead) Prepare(ctx context.Context) error {
 		Tree:        b.Tree,
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
-		SecretKey:   b.SecretKey,
+		SecretKey:       b.SecretKey,
+		ExternalCatalog: b.ExternalCatalog,
 		Concurrency: b.Concurrency,
 		OnProgress:  b.prepareProgress,
 		OnError:     b.Error,
@@ -363,7 +365,8 @@ func (b *IcebergRead) Cleanup(ctx context.Context) {
 		Tree:        b.Tree,
 		CatalogURI:  b.CatalogURI,
 		AccessKey:   b.AccessKey,
-		SecretKey:   b.SecretKey,
+		SecretKey:       b.SecretKey,
+		ExternalCatalog: b.ExternalCatalog,
 		Concurrency: b.Concurrency,
 	}
 	d.DeleteAll(ctx)
