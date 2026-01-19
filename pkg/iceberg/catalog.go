@@ -51,10 +51,10 @@ const (
 	ExternalCatalogPolaris ExternalCatalogType = "polaris"
 )
 
-// sharedPolarisTransport is a global high-performance transport shared across all Polaris catalog clients.
+// sharedCatalogTransport is a global high-performance transport shared across all catalog clients.
 // This prevents TCP port exhaustion by reusing connections across all catalogs in a pool.
 // Note: MaxIdleConnsPerHost=0 means default of 2 in Go, NOT unlimited - must be explicit.
-var sharedPolarisTransport = &http.Transport{
+var sharedCatalogTransport = &http.Transport{
 	MaxIdleConns:        0,
 	MaxIdleConnsPerHost: 1024,
 	MaxConnsPerHost:     0,
@@ -119,6 +119,7 @@ func newAIStorCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, er
 		rest.WithAwsConfig(awsCfg),
 		rest.WithSigV4RegionSvc(cfg.Region, "s3tables"),
 		rest.WithAdditionalProps(s3Props),
+		rest.WithCustomTransport(sharedCatalogTransport),
 	}
 
 	cat, err := rest.NewCatalog(ctx, "rest", u.String(), opts...)
@@ -145,7 +146,7 @@ func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, e
 		rest.WithHeaders(map[string]string{
 			"X-Iceberg-Access-Delegation": " ",
 		}),
-		rest.WithCustomTransport(sharedPolarisTransport),
+		rest.WithCustomTransport(sharedCatalogTransport),
 	}
 
 	// Add S3 properties if S3 endpoint is configured
