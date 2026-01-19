@@ -51,6 +51,17 @@ const (
 	ExternalCatalogPolaris ExternalCatalogType = "polaris"
 )
 
+// sharedPolarisTransport is a global high-performance transport shared across all Polaris catalog clients.
+// This prevents TCP port exhaustion by reusing connections across all catalogs in a pool.
+var sharedPolarisTransport = &http.Transport{
+	MaxIdleConns:        0,
+	MaxIdleConnsPerHost: 0,
+	MaxConnsPerHost:     0,
+	IdleConnTimeout:     90 * time.Second,
+	DisableKeepAlives:   false,
+	ForceAttemptHTTP2:   false,
+}
+
 // CatalogConfig holds configuration for connecting to an Iceberg catalog.
 type CatalogConfig struct {
 	CatalogURI      string
@@ -118,25 +129,14 @@ func newAIStorCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, er
 }
 
 // newPolarisCatalog creates a catalog connection for Apache Polaris (OAuth2 auth).
-
-// newPolarisCatalog creates a catalog connection for Apache Polaris (OAuth2 auth).
 func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, error) {
 	u, err := url.Parse(cfg.CatalogURI)
 	if err != nil {
 		return nil, fmt.Errorf("invalid catalog URI: %w", err)
 	}
 
-	// High-performance transport with connection pooling
-	transport := &http.Transport{
-		MaxIdleConns:        0,
-		MaxIdleConnsPerHost: 0,
-		MaxConnsPerHost:     0,
-		IdleConnTimeout:     90 * time.Second,
-		DisableKeepAlives:   false,
-		ForceAttemptHTTP2:   false,
-	}
-
 	// For Polaris, AccessKey is client_id, SecretKey is client_secret
+	// Use sharedPolarisTransport to prevent TCP port exhaustion across catalog pool
 	opts := []rest.Option{
 		rest.WithWarehouseLocation(cfg.Warehouse),
 		rest.WithCredential(cfg.AccessKey + ":" + cfg.SecretKey),
@@ -144,7 +144,7 @@ func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, e
 		rest.WithHeaders(map[string]string{
 			"X-Iceberg-Access-Delegation": " ",
 		}),
-		rest.WithCustomTransport(transport),
+		rest.WithCustomTransport(sharedPolarisTransport),
 	}
 
 	// Add S3 properties if S3 endpoint is configured
@@ -165,6 +165,7 @@ func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, e
 
 	return cat, nil
 }
+
 // NewCatalogPool creates a pool of catalog clients for round-robin access.
 // It takes a base config and a list of catalog URLs, creating one client per URL.
 func NewCatalogPool(ctx context.Context, catalogURLs []string, baseCfg CatalogConfig) (*CatalogPool, error) {
