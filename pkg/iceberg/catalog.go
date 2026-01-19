@@ -129,6 +129,9 @@ func newPolarisCatalog(ctx context.Context, cfg CatalogConfig) (*rest.Catalog, e
 		rest.WithWarehouseLocation(cfg.Warehouse),
 		rest.WithCredential(cfg.AccessKey + ":" + cfg.SecretKey),
 		rest.WithScope("PRINCIPAL_ROLE:ALL"),
+		rest.WithHeaders(map[string]string{
+			"X-Iceberg-Access-Delegation": " ",
+		}),
 	}
 
 	// Add S3 properties if S3 endpoint is configured
