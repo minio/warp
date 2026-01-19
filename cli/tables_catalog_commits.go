@@ -152,10 +152,10 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	catalogURLs := buildCatalogURLs(hosts, useTLS, externalCatalog)
 
 	catalogCfg := iceberg.CatalogConfig{
-		CatalogURI: catalogURLs[0],
-		Warehouse:  ctx.String("catalog-name"),
-		AccessKey:  ctx.String("access-key"),
-		SecretKey:  ctx.String("secret-key"),
+		CatalogURI:      catalogURLs[0],
+		Warehouse:       ctx.String("catalog-name"),
+		AccessKey:       ctx.String("access-key"),
+		SecretKey:       ctx.String("secret-key"),
 		Region:          ctx.String("region"),
 		ExternalCatalog: externalCatalog,
 	}

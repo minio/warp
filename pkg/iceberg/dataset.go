@@ -32,16 +32,16 @@ import (
 )
 
 type DatasetCreator struct {
-	Catalog     *restcat.Catalog
-	CatalogPool *CatalogPool
-	Tree        *Tree
-	CatalogURI  string
-	AccessKey   string
-	SecretKey   string
+	Catalog         *restcat.Catalog
+	CatalogPool     *CatalogPool
+	Tree            *Tree
+	CatalogURI      string
+	AccessKey       string
+	SecretKey       string
 	Concurrency     int
 	ExternalCatalog ExternalCatalogType
-	OnProgress  func(float64)
-	OnError     func(data ...any)
+	OnProgress      func(float64)
+	OnError         func(data ...any)
 }
 
 func (d *DatasetCreator) getCatalog() *restcat.Catalog {

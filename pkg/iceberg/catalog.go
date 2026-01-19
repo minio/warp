@@ -53,13 +53,14 @@ const (
 
 // sharedPolarisTransport is a global high-performance transport shared across all Polaris catalog clients.
 // This prevents TCP port exhaustion by reusing connections across all catalogs in a pool.
+// Note: MaxIdleConnsPerHost=0 means default of 2 in Go, NOT unlimited - must be explicit.
 var sharedPolarisTransport = &http.Transport{
 	MaxIdleConns:        0,
-	MaxIdleConnsPerHost: 0,
+	MaxIdleConnsPerHost: 1024,
 	MaxConnsPerHost:     0,
 	IdleConnTimeout:     90 * time.Second,
 	DisableKeepAlives:   false,
-	ForceAttemptHTTP2:   false,
+	ForceAttemptHTTP2:   true,
 }
 
 // CatalogConfig holds configuration for connecting to an Iceberg catalog.

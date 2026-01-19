@@ -35,12 +35,12 @@ import (
 type Iceberg struct {
 	Common
 
-	Catalog     *rest.Catalog
-	CatalogPool *warpiceberg.CatalogPool
-	TreeConfig  warpiceberg.TreeConfig
-	Tree        *warpiceberg.Tree
-	CatalogURI  string
-	AccessKey   string
+	Catalog         *rest.Catalog
+	CatalogPool     *warpiceberg.CatalogPool
+	TreeConfig      warpiceberg.TreeConfig
+	Tree            *warpiceberg.Tree
+	CatalogURI      string
+	AccessKey       string
 	SecretKey       string
 	ExternalCatalog warpiceberg.ExternalCatalogType
 
@@ -76,14 +76,14 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 	}
 
 	creator := &warpiceberg.DatasetCreator{
-		Catalog:     b.Catalog,
-		CatalogPool: b.CatalogPool,
-		Tree:        b.Tree,
-		CatalogURI:  b.CatalogURI,
-		AccessKey:   b.AccessKey,
+		Catalog:         b.Catalog,
+		CatalogPool:     b.CatalogPool,
+		Tree:            b.Tree,
+		CatalogURI:      b.CatalogURI,
+		AccessKey:       b.AccessKey,
 		SecretKey:       b.SecretKey,
 		ExternalCatalog: b.ExternalCatalog,
-		Concurrency: b.Concurrency,
+		Concurrency:     b.Concurrency,
 	}
 
 	if err := creator.CreateNamespaces(ctx); err != nil {
@@ -393,14 +393,14 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 		return
 	}
 	creator := &warpiceberg.DatasetCreator{
-		Catalog:     b.Catalog,
-		CatalogPool: b.CatalogPool,
-		Tree:        b.Tree,
-		CatalogURI:  b.CatalogURI,
-		AccessKey:   b.AccessKey,
+		Catalog:         b.Catalog,
+		CatalogPool:     b.CatalogPool,
+		Tree:            b.Tree,
+		CatalogURI:      b.CatalogURI,
+		AccessKey:       b.AccessKey,
 		SecretKey:       b.SecretKey,
 		ExternalCatalog: b.ExternalCatalog,
-		Concurrency: b.Concurrency,
+		Concurrency:     b.Concurrency,
 	}
 	creator.DeleteAll(ctx)
 }

@@ -192,10 +192,10 @@ func mainTablesWrite(ctx *cli.Context) error {
 	catalogURLs := buildCatalogURLs(hosts, useTLS, externalCatalog)
 
 	catalogCfg := iceberg.CatalogConfig{
-		CatalogURI: catalogURLs[0],
-		Warehouse:  ctx.String("catalog-name"),
-		AccessKey:  ctx.String("access-key"),
-		SecretKey:  ctx.String("secret-key"),
+		CatalogURI:      catalogURLs[0],
+		Warehouse:       ctx.String("catalog-name"),
+		AccessKey:       ctx.String("access-key"),
+		SecretKey:       ctx.String("secret-key"),
 		Region:          ctx.String("region"),
 		ExternalCatalog: externalCatalog,
 	}
@@ -225,23 +225,23 @@ func mainTablesWrite(ctx *cli.Context) error {
 	}
 
 	b := bench.Iceberg{
-		Common:      getCommon(ctx, nil),
-		Catalog:     cat,
-		CatalogPool: catalogPool,
-		TreeConfig:  treeCfg,
-		CatalogURI:  catalogURLs[0],
-		AccessKey:   ctx.String("access-key"),
+		Common:          getCommon(ctx, nil),
+		Catalog:         cat,
+		CatalogPool:     catalogPool,
+		TreeConfig:      treeCfg,
+		CatalogURI:      catalogURLs[0],
+		AccessKey:       ctx.String("access-key"),
 		SecretKey:       ctx.String("secret-key"),
 		ExternalCatalog: externalCatalog,
-		NumFiles:    ctx.Int("num-files"),
-		RowsPerFile: ctx.Int("rows-per-file"),
-		CacheDir:    ctx.String("cache-dir"),
-		MaxRetries:  ctx.Int("max-retries"),
-		BackoffBase: backoffBase,
-		BackoffMax:  backoffMax,
-		UseTPCDS:    ctx.Bool("tpcds"),
-		ScaleFactor: ctx.String("scale-factor"),
-		TPCDSTable:  ctx.String("tpcds-table"),
+		NumFiles:        ctx.Int("num-files"),
+		RowsPerFile:     ctx.Int("rows-per-file"),
+		CacheDir:        ctx.String("cache-dir"),
+		MaxRetries:      ctx.Int("max-retries"),
+		BackoffBase:     backoffBase,
+		BackoffMax:      backoffMax,
+		UseTPCDS:        ctx.Bool("tpcds"),
+		ScaleFactor:     ctx.String("scale-factor"),
+		TPCDSTable:      ctx.String("tpcds-table"),
 	}
 
 	return runBench(ctx, &b)

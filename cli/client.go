@@ -328,19 +328,18 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	return cl
 }
 
-
 func buildCatalogURLs(hosts []string, useTLS bool, externalCatalog iceberg.ExternalCatalogType) []string {
 	scheme := "http"
 	if useTLS {
 		scheme = "https"
 	}
-	
+
 	// Determine catalog path based on external catalog type
 	catalogPath := "/_iceberg"
 	if externalCatalog == iceberg.ExternalCatalogPolaris {
 		catalogPath = "/api/catalog"
 	}
-	
+
 	urls := make([]string, len(hosts))
 	for i, host := range hosts {
 		urls[i] = scheme + "://" + host + catalogPath

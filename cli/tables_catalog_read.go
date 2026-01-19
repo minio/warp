@@ -187,10 +187,10 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 	catalogURLs := buildCatalogURLs(hosts, useTLS, externalCatalog)
 
 	catalogCfg := iceberg.CatalogConfig{
-		CatalogURI: catalogURLs[0],
-		Warehouse:  ctx.String("catalog-name"),
-		AccessKey:  ctx.String("access-key"),
-		SecretKey:  ctx.String("secret-key"),
+		CatalogURI:      catalogURLs[0],
+		Warehouse:       ctx.String("catalog-name"),
+		AccessKey:       ctx.String("access-key"),
+		SecretKey:       ctx.String("secret-key"),
 		Region:          ctx.String("region"),
 		ExternalCatalog: externalCatalog,
 	}
@@ -238,15 +238,15 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 	fatalIf(probe.NewError(err), "Invalid distribution")
 
 	b := bench.IcebergRead{
-		Common:      getTablesCommon(ctx),
-		Catalog:     cat,
-		CatalogPool: catalogPool,
-		TreeConfig:  treeCfg,
-		CatalogURI:  catalogURLs[0],
-		AccessKey:   ctx.String("access-key"),
+		Common:          getTablesCommon(ctx),
+		Catalog:         cat,
+		CatalogPool:     catalogPool,
+		TreeConfig:      treeCfg,
+		CatalogURI:      catalogURLs[0],
+		AccessKey:       ctx.String("access-key"),
 		SecretKey:       ctx.String("secret-key"),
 		ExternalCatalog: externalCatalog,
-		Dist:        &dist,
+		Dist:            &dist,
 	}
 
 	return runBench(ctx, &b)

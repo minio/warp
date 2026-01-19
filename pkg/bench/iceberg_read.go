@@ -59,8 +59,8 @@ type IcebergRead struct {
 	TreeConfig  iceberg.TreeConfig
 	Dist        *IcebergMixedDistribution
 
-	CatalogURI string
-	AccessKey  string
+	CatalogURI      string
+	AccessKey       string
 	SecretKey       string
 	ExternalCatalog iceberg.ExternalCatalogType
 
@@ -81,16 +81,16 @@ func (b *IcebergRead) Prepare(ctx context.Context) error {
 	}
 
 	creator := &iceberg.DatasetCreator{
-		Catalog:     b.Catalog,
-		CatalogPool: b.CatalogPool,
-		Tree:        b.Tree,
-		CatalogURI:  b.CatalogURI,
-		AccessKey:   b.AccessKey,
+		Catalog:         b.Catalog,
+		CatalogPool:     b.CatalogPool,
+		Tree:            b.Tree,
+		CatalogURI:      b.CatalogURI,
+		AccessKey:       b.AccessKey,
 		SecretKey:       b.SecretKey,
 		ExternalCatalog: b.ExternalCatalog,
-		Concurrency: b.Concurrency,
-		OnProgress:  b.prepareProgress,
-		OnError:     b.Error,
+		Concurrency:     b.Concurrency,
+		OnProgress:      b.prepareProgress,
+		OnError:         b.Error,
 	}
 
 	return creator.CreateAll(ctx, b.UpdateStatus)
@@ -360,14 +360,14 @@ func (b *IcebergRead) Cleanup(ctx context.Context) {
 		return
 	}
 	d := &iceberg.DatasetCreator{
-		Catalog:     b.Catalog,
-		CatalogPool: b.CatalogPool,
-		Tree:        b.Tree,
-		CatalogURI:  b.CatalogURI,
-		AccessKey:   b.AccessKey,
+		Catalog:         b.Catalog,
+		CatalogPool:     b.CatalogPool,
+		Tree:            b.Tree,
+		CatalogURI:      b.CatalogURI,
+		AccessKey:       b.AccessKey,
 		SecretKey:       b.SecretKey,
 		ExternalCatalog: b.ExternalCatalog,
-		Concurrency: b.Concurrency,
+		Concurrency:     b.Concurrency,
 	}
 	d.DeleteAll(ctx)
 }
