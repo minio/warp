@@ -201,7 +201,7 @@ func mainTablesWrite(ctx *cli.Context) error {
 	}
 
 	if externalCatalog == iceberg.ExternalCatalogNone {
-		err = iceberg.EnsureWarehouse(context.Background(), catalogCfg)
+		_ = iceberg.EnsureWarehouse(context.Background(), catalogCfg)
 	}
 
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)

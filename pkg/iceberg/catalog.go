@@ -46,6 +46,7 @@ import (
 // ExternalCatalogType represents the type of external catalog
 type ExternalCatalogType string
 
+// External catalog type constants.
 const (
 	ExternalCatalogNone    ExternalCatalogType = ""
 	ExternalCatalogPolaris ExternalCatalogType = "polaris"
