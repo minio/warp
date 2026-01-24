@@ -77,6 +77,20 @@ Go [text templates](https://pkg.go.dev/text/template) are used for this.
 All benchmarks operate concurrently. By default, 20 operations will run concurrently.
 This can however also be tweaked using the `--concurrent` parameter.
 
+## Iceberg REST Catalog Benchmarks
+
+Warp includes benchmarks for Apache Iceberg REST catalog operations. These test catalog metadata performance including namespace, table, and view operations.
+
+Available commands:
+- `warp tables write` - Parquet upload and Iceberg commit performance
+- `warp tables catalog-read` - Catalog read operations
+- `warp tables catalog-commits` - Commit generation via property updates
+- `warp tables catalog-mixed` - Mixed read/write workload
+
+Supports MinIO AIStor Tables and Apache Polaris catalogs.
+
+See [README_TABLES.md](README_TABLES.md) for detailed documentation.
+
 Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
 Most benchmarks will also use different prefixes for each "thread" running.
 
