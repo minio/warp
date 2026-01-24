@@ -123,6 +123,10 @@ func (b *IcebergMixed) Prepare(ctx context.Context) error {
 		return fmt.Errorf("no namespaces found: check tree configuration")
 	}
 
+	if b.ClientIdx > 0 {
+		return nil
+	}
+
 	creator := &icebergpkg.DatasetCreator{
 		Catalog:         b.Catalog,
 		CatalogPool:     b.CatalogPool,
@@ -524,7 +528,7 @@ func (b *IcebergMixed) doUpdateView(ctx context.Context, rcv chan<- Operation, t
 }
 
 func (b *IcebergMixed) Cleanup(ctx context.Context) {
-	if b.Tree == nil {
+	if b.Tree == nil || b.ClientIdx > 0 {
 		return
 	}
 	d := &icebergpkg.DatasetCreator{

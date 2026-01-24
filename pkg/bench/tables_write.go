@@ -68,8 +68,21 @@ func (b *Iceberg) getCatalog() *rest.Catalog {
 	return b.Catalog
 }
 
+func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
+	b.tables = b.Tree.AllTables()
+	if len(b.tables) == 0 {
+		return fmt.Errorf("no tables in tree config")
+	}
+
+	return b.prepareDataFiles(ctx)
+}
+
 func (b *Iceberg) Prepare(ctx context.Context) error {
 	b.Tree = warpiceberg.NewTree(b.TreeConfig)
+
+	if b.ClientIdx > 0 {
+		return b.prepareNonPrimaryClient(ctx)
+	}
 
 	if b.UpdateStatus != nil {
 		b.UpdateStatus("Creating dataset tree...")
@@ -108,8 +121,8 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 
 	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
 	concurrency := b.Concurrency
-	if concurrency > 100 {
-		concurrency = 100
+	if concurrency > 20 {
+		concurrency = 20
 	}
 
 	var wg sync.WaitGroup
@@ -169,6 +182,10 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 		b.UpdateStatus(fmt.Sprintf("Created %d namespaces, %d tables", b.Tree.TotalNamespaces(), len(b.tables)))
 	}
 
+	return b.prepareDataFiles(ctx)
+}
+
+func (b *Iceberg) prepareDataFiles(ctx context.Context) error {
 	if b.UseTPCDS {
 		cfg := warpiceberg.TPCDSConfig{
 			ScaleFactor: b.ScaleFactor,
@@ -389,7 +406,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 }
 
 func (b *Iceberg) Cleanup(ctx context.Context) {
-	if b.Tree == nil {
+	if b.Tree == nil || b.ClientIdx > 0 {
 		return
 	}
 	creator := &warpiceberg.DatasetCreator{

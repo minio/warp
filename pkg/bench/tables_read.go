@@ -80,6 +80,10 @@ func (b *IcebergRead) Prepare(ctx context.Context) error {
 		return fmt.Errorf("no namespaces found: check tree configuration")
 	}
 
+	if b.ClientIdx > 0 {
+		return nil
+	}
+
 	creator := &iceberg.DatasetCreator{
 		Catalog:         b.Catalog,
 		CatalogPool:     b.CatalogPool,
@@ -356,7 +360,7 @@ func (b *IcebergRead) listViews(ctx context.Context, rcv chan<- Operation, threa
 }
 
 func (b *IcebergRead) Cleanup(ctx context.Context) {
-	if b.Tree == nil {
+	if b.Tree == nil || b.ClientIdx > 0 {
 		return
 	}
 	d := &iceberg.DatasetCreator{

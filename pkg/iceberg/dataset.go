@@ -90,8 +90,8 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 	if concurrency <= 0 {
 		concurrency = 1
 	}
-	if concurrency > 100 {
-		concurrency = 100
+	if concurrency > 20 {
+		concurrency = 20
 	}
 
 	var wg sync.WaitGroup
@@ -147,8 +147,8 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	if concurrency <= 0 {
 		concurrency = 1
 	}
-	if concurrency > 100 {
-		concurrency = 100
+	if concurrency > 20 {
+		concurrency = 20
 	}
 
 	var wg sync.WaitGroup
@@ -198,8 +198,8 @@ func (d *DatasetCreator) DeleteAll(ctx context.Context) {
 	if concurrency <= 0 {
 		concurrency = 1
 	}
-	if concurrency > 100 {
-		concurrency = 100
+	if concurrency > 20 {
+		concurrency = 20
 	}
 
 	// Delete views concurrently

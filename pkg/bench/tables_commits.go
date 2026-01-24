@@ -64,6 +64,10 @@ func (b *IcebergCommits) Prepare(ctx context.Context) error {
 		return fmt.Errorf("no tables or views found: check tree configuration")
 	}
 
+	if b.ClientIdx > 0 {
+		return nil
+	}
+
 	creator := &icebergpkg.DatasetCreator{
 		Catalog:         b.Catalog,
 		CatalogPool:     b.CatalogPool,
@@ -272,7 +276,7 @@ func (b *IcebergCommits) runViewCommits(ctx context.Context, wait chan struct{},
 }
 
 func (b *IcebergCommits) Cleanup(ctx context.Context) {
-	if b.Tree == nil {
+	if b.Tree == nil || b.ClientIdx > 0 {
 		return
 	}
 	d := &icebergpkg.DatasetCreator{
