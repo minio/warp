@@ -165,6 +165,10 @@ EXAMPLES:
   # Basic read benchmark
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
+  # Polaris external catalog
+  {{.HelpName}} --host localhost:8181 --access-key root --secret-key s3cr3t \\
+    --external-catalog polaris --catalog-name warehouse --base-location s3://warehouse
+
   # Larger dataset
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
     --namespace-width 3 --namespace-depth 4 --tables-per-ns 10

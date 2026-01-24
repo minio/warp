@@ -196,6 +196,10 @@ EXAMPLES:
   # Default mixed workload
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
+  # Polaris external catalog
+  {{.HelpName}} --host localhost:8181 --access-key root --secret-key s3cr3t \\
+    --external-catalog polaris --catalog-name warehouse --base-location s3://warehouse
+
   # Read-only (disable all updates)
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
     --ns-update-distrib 0 --table-update-distrib 0 --view-update-distrib 0

@@ -133,6 +133,10 @@ EXAMPLES:
   # Basic commit benchmark
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin
 
+  # Polaris external catalog
+  {{.HelpName}} --host localhost:8181 --access-key root --secret-key s3cr3t \\
+    --external-catalog polaris --catalog-name warehouse --base-location s3://warehouse
+
   # More table commits than view commits
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
     --table-commits-throughput 15 --view-commits-throughput 5
