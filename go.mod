@@ -8,9 +8,9 @@ tool (
 )
 
 require (
-	cloud.google.com/go/storage v1.59.0
+	cloud.google.com/go/storage v1.59.1
 	github.com/apache/arrow-go/v18 v18.5.0
-	github.com/apache/iceberg-go v0.4.1-0.20260113214032-3063a4519974
+	github.com/apache/iceberg-go v0.4.1-0.20260123180146-3ce3b4bb51c0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
 	github.com/bygui86/multi-profile/v2 v2.1.0
@@ -36,7 +36,7 @@ require (
 	gitlab.com/go-extension/tls v0.0.0-20251218095625-a161feb36b6b
 	golang.org/x/sync v0.19.0
 	golang.org/x/time v0.14.0
-	google.golang.org/api v0.259.0
+	google.golang.org/api v0.260.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -66,7 +66,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.3 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
@@ -200,7 +200,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/google/wire v0.7.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.9 // indirect
 	github.com/googleapis/gax-go/v2 v2.16.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
