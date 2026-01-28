@@ -28,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var tablesCatalogCommitsFlags = []cli.Flag{
+var icebergCatalogCommitsFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
 		Usage: "External catalog type (polaris)",
@@ -91,14 +91,14 @@ var tablesCatalogCommitsFlags = []cli.Flag{
 	},
 }
 
-var tablesCatalogCommitsCombinedFlags = combineFlags(globalFlags, ioFlags, tablesCatalogCommitsFlags, benchFlags, analyzeFlags)
+var icebergCatalogCommitsCombinedFlags = combineFlags(globalFlags, ioFlags, icebergCatalogCommitsFlags, benchFlags, analyzeFlags)
 
-var tablesCatalogCommitsCmd = cli.Command{
+var icebergCatalogCommitsCmd = cli.Command{
 	Name:   "catalog-commits",
 	Usage:  "benchmark Iceberg REST catalog commit generation (updates table/view properties to create commits)",
-	Action: mainTablesCatalogCommits,
+	Action: mainIcebergCatalogCommits,
 	Before: setGlobalsFromContext,
-	Flags:  tablesCatalogCommitsCombinedFlags,
+	Flags:  icebergCatalogCommitsCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -147,8 +147,8 @@ EXAMPLES:
 `,
 }
 
-func mainTablesCatalogCommits(ctx *cli.Context) error {
-	checkTablesCatalogCommitsSyntax(ctx)
+func mainIcebergCatalogCommits(ctx *cli.Context) error {
+	checkIcebergCatalogCommitsSyntax(ctx)
 
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
@@ -172,7 +172,6 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog")
 
-	// Create catalog pool for round-robin access across all hosts
 	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog pool")
 
@@ -186,7 +185,7 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	}
 
 	b := bench.IcebergCommits{
-		Common:                 getTablesCommon(ctx),
+		Common:                 getIcebergCommon(ctx),
 		Catalog:                cat,
 		CatalogPool:            catalogPool,
 		TreeConfig:             treeCfg,
@@ -204,7 +203,7 @@ func mainTablesCatalogCommits(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkTablesCatalogCommitsSyntax(ctx *cli.Context) {
+func checkIcebergCatalogCommitsSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}

@@ -1,4 +1,4 @@
-# Warp Tables Benchmarks
+# Warp Iceberg Benchmarks
 
 Warp provides benchmarking tools for Apache Iceberg REST catalog operations. These benchmarks test catalog metadata performance including namespace, table, and view operations.
 
@@ -8,10 +8,10 @@ Four benchmark commands are available:
 
 | Command | Description |
 |---------|-------------|
-| `warp tables write` | Parquet file upload and Iceberg commit performance |
-| `warp tables catalog-read` | Catalog read operations (list, get, exists) |
-| `warp tables catalog-commits` | Table/view property updates (commit generation) |
-| `warp tables catalog-mixed` | Mixed read/write workload |
+| `warp iceberg write` | Parquet file upload and Iceberg commit performance |
+| `warp iceberg catalog-read` | Catalog read operations (list, get, exists) |
+| `warp iceberg catalog-commits` | Table/view property updates (commit generation) |
+| `warp iceberg catalog-mixed` | Mixed read/write workload |
 
 ## Supported Catalogs
 
@@ -20,7 +20,7 @@ Four benchmark commands are available:
 
 ## Common Flags
 
-All tables commands share these flags:
+All iceberg commands share these flags:
 
 ### Connection
 | Flag | Default | Description |
@@ -90,13 +90,13 @@ Requests are distributed across hosts using round-robin.
 
 ---
 
-## TABLES WRITE
+## ICEBERG WRITE
 
 Benchmarks Iceberg table write performance by uploading parquet files to S3 and committing them to Iceberg tables.
 
 ### Usage
 ```bash
-warp tables write [FLAGS]
+warp iceberg write [FLAGS]
 ```
 
 ### Workflow
@@ -136,7 +136,7 @@ warp tables write [FLAGS]
 ### Example
 ```bash
 # Basic write benchmark
-warp tables write \
+warp iceberg write \
   --host=localhost:9000 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -147,7 +147,7 @@ warp tables write \
   --duration=1m
 
 # With TPC-DS data
-warp tables write \
+warp iceberg write \
   --host=localhost:9000 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -158,13 +158,13 @@ warp tables write \
 
 ---
 
-## TABLES CATALOG-READ
+## ICEBERG CATALOG-READ
 
 Benchmarks Iceberg REST catalog read operations.
 
 ### Usage
 ```bash
-warp tables catalog-read [FLAGS]
+warp iceberg catalog-read [FLAGS]
 ```
 
 ### Workflow
@@ -201,13 +201,13 @@ Weights control the proportion of each operation type:
 ### Example
 ```bash
 # Default read benchmark
-warp tables catalog-read \
+warp iceberg catalog-read \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin
 
 # Heavy table reads
-warp tables catalog-read \
+warp iceberg catalog-read \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -217,13 +217,13 @@ warp tables catalog-read \
 
 ---
 
-## TABLES CATALOG-COMMITS
+## ICEBERG CATALOG-COMMITS
 
 Benchmarks Iceberg REST catalog commit generation by updating table/view properties.
 
 ### Usage
 ```bash
-warp tables catalog-commits [FLAGS]
+warp iceberg catalog-commits [FLAGS]
 ```
 
 ### Workflow
@@ -255,13 +255,13 @@ warp tables catalog-commits [FLAGS]
 ### Example
 ```bash
 # Basic commit benchmark
-warp tables catalog-commits \
+warp iceberg catalog-commits \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin
 
 # More table commits than view commits
-warp tables catalog-commits \
+warp iceberg catalog-commits \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -269,7 +269,7 @@ warp tables catalog-commits \
   --view-commits-throughput=5
 
 # Tables only (no views)
-warp tables catalog-commits \
+warp iceberg catalog-commits \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -278,13 +278,13 @@ warp tables catalog-commits \
 
 ---
 
-## TABLES CATALOG-MIXED
+## ICEBERG CATALOG-MIXED
 
 Benchmarks mixed read/write workload with configurable operation distribution.
 
 ### Usage
 ```bash
-warp tables catalog-mixed [FLAGS]
+warp iceberg catalog-mixed [FLAGS]
 ```
 
 ### Workflow
@@ -322,13 +322,13 @@ All read operations from catalog-read plus update operations:
 ### Example
 ```bash
 # Default mixed workload
-warp tables catalog-mixed \
+warp iceberg catalog-mixed \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin
 
 # Read-only (disable all updates)
-warp tables catalog-mixed \
+warp iceberg catalog-mixed \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -337,7 +337,7 @@ warp tables catalog-mixed \
   --view-update-distrib=0
 
 # Heavy writes
-warp tables catalog-mixed \
+warp iceberg catalog-mixed \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
@@ -353,7 +353,7 @@ warp tables catalog-mixed \
 To benchmark an Apache Polaris catalog:
 
 ```bash
-warp tables catalog-read \
+warp iceberg catalog-read \
   --host=polaris.example.com:8181 \
   --access-key=client_id \
   --secret-key=client_secret \
@@ -368,14 +368,14 @@ The access-key and secret-key are used as OAuth2 client credentials.
 
 ## Distributed Benchmarking
 
-Tables benchmarks support distributed mode with multiple warp clients:
+Iceberg benchmarks support distributed mode with multiple warp clients:
 
 ```bash
 # Start clients on separate machines
 warp client :7761
 
 # Run distributed benchmark from server
-warp tables catalog-read \
+warp iceberg catalog-read \
   --warp-client=client-{1...4}:7761 \
   --host=catalog-server:9001 \
   --access-key=minioadmin \

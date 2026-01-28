@@ -19,19 +19,19 @@ package cli
 
 import "github.com/minio/cli"
 
-var tablesSubcommands = []cli.Command{
-	tablesWriteCmd,
-	tablesCatalogReadCmd,
-	tablesCatalogCommitsCmd,
-	tablesCatalogMixedCmd,
+var icebergSubcommands = []cli.Command{
+	icebergWriteCmd,
+	icebergCatalogReadCmd,
+	icebergCatalogCommitsCmd,
+	icebergCatalogMixedCmd,
 }
 
-var tablesCmd = cli.Command{
-	Name:            "tables",
+var icebergCmd = cli.Command{
+	Name:            "iceberg",
 	Usage:           "benchmark Iceberg catalog operations",
-	Action:          tablesCmdNotFound,
+	Action:          icebergCmdNotFound,
 	Before:          setGlobalsFromContext,
-	Subcommands:     tablesSubcommands,
+	Subcommands:     icebergSubcommands,
 	HideHelpCommand: true,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
@@ -61,7 +61,7 @@ FLAGS:
   {{end}}`,
 }
 
-func tablesCmdNotFound(ctx *cli.Context) error {
+func icebergCmdNotFound(ctx *cli.Context) error {
 	if ctx.Args().First() != "" {
 		return cli.ShowCommandHelp(ctx, ctx.Args().First())
 	}

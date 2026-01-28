@@ -27,7 +27,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var tablesCatalogReadFlags = []cli.Flag{
+var icebergCatalogReadFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
 		Usage: "External catalog type (polaris)",
@@ -120,14 +120,14 @@ var tablesCatalogReadFlags = []cli.Flag{
 	},
 }
 
-var tablesCatalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, tablesCatalogReadFlags, benchFlags, analyzeFlags)
+var icebergCatalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, icebergCatalogReadFlags, benchFlags, analyzeFlags)
 
-var tablesCatalogReadCmd = cli.Command{
+var icebergCatalogReadCmd = cli.Command{
 	Name:   "catalog-read",
 	Usage:  "benchmark Iceberg REST catalog read operations (creates dataset in prepare, then benchmarks reads)",
-	Action: mainTablesCatalogRead,
+	Action: mainIcebergCatalogRead,
 	Before: setGlobalsFromContext,
-	Flags:  tablesCatalogReadCombinedFlags,
+	Flags:  icebergCatalogReadCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -182,8 +182,8 @@ EXAMPLES:
 `,
 }
 
-func mainTablesCatalogRead(ctx *cli.Context) error {
-	checkTablesCatalogReadSyntax(ctx)
+func mainIcebergCatalogRead(ctx *cli.Context) error {
+	checkIcebergCatalogReadSyntax(ctx)
 
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
@@ -207,7 +207,6 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 	cat, err := iceberg.NewCatalog(context.Background(), catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog")
 
-	// Create catalog pool for round-robin access across all hosts
 	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog pool")
 
@@ -242,7 +241,7 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 	fatalIf(probe.NewError(err), "Invalid distribution")
 
 	b := bench.IcebergRead{
-		Common:          getTablesCommon(ctx),
+		Common:          getIcebergCommon(ctx),
 		Catalog:         cat,
 		CatalogPool:     catalogPool,
 		TreeConfig:      treeCfg,
@@ -256,7 +255,7 @@ func mainTablesCatalogRead(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkTablesCatalogReadSyntax(ctx *cli.Context) {
+func checkIcebergCatalogReadSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
@@ -279,7 +278,7 @@ func checkTablesCatalogReadSyntax(ctx *cli.Context) {
 	checkBenchmark(ctx)
 }
 
-func getTablesCommon(ctx *cli.Context) bench.Common {
+func getIcebergCommon(ctx *cli.Context) bench.Common {
 	statusln := func(s string) {
 		console.Eraseline()
 		console.Print(s)

@@ -101,7 +101,7 @@ func init() {
 		snowballCmd,
 		fanoutCmd,
 		appendCmd,
-		tablesCmd,
+		icebergCmd,
 	}
 	b := []cli.Command{
 		analyzeCmd,

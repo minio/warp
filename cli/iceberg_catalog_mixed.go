@@ -28,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var tablesCatalogMixedFlags = []cli.Flag{
+var icebergCatalogMixedFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
 		Usage: "External catalog type (polaris)",
@@ -151,14 +151,14 @@ var tablesCatalogMixedFlags = []cli.Flag{
 	},
 }
 
-var tablesCatalogMixedCombinedFlags = combineFlags(globalFlags, ioFlags, tablesCatalogMixedFlags, benchFlags, analyzeFlags)
+var icebergCatalogMixedCombinedFlags = combineFlags(globalFlags, ioFlags, icebergCatalogMixedFlags, benchFlags, analyzeFlags)
 
-var tablesCatalogMixedCmd = cli.Command{
+var icebergCatalogMixedCmd = cli.Command{
 	Name:   "catalog-mixed",
 	Usage:  "benchmark mixed read/update workload on existing Iceberg REST catalog dataset",
-	Action: mainTablesCatalogMixed,
+	Action: mainIcebergCatalogMixed,
 	Before: setGlobalsFromContext,
-	Flags:  tablesCatalogMixedCombinedFlags,
+	Flags:  icebergCatalogMixedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -210,8 +210,8 @@ EXAMPLES:
 `,
 }
 
-func mainTablesCatalogMixed(ctx *cli.Context) error {
-	checkTablesCatalogMixedSyntax(ctx)
+func mainIcebergCatalogMixed(ctx *cli.Context) error {
+	checkIcebergCatalogMixedSyntax(ctx)
 
 	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
 	useTLS := ctx.Bool("tls") || ctx.Bool("ktls")
@@ -272,7 +272,7 @@ func mainTablesCatalogMixed(ctx *cli.Context) error {
 	fatalIf(probe.NewError(err), "Invalid distribution")
 
 	b := bench.IcebergMixed{
-		Common:          getTablesCommon(ctx),
+		Common:          getIcebergCommon(ctx),
 		Catalog:         cat,
 		CatalogPool:     catalogPool,
 		TreeConfig:      treeCfg,
@@ -289,7 +289,7 @@ func mainTablesCatalogMixed(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkTablesCatalogMixedSyntax(ctx *cli.Context) {
+func checkIcebergCatalogMixedSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}

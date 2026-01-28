@@ -28,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var tablesWriteFlags = []cli.Flag{
+var icebergWriteFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
 		Usage: "External catalog type (polaris)",
@@ -115,14 +115,14 @@ var tablesWriteFlags = []cli.Flag{
 	},
 }
 
-var tablesWriteCombinedFlags = combineFlags(globalFlags, ioFlags, tablesWriteFlags, benchFlags, analyzeFlags)
+var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteFlags, benchFlags, analyzeFlags)
 
-var tablesWriteCmd = cli.Command{
+var icebergWriteCmd = cli.Command{
 	Name:   "write",
 	Usage:  "benchmark Iceberg table write performance",
-	Action: mainTablesWrite,
+	Action: mainIcebergWrite,
 	Before: setGlobalsFromContext,
-	Flags:  tablesWriteCombinedFlags,
+	Flags:  icebergWriteCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -173,8 +173,8 @@ FLAGS:
   {{end}}`,
 }
 
-func mainTablesWrite(ctx *cli.Context) error {
-	checkTablesWriteSyntax(ctx)
+func mainIcebergWrite(ctx *cli.Context) error {
+	checkIcebergWriteSyntax(ctx)
 
 	backoffBase, err := time.ParseDuration(ctx.String("backoff-base"))
 	if err != nil {
@@ -247,7 +247,7 @@ func mainTablesWrite(ctx *cli.Context) error {
 	return runBench(ctx, &b)
 }
 
-func checkTablesWriteSyntax(ctx *cli.Context) {
+func checkIcebergWriteSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
