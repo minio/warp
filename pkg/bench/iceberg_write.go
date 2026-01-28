@@ -18,6 +18,7 @@
 package bench
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -157,20 +158,16 @@ tableLoop:
 			if err != nil {
 				if !warpiceberg.IsAlreadyExists(err) {
 					errMu.Lock()
-					if firstErr == nil {
-						firstErr = fmt.Errorf("failed to create table %s: %w", tbl.Name, err)
-						cancel()
-					}
+					firstErr = cmp.Or(firstErr, fmt.Errorf("failed to create table %s: %w", tbl.Name, err))
+					cancel()
 					errMu.Unlock()
 					return
 				}
 				loadedTbl, err = cat.LoadTable(errCtx, ident)
 				if err != nil {
 					errMu.Lock()
-					if firstErr == nil {
-						firstErr = fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
-						cancel()
-					}
+					firstErr = cmp.Or(firstErr, fmt.Errorf("failed to load table %s: %w", tbl.Name, err))
+					cancel()
 					errMu.Unlock()
 					return
 				}

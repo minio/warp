@@ -18,6 +18,7 @@
 package iceberg
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -121,10 +122,8 @@ tableLoop:
 			)
 			if err != nil && !IsAlreadyExists(err) {
 				errMu.Lock()
-				if firstErr == nil {
-					firstErr = fmt.Errorf("table %s: %w", tbl.Name, err)
-					cancel()
-				}
+				firstErr = cmp.Or(firstErr, fmt.Errorf("table %s: %w", tbl.Name, err))
+				cancel()
 				errMu.Unlock()
 				return
 			}
@@ -188,10 +187,8 @@ viewLoop:
 			)
 			if err != nil && !IsAlreadyExists(err) {
 				errMu.Lock()
-				if firstErr == nil {
-					firstErr = fmt.Errorf("view %s: %w", vw.Name, err)
-					cancel()
-				}
+				firstErr = cmp.Or(firstErr, fmt.Errorf("view %s: %w", vw.Name, err))
+				cancel()
 				errMu.Unlock()
 				return
 			}
