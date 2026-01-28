@@ -41,7 +41,6 @@ type DatasetCreator struct {
 	Concurrency     int
 	ExternalCatalog ExternalCatalogType
 	OnProgress      func(float64)
-	OnError         func(data ...any)
 }
 
 func (d *DatasetCreator) getCatalog() *restcat.Catalog {
@@ -55,7 +54,6 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 	namespaces := d.Tree.AllNamespaces()
 	cfg := d.Tree.Config()
 
-	var firstErr error
 	for i, ns := range namespaces {
 		select {
 		case <-ctx.Done():
@@ -66,18 +64,13 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 		props := rest.BuildTableProperties(cfg.PropertiesPerNS, "ns_prop")
 		err := d.getCatalog().CreateNamespace(ctx, ns.Path, props)
 		if err != nil && !IsAlreadyExists(err) {
-			if d.OnError != nil {
-				d.OnError("namespace create error:", err)
-			}
-			if firstErr == nil {
-				firstErr = fmt.Errorf("namespace %v: %w", ns.Path, err)
-			}
+			return fmt.Errorf("namespace %v: %w", ns.Path, err)
 		}
 		if d.OnProgress != nil {
 			d.OnProgress(float64(i+1) / float64(len(namespaces)))
 		}
 	}
-	return firstErr
+	return nil
 }
 
 func (d *DatasetCreator) CreateTables(ctx context.Context) error {
@@ -103,11 +96,14 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 	var completed uint64
 	var firstErr error
 	var errMu sync.Mutex
+	errCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
+tableLoop:
 	for _, tbl := range tables {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-errCtx.Done():
+			break tableLoop
 		default:
 		}
 
@@ -119,19 +115,18 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 			defer func() { <-sem }()
 
 			ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-			_, err := d.getCatalog().CreateTable(ctx, ident, schema,
+			_, err := d.getCatalog().CreateTable(errCtx, ident, schema,
 				catalog.WithLocation(tbl.Location),
 				catalog.WithProperties(props),
 			)
 			if err != nil && !IsAlreadyExists(err) {
-				if d.OnError != nil {
-					d.OnError("table create error:", err)
-				}
 				errMu.Lock()
 				if firstErr == nil {
 					firstErr = fmt.Errorf("table %s: %w", tbl.Name, err)
+					cancel()
 				}
 				errMu.Unlock()
+				return
 			}
 			if d.OnProgress != nil {
 				done := atomic.AddUint64(&completed, 1)
@@ -167,11 +162,14 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	var completed uint64
 	var firstErr error
 	var errMu sync.Mutex
+	errCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
+viewLoop:
 	for _, vw := range views {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-errCtx.Done():
+			break viewLoop
 		default:
 		}
 
@@ -184,19 +182,18 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 
 			ident := toTableIdentifier(vw.Namespace, vw.Name)
 			version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
-			_, err := d.getCatalog().CreateView(ctx, ident, version, schema,
+			_, err := d.getCatalog().CreateView(errCtx, ident, version, schema,
 				catalog.WithViewLocation(vw.Location),
 				catalog.WithViewProperties(props),
 			)
 			if err != nil && !IsAlreadyExists(err) {
-				if d.OnError != nil {
-					d.OnError("view create error:", err)
-				}
 				errMu.Lock()
 				if firstErr == nil {
 					firstErr = fmt.Errorf("view %s: %w", vw.Name, err)
+					cancel()
 				}
 				errMu.Unlock()
+				return
 			}
 			if d.OnProgress != nil {
 				done := atomic.AddUint64(&completed, 1)

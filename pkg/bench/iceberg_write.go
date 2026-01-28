@@ -129,8 +129,17 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 	sem := make(chan struct{}, concurrency)
 	var firstErr error
 	var errMu sync.Mutex
+	errCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
+tableLoop:
 	for i, tbl := range treeTables {
+		select {
+		case <-errCtx.Done():
+			break tableLoop
+		default:
+		}
+
 		wg.Add(1)
 		sem <- struct{}{}
 
@@ -142,7 +151,7 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 			ident = append(ident, tbl.Name)
 
 			cat := b.getCatalog()
-			loadedTbl, err := cat.CreateTable(ctx, ident, schema,
+			loadedTbl, err := cat.CreateTable(errCtx, ident, schema,
 				catalogpkg.WithLocation(tbl.Location),
 			)
 			if err != nil {
@@ -150,15 +159,17 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 					errMu.Lock()
 					if firstErr == nil {
 						firstErr = fmt.Errorf("failed to create table %s: %w", tbl.Name, err)
+						cancel()
 					}
 					errMu.Unlock()
 					return
 				}
-				loadedTbl, err = cat.LoadTable(ctx, ident)
+				loadedTbl, err = cat.LoadTable(errCtx, ident)
 				if err != nil {
 					errMu.Lock()
 					if firstErr == nil {
 						firstErr = fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+						cancel()
 					}
 					errMu.Unlock()
 					return

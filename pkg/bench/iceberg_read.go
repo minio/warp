@@ -94,7 +94,6 @@ func (b *IcebergRead) Prepare(ctx context.Context) error {
 		ExternalCatalog: b.ExternalCatalog,
 		Concurrency:     b.Concurrency,
 		OnProgress:      b.prepareProgress,
-		OnError:         b.Error,
 	}
 
 	return creator.CreateAll(ctx, b.UpdateStatus)
