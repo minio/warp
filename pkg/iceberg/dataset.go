@@ -55,6 +55,7 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 	namespaces := d.Tree.AllNamespaces()
 	cfg := d.Tree.Config()
 
+	var firstErr error
 	for i, ns := range namespaces {
 		select {
 		case <-ctx.Done():
@@ -68,12 +69,15 @@ func (d *DatasetCreator) CreateNamespaces(ctx context.Context) error {
 			if d.OnError != nil {
 				d.OnError("namespace create error:", err)
 			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("namespace %v: %w", ns.Path, err)
+			}
 		}
 		if d.OnProgress != nil {
 			d.OnProgress(float64(i+1) / float64(len(namespaces)))
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func (d *DatasetCreator) CreateTables(ctx context.Context) error {
@@ -97,6 +101,8 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, concurrency)
 	var completed uint64
+	var firstErr error
+	var errMu sync.Mutex
 
 	for _, tbl := range tables {
 		select {
@@ -121,6 +127,11 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 				if d.OnError != nil {
 					d.OnError("table create error:", err)
 				}
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("table %s: %w", tbl.Name, err)
+				}
+				errMu.Unlock()
 			}
 			if d.OnProgress != nil {
 				done := atomic.AddUint64(&completed, 1)
@@ -130,7 +141,7 @@ func (d *DatasetCreator) CreateTables(ctx context.Context) error {
 	}
 
 	wg.Wait()
-	return nil
+	return firstErr
 }
 
 func (d *DatasetCreator) CreateViews(ctx context.Context) error {
@@ -154,6 +165,8 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, concurrency)
 	var completed uint64
+	var firstErr error
+	var errMu sync.Mutex
 
 	for _, vw := range views {
 		select {
@@ -179,6 +192,11 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 				if d.OnError != nil {
 					d.OnError("view create error:", err)
 				}
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("view %s: %w", vw.Name, err)
+				}
+				errMu.Unlock()
 			}
 			if d.OnProgress != nil {
 				done := atomic.AddUint64(&completed, 1)
@@ -188,7 +206,7 @@ func (d *DatasetCreator) CreateViews(ctx context.Context) error {
 	}
 
 	wg.Wait()
-	return nil
+	return firstErr
 }
 
 func (d *DatasetCreator) DeleteAll(ctx context.Context) {
@@ -270,8 +288,8 @@ func (d *DatasetCreator) CreateAll(ctx context.Context, updateStatus func(string
 			AccessKey:  d.AccessKey,
 			SecretKey:  d.SecretKey,
 		})
-		if err != nil && d.OnError != nil {
-			d.OnError("Note: warehouse creation returned:", err)
+		if err != nil {
+			return fmt.Errorf("ensure warehouse: %w", err)
 		}
 	}
 
