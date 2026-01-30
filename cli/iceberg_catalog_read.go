@@ -118,6 +118,11 @@ var icebergCatalogReadFlags = []cli.Flag{
 		Usage: "Weight of view get operations",
 		Value: 10,
 	},
+	cli.IntFlag{
+		Name:  "page-size",
+		Usage: "Page size for list operations (0 = server default, max 1000)",
+		Value: 0,
+	},
 }
 
 var icebergCatalogReadCombinedFlags = combineFlags(globalFlags, ioFlags, icebergCatalogReadFlags, benchFlags, analyzeFlags)
@@ -250,6 +255,7 @@ func mainIcebergCatalogRead(ctx *cli.Context) error {
 		SecretKey:       ctx.String("secret-key"),
 		ExternalCatalog: externalCatalog,
 		Dist:            &dist,
+		PageSize:        ctx.Int("page-size"),
 	}
 
 	return runBench(ctx, &b)

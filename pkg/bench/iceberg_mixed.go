@@ -43,6 +43,7 @@ type IcebergMixed struct {
 	AccessKey       string
 	SecretKey       string
 	ExternalCatalog icebergpkg.ExternalCatalogType
+	PageSize        int
 
 	Dist *IcebergMixedDistribution
 
@@ -315,20 +316,36 @@ func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operatio
 }
 
 func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
-	op := Operation{
-		OpType:   OpTableList,
-		Thread:   uint32(thread),
-		File:     fmt.Sprintf("%s/%v", catalogName, tbl.Namespace),
-		Endpoint: catalogName,
+	cfg := icebergpkg.CatalogConfig{
+		CatalogURI: b.CatalogURI,
+		Warehouse:  catalogName,
+		AccessKey:  b.AccessKey,
+		SecretKey:  b.SecretKey,
 	}
-	op.Start = time.Now()
-	for _, err := range cat.ListTables(ctx, tbl.Namespace) {
+
+	pageToken := ""
+	for {
+		op := Operation{
+			OpType:   OpTableList,
+			Thread:   uint32(thread),
+			File:     fmt.Sprintf("%s/%v", catalogName, tbl.Namespace),
+			Endpoint: catalogName,
+		}
+		op.Start = time.Now()
+		resp, err := icebergpkg.ListTablesPage(ctx, cfg, tbl.Namespace, pageToken, b.PageSize)
+		op.End = time.Now()
 		if err != nil {
 			op.Err = err.Error()
+			rcv <- op
+			return
 		}
+		rcv <- op
+
+		if resp.NextPageToken == "" {
+			return
+		}
+		pageToken = resp.NextPageToken
 	}
-	op.End = time.Now()
-	rcv <- op
 }
 
 func (b *IcebergMixed) doCheckTableExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
@@ -366,20 +383,36 @@ func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, t
 }
 
 func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {
-	op := Operation{
-		OpType:   OpViewList,
-		Thread:   uint32(thread),
-		File:     fmt.Sprintf("%s/%v", catalogName, vw.Namespace),
-		Endpoint: catalogName,
+	cfg := icebergpkg.CatalogConfig{
+		CatalogURI: b.CatalogURI,
+		Warehouse:  catalogName,
+		AccessKey:  b.AccessKey,
+		SecretKey:  b.SecretKey,
 	}
-	op.Start = time.Now()
-	for _, err := range cat.ListViews(ctx, vw.Namespace) {
+
+	pageToken := ""
+	for {
+		op := Operation{
+			OpType:   OpViewList,
+			Thread:   uint32(thread),
+			File:     fmt.Sprintf("%s/%v", catalogName, vw.Namespace),
+			Endpoint: catalogName,
+		}
+		op.Start = time.Now()
+		resp, err := icebergpkg.ListViewsPage(ctx, cfg, vw.Namespace, pageToken, b.PageSize)
+		op.End = time.Now()
 		if err != nil {
 			op.Err = err.Error()
+			rcv <- op
+			return
 		}
+		rcv <- op
+
+		if resp.NextPageToken == "" {
+			return
+		}
+		pageToken = resp.NextPageToken
 	}
-	op.End = time.Now()
-	rcv <- op
 }
 
 func (b *IcebergMixed) doCheckViewExists(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {

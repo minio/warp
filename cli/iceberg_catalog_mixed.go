@@ -149,6 +149,11 @@ var icebergCatalogMixedFlags = []cli.Flag{
 		Usage: "Maximum backoff duration for retries",
 		Value: 2 * time.Second,
 	},
+	cli.IntFlag{
+		Name:  "page-size",
+		Usage: "Page size for list operations (0 = server default, max 1000)",
+		Value: 0,
+	},
 }
 
 var icebergCatalogMixedCombinedFlags = combineFlags(globalFlags, ioFlags, icebergCatalogMixedFlags, benchFlags, analyzeFlags)
@@ -284,6 +289,7 @@ func mainIcebergCatalogMixed(ctx *cli.Context) error {
 		MaxRetries:      ctx.Int("max-retries"),
 		RetryBackoff:    ctx.Duration("retry-backoff"),
 		BackoffMax:      ctx.Duration("backoff-max"),
+		PageSize:        ctx.Int("page-size"),
 	}
 
 	return runBench(ctx, &b)
