@@ -315,7 +315,7 @@ func (b *IcebergMixed) doFetchNamespace(ctx context.Context, rcv chan<- Operatio
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, cat *rest.Catalog) {
+func (b *IcebergMixed) doFetchAllTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl icebergpkg.TableInfo, _ *rest.Catalog) {
 	cfg := icebergpkg.CatalogConfig{
 		CatalogURI: b.CatalogURI,
 		Warehouse:  catalogName,
@@ -382,7 +382,7 @@ func (b *IcebergMixed) doFetchTable(ctx context.Context, rcv chan<- Operation, t
 	rcv <- op
 }
 
-func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, cat *rest.Catalog) {
+func (b *IcebergMixed) doFetchAllViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw icebergpkg.ViewInfo, _ *rest.Catalog) {
 	cfg := icebergpkg.CatalogConfig{
 		CatalogURI: b.CatalogURI,
 		Warehouse:  catalogName,

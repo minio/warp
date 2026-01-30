@@ -290,7 +290,7 @@ func (b *IcebergRead) checkTableExists(ctx context.Context, rcv chan<- Operation
 	rcv <- op
 }
 
-func (b *IcebergRead) listTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, cat *rest.Catalog) {
+func (b *IcebergRead) listTables(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, tbl iceberg.TableInfo, _ *rest.Catalog) {
 	cfg := iceberg.CatalogConfig{
 		CatalogURI: b.CatalogURI,
 		Warehouse:  catalogName,
@@ -357,7 +357,7 @@ func (b *IcebergRead) checkViewExists(ctx context.Context, rcv chan<- Operation,
 	rcv <- op
 }
 
-func (b *IcebergRead) listViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, cat *rest.Catalog) {
+func (b *IcebergRead) listViews(ctx context.Context, rcv chan<- Operation, thread int, catalogName string, vw iceberg.ViewInfo, _ *rest.Catalog) {
 	cfg := iceberg.CatalogConfig{
 		CatalogURI: b.CatalogURI,
 		Warehouse:  catalogName,
