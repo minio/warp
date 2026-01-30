@@ -22,6 +22,8 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/minio/cli"
@@ -72,7 +74,6 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 func newClientTransport(ctx *cli.Context, options ...transportOption) http.RoundTripper {
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netDialer.DialContext,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
@@ -91,6 +92,18 @@ func newClientTransport(ctx *cli.Context, options ...transportOption) http.Round
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
 		ForceAttemptHTTP2: ctx.Bool("http2"),
+	}
+
+	tr.DialContext = func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+		newAddr, host, _ := resolveAndRotate(dialCtx, addr)
+
+		// Ensure SNI is set to the original host so TLS verification passes
+		// when connecting via IP address.
+		if tr.TLSClientConfig != nil && tr.TLSClientConfig.ServerName == "" {
+			tr.TLSClientConfig.ServerName = host
+		}
+
+		return netDialer.DialContext(dialCtx, network, newAddr)
 	}
 
 	for _, option := range options {
