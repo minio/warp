@@ -18,6 +18,8 @@
 package cli
 
 import (
+	"context"
+	"net"
 	stdHttp "net/http"
 	"os"
 	"time"
@@ -56,12 +58,28 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
 		dialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		customDialer := func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+			newAddr, host, _ := resolveAndRotate(dialCtx, addr)
+			// Set SNI for the specialized kTLS dialer
+			if dialer.Config.ServerName == "" {
+				dialer.Config.ServerName = host
+			}
+			return dialer.DialContext(dialCtx, network, newAddr)
+		}
+
+		return newClientTransport(ctx, withDialTLSContext(customDialer))
 	}
 
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netDialer.DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+			newAddr, host, _ := resolveAndRotate(dialCtx, addr)
+			// Set SNI for the http.Transport's TLS config
+			if tlsConfig.ServerName == "" {
+				tlsConfig.ServerName = host
+			}
+			return netDialer.DialContext(dialCtx, network, newAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
