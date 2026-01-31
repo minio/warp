@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/apache/iceberg-go"
@@ -32,6 +33,7 @@ import (
 	"github.com/apache/iceberg-go/catalog/rest"
 	"github.com/apache/iceberg-go/table"
 	"github.com/minio/minio-go/v7"
+	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
 )
 
@@ -61,6 +63,13 @@ type Iceberg struct {
 	BackoffMax  time.Duration
 	SkipUpload  bool
 
+	S3Hosts     []string
+	S3AccessKey string
+	S3SecretKey string
+	S3TLS       bool
+	s3Clients   []*minio.Client
+	s3Counter   uint64
+
 	dataFiles        []string
 	preparedPaths    []string
 	tables           []warpiceberg.TableInfo
@@ -74,6 +83,14 @@ func (b *Iceberg) getCatalog() *rest.Catalog {
 		return b.CatalogPool.Get()
 	}
 	return b.Catalog
+}
+
+func (b *Iceberg) getS3Client() (*minio.Client, func()) {
+	if len(b.s3Clients) > 0 {
+		idx := atomic.AddUint64(&b.s3Counter, 1) % uint64(len(b.s3Clients))
+		return b.s3Clients[idx], func() {}
+	}
+	return b.Client()
 }
 
 func (b *Iceberg) getTableLocation(ctx context.Context, tbl warpiceberg.TableInfo) (string, error) {
@@ -120,6 +137,20 @@ func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
 
 func (b *Iceberg) Prepare(ctx context.Context) error {
 	b.Tree = warpiceberg.NewTree(b.TreeConfig)
+
+	if len(b.S3Hosts) > 0 {
+		b.s3Clients = make([]*minio.Client, len(b.S3Hosts))
+		for i, host := range b.S3Hosts {
+			client, err := minio.New(host, &minio.Options{
+				Creds:  miniocreds.NewStaticV4(b.S3AccessKey, b.S3SecretKey, ""),
+				Secure: b.S3TLS,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to create S3 client for %s: %w", host, err)
+			}
+			b.s3Clients[i] = client
+		}
+	}
 
 	if b.ClientIdx > 0 {
 		return b.prepareNonPrimaryClient(ctx)
@@ -313,7 +344,7 @@ func (b *Iceberg) uploadPreparedFiles(ctx context.Context) error {
 	bucket := b.TreeConfig.CatalogName
 	prefix := "prepared"
 
-	client, cldone := b.Client()
+	client, cldone := b.getS3Client()
 	defer cldone()
 
 	if b.UpdateStatus != nil {
@@ -446,7 +477,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 							return
 						}
 
-						client, cldone := b.Client()
+						client, cldone := b.getS3Client()
 						objName := fmt.Sprintf("%s/iter-%d/%d/%s", prefix, iter, time.Now().UnixNano(), filepath.Base(localFile))
 
 						op := Operation{
@@ -578,7 +609,7 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 	}
 
 	if b.SkipUpload {
-		client, cldone := b.Client()
+		client, cldone := b.getS3Client()
 		bucket := b.TreeConfig.CatalogName
 		prefix := "prepared"
 		for obj := range client.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: prefix + "/", Recursive: true}) {

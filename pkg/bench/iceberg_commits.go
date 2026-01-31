@@ -92,12 +92,12 @@ func (b *IcebergCommits) Start(ctx context.Context, wait chan struct{}) error {
 	}
 
 	tableWorkers := b.TableCommitsThroughput
-	if tableWorkers == 0 {
-		tableWorkers = b.Concurrency / 2
+	if tableWorkers == 0 && len(b.tables) > 0 {
+		tableWorkers = max(b.Concurrency/2, 1)
 	}
 	viewWorkers := b.ViewCommitsThroughput
 	if viewWorkers == 0 && len(b.views) > 0 {
-		viewWorkers = b.Concurrency / 2
+		viewWorkers = max(b.Concurrency/2, 1)
 	}
 
 	if len(b.tables) > 0 && tableWorkers > 0 {

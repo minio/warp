@@ -122,6 +122,25 @@ var icebergWriteFlags = []cli.Flag{
 		Usage: "TPC-DS table name to use",
 		Value: "store_sales",
 	},
+	cli.StringFlag{
+		Name:  "s3-host",
+		Usage: "S3 host for file uploads when using external catalog (e.g., localhost:9000)",
+		Value: "",
+	},
+	cli.StringFlag{
+		Name:  "s3-access-key",
+		Usage: "S3 access key for file uploads when using external catalog",
+		Value: "",
+	},
+	cli.StringFlag{
+		Name:  "s3-secret-key",
+		Usage: "S3 secret key for file uploads when using external catalog",
+		Value: "",
+	},
+	cli.BoolFlag{
+		Name:  "s3-tls",
+		Usage: "Use TLS for S3 connection when using external catalog",
+	},
 }
 
 var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteFlags, benchFlags, analyzeFlags)
@@ -258,6 +277,10 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		UseTPCDS:        ctx.Bool("tpcds"),
 		ScaleFactor:     ctx.String("scale-factor"),
 		TPCDSTable:      ctx.String("tpcds-table"),
+		S3Hosts:         parseS3Hosts(ctx.String("s3-host")),
+		S3AccessKey:     ctx.String("s3-access-key"),
+		S3SecretKey:     ctx.String("s3-secret-key"),
+		S3TLS:           ctx.Bool("s3-tls"),
 	}
 
 	return runBench(ctx, &b)
@@ -287,4 +310,11 @@ func checkIcebergWriteSyntax(ctx *cli.Context) {
 	}
 	checkAnalyze(ctx)
 	checkBenchmark(ctx)
+}
+
+func parseS3Hosts(h string) []string {
+	if h == "" {
+		return nil
+	}
+	return parseHosts(h, false)
 }
