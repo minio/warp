@@ -525,17 +525,9 @@ func (b *Iceberg) buildPreparedPaths() error {
 }
 
 func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpiceberg.TableInfo, paths []string, workerID uint32) {
-	commitOp := Operation{
-		OpType: "COMMIT",
-		Thread: workerID,
-		File:   fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
-	}
-
 	client, cldone := b.Client()
-	commitOp.Endpoint = client.EndpointURL().String()
+	endpoint := client.EndpointURL().String()
 	cldone()
-
-	commitOp.Start = time.Now()
 
 	cat := b.Catalog
 	if b.CatalogPool != nil {
@@ -545,11 +537,26 @@ func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpic
 	ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
 	loadedTbl, err := cat.LoadTable(ctx, ident)
 	if err != nil {
-		commitOp.End = time.Now()
-		commitOp.Err = err.Error()
+		commitOp := Operation{
+			OpType:   "COMMIT",
+			Thread:   workerID,
+			File:     fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
+			Endpoint: endpoint,
+			Start:    time.Now(),
+		}
+		commitOp.End = commitOp.Start
+		commitOp.Err = fmt.Sprintf("LoadTable failed: %s", err.Error())
 		rcv <- commitOp
 		return
 	}
+
+	commitOp := Operation{
+		OpType:   "COMMIT",
+		Thread:   workerID,
+		File:     fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
+		Endpoint: endpoint,
+	}
+	commitOp.Start = time.Now()
 
 	result := warpiceberg.CommitWithRetry(ctx, loadedTbl, paths, warpiceberg.CommitConfig{
 		MaxRetries:  b.MaxRetries,

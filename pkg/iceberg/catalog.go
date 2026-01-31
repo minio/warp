@@ -397,7 +397,7 @@ func signRequest(req *http.Request, payload []byte, accessKey, secretKey, region
 	canonicalRequest := strings.Join([]string{
 		req.Method,
 		req.URL.Path,
-		req.URL.RawQuery,
+		sortedQueryString(req.URL.RawQuery),
 		canonicalHeaders,
 		signedHeaders,
 		payloadHash,
@@ -437,8 +437,14 @@ func hmacSHA256(key, data []byte) []byte {
 	return h.Sum(nil)
 }
 
-// Keep sort import used
-var _ = sort.Strings
+func sortedQueryString(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	params := strings.Split(rawQuery, "&")
+	sort.Strings(params)
+	return strings.Join(params, "&")
+}
 
 // CatalogPool provides round-robin access to multiple catalog clients.
 type CatalogPool struct {
@@ -466,154 +472,4 @@ func (p *CatalogPool) Len() int {
 // URLs returns the catalog URLs.
 func (p *CatalogPool) URLs() []string {
 	return p.urls
-}
-
-// ListTablesPageResponse represents a single page response from the list tables API.
-type ListTablesPageResponse struct {
-	Identifiers   []TableIdentifier `json:"identifiers"`
-	NextPageToken string            `json:"next-page-token,omitempty"`
-}
-
-// TableIdentifier represents a table identifier in the response.
-type TableIdentifier struct {
-	Namespace []string `json:"namespace"`
-	Name      string   `json:"name"`
-}
-
-// ListTablesPage fetches a single page of tables from the catalog.
-// Returns the tables, next page token (empty if no more pages), and any error.
-func ListTablesPage(ctx context.Context, cfg CatalogConfig, namespace []string, pageToken string, pageSize int) (*ListTablesPageResponse, error) {
-	u, err := url.Parse(cfg.CatalogURI)
-	if err != nil {
-		return nil, fmt.Errorf("invalid catalog URI: %w", err)
-	}
-
-	// Build namespace path (join with URL-encoded separator)
-	nsPath := strings.Join(namespace, "\x1F")
-	nsPath = url.PathEscape(nsPath)
-
-	// Build the list tables endpoint URL
-	listURL := fmt.Sprintf("%s://%s/_iceberg/v1/%s/namespaces/%s/tables", u.Scheme, u.Host, cfg.Warehouse, nsPath)
-
-	// Add query parameters
-	v := url.Values{}
-	if pageSize > 0 {
-		v.Set("pageSize", fmt.Sprintf("%d", pageSize))
-	}
-	if pageToken != "" {
-		v.Set("pageToken", pageToken)
-	}
-	if len(v) > 0 {
-		listURL += "?" + v.Encode()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// Sign the request with AWS SigV4
-	if cfg.Region == "" {
-		cfg.Region = "us-east-1"
-	}
-	signRequest(req, nil, cfg.AccessKey, cfg.SecretKey, cfg.Region)
-
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: sharedCatalogTransport,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tables: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list tables failed: %s - %s", resp.Status, string(respBody))
-	}
-
-	var result ListTablesPageResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return &result, nil
-}
-
-// ListViewsPageResponse represents a single page response from the list views API.
-type ListViewsPageResponse struct {
-	Identifiers   []TableIdentifier `json:"identifiers"`
-	NextPageToken string            `json:"next-page-token,omitempty"`
-}
-
-// ListViewsPage fetches a single page of views from the catalog.
-// Returns the views, next page token (empty if no more pages), and any error.
-func ListViewsPage(ctx context.Context, cfg CatalogConfig, namespace []string, pageToken string, pageSize int) (*ListViewsPageResponse, error) {
-	u, err := url.Parse(cfg.CatalogURI)
-	if err != nil {
-		return nil, fmt.Errorf("invalid catalog URI: %w", err)
-	}
-
-	// Build namespace path (join with URL-encoded separator)
-	nsPath := strings.Join(namespace, "\x1F")
-	nsPath = url.PathEscape(nsPath)
-
-	// Build the list views endpoint URL
-	listURL := fmt.Sprintf("%s://%s/_iceberg/v1/%s/namespaces/%s/views", u.Scheme, u.Host, cfg.Warehouse, nsPath)
-
-	// Add query parameters
-	v := url.Values{}
-	if pageSize > 0 {
-		v.Set("pageSize", fmt.Sprintf("%d", pageSize))
-	}
-	if pageToken != "" {
-		v.Set("pageToken", pageToken)
-	}
-	if len(v) > 0 {
-		listURL += "?" + v.Encode()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// Sign the request with AWS SigV4
-	if cfg.Region == "" {
-		cfg.Region = "us-east-1"
-	}
-	signRequest(req, nil, cfg.AccessKey, cfg.SecretKey, cfg.Region)
-
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: sharedCatalogTransport,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list views: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list views failed: %s - %s", resp.Status, string(respBody))
-	}
-
-	var result ListViewsPageResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return &result, nil
 }
