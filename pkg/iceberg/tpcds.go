@@ -49,6 +49,13 @@ var scaleFactorMap = map[string]string{
 	"10GB":   "10GB",
 	"100GB":  "100GB",
 	"1000GB": "1000GB",
+	"1TB":    "1TB",
+	"3TB":    "3TB",
+	"10TB":   "10TB",
+	"30TB":   "30TB",
+	"100TB":  "100TB",
+	"300TB":  "300TB",
+	"1PB":    "1PB",
 }
 
 // TPCDSConfig holds configuration for TPC-DS data operations.
@@ -84,13 +91,13 @@ func DownloadTPCDS(ctx context.Context, cfg TPCDSConfig, progress func(completed
 		cfg.Concurrency = 16
 	}
 
-	// Map scale factor to GCS folder name
-	gcsScaleFactor := cfg.ScaleFactor
+	// Map scale factor to folder name
+	scaleFactor := cfg.ScaleFactor
 	if mapped, ok := scaleFactorMap[cfg.ScaleFactor]; ok {
-		gcsScaleFactor = mapped
+		scaleFactor = mapped
 	}
 
-	localDir := filepath.Join(cfg.CacheDir, cfg.ScaleFactor, cfg.Table)
+	localDir := filepath.Join(cfg.CacheDir, scaleFactor, cfg.Table)
 
 	existingFiles, _ := filepath.Glob(filepath.Join(localDir, "*.parquet"))
 	if len(existingFiles) > 0 {
@@ -114,7 +121,7 @@ func DownloadTPCDS(ctx context.Context, cfg TPCDSConfig, progress func(completed
 	defer client.Close()
 
 	bucket := client.Bucket(TPCDSGCSBucket)
-	prefix := fmt.Sprintf("%s/%s/%s/", TPCDSGCSPrefix, gcsScaleFactor, cfg.Table)
+	prefix := fmt.Sprintf("%s/%s/%s/", TPCDSGCSPrefix, scaleFactor, cfg.Table)
 
 	var gcsFiles []string
 	it := bucket.Objects(ctx, &storage.Query{Prefix: prefix})
@@ -212,7 +219,11 @@ func DownloadTPCDS(ctx context.Context, cfg TPCDSConfig, progress func(completed
 
 // GetCachedTPCDSFiles returns locally cached TPC-DS files if they exist.
 func GetCachedTPCDSFiles(cfg TPCDSConfig) ([]string, error) {
-	localDir := filepath.Join(cfg.CacheDir, cfg.ScaleFactor, cfg.Table)
+	scaleFactor := cfg.ScaleFactor
+	if mapped, ok := scaleFactorMap[cfg.ScaleFactor]; ok {
+		scaleFactor = mapped
+	}
+	localDir := filepath.Join(cfg.CacheDir, scaleFactor, cfg.Table)
 	files, err := filepath.Glob(filepath.Join(localDir, "*.parquet"))
 	if err != nil {
 		return nil, err

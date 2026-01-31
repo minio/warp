@@ -82,10 +82,10 @@ This can however also be tweaked using the `--concurrent` parameter.
 Warp includes benchmarks for Apache Iceberg REST catalog operations. These test catalog metadata performance including namespace, table, and view operations.
 
 Available commands:
-- `warp tables write` - Parquet upload and Iceberg commit performance
-- `warp tables catalog-read` - Catalog read operations
-- `warp tables catalog-commits` - Commit generation via property updates
-- `warp tables catalog-mixed` - Mixed read/write workload
+- `warp iceberg catalog-read` - Catalog read operations
+- `warp iceberg catalog-commits` - Commit generation via property updates
+- `warp iceberg catalog-mixed` - Mixed read/write workload
+- `warp iceberg write` - Parquet file upload and Iceberg table commit
 
 Supports MinIO AIStor Tables and Apache Polaris catalogs.
 

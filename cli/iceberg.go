@@ -20,10 +20,10 @@ package cli
 import "github.com/minio/cli"
 
 var icebergSubcommands = []cli.Command{
-	icebergWriteCmd,
 	icebergCatalogReadCmd,
 	icebergCatalogCommitsCmd,
 	icebergCatalogMixedCmd,
+	icebergWriteCmd,
 }
 
 var icebergCmd = cli.Command{

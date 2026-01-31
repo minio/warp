@@ -30,6 +30,7 @@ import (
 	"github.com/apache/iceberg-go"
 	catalogpkg "github.com/apache/iceberg-go/catalog"
 	"github.com/apache/iceberg-go/catalog/rest"
+	"github.com/apache/iceberg-go/table"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
 )
 
@@ -45,9 +46,10 @@ type Iceberg struct {
 	SecretKey       string
 	ExternalCatalog warpiceberg.ExternalCatalogType
 
-	NumFiles    int
-	RowsPerFile int
-	CacheDir    string
+	NumFiles       int
+	RowsPerFile    int
+	CacheDir       string
+	FilesPerCommit int
 
 	UseTPCDS    bool
 	ScaleFactor string
@@ -57,9 +59,11 @@ type Iceberg struct {
 	BackoffBase time.Duration
 	BackoffMax  time.Duration
 
-	dataFiles []string
-	tables    []warpiceberg.TableInfo
-	prefixes  map[string]struct{}
+	dataFiles        []string
+	tables           []warpiceberg.TableInfo
+	prefixes         map[string]struct{}
+	tableLocations   map[string]string
+	tableLocationsMu sync.RWMutex
 }
 
 func (b *Iceberg) getCatalog() *rest.Catalog {
@@ -67,6 +71,39 @@ func (b *Iceberg) getCatalog() *rest.Catalog {
 		return b.CatalogPool.Get()
 	}
 	return b.Catalog
+}
+
+func (b *Iceberg) getTableLocation(ctx context.Context, tbl warpiceberg.TableInfo) (string, error) {
+	key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
+
+	b.tableLocationsMu.RLock()
+	if loc, ok := b.tableLocations[key]; ok {
+		b.tableLocationsMu.RUnlock()
+		return loc, nil
+	}
+	b.tableLocationsMu.RUnlock()
+
+	b.tableLocationsMu.Lock()
+	defer b.tableLocationsMu.Unlock()
+
+	if loc, ok := b.tableLocations[key]; ok {
+		return loc, nil
+	}
+
+	ident := append([]string{}, tbl.Namespace...)
+	ident = append(ident, tbl.Name)
+
+	cat := b.getCatalog()
+	loadedTbl, err := cat.LoadTable(ctx, ident)
+	if err != nil {
+		return "", err
+	}
+
+	if b.tableLocations == nil {
+		b.tableLocations = make(map[string]string)
+	}
+	b.tableLocations[key] = loadedTbl.Location()
+	return loadedTbl.Location(), nil
 }
 
 func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
@@ -152,9 +189,15 @@ tableLoop:
 			ident = append(ident, tbl.Name)
 
 			cat := b.getCatalog()
-			loadedTbl, err := cat.CreateTable(errCtx, ident, schema,
-				catalogpkg.WithLocation(tbl.Location),
-			)
+			var loadedTbl *table.Table
+			var err error
+			if b.ExternalCatalog != warpiceberg.ExternalCatalogNone {
+				loadedTbl, err = cat.CreateTable(errCtx, ident, schema,
+					catalogpkg.WithLocation(tbl.Location),
+				)
+			} else {
+				loadedTbl, err = cat.CreateTable(errCtx, ident, schema)
+			}
 			if err != nil {
 				if !warpiceberg.IsAlreadyExists(err) {
 					errMu.Lock()
@@ -264,17 +307,14 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 	b.prefixes = make(map[string]struct{}, b.Concurrency*len(b.tables))
 
-	for i := 0; i < b.Concurrency; i++ {
-		for _, tbl := range b.tables {
-			_, tablePrefix := parseTableLocation(tbl.Location)
-			prefix := fmt.Sprintf("%s/data/worker-%d", tablePrefix, i)
-			b.prefixes[prefix] = struct{}{}
-		}
-	}
-
 	filesPerWorker := len(b.dataFiles) / b.Concurrency
 	if filesPerWorker == 0 {
 		filesPerWorker = 1
+	}
+
+	filesPerCommit := b.FilesPerCommit
+	if filesPerCommit <= 0 {
+		filesPerCommit = 1
 	}
 
 	for i := 0; i < b.Concurrency; i++ {
@@ -300,7 +340,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 				tbl := b.tables[tableIdx%len(b.tables)]
 				tableIdx++
 
-				tableBucket, tablePrefix := parseTableLocation(tbl.Location)
+				loc, err := b.getTableLocation(opCtx, tbl)
+				if err != nil {
+					continue
+				}
+
+				tableBucket, tablePrefix := parseTableLocation(loc)
 				if tableBucket == "" {
 					tableBucket = b.TreeConfig.CatalogName
 				}
@@ -308,7 +353,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 				prefix := fmt.Sprintf("%s/data/worker-%d", tablePrefix, workerID)
 
 				var uploadedPaths []string
-				for _, localFile := range files {
+				for fileIdx, localFile := range files {
 					select {
 					case <-done:
 						return
@@ -357,53 +402,57 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 
 					cldone()
 					rcv <- op
-				}
 
-				if len(uploadedPaths) > 0 {
-					select {
-					case <-done:
-						return
-					default:
-					}
+					isLastFile := fileIdx == len(files)-1
+					reachedCommitThreshold := len(uploadedPaths) >= filesPerCommit
+					if len(uploadedPaths) > 0 && (reachedCommitThreshold || isLastFile) {
+						select {
+						case <-done:
+							return
+						default:
+						}
 
-					commitOp := Operation{
-						OpType: "COMMIT",
-						Thread: uint32(workerID),
-						File:   fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
-					}
+						commitOp := Operation{
+							OpType: "COMMIT",
+							Thread: uint32(workerID),
+							File:   fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
+						}
 
-					client, cldone := b.Client()
-					commitOp.Endpoint = client.EndpointURL().String()
-					cldone()
+						client, cldone := b.Client()
+						commitOp.Endpoint = client.EndpointURL().String()
+						cldone()
 
-					commitOp.Start = time.Now()
+						commitOp.Start = time.Now()
 
-					cat := b.Catalog
-					if b.CatalogPool != nil {
-						cat = b.CatalogPool.Get()
-					}
+						cat := b.Catalog
+						if b.CatalogPool != nil {
+							cat = b.CatalogPool.Get()
+						}
 
-					ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
-					loadedTbl, err := cat.LoadTable(opCtx, ident)
-					if err != nil {
+						ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
+						loadedTbl, err := cat.LoadTable(opCtx, ident)
+						if err != nil {
+							commitOp.End = time.Now()
+							commitOp.Err = err.Error()
+							rcv <- commitOp
+							uploadedPaths = nil
+							continue
+						}
+
+						result := warpiceberg.CommitWithRetry(opCtx, loadedTbl, uploadedPaths, warpiceberg.CommitConfig{
+							MaxRetries:  b.MaxRetries,
+							BackoffBase: b.BackoffBase,
+							BackoffMax:  b.BackoffMax,
+						})
+
 						commitOp.End = time.Now()
-						commitOp.Err = err.Error()
+						if !result.Success && result.Err != nil {
+							commitOp.Err = result.Err.Error()
+						}
+
 						rcv <- commitOp
-						continue
+						uploadedPaths = nil
 					}
-
-					result := warpiceberg.CommitWithRetry(opCtx, loadedTbl, uploadedPaths, warpiceberg.CommitConfig{
-						MaxRetries:  b.MaxRetries,
-						BackoffBase: b.BackoffBase,
-						BackoffMax:  b.BackoffMax,
-					})
-
-					commitOp.End = time.Now()
-					if !result.Success && result.Err != nil {
-						commitOp.Err = result.Err.Error()
-					}
-
-					rcv <- commitOp
 				}
 			}
 		}(i, workerFiles)

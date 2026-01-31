@@ -8,10 +8,10 @@ Four benchmark commands are available:
 
 | Command | Description |
 |---------|-------------|
-| `warp iceberg write` | Parquet file upload and Iceberg commit performance |
 | `warp iceberg catalog-read` | Catalog read operations (list, get, exists) |
 | `warp iceberg catalog-commits` | Table/view property updates (commit generation) |
 | `warp iceberg catalog-mixed` | Mixed read/write workload |
+| `warp iceberg write` | Parquet file upload and Iceberg commit performance |
 
 ## Supported Catalogs
 
@@ -87,74 +87,6 @@ Multiple catalog hosts can be specified for load balancing:
 ```
 
 Requests are distributed across hosts using round-robin.
-
----
-
-## ICEBERG WRITE
-
-Benchmarks Iceberg table write performance by uploading parquet files to S3 and committing them to Iceberg tables.
-
-### Usage
-```bash
-warp iceberg write [FLAGS]
-```
-
-### Workflow
-1. Creates warehouse namespace/table tree structure
-2. Downloads or generates parquet data files
-3. Uploads parquet files to S3 storage
-4. Commits file references to Iceberg tables via REST catalog
-5. Handles commit conflicts with exponential backoff retry
-
-### Additional Flags
-
-#### Data Configuration
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--num-files` | 10 | Parquet files to generate per worker |
-| `--rows-per-file` | 10000 | Rows per parquet file |
-| `--cache-dir` | /tmp/warp-iceberg-cache | Local cache for data files |
-
-#### TPC-DS Data
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--tpcds` | false | Use TPC-DS benchmark data from GCS |
-| `--scale-factor` | sf100 | TPC-DS scale (sf1, sf10, sf100, sf1000) |
-| `--tpcds-table` | store_sales | TPC-DS table name |
-
-#### Retry/Conflict Handling
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--max-retries` | 4 | Maximum commit retries on conflict |
-| `--backoff-base` | 100ms | Base backoff duration for retries |
-| `--backoff-max` | 60s | Maximum backoff duration |
-
-### Operations Recorded
-- `UPLOAD`: Parquet file upload to S3
-- `COMMIT`: Iceberg table commit with file references
-
-### Example
-```bash
-# Basic write benchmark
-warp iceberg write \
-  --host=localhost:9000 \
-  --access-key=minioadmin \
-  --secret-key=minioadmin \
-  --namespace-width=2 \
-  --namespace-depth=2 \
-  --tables-per-ns=5 \
-  --concurrent=20 \
-  --duration=1m
-
-# With TPC-DS data
-warp iceberg write \
-  --host=localhost:9000 \
-  --access-key=minioadmin \
-  --secret-key=minioadmin \
-  --tpcds \
-  --scale-factor=sf100 \
-  --tpcds-table=store_sales
-```
 
 ---
 
@@ -344,6 +276,74 @@ warp iceberg catalog-mixed \
   --ns-update-distrib=20 \
   --table-update-distrib=20 \
   --view-update-distrib=20
+```
+
+---
+
+## ICEBERG WRITE
+
+Benchmarks Iceberg parquet upload and table commit by uploading parquet files to S3 and committing them to Iceberg tables.
+
+### Usage
+```bash
+warp iceberg write [FLAGS]
+```
+
+### Workflow
+1. Creates warehouse namespace/table tree structure
+2. Downloads or generates parquet data files
+3. Uploads parquet files to S3 storage
+4. Commits file references to Iceberg tables via REST catalog
+5. Handles commit conflicts with exponential backoff retry
+
+### Additional Flags
+
+#### Data Configuration
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--num-files` | 10 | Parquet files to generate per worker |
+| `--rows-per-file` | 10000 | Rows per parquet file |
+| `--cache-dir` | /tmp/warp-iceberg-cache | Local cache for data files |
+
+#### TPC-DS Data
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tpcds` | false | Use TPC-DS benchmark data from GCS |
+| `--scale-factor` | sf100 | TPC-DS scale (sf1, sf10, sf100, sf1000) |
+| `--tpcds-table` | store_sales | TPC-DS table name |
+
+#### Retry/Conflict Handling
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--max-retries` | 4 | Maximum commit retries on conflict |
+| `--backoff-base` | 100ms | Base backoff duration for retries |
+| `--backoff-max` | 60s | Maximum backoff duration |
+
+### Operations Recorded
+- `UPLOAD`: Parquet file upload to S3
+- `COMMIT`: Iceberg table commit with file references
+
+### Example
+```bash
+# Basic write benchmark
+warp iceberg write \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --namespace-width=2 \
+  --namespace-depth=2 \
+  --tables-per-ns=5 \
+  --concurrent=20 \
+  --duration=1m
+
+# With TPC-DS data
+warp iceberg write \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --tpcds \
+  --scale-factor=sf100 \
+  --tpcds-table=store_sales
 ```
 
 ---

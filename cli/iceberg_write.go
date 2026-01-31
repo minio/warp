@@ -66,8 +66,8 @@ var icebergWriteFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "base-location",
-		Usage: "Base storage location for tables",
-		Value: "s3://benchmark",
+		Usage: "Base storage location for tables (default: s3://{catalog-name})",
+		Value: "",
 	},
 	cli.IntFlag{
 		Name:  "num-files",
@@ -83,6 +83,11 @@ var icebergWriteFlags = []cli.Flag{
 		Name:  "cache-dir",
 		Usage: "Local cache directory for generated/downloaded data",
 		Value: "/tmp/warp-iceberg-cache",
+	},
+	cli.IntFlag{
+		Name:  "files-per-commit",
+		Usage: "Number of files to upload before each commit",
+		Value: 1,
 	},
 	cli.IntFlag{
 		Name:  "max-retries",
@@ -119,7 +124,7 @@ var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteF
 
 var icebergWriteCmd = cli.Command{
 	Name:   "write",
-	Usage:  "benchmark Iceberg table write performance",
+	Usage:  "benchmark Iceberg parquet upload and table commit",
 	Action: mainIcebergWrite,
 	Before: setGlobalsFromContext,
 	Flags:  icebergWriteCombinedFlags,
@@ -210,6 +215,11 @@ func mainIcebergWrite(ctx *cli.Context) error {
 	catalogPool, err := iceberg.NewCatalogPool(context.Background(), catalogURLs, catalogCfg)
 	fatalIf(probe.NewError(err), "Failed to create catalog pool")
 
+	baseLocation := ctx.String("base-location")
+	if baseLocation == "" {
+		baseLocation = "s3://" + ctx.String("catalog-name")
+	}
+
 	treeCfg := iceberg.TreeConfig{
 		NamespaceWidth:   ctx.Int("namespace-width"),
 		NamespaceDepth:   ctx.Int("namespace-depth"),
@@ -220,7 +230,7 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		PropertiesPerNS:  ctx.Int("properties"),
 		PropertiesPerTbl: ctx.Int("properties"),
 		PropertiesPerVw:  0,
-		BaseLocation:     ctx.String("base-location"),
+		BaseLocation:     baseLocation,
 		CatalogName:      ctx.String("catalog-name"),
 	}
 
@@ -236,6 +246,7 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		NumFiles:        ctx.Int("num-files"),
 		RowsPerFile:     ctx.Int("rows-per-file"),
 		CacheDir:        ctx.String("cache-dir"),
+		FilesPerCommit:  ctx.Int("files-per-commit"),
 		MaxRetries:      ctx.Int("max-retries"),
 		BackoffBase:     backoffBase,
 		BackoffMax:      backoffMax,
