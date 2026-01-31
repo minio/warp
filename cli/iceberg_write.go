@@ -105,6 +105,10 @@ var icebergWriteFlags = []cli.Flag{
 		Value: "60s",
 	},
 	cli.BoolFlag{
+		Name:  "skip-upload",
+		Usage: "Upload files once in prepare, then only benchmark commits (no upload during benchmark)",
+	},
+	cli.BoolFlag{
 		Name:  "tpcds",
 		Usage: "Use TPC-DS data from GCS (auto-downloads if not cached)",
 	},
@@ -250,6 +254,7 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		MaxRetries:      ctx.Int("max-retries"),
 		BackoffBase:     backoffBase,
 		BackoffMax:      backoffMax,
+		SkipUpload:      ctx.Bool("skip-upload"),
 		UseTPCDS:        ctx.Bool("tpcds"),
 		ScaleFactor:     ctx.String("scale-factor"),
 		TPCDSTable:      ctx.String("tpcds-table"),

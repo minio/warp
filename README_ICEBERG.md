@@ -312,6 +312,12 @@ warp iceberg write [FLAGS]
 | `--scale-factor` | sf100 | TPC-DS scale (sf1, sf10, sf100, sf1000) |
 | `--tpcds-table` | store_sales | TPC-DS table name |
 
+#### Commit Control
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--files-per-commit` | 1 | Number of files to include per commit |
+| `--skip-upload` | false | Upload files once in prepare, then only benchmark commits |
+
 #### Retry/Conflict Handling
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -344,6 +350,16 @@ warp iceberg write \
   --tpcds \
   --scale-factor=sf100 \
   --tpcds-table=store_sales
+
+# Commit-only benchmark (no uploads during benchmark)
+warp iceberg write \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --tpcds \
+  --scale-factor=1GB \
+  --skip-upload \
+  --files-per-commit=3
 ```
 
 ---

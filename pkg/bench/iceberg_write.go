@@ -31,6 +31,7 @@ import (
 	catalogpkg "github.com/apache/iceberg-go/catalog"
 	"github.com/apache/iceberg-go/catalog/rest"
 	"github.com/apache/iceberg-go/table"
+	"github.com/minio/minio-go/v7"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
 )
 
@@ -58,8 +59,10 @@ type Iceberg struct {
 	MaxRetries  int
 	BackoffBase time.Duration
 	BackoffMax  time.Duration
+	SkipUpload  bool
 
 	dataFiles        []string
+	preparedPaths    []string
 	tables           []warpiceberg.TableInfo
 	prefixes         map[string]struct{}
 	tableLocations   map[string]string
@@ -293,6 +296,60 @@ func (b *Iceberg) prepareDataFiles(ctx context.Context) error {
 		b.dataFiles = result.Files
 	}
 
+	if b.SkipUpload && b.ClientIdx == 0 {
+		if err := b.uploadPreparedFiles(ctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *Iceberg) uploadPreparedFiles(ctx context.Context) error {
+	if len(b.dataFiles) == 0 {
+		return nil
+	}
+
+	bucket := b.TreeConfig.CatalogName
+	prefix := "prepared"
+
+	client, cldone := b.Client()
+	defer cldone()
+
+	if b.UpdateStatus != nil {
+		b.UpdateStatus("Uploading files for commit-only benchmark...")
+	}
+
+	b.preparedPaths = make([]string, 0, len(b.dataFiles))
+	for i, localFile := range b.dataFiles {
+		objName := fmt.Sprintf("%s/file-%d.parquet", prefix, i)
+
+		f, err := os.Open(localFile)
+		if err != nil {
+			return fmt.Errorf("failed to open %s: %w", localFile, err)
+		}
+
+		info, _ := f.Stat()
+		opts := b.PutOpts
+		opts.ContentType = "application/octet-stream"
+
+		_, err = client.PutObject(ctx, bucket, objName, f, info.Size(), opts)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("failed to upload %s: %w", localFile, err)
+		}
+
+		b.preparedPaths = append(b.preparedPaths, fmt.Sprintf("s3://%s/%s", bucket, objName))
+
+		if b.UpdateStatus != nil && (i+1)%10 == 0 {
+			b.UpdateStatus(fmt.Sprintf("Uploaded %d/%d files...", i+1, len(b.dataFiles)))
+		}
+	}
+
+	if b.UpdateStatus != nil {
+		b.UpdateStatus(fmt.Sprintf("Uploaded %d files for commit-only benchmark", len(b.preparedPaths)))
+	}
+
 	return nil
 }
 
@@ -317,6 +374,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 		filesPerCommit = 1
 	}
 
+	if b.SkipUpload && len(b.preparedPaths) == 0 {
+		if err := b.buildPreparedPaths(); err != nil {
+			return err
+		}
+	}
+
 	for i := 0; i < b.Concurrency; i++ {
 		workerFiles := b.getWorkerFiles(i, filesPerWorker)
 
@@ -327,6 +390,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 			done := ctx.Done()
 			opCtx := context.Background()
 			tableIdx := workerID
+			fileIdx := workerID * filesPerCommit
 
 			<-wait
 
@@ -350,108 +414,89 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 					tableBucket = b.TreeConfig.CatalogName
 				}
 
-				prefix := fmt.Sprintf("%s/data/worker-%d", tablePrefix, workerID)
-
-				var uploadedPaths []string
-				for fileIdx, localFile := range files {
-					select {
-					case <-done:
-						return
-					default:
-					}
-
+				if b.SkipUpload {
 					if b.rpsLimit(ctx) != nil {
 						return
 					}
 
-					client, cldone := b.Client()
-					objName := fmt.Sprintf("%s/iter-%d/%d/%s", prefix, iter, time.Now().UnixNano(), filepath.Base(localFile))
-
-					op := Operation{
-						OpType:   "UPLOAD",
-						Thread:   uint32(workerID),
-						File:     objName,
-						Endpoint: client.EndpointURL().String(),
+					numFiles := filesPerCommit
+					if numFiles > len(b.preparedPaths) {
+						numFiles = len(b.preparedPaths)
 					}
 
-					f, err := os.Open(localFile)
-					if err != nil {
-						op.Err = err.Error()
-						op.Start = time.Now()
-						op.End = op.Start
-						rcv <- op
-						cldone()
-						continue
+					commitPaths := make([]string, 0, numFiles)
+					for j := 0; j < numFiles; j++ {
+						commitPaths = append(commitPaths, b.preparedPaths[fileIdx%len(b.preparedPaths)])
+						fileIdx++
 					}
 
-					info, _ := f.Stat()
-					op.Size = info.Size()
-					opts := b.PutOpts
-					opts.ContentType = "application/octet-stream"
-					op.Start = time.Now()
+					b.doCommit(opCtx, rcv, tbl, commitPaths, uint32(workerID))
+				} else {
+					prefix := fmt.Sprintf("%s/data/worker-%d", tablePrefix, workerID)
 
-					_, err = client.PutObject(opCtx, tableBucket, objName, f, info.Size(), opts)
-					op.End = time.Now()
-					f.Close()
-
-					if err != nil {
-						op.Err = err.Error()
-					} else {
-						uploadedPaths = append(uploadedPaths, fmt.Sprintf("s3://%s/%s", tableBucket, objName))
-					}
-
-					cldone()
-					rcv <- op
-
-					isLastFile := fileIdx == len(files)-1
-					reachedCommitThreshold := len(uploadedPaths) >= filesPerCommit
-					if len(uploadedPaths) > 0 && (reachedCommitThreshold || isLastFile) {
+					var uploadedPaths []string
+					for localFileIdx, localFile := range files {
 						select {
 						case <-done:
 							return
 						default:
 						}
 
-						commitOp := Operation{
-							OpType: "COMMIT",
-							Thread: uint32(workerID),
-							File:   fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
+						if b.rpsLimit(ctx) != nil {
+							return
 						}
 
 						client, cldone := b.Client()
-						commitOp.Endpoint = client.EndpointURL().String()
-						cldone()
+						objName := fmt.Sprintf("%s/iter-%d/%d/%s", prefix, iter, time.Now().UnixNano(), filepath.Base(localFile))
 
-						commitOp.Start = time.Now()
-
-						cat := b.Catalog
-						if b.CatalogPool != nil {
-							cat = b.CatalogPool.Get()
+						op := Operation{
+							OpType:   "UPLOAD",
+							Thread:   uint32(workerID),
+							File:     objName,
+							Endpoint: client.EndpointURL().String(),
 						}
 
-						ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
-						loadedTbl, err := cat.LoadTable(opCtx, ident)
+						f, err := os.Open(localFile)
 						if err != nil {
-							commitOp.End = time.Now()
-							commitOp.Err = err.Error()
-							rcv <- commitOp
-							uploadedPaths = nil
+							op.Err = err.Error()
+							op.Start = time.Now()
+							op.End = op.Start
+							rcv <- op
+							cldone()
 							continue
 						}
 
-						result := warpiceberg.CommitWithRetry(opCtx, loadedTbl, uploadedPaths, warpiceberg.CommitConfig{
-							MaxRetries:  b.MaxRetries,
-							BackoffBase: b.BackoffBase,
-							BackoffMax:  b.BackoffMax,
-						})
+						info, _ := f.Stat()
+						op.Size = info.Size()
+						opts := b.PutOpts
+						opts.ContentType = "application/octet-stream"
+						op.Start = time.Now()
 
-						commitOp.End = time.Now()
-						if !result.Success && result.Err != nil {
-							commitOp.Err = result.Err.Error()
+						_, err = client.PutObject(opCtx, tableBucket, objName, f, info.Size(), opts)
+						op.End = time.Now()
+						f.Close()
+
+						if err != nil {
+							op.Err = err.Error()
+						} else {
+							uploadedPaths = append(uploadedPaths, fmt.Sprintf("s3://%s/%s", tableBucket, objName))
 						}
 
-						rcv <- commitOp
-						uploadedPaths = nil
+						cldone()
+						rcv <- op
+
+						isLastFile := localFileIdx == len(files)-1
+						reachedCommitThreshold := len(uploadedPaths) >= filesPerCommit
+						if len(uploadedPaths) > 0 && (reachedCommitThreshold || isLastFile) {
+							select {
+							case <-done:
+								return
+							default:
+							}
+
+							b.doCommit(opCtx, rcv, tbl, uploadedPaths, uint32(workerID))
+							uploadedPaths = nil
+						}
 					}
 				}
 			}
@@ -462,10 +507,82 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 	return nil
 }
 
+func (b *Iceberg) buildPreparedPaths() error {
+	if len(b.dataFiles) == 0 {
+		return fmt.Errorf("no data files for skip-upload mode")
+	}
+
+	bucket := b.TreeConfig.CatalogName
+	prefix := "prepared"
+
+	b.preparedPaths = make([]string, len(b.dataFiles))
+	for i := range b.dataFiles {
+		objName := fmt.Sprintf("%s/file-%d.parquet", prefix, i)
+		b.preparedPaths[i] = fmt.Sprintf("s3://%s/%s", bucket, objName)
+	}
+
+	return nil
+}
+
+func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpiceberg.TableInfo, paths []string, workerID uint32) {
+	commitOp := Operation{
+		OpType: "COMMIT",
+		Thread: workerID,
+		File:   fmt.Sprintf("%s/%s", strings.Join(tbl.Namespace, "."), tbl.Name),
+	}
+
+	client, cldone := b.Client()
+	commitOp.Endpoint = client.EndpointURL().String()
+	cldone()
+
+	commitOp.Start = time.Now()
+
+	cat := b.Catalog
+	if b.CatalogPool != nil {
+		cat = b.CatalogPool.Get()
+	}
+
+	ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
+	loadedTbl, err := cat.LoadTable(ctx, ident)
+	if err != nil {
+		commitOp.End = time.Now()
+		commitOp.Err = err.Error()
+		rcv <- commitOp
+		return
+	}
+
+	result := warpiceberg.CommitWithRetry(ctx, loadedTbl, paths, warpiceberg.CommitConfig{
+		MaxRetries:  b.MaxRetries,
+		BackoffBase: b.BackoffBase,
+		BackoffMax:  b.BackoffMax,
+	})
+
+	commitOp.End = time.Now()
+	if !result.Success && result.Err != nil {
+		commitOp.Err = result.Err.Error()
+	}
+
+	rcv <- commitOp
+}
+
 func (b *Iceberg) Cleanup(ctx context.Context) {
 	if b.Tree == nil || b.ClientIdx > 0 {
 		return
 	}
+
+	if b.SkipUpload {
+		client, cldone := b.Client()
+		bucket := b.TreeConfig.CatalogName
+		prefix := "prepared"
+		for obj := range client.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: prefix + "/", Recursive: true}) {
+			if obj.Err != nil {
+				continue
+			}
+			_ = client.RemoveObject(ctx, bucket, obj.Key, minio.RemoveObjectOptions{})
+		}
+		cldone()
+	}
+
 	creator := &warpiceberg.DatasetCreator{
 		Catalog:         b.Catalog,
 		CatalogPool:     b.CatalogPool,
