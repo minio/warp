@@ -70,12 +70,12 @@ type Iceberg struct {
 	s3Clients   []*minio.Client
 	s3Counter   uint64
 
-	dataFiles        []string
-	preparedPaths    []string
-	tables           []warpiceberg.TableInfo
-	prefixes         map[string]struct{}
-	tableLocations   map[string]string
-	tableLocationsMu sync.RWMutex
+	dataFiles      []string
+	preparedPaths  []string
+	tables         []warpiceberg.TableInfo
+	prefixes       map[string]struct{}
+	loadedTables   map[string]*table.Table
+	loadedTablesMu sync.RWMutex
 }
 
 func (b *Iceberg) getCatalog() *rest.Catalog {
@@ -93,43 +93,42 @@ func (b *Iceberg) getS3Client() (*minio.Client, func()) {
 	return b.Client()
 }
 
-func (b *Iceberg) getTableLocation(ctx context.Context, tbl warpiceberg.TableInfo) (string, error) {
+func (b *Iceberg) getLoadedTable(tbl warpiceberg.TableInfo) *table.Table {
 	key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
 
-	b.tableLocationsMu.RLock()
-	if loc, ok := b.tableLocations[key]; ok {
-		b.tableLocationsMu.RUnlock()
-		return loc, nil
-	}
-	b.tableLocationsMu.RUnlock()
+	b.loadedTablesMu.RLock()
+	defer b.loadedTablesMu.RUnlock()
 
-	b.tableLocationsMu.Lock()
-	defer b.tableLocationsMu.Unlock()
-
-	if loc, ok := b.tableLocations[key]; ok {
-		return loc, nil
-	}
-
-	ident := append([]string{}, tbl.Namespace...)
-	ident = append(ident, tbl.Name)
-
-	cat := b.getCatalog()
-	loadedTbl, err := cat.LoadTable(ctx, ident)
-	if err != nil {
-		return "", err
-	}
-
-	if b.tableLocations == nil {
-		b.tableLocations = make(map[string]string)
-	}
-	b.tableLocations[key] = loadedTbl.Location()
-	return loadedTbl.Location(), nil
+	return b.loadedTables[key]
 }
 
 func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
-	b.tables = b.Tree.AllTables()
-	if len(b.tables) == 0 {
+	treeTables := b.Tree.AllTables()
+	if len(treeTables) == 0 {
 		return fmt.Errorf("no tables in tree config")
+	}
+
+	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
+	b.loadedTables = make(map[string]*table.Table, len(treeTables))
+
+	for i, tbl := range treeTables {
+		ident := append([]string{}, tbl.Namespace...)
+		ident = append(ident, tbl.Name)
+
+		cat := b.getCatalog()
+		loadedTbl, err := cat.LoadTable(ctx, ident)
+		if err != nil {
+			return fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+		}
+
+		key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
+		b.loadedTables[key] = loadedTbl
+		b.tables[i] = warpiceberg.TableInfo{
+			Index:     tbl.Index,
+			Name:      tbl.Name,
+			Namespace: tbl.Namespace,
+			Location:  loadedTbl.Location(),
+		}
 	}
 
 	return b.prepareDataFiles(ctx)
@@ -192,6 +191,7 @@ func (b *Iceberg) Prepare(ctx context.Context) error {
 	}
 
 	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
+	b.loadedTables = make(map[string]*table.Table, len(treeTables))
 	concurrency := b.Concurrency
 	if concurrency > 20 {
 		concurrency = 20
@@ -249,6 +249,12 @@ tableLoop:
 					return
 				}
 			}
+
+			key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
+			b.loadedTablesMu.Lock()
+			b.loadedTables[key] = loadedTbl
+			b.loadedTablesMu.Unlock()
+
 			b.tables[i] = warpiceberg.TableInfo{
 				Index:     tbl.Index,
 				Name:      tbl.Name,
@@ -341,8 +347,15 @@ func (b *Iceberg) uploadPreparedFiles(ctx context.Context) error {
 		return nil
 	}
 
-	bucket := b.TreeConfig.CatalogName
-	prefix := "prepared"
+	if len(b.tables) == 0 {
+		return fmt.Errorf("no tables available for skip-upload mode")
+	}
+
+	bucket, tablePrefix := parseTableLocation(b.tables[0].Location)
+	if bucket == "" {
+		bucket = b.TreeConfig.CatalogName
+	}
+	prefix := fmt.Sprintf("%s/prepared", tablePrefix)
 
 	client, cldone := b.getS3Client()
 	defer cldone()
@@ -435,12 +448,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 				tbl := b.tables[tableIdx%len(b.tables)]
 				tableIdx++
 
-				loc, err := b.getTableLocation(opCtx, tbl)
-				if err != nil {
-					continue
-				}
-
-				tableBucket, tablePrefix := parseTableLocation(loc)
+				tableBucket, tablePrefix := parseTableLocation(tbl.Location)
 				if tableBucket == "" {
 					tableBucket = b.TreeConfig.CatalogName
 				}
@@ -543,8 +551,15 @@ func (b *Iceberg) buildPreparedPaths() error {
 		return fmt.Errorf("no data files for skip-upload mode")
 	}
 
-	bucket := b.TreeConfig.CatalogName
-	prefix := "prepared"
+	if len(b.tables) == 0 {
+		return fmt.Errorf("no tables available for skip-upload mode")
+	}
+
+	bucket, tablePrefix := parseTableLocation(b.tables[0].Location)
+	if bucket == "" {
+		bucket = b.TreeConfig.CatalogName
+	}
+	prefix := fmt.Sprintf("%s/prepared", tablePrefix)
 
 	b.preparedPaths = make([]string, len(b.dataFiles))
 	for i := range b.dataFiles {
@@ -560,14 +575,8 @@ func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpic
 	endpoint := client.EndpointURL().String()
 	cldone()
 
-	cat := b.Catalog
-	if b.CatalogPool != nil {
-		cat = b.CatalogPool.Get()
-	}
-
-	ident := catalogpkg.ToIdentifier(fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name))
-	loadedTbl, err := cat.LoadTable(ctx, ident)
-	if err != nil {
+	loadedTbl := b.getLoadedTable(tbl)
+	if loadedTbl == nil {
 		commitOp := Operation{
 			OpType:   "COMMIT",
 			Thread:   workerID,
@@ -576,7 +585,7 @@ func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpic
 			Start:    time.Now(),
 		}
 		commitOp.End = commitOp.Start
-		commitOp.Err = fmt.Sprintf("LoadTable failed: %s", err.Error())
+		commitOp.Err = "table not found in cache"
 		rcv <- commitOp
 		return
 	}
@@ -598,6 +607,13 @@ func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpic
 	commitOp.End = time.Now()
 	if !result.Success && result.Err != nil {
 		commitOp.Err = result.Err.Error()
+	}
+
+	if result.Success && result.UpdatedTable != nil {
+		key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
+		b.loadedTablesMu.Lock()
+		b.loadedTables[key] = result.UpdatedTable
+		b.loadedTablesMu.Unlock()
 	}
 
 	rcv <- commitOp
@@ -632,6 +648,25 @@ func (b *Iceberg) Cleanup(ctx context.Context) {
 		Concurrency:     b.Concurrency,
 	}
 	creator.DeleteAll(ctx)
+
+	// For external catalogs, clean up S3 data (catalog only drops metadata)
+	if b.ExternalCatalog != warpiceberg.ExternalCatalogNone && b.TreeConfig.BaseLocation != "" {
+		client, cldone := b.getS3Client()
+		defer cldone()
+		bucket, prefix := parseTableLocation(b.TreeConfig.BaseLocation)
+		if bucket != "" {
+			listPrefix := prefix
+			if listPrefix != "" {
+				listPrefix += "/"
+			}
+			for obj := range client.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: listPrefix, Recursive: true}) {
+				if obj.Err != nil {
+					continue
+				}
+				_ = client.RemoveObject(ctx, bucket, obj.Key, minio.RemoveObjectOptions{})
+			}
+		}
+	}
 }
 
 func (b *Iceberg) getWorkerFiles(workerID, filesPerWorker int) []string {

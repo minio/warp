@@ -46,10 +46,11 @@ func DefaultCommitConfig() CommitConfig {
 
 // CommitResult holds the result of a commit operation.
 type CommitResult struct {
-	Success  bool
-	Retries  int
-	Duration time.Duration
-	Err      error
+	Success      bool
+	Retries      int
+	Duration     time.Duration
+	Err          error
+	UpdatedTable *table.Table
 }
 
 // CommitWithRetry commits files to an Iceberg table with exponential backoff on conflict.
@@ -84,10 +85,11 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 			}
 		}
 
-		err := doCommit(ctx, tbl, files)
+		updatedTbl, err := doCommit(ctx, tbl, files)
 		if err == nil {
 			result.Success = true
 			result.Duration = time.Since(start)
+			result.UpdatedTable = updatedTbl
 			return result
 		}
 
@@ -104,18 +106,17 @@ func CommitWithRetry(ctx context.Context, tbl *table.Table, files []string, cfg 
 	return result
 }
 
-func doCommit(ctx context.Context, tbl *table.Table, files []string) error {
+func doCommit(ctx context.Context, tbl *table.Table, files []string) (*table.Table, error) {
 	tx := tbl.NewTransaction()
 	err := tx.AddFiles(ctx, files, iceberg.Properties{
 		"written-by": "warp-iceberg",
 		"timestamp":  time.Now().Format(time.RFC3339),
 	}, true)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = tx.Commit(ctx)
-	return err
+	return tx.Commit(ctx)
 }
 
 // IsConflictError checks if an error is a commit conflict that can be retried.
