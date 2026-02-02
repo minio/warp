@@ -25,6 +25,7 @@ import (
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/iceberg"
+	"golang.org/x/time/rate"
 )
 
 var icebergCatalogReadFlags = []cli.Flag{
@@ -293,10 +294,17 @@ func getIcebergCommon(ctx *cli.Context) bench.Common {
 		statusln = func(_ string) {}
 	}
 
+	rpsLimit := ctx.Float64("rps-limit")
+	var rpsLimiter *rate.Limiter
+	if rpsLimit > 0 {
+		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
+	}
+
 	return bench.Common{
 		Concurrency:  ctx.Int("concurrent"),
 		UpdateStatus: statusln,
 		TotalClients: 1,
+		RpsLimiter:   rpsLimiter,
 		Error: func(data ...any) {
 			console.Errorln(data...)
 		},
