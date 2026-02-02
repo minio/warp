@@ -23,7 +23,7 @@ var icebergSubcommands = []cli.Command{
 	icebergCatalogReadCmd,
 	icebergCatalogCommitsCmd,
 	icebergCatalogMixedCmd,
-	icebergWriteCmd,
+	icebergSustainedCmd,
 }
 
 var icebergCmd = cli.Command{
@@ -43,10 +43,6 @@ COMMANDS:
   {{range .VisibleCommands}}{{.Name}}{{"\t"}}{{.Usage}}
   {{end}}
 EXAMPLES:
-  # Benchmark Iceberg table write performance (parquet upload + commit)
-  {{.HelpName}} write --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --warehouse=my-warehouse --duration=1m
-
   # Benchmark catalog read operations
   {{.HelpName}} catalog-read --host=minio:9000 --access-key=minioadmin --secret-key=minioadmin
 

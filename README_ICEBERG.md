@@ -11,7 +11,7 @@ Four benchmark commands are available:
 | `warp iceberg catalog-read` | Catalog read operations (list, get, exists) |
 | `warp iceberg catalog-commits` | Table/view property updates (commit generation) |
 | `warp iceberg catalog-mixed` | Mixed read/write workload |
-| `warp iceberg write` | Parquet file upload and Iceberg commit performance |
+| `warp iceberg sustained` | Sustained workload with controlled RPS (commits + reads) |
 
 ## Supported Catalogs
 
@@ -280,28 +280,34 @@ warp iceberg catalog-mixed \
 
 ---
 
-## ICEBERG WRITE
+## ICEBERG SUSTAINED
 
-Benchmarks Iceberg parquet upload and table commit by uploading parquet files to S3 and committing them to Iceberg tables.
+Run a sustained Iceberg workload with controlled request rates. Designed for long-running tests with specific RPS limits for commits and reads.
 
 ### Usage
 ```bash
-warp iceberg write [FLAGS]
+warp iceberg sustained [FLAGS]
 ```
 
 ### Workflow
 1. Creates warehouse namespace/table tree structure
 2. Downloads or generates parquet data files
-3. Uploads parquet files to S3 storage
-4. Commits file references to Iceberg tables via REST catalog
-5. Handles commit conflicts with exponential backoff retry
+3. Optionally uploads files once during prepare (`--skip-upload`)
+4. Runs two concurrent workloads:
+   - **Commits**: Upload parquet files and commit to Iceberg tables (controlled by `--rps-limit`)
+   - **Reads**: LoadTable operations (enabled with `--simulate-read`, controlled by `--read-rps-limit`)
+
+### Default Tree Configuration
+- `--namespace-width`: 1
+- `--namespace-depth`: 1
+- `--tables-per-ns`: 1
 
 ### Additional Flags
 
 #### Data Configuration
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--num-files` | 10 | Parquet files to generate per worker |
+| `--num-files` | 10 | Parquet files to generate (used for commits) |
 | `--rows-per-file` | 10000 | Rows per parquet file |
 | `--cache-dir` | /tmp/warp-iceberg-cache | Local cache for data files |
 
@@ -316,7 +322,15 @@ warp iceberg write [FLAGS]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--files-per-commit` | 1 | Number of files to include per commit |
-| `--skip-upload` | false | Upload files once in prepare, then only benchmark commits |
+| `--skip-upload` | true | Upload files once in prepare, then only benchmark commits |
+| `--rps-limit` | 0 | RPS limit for commit workers (0 = unlimited) |
+
+#### Read Simulation
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--simulate-read` | false | Enable parallel LoadTable reads during benchmark |
+| `--read-concurrent` | 20 | Number of read workers |
+| `--read-rps-limit` | 400 | RPS limit for read workers (0 = unlimited) |
 
 #### Retry/Conflict Handling
 | Flag | Default | Description |
@@ -326,40 +340,38 @@ warp iceberg write [FLAGS]
 | `--backoff-max` | 60s | Maximum backoff duration |
 
 ### Operations Recorded
-- `UPLOAD`: Parquet file upload to S3
+- `UPLOAD`: Parquet file upload to S3 (when not using `--skip-upload`)
 - `COMMIT`: Iceberg table commit with file references
+- `TABLE_GET`: LoadTable read operations (when `--simulate-read` enabled)
 
 ### Example
 ```bash
-# Basic write benchmark
-warp iceberg write \
+# Sustained commits (1 every 2 sec) with 400 reads/sec
+warp iceberg sustained \
   --host=localhost:9000 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
-  --namespace-width=2 \
-  --namespace-depth=2 \
-  --tables-per-ns=5 \
-  --concurrent=20 \
-  --duration=1m
+  --duration=1h \
+  --concurrent=1 \
+  --rps-limit=0.5 \
+  --simulate-read \
+  --read-concurrent=10 \
+  --read-rps-limit=400
 
-# With TPC-DS data
-warp iceberg write \
+# Commit-only benchmark (no reads)
+warp iceberg sustained \
   --host=localhost:9000 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
-  --tpcds \
-  --scale-factor=sf100 \
-  --tpcds-table=store_sales
+  --rps-limit=1
 
-# Commit-only benchmark (no uploads during benchmark)
-warp iceberg write \
+# With uploads during benchmark (not just prepare)
+warp iceberg sustained \
   --host=localhost:9000 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
-  --tpcds \
-  --scale-factor=1GB \
-  --skip-upload \
-  --files-per-commit=3
+  --skip-upload=false \
+  --duration=1h
 ```
 
 ---

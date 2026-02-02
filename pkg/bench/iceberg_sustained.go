@@ -35,6 +35,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
 	warpiceberg "github.com/minio/warp/pkg/iceberg"
+	"golang.org/x/time/rate"
 )
 
 type Iceberg struct {
@@ -69,6 +70,11 @@ type Iceberg struct {
 	S3TLS       bool
 	s3Clients   []*minio.Client
 	s3Counter   uint64
+
+	SimulateRead   bool
+	ReadConcurrent int
+	ReadRpsLimit   float64
+	readRpsLimiter *rate.Limiter
 
 	dataFiles      []string
 	preparedPaths  []string
@@ -399,7 +405,14 @@ func (b *Iceberg) uploadPreparedFiles(ctx context.Context) error {
 
 func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 	var wg sync.WaitGroup
-	wg.Add(b.Concurrency)
+	readWorkers := 0
+	if b.SimulateRead {
+		readWorkers = b.ReadConcurrent
+		if b.ReadRpsLimit > 0 {
+			b.readRpsLimiter = rate.NewLimiter(rate.Limit(b.ReadRpsLimit), 1)
+		}
+	}
+	wg.Add(b.Concurrency + readWorkers)
 	c := b.Collector
 
 	if b.AutoTermDur > 0 {
@@ -542,8 +555,60 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 		}(i, workerFiles)
 	}
 
+	for i := 0; i < readWorkers; i++ {
+		go func(workerID int) {
+			rcv := c.Receiver()
+			defer wg.Done()
+
+			done := ctx.Done()
+			tableIdx := workerID
+
+			<-wait
+
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+
+				if b.readRpsLimiter != nil {
+					if err := b.readRpsLimiter.Wait(ctx); err != nil {
+						return
+					}
+				}
+
+				tbl := b.tables[tableIdx%len(b.tables)]
+				tableIdx++
+
+				b.doLoadTable(ctx, rcv, tbl, uint32(workerID))
+			}
+		}(i)
+	}
+
 	wg.Wait()
 	return nil
+}
+
+func (b *Iceberg) doLoadTable(ctx context.Context, rcv chan<- Operation, tbl warpiceberg.TableInfo, workerID uint32) {
+	ident := append([]string{}, tbl.Namespace...)
+	ident = append(ident, tbl.Name)
+
+	cat := b.getCatalog()
+
+	op := Operation{
+		OpType:   OpTableGet,
+		Thread:   workerID,
+		File:     fmt.Sprintf("%s/%s/%s", b.TreeConfig.CatalogName, strings.Join(tbl.Namespace, "."), tbl.Name),
+		Endpoint: b.TreeConfig.CatalogName,
+	}
+	op.Start = time.Now()
+	_, err := cat.LoadTable(ctx, ident)
+	op.End = time.Now()
+	if err != nil {
+		op.Err = err.Error()
+	}
+	rcv <- op
 }
 
 func (b *Iceberg) buildPreparedPaths() error {

@@ -28,7 +28,7 @@ import (
 	"github.com/minio/warp/pkg/iceberg"
 )
 
-var icebergWriteFlags = []cli.Flag{
+var icebergSustainedFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "external-catalog",
 		Usage: "External catalog type (polaris)",
@@ -52,7 +52,7 @@ var icebergWriteFlags = []cli.Flag{
 	cli.IntFlag{
 		Name:  "tables-per-ns",
 		Usage: "Number of tables per leaf namespace",
-		Value: 3,
+		Value: 1,
 	},
 	cli.IntFlag{
 		Name:  "columns",
@@ -104,7 +104,7 @@ var icebergWriteFlags = []cli.Flag{
 		Usage: "Maximum backoff duration for commit retries",
 		Value: "60s",
 	},
-	cli.BoolFlag{
+	cli.BoolTFlag{
 		Name:  "skip-upload",
 		Usage: "Upload files once in prepare, then only benchmark commits (no upload during benchmark)",
 	},
@@ -141,16 +141,30 @@ var icebergWriteFlags = []cli.Flag{
 		Name:  "s3-tls",
 		Usage: "Use TLS for S3 connection when using external catalog",
 	},
+	cli.BoolFlag{
+		Name:  "simulate-read",
+		Usage: "Enable parallel LoadTable reads during write benchmark",
+	},
+	cli.IntFlag{
+		Name:  "read-concurrent",
+		Usage: "Number of parallel read workers doing LoadTable operations",
+		Value: 20,
+	},
+	cli.Float64Flag{
+		Name:  "read-rps-limit",
+		Usage: "RPS limit for read workers (0 to disable)",
+		Value: 400,
+	},
 }
 
-var icebergWriteCombinedFlags = combineFlags(globalFlags, ioFlags, icebergWriteFlags, benchFlags, analyzeFlags)
+var icebergSustainedCombinedFlags = combineFlags(globalFlags, ioFlags, icebergSustainedFlags, benchFlags, analyzeFlags)
 
-var icebergWriteCmd = cli.Command{
-	Name:   "write",
-	Usage:  "benchmark Iceberg parquet upload and table commit",
-	Action: mainIcebergWrite,
+var icebergSustainedCmd = cli.Command{
+	Name:   "sustained",
+	Usage:  "sustained Iceberg workload with controlled RPS (commits + reads)",
+	Action: mainIcebergSustained,
 	Before: setGlobalsFromContext,
-	Flags:  icebergWriteCombinedFlags,
+	Flags:  icebergSustainedCombinedFlags,
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
 
@@ -158,51 +172,41 @@ USAGE:
   {{.HelpName}} [FLAGS]
 
 DESCRIPTION:
-  Benchmark Iceberg table write performance by uploading parquet files
-  to S3 storage and committing them to an Iceberg table.
-  Tests commit conflict handling under concurrent load.
+  Run a sustained Iceberg workload with controlled request rates.
+  Designed for long-running tests with specific RPS limits for commits and reads.
 
-  The benchmark can operate in two modes:
+  The benchmark supports two concurrent workloads:
+  1. Commits: Upload parquet files and commit to Iceberg tables (controlled by --rps-limit)
+  2. Reads: LoadTable operations (enabled with --simulate-read, controlled by --read-rps-limit)
+
+  Data modes:
   1. Generated data (default): Creates synthetic parquet files
   2. TPC-DS data (--tpcds): Uses real TPC-DS benchmark data from GCS
 
-  The benchmark automatically:
-  - Creates warehouse, namespaces, and tables using the tree structure
-  - Downloads TPC-DS data from GCS if --tpcds is used and data isn't cached
-
-  Workers round-robin across tables in the tree, creating commit conflicts
-  when multiple workers target the same table.
-
-  Workflow:
-  1. Creates warehouse and dataset tree (namespaces + tables)
-  2. Downloads/generates data files
-  3. Uploads parquet files to S3 storage
-  4. Commits file references to Iceberg tables via REST catalog
-  5. Handles commit conflicts with exponential backoff retry
+  By default, files are uploaded once during prepare (--skip-upload=true).
+  Use --skip-upload=false to upload files during benchmark.
 
 EXAMPLES:
-  # Benchmark with generated data (default: 1 namespace, 3 tables)
-  {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin
-
-  # More tables for higher concurrency
+  # Sustained commits (1 every 2 sec) with 400 reads/sec
   {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --tables-per-ns=10 --concurrent=20
+    --duration=1h --concurrent=1 --rps-limit=0.5 \
+    --simulate-read --read-concurrent=20 --read-rps-limit=400
 
-  # Benchmark with TPC-DS data
+  # Commit-only benchmark
   {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --tpcds --scale-factor=sf100
+    --rps-limit=1
 
-  # Hierarchical namespace structure
+  # With uploads during benchmark
   {{.HelpName}} --host=localhost:9000 --access-key=minioadmin --secret-key=minioadmin \
-    --namespace-width=2 --namespace-depth=2 --tables-per-ns=5
+    --skip-upload=false --duration=1h
 
 FLAGS:
   {{range .VisibleFlags}}{{.}}
   {{end}}`,
 }
 
-func mainIcebergWrite(ctx *cli.Context) error {
-	checkIcebergWriteSyntax(ctx)
+func mainIcebergSustained(ctx *cli.Context) error {
+	checkIcebergSustainedSyntax(ctx)
 
 	backoffBase, err := time.ParseDuration(ctx.String("backoff-base"))
 	if err != nil {
@@ -281,12 +285,15 @@ func mainIcebergWrite(ctx *cli.Context) error {
 		S3AccessKey:     ctx.String("s3-access-key"),
 		S3SecretKey:     ctx.String("s3-secret-key"),
 		S3TLS:           ctx.Bool("s3-tls"),
+		SimulateRead:    ctx.Bool("simulate-read"),
+		ReadConcurrent:  ctx.Int("read-concurrent"),
+		ReadRpsLimit:    ctx.Float64("read-rps-limit"),
 	}
 
 	return runBench(ctx, &b)
 }
 
-func checkIcebergWriteSyntax(ctx *cli.Context) {
+func checkIcebergSustainedSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
