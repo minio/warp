@@ -92,7 +92,7 @@ var icebergCatalogMixedFlags = []cli.Flag{
 	cli.Float64Flag{
 		Name:  "ns-update-distrib",
 		Usage: "Weight of namespace update operations",
-		Value: 5,
+		Value: 0,
 	},
 	cli.Float64Flag{
 		Name:  "table-list-distrib",
@@ -207,11 +207,7 @@ EXAMPLES:
 
   # Read-only (disable all updates)
   {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
-    --ns-update-distrib 0 --table-update-distrib 0 --view-update-distrib 0
-
-  # Heavy writes
-  {{.HelpName}} --host localhost:9001 --access-key minioadmin --secret-key minioadmin \
-    --ns-update-distrib 20 --table-update-distrib 20 --view-update-distrib 20
+    --table-update-distrib 0 --view-update-distrib 0
 `,
 }
 

@@ -235,7 +235,7 @@ All read operations from catalog-read plus update operations:
 
 | Flag | Default | Operation |
 |------|---------|-----------|
-| `--ns-update-distrib` | 5 | Update namespace properties |
+| `--ns-update-distrib` | 0 | Update namespace properties |
 | `--table-update-distrib` | 5 | Update table properties |
 | `--view-update-distrib` | 5 | Update view properties |
 
@@ -264,18 +264,8 @@ warp iceberg catalog-mixed \
   --host=localhost:9001 \
   --access-key=minioadmin \
   --secret-key=minioadmin \
-  --ns-update-distrib=0 \
   --table-update-distrib=0 \
   --view-update-distrib=0
-
-# Heavy writes
-warp iceberg catalog-mixed \
-  --host=localhost:9001 \
-  --access-key=minioadmin \
-  --secret-key=minioadmin \
-  --ns-update-distrib=20 \
-  --table-update-distrib=20 \
-  --view-update-distrib=20
 ```
 
 ---
