@@ -28,7 +28,7 @@ var icebergSubcommands = []cli.Command{
 
 var icebergCmd = cli.Command{
 	Name:            "iceberg",
-	Usage:           "benchmark Iceberg catalog operations",
+	Usage:           "(ALPHA) benchmark Iceberg catalog operations",
 	Action:          icebergCmdNotFound,
 	Before:          setGlobalsFromContext,
 	Subcommands:     icebergSubcommands,

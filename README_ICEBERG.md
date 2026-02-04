@@ -1,5 +1,7 @@
 # Warp Iceberg Benchmarks
 
+> **ALPHA**: This feature is in alpha. Parameters and behavior may change in future releases.
+
 Warp provides benchmarking tools for Apache Iceberg REST catalog operations. These benchmarks test catalog metadata performance including namespace, table, and view operations.
 
 ## Overview
