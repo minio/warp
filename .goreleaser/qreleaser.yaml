@@ -1,0 +1,77 @@
+# GoReleaser configuration for qreleaser builds
+# This config is used by qreleaser (not the existing .goreleaser.yml for GitHub releases)
+version: 2
+
+snapshot:
+  version_template: "{{ .Env.VERSION_TAG }}"
+
+builds:
+  - id: warp
+    main: ./
+    binary: warp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+      - --tags=kqueue
+    ldflags:
+      # Match existing .goreleaser.yml ldflags format
+      - -s -w
+      - -X github.com/minio/warp/pkg.ReleaseTag={{ .Version }}
+      - -X github.com/minio/warp/pkg.CommitID={{ .FullCommit }}
+      - -X github.com/minio/warp/pkg.Version={{ .Version }}
+      - -X github.com/minio/warp/pkg.ShortCommitID={{ .ShortCommit }}
+      - -X github.com/minio/warp/pkg.ReleaseTime={{ .Date }}
+    hooks:
+      post: sh -c "cd $(dirname {{ .Path }}) && sha256sum $(basename {{ .Path }}) > $(basename {{ .Path }}).sha256sum"
+
+archives:
+  - id: warp-archive
+    formats: [binary]
+
+checksum:
+  disable: true
+
+binary_signs:
+  - id: minisign
+    cmd: minisign
+    signature: "${artifact}.minisig"
+    args:
+      - "-qQS"
+      - "-m"
+      - "${artifact}"
+      - "-x"
+      - "${signature}"
+      - "-s"
+      - '{{ envOrDefault "CREDS_DIR" ".q-test-creds" }}/minisign.key'
+    stdin: '{{ mustReadFile (printf "%s/minisign-passphrase" (envOrDefault "CREDS_DIR" ".q-test-creds")) }}'
+    artifacts: binary
+
+  - id: gpg
+    cmd: gpg
+    signature: "${artifact}.asc"
+    args:
+      - "--quiet"
+      - "--batch"
+      - "--detach-sign"
+      - "-a"
+      - "--output"
+      - "${signature}"
+      - "${artifact}"
+    artifacts: binary
+
+release:
+  disable: true
+
+announce:
+  skip: true
