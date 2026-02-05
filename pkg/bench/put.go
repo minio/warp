@@ -112,7 +112,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 				} else {
 					op.OpType = http.MethodPost
 					var verID string
-					verID, err = u.postPolicy(ctx, client, u.Bucket, obj)
+					verID, err = u.postPolicy(ctx, client.Client, u.Bucket, obj)
 					if err == nil {
 						res.Size = obj.Size
 						res.VersionID = verID

@@ -21,6 +21,7 @@ import (
 	"context"
 	"net"
 	stdHttp "net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -31,6 +32,9 @@ import (
 
 func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper {
 	// Keep TLS config.
+	rawHost := ctx.String("host")
+	u, _ := url.Parse("https://" + rawHost)
+	sni := u.Hostname()
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -38,6 +42,7 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
 		// Extra configs

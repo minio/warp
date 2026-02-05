@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/minio/minio-go/v7"
 )
 
 type Operations []Operation
@@ -1229,4 +1231,17 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 		log("%d operations loaded... Done!", n)
 	}
 	return nil
+}
+
+type Client struct {
+	*minio.Client
+	Host *url.URL
+}
+
+// EndpointURL returns the endpoint URL.
+func (c *Client) EndpointURL() *url.URL {
+	if c.Host != nil {
+		return c.Host
+	}
+	return c.Client.EndpointURL()
 }

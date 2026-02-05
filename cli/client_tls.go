@@ -20,6 +20,7 @@ package cli
 import (
 	"crypto/tls"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/minio/cli"
@@ -34,6 +35,7 @@ func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 	}
 

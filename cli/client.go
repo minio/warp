@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -51,16 +52,18 @@ const (
 	hostSelectTypeWeighed    hostSelectType = "weighed"
 )
 
-func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
-	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
+func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
+	rawHost := ctx.String("host")
+	hosts := parseHosts(rawHost, ctx.Bool("resolve-host"))
+
 	switch len(hosts) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
 	case 1:
-		cl, err := getClient(ctx, hosts[0])
+		cl, err := getClient(ctx, hosts[0], rawHost)
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
 
-		return func() (*minio.Client, func()) {
+		return func() (*bench.Client, func()) {
 			return cl, func() {}
 		}
 	}
@@ -70,13 +73,13 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		// Do round-robin.
 		var current int
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
+		clients := make([]*bench.Client, len(hosts))
 		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
+			cl, err := getClient(ctx, hosts[i], rawHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
-		return func() (*minio.Client, func()) {
+		return func() (*bench.Client, func()) {
 			mu.Lock()
 			now := current % len(clients)
 			current++
@@ -87,9 +90,9 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		// Keep track of handed out clients.
 		// Select random between the clients that have the fewest handed out.
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
+		clients := make([]*bench.Client, len(hosts))
 		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
+			cl, err := getClient(ctx, hosts[i], rawHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
@@ -122,7 +125,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 			}
 			return earliestIdx
 		}
-		return func() (*minio.Client, func()) {
+		return func() (*bench.Client, func()) {
 			mu.Lock()
 			idx := find()
 			running[idx]++
@@ -159,7 +162,21 @@ func detectLocalIP(host string) string {
 }
 
 // getClient creates a client with the specified host and the options set in the context.
-func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
+func getClient(
+	ctx *cli.Context,
+	host string,
+	originalHost string,
+) (*bench.Client, error) {
+	u, _ := url.Parse(originalHost)
+	if u == nil || u.Host == "" {
+		scheme := "http"
+		if ctx.Bool("tls") || ctx.Bool("ktls") {
+			scheme = "https"
+		}
+		u, _ = url.Parse(fmt.Sprintf("%s://%s", scheme, originalHost))
+	}
+	domainName := u.Host
+	transport := clientTransport(ctx, host)
 	var creds *credentials.Credentials
 	localIP := clientListenIP
 	if localIP == "" {
@@ -189,7 +206,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		if ctx.Bool("tls") || ctx.Bool("ktls") {
 			proto = "https"
 		}
-		stsEndPoint := fmt.Sprintf("%s://%s", proto, host)
+		stsEndPoint := fmt.Sprintf("%s://%s", proto, domainName)
 		creds, err = credentials.NewSTSWebIdentity(stsEndPoint, func() (*credentials.WebIdentityToken, error) {
 			stsToken := ctx.String("sts-web-token")
 			if stsTokenFile, hasFilePrefix := strings.CutPrefix(stsToken, "file:"); hasFilePrefix {
@@ -214,7 +231,7 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	} else if ctx.String("lookup") == "path" {
 		lookup = minio.BucketLookupPath
 	}
-	cl, err := minio.New(host, &minio.Options{
+	cl, err := minio.New(domainName, &minio.Options{
 		Creds:           creds,
 		Secure:          ctx.Bool("tls") || ctx.Bool("ktls"),
 		Region:          ctx.String("region"),
@@ -232,7 +249,10 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 		cl.TraceOn(os.Stderr)
 	}
 
-	return cl, nil
+	return &bench.Client{
+		Client: cl,
+		Host:   u,
+	}, nil
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
@@ -346,7 +366,7 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	cl, err := madmin.NewWithOptions(hosts[0], &madmin.Options{
 		Creds:     credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ""),
 		Secure:    ctx.Bool("tls") || ctx.Bool("ktls"),
-		Transport: clientTransport(ctx),
+		Transport: clientTransport(ctx, hosts[0]),
 	})
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
 	cl.SetAppInfo(appName, pkg.Version)

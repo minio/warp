@@ -85,7 +85,7 @@ func (g *MultipartPut) createMultupartUpload(ctx context.Context, objectName str
 
 	client, done := g.Client()
 	defer done()
-	c := minio.Core{Client: client}
+	c := minio.Core{Client: client.Client}
 	return c.NewMultipartUpload(nonTerm, g.Bucket, objectName, g.PutOpts)
 }
 
@@ -125,7 +125,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint32, objectNam
 				obj := g.Source().Object()
 				client, done := g.Client()
 				defer done()
-				core := minio.Core{Client: client}
+				core := minio.Core{Client: client.Client}
 				op := Operation{
 					OpType:   "PUTPART",
 					Thread:   thread*uint32(g.PartsConcurrency) + uint32(i),
@@ -184,7 +184,7 @@ func (g *MultipartPut) completeMultipartUpload(ctx context.Context, objectName, 
 	nonTerm := context.Background()
 
 	cl, done := g.Client()
-	c := minio.Core{Client: cl}
+	c := minio.Core{Client: cl.Client}
 	defer done()
 	_, err := c.CompleteMultipartUpload(nonTerm, g.Bucket, objectName, uploadID, parts, g.PutOpts)
 	return err
