@@ -22,8 +22,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/minio/cli"
@@ -32,46 +30,6 @@ import (
 var netDialer = &net.Dialer{
 	Timeout:   10 * time.Second,
 	KeepAlive: 10 * time.Second,
-}
-
-// Global counter for round-robin IP selection
-var ipSelectionCounter uint64
-
-// Cache for DNS results per hostname to ensure consistent round-robin.
-// Reduces overhead of repeated lookups during high-concurrency benchmarks.
-var dnsCache sync.Map // map[string][]string - hostname -> []IPs
-
-// resolveAndRotate picks an IP from DNS records in a round-robin fashion.
-// It returns the IP:Port for dialing and the original Hostname for SNI.
-func resolveAndRotate(dialCtx context.Context, addr string) (newAddr, host string, err error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr, "", err
-	}
-
-	var ipList []string
-	if cached, ok := dnsCache.Load(host); ok {
-		ipList = cached.([]string)
-	} else {
-		resolver := &net.Resolver{PreferGo: true}
-		ips, err := resolver.LookupIPAddr(dialCtx, host)
-		if err != nil {
-			return addr, host, err
-		}
-		for _, ip := range ips {
-			ipList = append(ipList, ip.String())
-		}
-		if len(ipList) > 0 {
-			dnsCache.Store(host, ipList)
-		}
-	}
-
-	if len(ipList) > 0 {
-		idx := atomic.AddUint64(&ipSelectionCounter, 1) - 1
-		selectedIP := ipList[idx%uint64(len(ipList))]
-		return net.JoinHostPort(selectedIP, port), host, nil
-	}
-	return addr, host, nil
 }
 
 type transportOption func(transport *http.Transport)
@@ -88,9 +46,24 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
-func newClientTransport(ctx *cli.Context, options ...transportOption) http.RoundTripper {
+func newClientTransport(ctx *cli.Context, targetIP string, options ...transportOption) http.RoundTripper {
+	isTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// Extract the port from the original address (e.g., "s3.boston...:443")
+			_, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				if isTLS {
+					port = "443"
+				} else {
+					port = "80"
+				}
+			}
+
+			dialAddr := net.JoinHostPort(targetIP, port)
+			return netDialer.DialContext(ctx, network, dialAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
@@ -109,18 +82,6 @@ func newClientTransport(ctx *cli.Context, options ...transportOption) http.Round
 		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
 		// See https://github.com/golang/go/issues/14275
 		ForceAttemptHTTP2: ctx.Bool("http2"),
-	}
-
-	tr.DialContext = func(dialCtx context.Context, network, addr string) (net.Conn, error) {
-		newAddr, host, _ := resolveAndRotate(dialCtx, addr)
-
-		// Ensure SNI is set to the original host so TLS verification passes
-		// when connecting via IP address.
-		if tr.TLSClientConfig != nil && tr.TLSClientConfig.ServerName == "" {
-			tr.TLSClientConfig.ServerName = host
-		}
-
-		return netDialer.DialContext(dialCtx, network, newAddr)
 	}
 
 	for _, option := range options {

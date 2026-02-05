@@ -21,6 +21,7 @@ import (
 	"context"
 	"net"
 	stdHttp "net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -29,8 +30,11 @@ import (
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, targetIP string) stdHttp.RoundTripper {
 	// Keep TLS config.
+	rawHost := ctx.String("host")
+	u, _ := url.Parse("https://" + rawHost)
+	sni := u.Hostname()
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -38,6 +42,7 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
 		// Extra configs
@@ -58,27 +63,26 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
 		dialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
-		customDialer := func(dialCtx context.Context, network, addr string) (net.Conn, error) {
-			newAddr, host, _ := resolveAndRotate(dialCtx, addr)
-			// Set SNI for the specialized kTLS dialer
-			if dialer.Config.ServerName == "" {
-				dialer.Config.ServerName = host
+		customDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			_, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				port = "443" // Default for KTLS
 			}
-			return dialer.DialContext(dialCtx, network, newAddr)
+			dialAddr := net.JoinHostPort(targetIP, port)
+			return dialer.DialContext(ctx, network, dialAddr)
 		}
-
-		return newClientTransport(ctx, withDialTLSContext(customDialer))
+		return newClientTransport(ctx, targetIP, withDialTLSContext(customDialer))
 	}
 
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
-		DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
-			newAddr, host, _ := resolveAndRotate(dialCtx, addr)
-			// Set SNI for the http.Transport's TLS config
-			if tlsConfig.ServerName == "" {
-				tlsConfig.ServerName = host
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			_, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				port = "443" // Default for KTLS
 			}
-			return netDialer.DialContext(dialCtx, network, newAddr)
+			dialAddr := net.JoinHostPort(targetIP, port)
+			return netDialer.DialContext(ctx, network, dialAddr)
 		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
