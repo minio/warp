@@ -107,7 +107,6 @@ func mergeJSON(ctx *cli.Context, args []string) error {
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
 	}
-
 	f, err := os.Create(fileName + ".json.zst")
 	if err != nil {
 		console.Error("Unable to write benchmark data:", err)
