@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
+	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
 )
 
@@ -48,7 +50,7 @@ var mergeCmd = cli.Command{
   {{.HelpName}} - {{.Usage}}
 
 USAGE:
-  {{.HelpName}} [FLAGS] benchmark-data-file1 benchmark-data-file2 ... 
+  {{.HelpName}} [FLAGS] benchmark-data-file1 benchmark-data-file2 ...
   -> see https://github.com/minio/warp#merging-benchmarks
 
 FLAGS:
@@ -56,13 +58,75 @@ FLAGS:
   {{end}}`,
 }
 
-// mainAnalyze is the entry point for analyze command.
 func mainMerge(ctx *cli.Context) error {
 	checkMerge(ctx)
 	args := ctx.Args()
 	if len(args) <= 1 {
 		console.Fatal("Two or more benchmark data files must be supplied")
 	}
+
+	rc, isJSON := openInput(args[0])
+	rc.Close()
+
+	if isJSON {
+		return mergeJSON(ctx, args)
+	}
+	return mergeCSV(ctx, args)
+}
+
+func timeOverlaps(a, b aggregate.LiveAggregate) bool {
+	return a.StartTime.Before(b.EndTime) && b.StartTime.Before(a.EndTime)
+}
+
+func mergeJSON(ctx *cli.Context, args []string) error {
+	var merged aggregate.Realtime
+	for i, arg := range args {
+		rc, isJSON := openInput(arg)
+		if !isJSON {
+			rc.Close()
+			fatalIf(probe.NewError(errors.New("mixed input types")), "mixed input types (JSON and CSV)")
+		}
+		var rt aggregate.Realtime
+		if err := json.NewDecoder(rc).Decode(&rt); err != nil {
+			rc.Close()
+			fatalIf(probe.NewError(err), "Unable to parse input")
+		}
+		rc.Close()
+		if i > 0 && !timeOverlaps(merged.Total, rt.Total) {
+			fatalIf(probe.NewError(fmt.Errorf(
+				"file %q (%s - %s) does not overlap with merged range (%s - %s)",
+				arg, rt.Total.StartTime.Format(time.RFC3339), rt.Total.EndTime.Format(time.RFC3339),
+				merged.Total.StartTime.Format(time.RFC3339), merged.Total.EndTime.Format(time.RFC3339),
+			)), "time ranges do not overlap")
+		}
+		merged.Merge(&rt)
+	}
+	merged.Final = true
+
+	fileName := ctx.String("benchdata")
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
+	}
+	f, err := os.Create(fileName + ".json.zst")
+	if err != nil {
+		console.Error("Unable to write benchmark data:", err)
+		return nil
+	}
+	defer f.Close()
+	enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+	fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+	defer enc.Close()
+
+	js := json.NewEncoder(enc)
+	js.SetIndent("", "  ")
+	err = js.Encode(merged)
+	fatalIf(probe.NewError(err), "Unable to write benchmark output")
+
+	console.Infof("Benchmark data written to %q\n", fileName+".json.zst")
+	return nil
+}
+
+func mergeCSV(ctx *cli.Context, args []string) error {
 	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
 	var allOps bench.Operations
@@ -72,6 +136,13 @@ func mainMerge(ctx *cli.Context) error {
 		log = nil
 	}
 	for _, arg := range args {
+		rc, isJSON := openInput(arg)
+		if isJSON {
+			rc.Close()
+			fatalIf(probe.NewError(errors.New("mixed input types")), "mixed input types (JSON and CSV)")
+		}
+		rc.Close()
+
 		f, err := os.Open(arg)
 		fatalIf(probe.NewError(err), "Unable to open input file")
 		defer f.Close()
