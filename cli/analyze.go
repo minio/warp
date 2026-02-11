@@ -155,6 +155,7 @@ func mainAnalyze(ctx *cli.Context) error {
 				final = *aggregate.Live(opCh, nil, "", nil)
 			}
 			// If -web is specified, spawn web UI
+			final.Final = true
 			monitor.UpdateAggregate(&final, "")
 			if ctx.Bool("web") {
 				srv := wui.New(&final)
