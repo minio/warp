@@ -50,13 +50,17 @@ function updateThemeButton(theme) {
     }
 }
 
+let chartGridColor = 'rgba(255,255,255,0.05)';
+
 function updateChartDefaults(theme) {
     if (theme === 'light') {
         Chart.defaults.color = 'hsl(0, 0%, 45.1%)';
         Chart.defaults.borderColor = 'hsl(0, 0%, 89.8%)';
+        chartGridColor = 'rgba(0,0,0,0.06)';
     } else {
         Chart.defaults.color = 'hsl(0, 0%, 64%)';
         Chart.defaults.borderColor = 'hsl(0, 0%, 15%)';
+        chartGridColor = 'rgba(255,255,255,0.05)';
     }
 }
 
@@ -594,7 +598,7 @@ function renderOpThroughputChart(opType, idx) {
                 },
                 y: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: chartGridColor }
                 }
             }
         }
@@ -665,7 +669,7 @@ function renderOpLatencyChart(opType, idx) {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: chartGridColor }
                 }
             }
         }
@@ -739,7 +743,7 @@ function renderOpTtfbChart(opType, idx) {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: chartGridColor }
                 }
             }
         }
@@ -770,6 +774,9 @@ function renderHostsTable() {
                 <div class="breakdown-chart-container">
                     <canvas id="host-chart-${currentChartIdx}"></canvas>
                 </div>
+                ${hasTtfb(opType) ? `<div class="breakdown-chart-container">
+                    <canvas id="host-ttfb-chart-${currentChartIdx}"></canvas>
+                </div>` : ''}
                 <table>
                     <thead>
                         <tr>
@@ -806,7 +813,9 @@ function renderHostsTable() {
     // Render charts for each op type
     chartIdx = 0;
     opTypes.forEach((opType) => {
-        renderHostThroughputChart(opType, chartIdx++, hosts);
+        const ci = chartIdx++;
+        renderHostThroughputChart(opType, ci, hosts);
+        renderHostTtfbChart(opType, ci, hosts);
     });
 }
 
@@ -834,6 +843,9 @@ function renderClientsTable() {
                 <div class="breakdown-chart-container">
                     <canvas id="client-chart-${currentChartIdx}"></canvas>
                 </div>
+                ${hasTtfb(opType) ? `<div class="breakdown-chart-container">
+                    <canvas id="client-ttfb-chart-${currentChartIdx}"></canvas>
+                </div>` : ''}
                 <table>
                     <thead>
                         <tr>
@@ -870,7 +882,9 @@ function renderClientsTable() {
     // Render charts for each op type
     chartIdx = 0;
     opTypes.forEach((opType) => {
-        renderClientThroughputChart(opType, chartIdx++, clients);
+        const ci = chartIdx++;
+        renderClientThroughputChart(opType, ci, clients);
+        renderClientTtfbChart(opType, ci, clients);
     });
 }
 
@@ -963,7 +977,7 @@ function renderHostThroughputChart(opType, idx, hosts) {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'MiB/s', font: { size: 10 } },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: chartGridColor }
                 }
             }
         }
@@ -1043,7 +1057,125 @@ function renderClientThroughputChart(opType, idx, clients) {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: 'MiB/s', font: { size: 10 } },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: chartGridColor }
+                }
+            }
+        }
+    });
+}
+
+function renderHostTtfbChart(opType, idx, hosts) {
+    if (!hasTtfb(opType)) return;
+
+    const byHostData = data.by_host || {};
+    const canvas = document.getElementById(`host-ttfb-chart-${idx}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const datasets = [];
+    hosts.forEach((host, hostIdx) => {
+        const hostAgg = byHostData[host];
+        const ttfbTs = sampleData(getTtfbTimeSeries(hostAgg));
+        if (ttfbTs && ttfbTs.length > 0) {
+            datasets.push({
+                label: host + ' P50',
+                data: ttfbTs.map(s => ({ x: s.time, y: s.p50 })),
+                borderColor: getSeriesColor(hostIdx),
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2
+            });
+        }
+    });
+
+    if (datasets.length === 0) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: true, text: 'TTFB (P50)', font: { size: 11 } },
+                legend: {
+                    display: datasets.length > 1,
+                    position: 'top',
+                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { displayFormats: { second: 'HH:mm:ss' } },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'ms', font: { size: 10 } },
+                    grid: { color: chartGridColor }
+                }
+            }
+        }
+    });
+}
+
+function renderClientTtfbChart(opType, idx, clients) {
+    if (!hasTtfb(opType)) return;
+
+    const byClientData = data.by_client || {};
+    const canvas = document.getElementById(`client-ttfb-chart-${idx}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const datasets = [];
+    clients.forEach((client, clientIdx) => {
+        const clientAgg = byClientData[client];
+        const ttfbTs = sampleData(getTtfbTimeSeries(clientAgg));
+        if (ttfbTs && ttfbTs.length > 0) {
+            datasets.push({
+                label: client + ' P50',
+                data: ttfbTs.map(s => ({ x: s.time, y: s.p50 })),
+                borderColor: getSeriesColor(clientIdx),
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2
+            });
+        }
+    });
+
+    if (datasets.length === 0) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: true, text: 'TTFB (P50)', font: { size: 11 } },
+                legend: {
+                    display: datasets.length > 1,
+                    position: 'top',
+                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { displayFormats: { second: 'HH:mm:ss' } },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'ms', font: { size: 10 } },
+                    grid: { color: chartGridColor }
                 }
             }
         }
