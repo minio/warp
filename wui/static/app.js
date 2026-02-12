@@ -1,11 +1,11 @@
-// Warp Web UI Application - Redesigned
+// Warp Web UI Application — shadcn/eos design system
 
-// Color palette
+// Color palette — matches eos chart variables exactly
 const chartColors = {
     blue: 'hsl(217, 91%, 60%)',
     cyan: 'hsl(187, 95%, 42%)',
     amber: 'hsl(38, 92%, 50%)',
-    purple: 'hsl(280, 65%, 60%)',
+    purple: 'hsl(271, 91%, 65%)',
     pink: 'hsl(330, 81%, 60%)',
     success: 'hsl(142, 71%, 45%)',
     error: 'hsl(0, 84%, 60%)',
@@ -50,7 +50,7 @@ function updateThemeButton(theme) {
     }
 }
 
-let chartGridColor = 'rgba(255,255,255,0.05)';
+let chartGridColor = 'rgba(255,255,255,0.06)';
 
 function updateChartDefaults(theme) {
     if (theme === 'light') {
@@ -60,7 +60,7 @@ function updateChartDefaults(theme) {
     } else {
         Chart.defaults.color = 'hsl(0, 0%, 64%)';
         Chart.defaults.borderColor = 'hsl(0, 0%, 15%)';
-        chartGridColor = 'rgba(255,255,255,0.05)';
+        chartGridColor = 'rgba(255,255,255,0.06)';
     }
 }
 
@@ -70,10 +70,71 @@ document.body.classList.toggle('light', initialTheme === 'light');
 updateChartDefaults(initialTheme);
 Chart.defaults.font.family = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
+// Tooltip — eos style: bg-[#1a1a1a] border-border rounded-lg shadow-lg
+Chart.defaults.plugins.tooltip.backgroundColor = '#1a1a1a';
+Chart.defaults.plugins.tooltip.borderColor = 'hsl(0, 0%, 15%)';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.cornerRadius = 8;
+Chart.defaults.plugins.tooltip.padding = { top: 8, bottom: 8, left: 12, right: 12 };
+Chart.defaults.plugins.tooltip.titleFont = { size: 12, weight: '500' };
+Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
+Chart.defaults.plugins.tooltip.titleMarginBottom = 4;
+Chart.defaults.plugins.tooltip.usePointStyle = true;
+Chart.defaults.plugins.tooltip.boxPadding = 4;
+
+// Line/point defaults — eos uses strokeWidth 1.5
+Chart.defaults.elements.line.borderWidth = 1.5;
+Chart.defaults.elements.line.tension = 0.4;
+Chart.defaults.elements.point.radius = 0;
+Chart.defaults.elements.point.hoverRadius = 4;
+Chart.defaults.elements.point.hoverBorderWidth = 2;
+
 document.getElementById('theme-toggle').addEventListener('click', () => {
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
 });
 updateThemeButton(initialTheme);
+
+// Create gradient fill like eos: opacity 0.15 at top → 0 at bottom
+function createGradientFill(ctx, color, opacity) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+    gradient.addColorStop(0, color.replace(')', `, ${opacity || 0.15})`).replace('hsl', 'hsla'));
+    gradient.addColorStop(1, color.replace(')', ', 0)').replace('hsl', 'hsla'));
+    return gradient;
+}
+
+// Shared scale config — eos: axisLine=false, tickLine=false, fontSize=12, dashed grid
+function chartScales(opts) {
+    return {
+        x: {
+            type: 'time',
+            time: { displayFormats: { second: 'HH:mm:ss' } },
+            grid: { display: false },
+            ticks: { font: { size: 12 }, color: 'hsl(0, 0%, 64%)' },
+            border: { display: false }
+        },
+        y: {
+            beginAtZero: true,
+            title: opts?.yTitle ? { display: true, text: opts.yTitle, font: { size: 10 } } : undefined,
+            grid: { color: chartGridColor, borderDash: [3, 3] },
+            ticks: { font: { size: 12 }, color: 'hsl(0, 0%, 64%)' },
+            border: { display: false }
+        }
+    };
+}
+
+// Shared legend config — eos: small circle indicators
+const chartLegend = {
+    display: true,
+    position: 'top',
+    labels: {
+        boxWidth: 8,
+        boxHeight: 8,
+        usePointStyle: true,
+        pointStyle: 'circle',
+        padding: 12,
+        font: { size: 12 }
+    }
+};
 
 // Utility functions
 function formatBytes(bytes) {
@@ -92,8 +153,11 @@ function formatBytesPerSec(bps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function formatThroughput(bps) {
-    if (bps === 0) return { value: '0', unit: 'B/s' };
+function formatThroughput(bps, ops) {
+    if ((!bps || bps === 0) && ops > 0) {
+        return { value: parseFloat(ops.toFixed(1)), unit: 'obj/s' };
+    }
+    if (!bps || bps === 0) return { value: '0', unit: 'B/s' };
     const k = 1024;
     const sizes = ['B/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'];
     const i = Math.floor(Math.log(bps) / Math.log(k));
@@ -131,15 +195,11 @@ function getOpColor(opType) {
     return opColors[opType.toUpperCase()] || chartColors.primary;
 }
 
-// Check if operation should show TTFB
-// Only PUT and POST (uploads) don't have TTFB
 function hasTtfb(opType) {
     const uploadOps = ['PUT', 'POST'];
     return !uploadOps.includes(opType.toUpperCase());
 }
 
-// Sample data to reduce points for smoother charts
-// Keeps ~maxPoints evenly distributed samples
 function sampleData(arr, maxPoints = 100) {
     if (!arr || arr.length <= maxPoints) return arr;
     const step = arr.length / maxPoints;
@@ -147,7 +207,6 @@ function sampleData(arr, maxPoints = 100) {
     for (let i = 0; i < arr.length; i += step) {
         sampled.push(arr[Math.floor(i)]);
     }
-    // Always include the last point
     if (sampled[sampled.length - 1] !== arr[arr.length - 1]) {
         sampled.push(arr[arr.length - 1]);
     }
@@ -291,18 +350,18 @@ function renderHeroStats() {
         opsPerSec = (tp.ops * 1000) / tp.measure_duration_millis;
     }
 
-    const throughput = formatThroughput(bps);
+    const throughput = formatThroughput(bps, opsPerSec);
 
     container.innerHTML = `
-        <div class="hero-stat primary">
+        <div class="hero-stat">
             <div class="label">Peak Throughput</div>
             <div class="value">${throughput.value}<span class="unit"> ${throughput.unit}</span></div>
         </div>
-        <div class="hero-stat success">
+        <div class="hero-stat">
             <div class="label">Operations</div>
             <div class="value">${formatNumber(total.total_requests || 0)}</div>
         </div>
-        <div class="hero-stat info">
+        <div class="hero-stat">
             <div class="label">Data Transferred</div>
             <div class="value">${formatBytes(total.total_bytes || 0)}</div>
         </div>
@@ -333,7 +392,8 @@ function renderOperationCards() {
             opsPerSec = (tp.ops * 1000) / tp.measure_duration_millis;
         }
 
-        const throughput = formatThroughput(bps);
+        const throughput = formatThroughput(bps, opsPerSec);
+        const hasBps = bps > 0;
         const latencyData = getLatencyStats(opData);
 
         return `
@@ -349,20 +409,20 @@ function renderOperationCards() {
                     </div>
                 </div>
                 <div class="op-card-body">
-                    <div class="op-metrics">
-                        <div class="op-metric">
+                    <div class="stat-group">
+                        <div class="stat-group-item">
                             <div class="label">Requests</div>
                             <div class="value">${formatNumber(opData?.total_requests || 0)}</div>
                         </div>
-                        <div class="op-metric">
+                        <div class="stat-group-item">
                             <div class="label">Data</div>
                             <div class="value">${formatBytes(opData?.total_bytes || 0)}</div>
                         </div>
-                        <div class="op-metric">
+                        <div class="stat-group-item">
                             <div class="label">Ops/sec</div>
                             <div class="value">${opsPerSec.toFixed(1)}</div>
                         </div>
-                        <div class="op-metric">
+                        <div class="stat-group-item">
                             <div class="label">Concurrency</div>
                             <div class="value">${opData?.concurrency || '-'}</div>
                         </div>
@@ -375,15 +435,15 @@ function renderOperationCards() {
                             <div class="latency-grid">
                                 <div class="latency-item">
                                     <div class="percentile">Median</div>
-                                    <div class="time">${formatThroughput(tp.segmented.median_bps).value} ${formatThroughput(tp.segmented.median_bps).unit}</div>
+                                    <div class="time">${formatThroughput(tp.segmented.median_bps, tp.segmented.median_ops).value} ${formatThroughput(tp.segmented.median_bps, tp.segmented.median_ops).unit}</div>
                                 </div>
                                 <div class="latency-item">
                                     <div class="percentile">Fastest</div>
-                                    <div class="time" style="color: ${chartColors.success};">${formatThroughput(tp.segmented.fastest_bps).value} ${formatThroughput(tp.segmented.fastest_bps).unit}</div>
+                                    <div class="time" style="color: ${chartColors.success};">${formatThroughput(tp.segmented.fastest_bps, tp.segmented.fastest_ops).value} ${formatThroughput(tp.segmented.fastest_bps, tp.segmented.fastest_ops).unit}</div>
                                 </div>
                                 <div class="latency-item">
                                     <div class="percentile">Slowest</div>
-                                    <div class="time" style="color: ${chartColors.error};">${formatThroughput(tp.segmented.slowest_bps).value} ${formatThroughput(tp.segmented.slowest_bps).unit}</div>
+                                    <div class="time" style="color: ${chartColors.error};">${formatThroughput(tp.segmented.slowest_bps, tp.segmented.slowest_ops).value} ${formatThroughput(tp.segmented.slowest_bps, tp.segmented.slowest_ops).unit}</div>
                                 </div>
                             </div>
                             ` : ''}
@@ -444,7 +504,6 @@ function renderOperationCards() {
         `;
     }).join('');
 
-    // Render charts
     opTypes.forEach((opType, idx) => {
         renderOpThroughputChart(opType, idx);
         renderOpLatencyChart(opType, idx);
@@ -510,6 +569,34 @@ function getTtfbStats(opData) {
     };
 }
 
+function mergeTimeSeriesByTimestamp(segments) {
+    if (segments.length === 0) return [];
+    segments.sort((a, b) => a.time - b.time);
+
+    const merged = [];
+    let i = 0;
+    while (i < segments.length) {
+        const ts = segments[i].time.getTime();
+        let avg = 0, p50 = 0, p90 = 0, p99 = 0, count = 0;
+        while (i < segments.length && segments[i].time.getTime() === ts) {
+            avg += segments[i].avg;
+            p50 += segments[i].p50;
+            p90 += segments[i].p90;
+            p99 += segments[i].p99;
+            count++;
+            i++;
+        }
+        merged.push({
+            time: new Date(ts),
+            avg: avg / count,
+            p50: p50 / count,
+            p90: p90 / count,
+            p99: p99 / count
+        });
+    }
+    return merged;
+}
+
 function getLatencyTimeSeries(opData) {
     if (!opData?.requests_by_client) return null;
 
@@ -530,8 +617,7 @@ function getLatencyTimeSeries(opData) {
     }
 
     if (segments.length === 0) return null;
-    segments.sort((a, b) => a.time - b.time);
-    return segments;
+    return mergeTimeSeriesByTimestamp(segments);
 }
 
 function getTtfbTimeSeries(opData) {
@@ -556,8 +642,7 @@ function getTtfbTimeSeries(opData) {
     }
 
     if (segments.length === 0) return null;
-    segments.sort((a, b) => a.time - b.time);
-    return segments;
+    return mergeTimeSeriesByTimestamp(segments);
 }
 
 function renderOpThroughputChart(opType, idx) {
@@ -568,6 +653,7 @@ function renderOpThroughputChart(opType, idx) {
     const canvas = document.getElementById(`op-throughput-${idx}`);
     const ctx = canvas.getContext('2d');
     const color = getOpColor(opType);
+    const useOps = segments.every(s => !s.bytes_per_sec || s.bytes_per_sec === 0);
 
     new Chart(ctx, {
         type: 'line',
@@ -576,31 +662,19 @@ function renderOpThroughputChart(opType, idx) {
                 label: 'Throughput',
                 data: segments.map(s => ({
                     x: new Date(s.start),
-                    y: s.bytes_per_sec > 0 ? s.bytes_per_sec / (1024 * 1024) : s.obj_per_sec
+                    y: useOps ? s.obj_per_sec : s.bytes_per_sec / (1024 * 1024)
                 })),
                 borderColor: color,
-                backgroundColor: color + '15',
+                backgroundColor: createGradientFill(ctx, color, 0.15),
                 fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
+                pointRadius: 0
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: { color: chartGridColor }
-                }
-            }
+            scales: chartScales({ yTitle: useOps ? 'obj/s' : 'MiB/s' })
         }
     });
 }
@@ -621,11 +695,9 @@ function renderOpLatencyChart(opType, idx) {
                     label: 'P50',
                     data: latencyTs.map(s => ({ x: s.time, y: s.p50 })),
                     borderColor: chartColors.success,
-                    backgroundColor: chartColors.success + '15',
+                    backgroundColor: createGradientFill(ctx, chartColors.success, 0.12),
                     fill: true,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 },
                 {
                     label: 'P90',
@@ -633,9 +705,7 @@ function renderOpLatencyChart(opType, idx) {
                     borderColor: chartColors.amber,
                     backgroundColor: 'transparent',
                     fill: false,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 },
                 {
                     label: 'P99',
@@ -643,9 +713,7 @@ function renderOpLatencyChart(opType, idx) {
                     borderColor: chartColors.error,
                     backgroundColor: 'transparent',
                     fill: false,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 }
             ]
         },
@@ -653,31 +721,13 @@ function renderOpLatencyChart(opType, idx) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            plugins: { legend: chartLegend },
+            scales: chartScales({ yTitle: 'ms' })
         }
     });
 }
 
 function renderOpTtfbChart(opType, idx) {
-    // Skip TTFB chart for write operations (PUT, POST - no TTFB concept)
     if (!hasTtfb(opType)) return;
 
     const opData = data.by_op_type[opType];
@@ -695,11 +745,9 @@ function renderOpTtfbChart(opType, idx) {
                     label: 'P50',
                     data: ttfbTs.map(s => ({ x: s.time, y: s.p50 })),
                     borderColor: chartColors.cyan,
-                    backgroundColor: chartColors.cyan + '15',
+                    backgroundColor: createGradientFill(ctx, chartColors.cyan, 0.12),
                     fill: true,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 },
                 {
                     label: 'P90',
@@ -707,9 +755,7 @@ function renderOpTtfbChart(opType, idx) {
                     borderColor: chartColors.amber,
                     backgroundColor: 'transparent',
                     fill: false,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 },
                 {
                     label: 'P99',
@@ -717,9 +763,7 @@ function renderOpTtfbChart(opType, idx) {
                     borderColor: chartColors.purple,
                     backgroundColor: 'transparent',
                     fill: false,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    borderWidth: 2
+                    pointRadius: 0
                 }
             ]
         },
@@ -727,25 +771,8 @@ function renderOpTtfbChart(opType, idx) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            plugins: { legend: chartLegend },
+            scales: chartScales({ yTitle: 'ms' })
         }
     });
 }
@@ -770,7 +797,7 @@ function renderHostsTable() {
 
         return `
             <div class="op-table-section">
-                <h3><span class="badge" style="background: ${color};">${opType}</span> by Server</h3>
+                <h3 class="section-label"><span class="badge" style="background: ${color};">${opType}</span> by Server</h3>
                 <div class="breakdown-chart-container">
                     <canvas id="host-chart-${currentChartIdx}"></canvas>
                 </div>
@@ -793,7 +820,10 @@ function renderHostsTable() {
                             const bps = hostData.measure_duration_millis > 0
                                 ? (hostData.bytes * 1000) / hostData.measure_duration_millis
                                 : 0;
-                            const tp = formatThroughput(bps);
+                            const ops = hostData.measure_duration_millis > 0
+                                ? (hostData.ops * 1000) / hostData.measure_duration_millis
+                                : 0;
+                            const tp = formatThroughput(bps, ops);
                             return `
                                 <tr>
                                     <td>${host}</td>
@@ -810,7 +840,6 @@ function renderHostsTable() {
         `;
     }).join('');
 
-    // Render charts for each op type
     chartIdx = 0;
     opTypes.forEach((opType) => {
         const ci = chartIdx++;
@@ -839,7 +868,7 @@ function renderClientsTable() {
 
         return `
             <div class="op-table-section">
-                <h3><span class="badge" style="background: ${color};">${opType}</span> by Client</h3>
+                <h3 class="section-label"><span class="badge" style="background: ${color};">${opType}</span> by Client</h3>
                 <div class="breakdown-chart-container">
                     <canvas id="client-chart-${currentChartIdx}"></canvas>
                 </div>
@@ -862,7 +891,10 @@ function renderClientsTable() {
                             const bps = clientData.measure_duration_millis > 0
                                 ? (clientData.bytes * 1000) / clientData.measure_duration_millis
                                 : 0;
-                            const tp = formatThroughput(bps);
+                            const ops = clientData.measure_duration_millis > 0
+                                ? (clientData.ops * 1000) / clientData.measure_duration_millis
+                                : 0;
+                            const tp = formatThroughput(bps, ops);
                             return `
                                 <tr>
                                     <td>${client}</td>
@@ -879,7 +911,6 @@ function renderClientsTable() {
         `;
     }).join('');
 
-    // Render charts for each op type
     chartIdx = 0;
     opTypes.forEach((opType) => {
         const ci = chartIdx++;
@@ -908,12 +939,12 @@ function renderHostThroughputChart(opType, idx, hosts) {
     const opData = data.by_op_type[opType];
     const byHostData = data.by_host || {};
     const segments = sampleData(opData?.throughput?.segmented?.segments);
+    const useOps = segments ? segments.every(s => !s.bytes_per_sec || s.bytes_per_sec === 0) : false;
 
     const canvas = document.getElementById(`host-chart-${idx}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // Try to get per-host segmented data from by_host
     const datasets = [];
     hosts.forEach((host, hostIdx) => {
         const hostAgg = byHostData[host];
@@ -923,32 +954,28 @@ function renderHostThroughputChart(opType, idx, hosts) {
                 label: host,
                 data: hostSegments.map(s => ({
                     x: new Date(s.start),
-                    y: s.bytes_per_sec > 0 ? s.bytes_per_sec / (1024 * 1024) : s.obj_per_sec
+                    y: useOps ? s.obj_per_sec : s.bytes_per_sec / (1024 * 1024)
                 })),
                 borderColor: getSeriesColor(hostIdx),
                 backgroundColor: 'transparent',
                 fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
+                pointRadius: 0
             });
         }
     });
 
-    // Fall back to aggregate throughput if no per-host time series
     if (datasets.length === 0 && segments) {
+        const color = getOpColor(opType);
         datasets.push({
             label: 'All Servers',
             data: segments.map(s => ({
                 x: new Date(s.start),
-                y: s.bytes_per_sec > 0 ? s.bytes_per_sec / (1024 * 1024) : s.obj_per_sec
+                y: useOps ? s.obj_per_sec : s.bytes_per_sec / (1024 * 1024)
             })),
-            borderColor: getOpColor(opType),
-            backgroundColor: getOpColor(opType) + '15',
+            borderColor: color,
+            backgroundColor: createGradientFill(ctx, color, 0.15),
             fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            borderWidth: 2
+            pointRadius: 0
         });
     }
 
@@ -961,25 +988,8 @@ function renderHostThroughputChart(opType, idx, hosts) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    display: datasets.length > 1,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'MiB/s', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            plugins: { legend: { ...chartLegend, display: datasets.length > 1 } },
+            scales: chartScales({ yTitle: useOps ? 'obj/s' : 'MiB/s' })
         }
     });
 }
@@ -988,12 +998,12 @@ function renderClientThroughputChart(opType, idx, clients) {
     const opData = data.by_op_type[opType];
     const byClientData = data.by_client || {};
     const segments = sampleData(opData?.throughput?.segmented?.segments);
+    const useOps = segments ? segments.every(s => !s.bytes_per_sec || s.bytes_per_sec === 0) : false;
 
     const canvas = document.getElementById(`client-chart-${idx}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // Try to get per-client segmented data from by_client
     const datasets = [];
     clients.forEach((client, clientIdx) => {
         const clientAgg = byClientData[client];
@@ -1003,32 +1013,28 @@ function renderClientThroughputChart(opType, idx, clients) {
                 label: client,
                 data: clientSegments.map(s => ({
                     x: new Date(s.start),
-                    y: s.bytes_per_sec > 0 ? s.bytes_per_sec / (1024 * 1024) : s.obj_per_sec
+                    y: useOps ? s.obj_per_sec : s.bytes_per_sec / (1024 * 1024)
                 })),
                 borderColor: getSeriesColor(clientIdx),
                 backgroundColor: 'transparent',
                 fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
+                pointRadius: 0
             });
         }
     });
 
-    // Fall back to aggregate throughput if no per-client time series
     if (datasets.length === 0 && segments) {
+        const color = getOpColor(opType);
         datasets.push({
             label: 'All Clients',
             data: segments.map(s => ({
                 x: new Date(s.start),
-                y: s.bytes_per_sec > 0 ? s.bytes_per_sec / (1024 * 1024) : s.obj_per_sec
+                y: useOps ? s.obj_per_sec : s.bytes_per_sec / (1024 * 1024)
             })),
-            borderColor: getOpColor(opType),
-            backgroundColor: getOpColor(opType) + '15',
+            borderColor: color,
+            backgroundColor: createGradientFill(ctx, color, 0.15),
             fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            borderWidth: 2
+            pointRadius: 0
         });
     }
 
@@ -1041,25 +1047,8 @@ function renderClientThroughputChart(opType, idx, clients) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    display: datasets.length > 1,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'MiB/s', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            plugins: { legend: { ...chartLegend, display: datasets.length > 1 } },
+            scales: chartScales({ yTitle: useOps ? 'obj/s' : 'MiB/s' })
         }
     });
 }
@@ -1083,9 +1072,7 @@ function renderHostTtfbChart(opType, idx, hosts) {
                 borderColor: getSeriesColor(hostIdx),
                 backgroundColor: 'transparent',
                 fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
+                pointRadius: 0
             });
         }
     });
@@ -1101,24 +1088,9 @@ function renderHostTtfbChart(opType, idx, hosts) {
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 title: { display: true, text: 'TTFB (P50)', font: { size: 11 } },
-                legend: {
-                    display: datasets.length > 1,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
+                legend: { ...chartLegend, display: datasets.length > 1 }
             },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            scales: chartScales({ yTitle: 'ms' })
         }
     });
 }
@@ -1142,9 +1114,7 @@ function renderClientTtfbChart(opType, idx, clients) {
                 borderColor: getSeriesColor(clientIdx),
                 backgroundColor: 'transparent',
                 fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
+                pointRadius: 0
             });
         }
     });
@@ -1160,24 +1130,9 @@ function renderClientTtfbChart(opType, idx, clients) {
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 title: { display: true, text: 'TTFB (P50)', font: { size: 11 } },
-                legend: {
-                    display: datasets.length > 1,
-                    position: 'top',
-                    labels: { boxWidth: 12, padding: 8, font: { size: 10 } }
-                }
+                legend: { ...chartLegend, display: datasets.length > 1 }
             },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { displayFormats: { second: 'HH:mm:ss' } },
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'ms', font: { size: 10 } },
-                    grid: { color: chartGridColor }
-                }
-            }
+            scales: chartScales({ yTitle: 'ms' })
         }
     });
 }

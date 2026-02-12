@@ -1,4 +1,4 @@
-/* Warp Web UI Styles - eos/ Dark Theme */
+/* Warp Web UI — shadcn/eos design system */
 :root {
     --background: hsl(0 0% 4%);
     --foreground: hsl(0 0% 98%);
@@ -8,19 +8,34 @@
     --muted-foreground: hsl(0 0% 64%);
     --border: hsl(0 0% 15%);
     --primary: hsl(348 83% 47%);
-    --primary-foreground: hsl(0 0% 9%);
+    --primary-foreground: hsl(0 0% 98%);
     --success: hsl(142 71% 45%);
+    --success-foreground: hsl(0 0% 100%);
     --warning: hsl(38 92% 50%);
+    --warning-foreground: hsl(0 0% 100%);
     --error: hsl(0 84% 60%);
+    --info: hsl(217 91% 60%);
+    --info-foreground: hsl(0 0% 100%);
+    --accent: hsl(0 0% 15%);
+    --accent-foreground: hsl(0 0% 98%);
+    --secondary: hsl(0 0% 15%);
+    --secondary-foreground: hsl(0 0% 98%);
+    --popover: hsl(0 0% 9%);
+    --popover-foreground: hsl(0 0% 98%);
+    --destructive-foreground: hsl(0 0% 98%);
+    --input: hsl(0 0% 15%);
+    --ring: hsl(0 0% 83%);
     --chart-1: hsl(217 91% 60%);
     --chart-2: hsl(187 95% 42%);
     --chart-3: hsl(38 92% 50%);
-    --chart-4: hsl(280 65% 60%);
+    --chart-4: hsl(271 91% 65%);
     --chart-5: hsl(330 81% 60%);
     --radius: 0.5rem;
     --radius-sm: 0.375rem;
     --radius-lg: 0.625rem;
     --radius-xl: 0.875rem;
+    --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
+    --shadow-sm: 0px 1px 2px -1px rgba(0,0,0,0.1), 0px 1px 3px 0px rgba(0,0,0,0.1);
 }
 
 .light {
@@ -31,6 +46,14 @@
     --muted: hsl(0 0% 96.1%);
     --muted-foreground: hsl(0 0% 45.1%);
     --border: hsl(0 0% 89.8%);
+    --accent: hsl(0 0% 96.1%);
+    --accent-foreground: hsl(0 0% 9%);
+    --secondary: hsl(0 0% 96.1%);
+    --secondary-foreground: hsl(0 0% 9%);
+    --popover: hsl(0 0% 100%);
+    --popover-foreground: hsl(0 0% 3.9%);
+    --input: hsl(0 0% 89.8%);
+    --ring: hsl(0 0% 3.9%);
 }
 
 * {
@@ -105,7 +128,7 @@ main {
     padding: 1.5rem;
 }
 
-/* Benchmark Configuration Card */
+/* Config card */
 .config-card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -116,6 +139,7 @@ main {
     flex-wrap: wrap;
     gap: 1.5rem;
     align-items: flex-start;
+    box-shadow: var(--shadow-sm);
 }
 
 .config-header {
@@ -127,13 +151,14 @@ main {
 
 .config-header .op-badge {
     background: var(--primary);
-    color: white;
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius);
+    color: var(--primary-foreground);
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    border: none;
+    box-shadow: var(--shadow-xs);
 }
 
 .config-params {
@@ -150,7 +175,7 @@ main {
 }
 
 .config-param .label {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--muted-foreground);
     text-transform: uppercase;
@@ -158,7 +183,7 @@ main {
 }
 
 .config-param .value {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 500;
     color: var(--card-foreground);
     font-family: 'Geist Mono', monospace;
@@ -206,71 +231,44 @@ main {
     line-height: 1.5;
 }
 
-/* Hero Stats - Big impressive numbers */
+/* Hero stats */
 .hero-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .hero-stat {
-    background: linear-gradient(135deg, var(--card) 0%, var(--muted) 100%);
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     padding: 1.5rem;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-}
-
-.hero-stat::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: var(--accent-color, var(--primary));
+    box-shadow: var(--shadow-sm);
 }
 
 .hero-stat .label {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .hero-stat .value {
-    font-size: 2rem;
+    font-size: 1.375rem;
     font-weight: 700;
     color: var(--card-foreground);
     font-family: 'Geist Mono', monospace;
-    line-height: 1.2;
+    line-height: 1.75rem;
 }
 
 .hero-stat .unit {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--muted-foreground);
-    font-weight: 500;
+    font-weight: 400;
 }
 
-.hero-stat.primary {
-    --accent-color: var(--primary);
-}
-
-.hero-stat.success {
-    --accent-color: var(--success);
-}
-
-.hero-stat.info {
-    --accent-color: var(--chart-1);
-}
-
-
-/* Operation Cards - The star of the show */
+/* Operation cards — shadcn Card: rounded-xl border bg-card shadow-sm */
 .operation-cards {
     display: grid;
     gap: 1.5rem;
@@ -282,6 +280,7 @@ main {
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .op-card-header {
@@ -290,9 +289,6 @@ main {
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--border);
-    background: linear-gradient(90deg, var(--op-color, var(--primary)) 0%, transparent 100%);
-    background-size: 200px 100%;
-    background-repeat: no-repeat;
 }
 
 .op-card-header .op-name {
@@ -305,11 +301,12 @@ main {
     background: var(--op-color, var(--primary));
     color: white;
     font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.35rem 0.75rem;
-    border-radius: var(--radius);
+    font-weight: 500;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    border: none;
+    box-shadow: var(--shadow-xs);
 }
 
 .op-card-header .op-duration {
@@ -322,14 +319,20 @@ main {
 }
 
 .op-card-header .op-throughput .value {
-    font-size: 1.75rem;
+    font-size: 1.375rem;
     font-weight: 700;
     color: var(--card-foreground);
     font-family: 'Geist Mono', monospace;
+    line-height: 1.75rem;
+}
+
+.op-card-header .op-throughput .unit {
+    color: var(--muted-foreground);
+    font-weight: 400;
 }
 
 .op-card-header .op-throughput .label {
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     color: var(--muted-foreground);
     text-transform: uppercase;
 }
@@ -338,124 +341,132 @@ main {
     padding: 1.5rem;
 }
 
-.op-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1rem;
+/* Stat group — eos StatGroupItem pattern */
+.stat-group {
+    display: flex;
     margin-bottom: 1.5rem;
 }
 
-.op-metric {
-    background: var(--muted);
-    border-radius: var(--radius-lg);
-    padding: 1rem;
+.stat-group-item {
+    flex: 1;
+    border-right: 1px solid var(--border);
+    padding: 0 1.25rem;
 }
 
-.op-metric .label {
-    font-size: 0.65rem;
+.stat-group-item:first-child {
+    padding-left: 0;
+}
+
+.stat-group-item:last-child {
+    border-right: none;
+    padding-right: 0;
+}
+
+.stat-group-item .label {
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
 }
 
-.op-metric .value {
-    font-size: 1.125rem;
-    font-weight: 600;
+.stat-group-item .value {
+    margin-top: 0.25rem;
+    font-size: 1.375rem;
+    font-weight: 700;
     color: var(--card-foreground);
     font-family: 'Geist Mono', monospace;
+    line-height: 1.75rem;
 }
 
-.op-metric .sub {
-    font-size: 0.7rem;
+.stat-group-item .sub {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
     color: var(--muted-foreground);
-    margin-top: 0.25rem;
 }
 
+/* Charts — transparent inside card, no extra bg/border */
 .op-charts {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
+    gap: 2rem;
 }
 
 .op-chart-section {
-    background: var(--muted);
-    border-radius: var(--radius-lg);
-    padding: 1rem;
+    min-width: 0;
+    padding: 0.5rem 0;
 }
 
 .op-chart-section h4 {
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     margin-bottom: 0.75rem;
 }
 
 .op-chart-section canvas {
-    max-height: 180px;
+    max-height: 240px;
 }
 
-/* Latency breakdown */
+/* Latency summary — border-top separator like eos chart legend */
 .latency-grid {
     display: flex;
-    justify-content: center;
-    gap: 0.75rem;
+    gap: 2.5rem;
     margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
 }
 
 .latency-grid .latency-item {
     flex: 0 1 auto;
-    min-width: 80px;
 }
 
 .latency-item {
-    text-align: center;
-    padding: 0.5rem;
-    background: var(--card);
-    border-radius: var(--radius);
+    text-align: left;
 }
 
 .latency-item .percentile {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 500;
     color: var(--muted-foreground);
-    text-transform: uppercase;
 }
 
 .latency-item .time {
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-family: 'Geist Mono', monospace;
 }
 
-/* Detailed Section */
+/* Detailed section */
 .detailed-section {
     margin-top: 2rem;
 }
 
-/* Tabs */
+/* Tabs — shadcn: h-9 rounded-lg bg-muted p-1 */
 .tabs {
-    display: flex;
-    gap: 0.25rem;
+    display: inline-flex;
+    height: 2.25rem;
+    align-items: center;
+    gap: 0;
     margin-bottom: 1rem;
     background: var(--muted);
     padding: 0.25rem;
     border-radius: var(--radius-lg);
-    width: fit-content;
 }
 
 .tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
     color: var(--muted-foreground);
-    padding: 0.625rem 1rem;
+    padding: 0.25rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    border-radius: var(--radius);
-    transition: all 0.2s;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
     font-family: inherit;
+    white-space: nowrap;
 }
 
 .tab:hover {
@@ -464,8 +475,8 @@ main {
 
 .tab.active {
     color: var(--foreground);
-    background: var(--card);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    background: var(--background);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .tab-content {
@@ -476,13 +487,14 @@ main {
     display: block;
 }
 
-/* Tables */
+/* Tables — shadcn table */
 .table-container {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     padding: 1.5rem;
     overflow-x: auto;
+    box-shadow: var(--shadow-sm);
 }
 
 .table-container h2 {
@@ -495,25 +507,27 @@ main {
 table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.875rem;
 }
 
 th, td {
     text-align: left;
-    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border);
 }
 
 th {
-    font-size: 0.7rem;
-    font-weight: 600;
+    height: 3rem;
+    padding: 0 1rem;
+    font-weight: 500;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    vertical-align: middle;
 }
 
 td {
-    font-size: 0.875rem;
+    height: 3.25rem;
+    padding: 0.5rem 1rem;
     color: var(--card-foreground);
+    vertical-align: middle;
 }
 
 tr:last-child td {
@@ -521,7 +535,7 @@ tr:last-child td {
 }
 
 tr:hover td {
-    background: var(--muted);
+    background: color-mix(in srgb, var(--muted) 50%, transparent);
 }
 
 .clickable-row {
@@ -608,7 +622,17 @@ tr:hover td {
     max-height: 180px;
 }
 
-/* Host/Client sections in tables */
+/* Section label — eos: text-xs font-semibold uppercase tracking-wider */
+.section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+    margin-bottom: 0.5rem;
+}
+
+/* Host/Client sections */
 .op-table-section {
     margin-bottom: 2rem;
 }
@@ -629,23 +653,21 @@ tr:hover td {
 
 .op-table-section h3 .badge {
     font-size: 0.65rem;
-    padding: 0.25rem 0.5rem;
+    padding: 0.125rem 0.5rem;
     border-radius: var(--radius-sm);
     color: white;
-    font-weight: 600;
+    font-weight: 500;
+    box-shadow: var(--shadow-xs);
 }
 
-/* Breakdown charts for Server/Client views */
+/* Breakdown charts */
 .breakdown-chart-container {
-    background: var(--muted);
-    border-radius: var(--radius-lg);
-    padding: 1rem;
     margin-bottom: 1rem;
     height: 200px;
 }
 
 .breakdown-chart-container canvas {
-    max-height: 180px;
+    max-height: 200px;
 }
 
 /* Running notice */
@@ -696,12 +718,23 @@ footer a:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .op-metrics {
-        grid-template-columns: repeat(2, 1fr);
+    .stat-group {
+        flex-wrap: wrap;
+    }
+
+    .stat-group-item {
+        flex: 0 0 50%;
+        border-right: none;
+        padding: 0.5rem 0;
+    }
+
+    .stat-group-item:first-child {
+        padding-left: 0;
     }
 
     .latency-grid {
-        grid-template-columns: repeat(2, 1fr);
+        flex-wrap: wrap;
+        gap: 0.75rem 1.5rem;
     }
 
     header {
