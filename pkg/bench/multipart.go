@@ -54,7 +54,7 @@ func (g *Multipart) InitOnce(ctx context.Context) error {
 	g.UpdateStatus("Creating Object...")
 
 	cl, done := g.Client()
-	c := minio.Core{Client: cl.Client}
+	c := minio.Core{Client: cl}
 	defer done()
 	uploadID, err := c.NewMultipartUpload(ctx, g.Bucket, g.ObjName, g.PutOpts)
 	if err != nil {
@@ -109,7 +109,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 				obj := src.Object()
 				obj.Name = name
 				client, cldone := g.Client()
-				core := minio.Core{Client: client.Client}
+				core := minio.Core{Client: client}
 				op := Operation{
 					OpType:   http.MethodPut,
 					Thread:   uint32(i),
@@ -168,7 +168,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 
 func (g *Multipart) AfterPrepare(ctx context.Context) error {
 	cl, done := g.Client()
-	c := minio.Core{Client: cl.Client}
+	c := minio.Core{Client: cl}
 	defer done()
 	var parts []minio.CompletePart
 	i := 1

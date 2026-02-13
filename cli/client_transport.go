@@ -46,14 +46,15 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
-func newClientTransport(ctx *cli.Context, targetIP string, options ...transportOption) http.RoundTripper {
+func newClientTransport(ctx *cli.Context, endpoint string, options ...transportOption) http.RoundTripper {
 	isTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Extract the port from the original address (e.g., "s3.boston...:443")
-			_, port, err := net.SplitHostPort(addr)
+			// Extract the port from the original address
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
+				host = addr
 				if isTLS {
 					port = "443"
 				} else {
@@ -61,7 +62,14 @@ func newClientTransport(ctx *cli.Context, targetIP string, options ...transportO
 				}
 			}
 
-			dialAddr := net.JoinHostPort(targetIP, port)
+			dialAddr := addr
+			if endpoint != "" && endpoint != host {
+				targetHost, _, err := net.SplitHostPort(endpoint)
+				if err != nil {
+					targetHost = endpoint // It was just an IP/FQDN without a port
+				}
+				dialAddr = net.JoinHostPort(targetHost, port)
+			}
 			return netDialer.DialContext(ctx, network, dialAddr)
 		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),

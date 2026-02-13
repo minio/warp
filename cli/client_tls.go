@@ -26,7 +26,7 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportTLS(ctx *cli.Context, targetIP string) http.RoundTripper {
+func clientTransportTLS(ctx *cli.Context, endpoint string) http.RoundTripper {
 	rawHost := ctx.String("host")
 	u, _ := url.Parse("https://" + rawHost)
 	sni := u.Hostname()
@@ -46,5 +46,5 @@ func clientTransportTLS(ctx *cli.Context, targetIP string) http.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	return newClientTransport(ctx, targetIP, withTLSConfig(tlsConfig))
+	return newClientTransport(ctx, endpoint, withTLSConfig(tlsConfig))
 }
