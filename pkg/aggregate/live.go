@@ -48,11 +48,12 @@ type Realtime struct {
 
 	Total    LiveAggregate             `json:"total"`
 	ByOpType map[string]*LiveAggregate `json:"by_op_type,omitempty"`
-	// These are really not used.
-	ByHost        map[string]*LiveAggregate         `json:"by_host,omitempty"`
-	ByObjLog2Size map[int]*LiveAggregate            `json:"by_obj_log_2_size,omitempty"`
-	ByClient      map[string]*LiveAggregate         `json:"by_client,omitempty"`
-	ByCategory    map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
+	// Per-host aggregates for time-series visualization.
+	ByHost        map[string]*LiveAggregate `json:"by_host,omitempty"`
+	ByObjLog2Size map[int]*LiveAggregate    `json:"by_obj_log_2_size,omitempty"`
+	// Per-client aggregates for time-series visualization.
+	ByClient   map[string]*LiveAggregate         `json:"by_client,omitempty"`
+	ByCategory map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
 }
 
 type LiveAggregate struct {
@@ -705,11 +706,29 @@ func Live(ops <-chan bench.Operation, updates chan UpdateReq, clientID string, e
 		}()
 		wg.Wait()
 		if updates != nil && time.Since(lastUpdate) > time.Second {
-			u := Realtime{Total: a.Total.Update(), ByOpType: make(map[string]*LiveAggregate, len(a.ByOpType)), DataVersion: currentVersion}
+			u := Realtime{
+				Total:       a.Total.Update(),
+				ByOpType:    make(map[string]*LiveAggregate, len(a.ByOpType)),
+				ByHost:      make(map[string]*LiveAggregate, len(a.ByHost)),
+				ByClient:    make(map[string]*LiveAggregate, len(a.ByClient)),
+				DataVersion: currentVersion,
+			}
 			for k, v := range a.ByOpType {
 				if v != nil {
 					clone := v.Update()
 					u.ByOpType[k] = &clone
+				}
+			}
+			for k, v := range a.ByHost {
+				if v != nil {
+					clone := v.Update()
+					u.ByHost[k] = &clone
+				}
+			}
+			for k, v := range a.ByClient {
+				if v != nil {
+					clone := v.Update()
+					u.ByClient[k] = &clone
 				}
 			}
 			update.Store(&u)
