@@ -18,7 +18,10 @@
 package cli
 
 import (
+	"context"
+	"net"
 	stdHttp "net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -27,8 +30,11 @@ import (
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, endpoint string) stdHttp.RoundTripper {
 	// Keep TLS config.
+	rawHost := ctx.String("host")
+	u, _ := url.Parse("https://" + rawHost)
+	sni := u.Hostname()
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -36,6 +42,7 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
 		// Extra configs
@@ -54,14 +61,37 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
+	// Centralized routing policy
+	routePolicy := func(addr string) string {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = addr
+			port = "443"
+		}
+		if endpoint != "" && endpoint != host {
+			targetHost, _, err := net.SplitHostPort(endpoint)
+			if err != nil {
+				targetHost = endpoint // endpoint was just a host/IP without a port
+			}
+			return net.JoinHostPort(targetHost, port)
+		}
+		return addr
+	}
 	if !ctx.Bool("http2") {
-		dialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		h1Dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr := routePolicy(addr)
+			tlsDialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
+			return tlsDialer.DialContext(ctx, network, dialAddr)
+		}
+		return newClientTransport(ctx, endpoint, withDialTLSContext(h1Dialer))
 	}
 
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netDialer.DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr := routePolicy(addr)
+			return netDialer.DialContext(ctx, network, dialAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.

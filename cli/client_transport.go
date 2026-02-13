@@ -46,10 +46,32 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
-func newClientTransport(ctx *cli.Context, options ...transportOption) http.RoundTripper {
+func newClientTransport(ctx *cli.Context, endpoint string, options ...transportOption) http.RoundTripper {
+	isTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netDialer.DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// Extract the port from the original address
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = addr
+				if isTLS {
+					port = "443"
+				} else {
+					port = "80"
+				}
+			}
+
+			dialAddr := addr
+			if endpoint != "" && endpoint != host {
+				targetHost, _, err := net.SplitHostPort(endpoint)
+				if err != nil {
+					targetHost = endpoint // It was just an IP/FQDN without a port
+				}
+				dialAddr = net.JoinHostPort(targetHost, port)
+			}
+			return netDialer.DialContext(ctx, network, dialAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.

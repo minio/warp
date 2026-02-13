@@ -20,12 +20,16 @@ package cli
 import (
 	"crypto/tls"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/minio/cli"
 )
 
-func clientTransportTLS(ctx *cli.Context) http.RoundTripper {
+func clientTransportTLS(ctx *cli.Context, endpoint string) http.RoundTripper {
+	rawHost := ctx.String("host")
+	u, _ := url.Parse("https://" + rawHost)
+	sni := u.Hostname()
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -34,6 +38,7 @@ func clientTransportTLS(ctx *cli.Context) http.RoundTripper {
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 	}
 
@@ -41,5 +46,5 @@ func clientTransportTLS(ctx *cli.Context) http.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	return newClientTransport(ctx, withTLSConfig(tlsConfig))
+	return newClientTransport(ctx, endpoint, withTLSConfig(tlsConfig))
 }
