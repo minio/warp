@@ -70,7 +70,7 @@ type Common struct {
 	// Error should log an error similar to fmt.Print(data...)
 	Error func(data ...any)
 
-	Client func() (cl *Client, done func())
+	Client func() (cl *minio.Client, done func())
 
 	Collector Collector
 

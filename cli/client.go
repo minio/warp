@@ -52,7 +52,7 @@ const (
 	hostSelectTypeWeighed    hostSelectType = "weighed"
 )
 
-func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
+func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	rawHost := ctx.String("host")
 	hosts := parseHosts(rawHost, ctx.Bool("resolve-host"))
 
@@ -63,7 +63,7 @@ func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
 		cl, err := getClient(ctx, hosts[0], rawHost)
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
 
-		return func() (*bench.Client, func()) {
+		return func() (*minio.Client, func()) {
 			return cl, func() {}
 		}
 	}
@@ -73,13 +73,13 @@ func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
 		// Do round-robin.
 		var current int
 		var mu sync.Mutex
-		clients := make([]*bench.Client, len(hosts))
+		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
 			cl, err := getClient(ctx, hosts[i], rawHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
-		return func() (*bench.Client, func()) {
+		return func() (*minio.Client, func()) {
 			mu.Lock()
 			now := current % len(clients)
 			current++
@@ -90,7 +90,7 @@ func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
 		// Keep track of handed out clients.
 		// Select random between the clients that have the fewest handed out.
 		var mu sync.Mutex
-		clients := make([]*bench.Client, len(hosts))
+		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
 			cl, err := getClient(ctx, hosts[i], rawHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
@@ -125,7 +125,7 @@ func newClient(ctx *cli.Context) func() (cl *bench.Client, done func()) {
 			}
 			return earliestIdx
 		}
-		return func() (*bench.Client, func()) {
+		return func() (*minio.Client, func()) {
 			mu.Lock()
 			idx := find()
 			running[idx]++
@@ -166,7 +166,7 @@ func getClient(
 	ctx *cli.Context,
 	host string,
 	originalHost string,
-) (*bench.Client, error) {
+) (*minio.Client, error) {
 	u, _ := url.Parse(originalHost)
 	if u == nil || u.Host == "" {
 		scheme := "http"
@@ -175,7 +175,7 @@ func getClient(
 		}
 		u, _ = url.Parse(fmt.Sprintf("%s://%s", scheme, originalHost))
 	}
-	domainName := u.Host
+	endpointHost := u.Host
 	transport := clientTransport(ctx, host)
 	var creds *credentials.Credentials
 	localIP := clientListenIP
@@ -206,7 +206,7 @@ func getClient(
 		if ctx.Bool("tls") || ctx.Bool("ktls") {
 			proto = "https"
 		}
-		stsEndPoint := fmt.Sprintf("%s://%s", proto, domainName)
+		stsEndPoint := fmt.Sprintf("%s://%s", proto, endpointHost)
 		creds, err = credentials.NewSTSWebIdentity(stsEndPoint, func() (*credentials.WebIdentityToken, error) {
 			stsToken := ctx.String("sts-web-token")
 			if stsTokenFile, hasFilePrefix := strings.CutPrefix(stsToken, "file:"); hasFilePrefix {
@@ -231,7 +231,7 @@ func getClient(
 	} else if ctx.String("lookup") == "path" {
 		lookup = minio.BucketLookupPath
 	}
-	cl, err := minio.New(domainName, &minio.Options{
+	cl, err := minio.New(endpointHost, &minio.Options{
 		Creds:           creds,
 		Secure:          ctx.Bool("tls") || ctx.Bool("ktls"),
 		Region:          ctx.String("region"),
@@ -249,10 +249,7 @@ func getClient(
 		cl.TraceOn(os.Stderr)
 	}
 
-	return &bench.Client{
-		Client: cl,
-		Host:   u,
-	}, nil
+	return cl, nil
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
