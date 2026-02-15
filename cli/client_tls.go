@@ -19,8 +19,8 @@ package cli
 
 import (
 	"crypto/tls"
+	"net"
 	"net/http"
-	"net/url"
 	"os"
 
 	"github.com/minio/cli"

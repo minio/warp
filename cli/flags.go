@@ -348,7 +348,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
 	}
 	// Parse hosts to get a target IP for the transport signature
-	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
+	hosts := parseHosts(ctx.String("host"), false)
 	if len(hosts) == 0 {
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to initialize transport")
 	}

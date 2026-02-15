@@ -60,7 +60,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
 	case 1:
-		cl, err := getClient(ctx, hosts[0], rawHost)
+		cl, err := getClient(ctx, hosts[0])
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
 
 		return func() (*minio.Client, func()) {
@@ -75,7 +75,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		var mu sync.Mutex
 		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i], rawHost)
+			cl, err := getClient(ctx, hosts[i])
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
@@ -92,7 +92,7 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		var mu sync.Mutex
 		clients := make([]*minio.Client, len(hosts))
 		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i], rawHost)
+			cl, err := getClient(ctx, hosts[i])
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
@@ -165,18 +165,30 @@ func detectLocalIP(host string) string {
 func getClient(
 	ctx *cli.Context,
 	host string,
-	originalHost string,
 ) (*minio.Client, error) {
-	u, _ := url.Parse(originalHost)
+	// Initial parse
+	u, _ := url.Parse(host)
+	// Handle missing scheme (e.g., if host is "10.0.0.1:9000")
 	if u == nil || u.Host == "" {
 		scheme := "http"
 		if ctx.Bool("tls") || ctx.Bool("ktls") {
 			scheme = "https"
 		}
-		u, _ = url.Parse(fmt.Sprintf("%s://%s", scheme, originalHost))
+		// If 'host' was just "10.0.0.1:9000", url.Parse fails. We fix it here:
+		u, _ = url.Parse(fmt.Sprintf("%s://%s", scheme, host))
 	}
+	// Final validation
+	if u == nil || u.Host == "" {
+		return nil, fmt.Errorf("invalid host provided: %s", host)
+	}
+	// Set the logical endpoint (the name used for S3 signing)
 	endpointHost := u.Host
-	transport := clientTransport(ctx, host)
+	// Determine if we are actually pinning to a specific IP/Host
+	pinTarget := ""
+	if host != endpointHost {
+		pinTarget = host
+	}
+	transport := clientTransport(ctx, pinTarget)
 	var creds *credentials.Credentials
 	localIP := clientListenIP
 	if localIP == "" {

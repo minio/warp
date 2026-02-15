@@ -72,29 +72,7 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 func newClientTransport(ctx *cli.Context, endpoint string, options ...transportOption) http.RoundTripper {
 	isTLS := ctx.Bool("tls") || ctx.Bool("ktls")
 	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Extract the port from the original address
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				host = addr
-				if isTLS {
-					port = "443"
-				} else {
-					port = "80"
-				}
-			}
-
-			dialAddr := addr
-			if endpoint != "" && endpoint != host {
-				targetHost, _, err := net.SplitHostPort(endpoint)
-				if err != nil {
-					targetHost = endpoint // It was just an IP/FQDN without a port
-				}
-				dialAddr = net.JoinHostPort(targetHost, port)
-			}
-			return netDialer.DialContext(ctx, network, dialAddr)
-		},
+		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
@@ -114,7 +92,33 @@ func newClientTransport(ctx *cli.Context, endpoint string, options ...transportO
 		// See https://github.com/golang/go/issues/14275
 		ForceAttemptHTTP2: ctx.Bool("http2"),
 	}
-
+	// Only set DialContext manually when IP pinning is enabled (endpoint != "")
+	// This ensures proxies work out-of-the-box for standard runs.
+	if endpoint != "" {
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = addr
+				port = "80"
+				if isTLS {
+					port = "443"
+				}
+			}
+			// If addr is actually the proxy (provided by ProxyFromEnvironment),
+			// host will NOT match our target. We should not pin the proxy's IP.
+			// We only pin if we aren't using a proxy for this specific request.
+			dialAddr := addr
+			targetHost, _, err := net.SplitHostPort(endpoint)
+			if err != nil {
+				targetHost = endpoint
+			}
+			// Only pin if the target host (IP/Domain) actually differs
+			if targetHost != host {
+				dialAddr = net.JoinHostPort(targetHost, port)
+			}
+			return netDialer.DialContext(ctx, network, dialAddr)
+		}
+	}
 	for _, option := range options {
 		option(tr)
 	}
