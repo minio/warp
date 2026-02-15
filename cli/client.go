@@ -41,6 +41,7 @@ import (
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/pkg/v3/ellipses"
 	"github.com/minio/warp/pkg"
+	"github.com/minio/warp/pkg/iceberg"
 )
 
 type hostSelectType string
@@ -325,4 +326,23 @@ func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
 	cl.SetAppInfo(appName, pkg.Version)
 	return cl
+}
+
+func buildCatalogURLs(hosts []string, useTLS bool, externalCatalog iceberg.ExternalCatalogType) []string {
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
+
+	// Determine catalog path based on external catalog type
+	catalogPath := "/_iceberg"
+	if externalCatalog == iceberg.ExternalCatalogPolaris {
+		catalogPath = "/api/catalog"
+	}
+
+	urls := make([]string, len(hosts))
+	for i, host := range hosts {
+		urls[i] = scheme + "://" + host + catalogPath
+	}
+	return urls
 }

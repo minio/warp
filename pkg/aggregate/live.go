@@ -335,12 +335,16 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 			hostsString = fmt.Sprintf("%s Warp Instances: %d.", hostsString, len(data.Clients))
 		}
 		sz := ""
-		if data.TotalBytes > 0 {
+		if data.TotalBytes > 0 && data.TotalObjects > 0 {
 			sz = fmt.Sprintf("Size: %d bytes. ", data.TotalBytes/int64(data.TotalObjects))
 		}
 		printfColor(color.FgWhite, "Report: %v (%d reqs). Ran %v\n", opCol, data.TotalRequests, data.Throughput.StringDuration())
+		objPerReq := 0
+		if data.TotalRequests > 0 {
+			objPerReq = data.TotalObjects / data.TotalRequests
+		}
 		printfColor(color.FgWhite, " * Objects per request: %d. %vConcurrency: %d.%s\n",
-			data.TotalObjects/data.TotalRequests, sz,
+			objPerReq, sz,
 			data.Concurrency, hostsString)
 	} else {
 		printfColor(color.FgHiWhite, "Report: %s. Concurrency: %d. Ran: %v\n", opCol, data.Concurrency, time.Duration(data.Throughput.MeasureDurationMillis)*time.Millisecond)
@@ -439,9 +443,9 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 	if segs := data.Throughput.Segmented; segs != nil {
 		dur := time.Millisecond * time.Duration(segs.SegmentDurationMillis)
 		printfColor(color.FgHiWhite, "Throughput, split into %d x 1s:\n", len(segs.Segments))
-		printfColor(color.FgWhite, " * Fastest: %v\n", SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLong(dur, details))
-		printfColor(color.FgWhite, " * 50%% Median: %v\n", SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLong(dur, details))
-		printfColor(color.FgWhite, " * Slowest: %v\n", SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLong(dur, details))
+		printfColor(color.FgWhite, " * Fastest: %v\n", SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLongOp(dur, details, data.Throughput.Objects))
+		printfColor(color.FgWhite, " * 50%% Median: %v\n", SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLongOp(dur, details, data.Throughput.Objects))
+		printfColor(color.FgWhite, " * Slowest: %v\n", SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLongOp(dur, details, data.Throughput.Objects))
 	}
 	return dst.String()
 }

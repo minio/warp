@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,13 +59,33 @@ type clientReply struct {
 	Update *aggregate.Realtime `json:"update,omitempty"`
 }
 
+// findCommand finds a command by name, supporting subcommands (e.g., "tables catalog-read").
+func findCommand(app *cli.App, name string) *cli.Command {
+	parts := strings.Split(name, " ")
+	if len(parts) == 1 {
+		return app.Command(name)
+	}
+
+	cmd := app.Command(parts[0])
+	if cmd == nil {
+		return nil
+	}
+
+	for _, sub := range cmd.Subcommands {
+		if sub.Name == parts[1] {
+			return &sub
+		}
+	}
+	return nil
+}
+
 // executeBenchmark will execute the benchmark and return any error.
 func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, error) {
 	// Reconstruct
 	app := registerApp("warp", benchCmds)
-	cmd := app.Command(s.Benchmark.Command)
+	cmd := findCommand(app, s.Benchmark.Command)
 	if cmd == nil {
-		return nil, fmt.Errorf("command %v not found", s.Benchmark.Command)
+		return nil, fmt.Errorf("command %s not found", s.Benchmark.Command)
 	}
 	fs, err := flagSet(cmd.Name, cmd.Flags, s.Benchmark.Args)
 	if err != nil {

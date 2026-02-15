@@ -1,0 +1,441 @@
+# Warp Iceberg Benchmarks
+
+> **ALPHA**: This feature is in alpha. Parameters and behavior may change in future releases.
+
+Warp provides benchmarking tools for Apache Iceberg REST catalog operations. These benchmarks test catalog metadata performance including namespace, table, and view operations.
+
+## Overview
+
+Four benchmark commands are available:
+
+| Command | Description |
+|---------|-------------|
+| `warp iceberg catalog-read` | Catalog read operations (list, get, exists) |
+| `warp iceberg catalog-commits` | Table/view property updates (commit generation) |
+| `warp iceberg catalog-mixed` | Mixed read/write workload |
+| `warp iceberg sustained` | Sustained workload with controlled RPS (commits + reads) |
+
+## Supported Catalogs
+
+- **MinIO AIStor Tables** (default): Uses AWS SigV4 authentication
+- **Apache Polaris**: Uses OAuth2 authentication (`--external-catalog polaris`)
+
+## Common Flags
+
+All iceberg commands share these flags:
+
+### Connection
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--host` | (required) | Catalog server host(s), comma-separated or expandable patterns |
+| `--access-key` | (required) | Access key (AWS key or OAuth client ID) |
+| `--secret-key` | (required) | Secret key (AWS secret or OAuth client secret) |
+| `--region` | us-east-1 | AWS region |
+| `--tls` | false | Use TLS |
+| `--external-catalog` | "" | External catalog type (`polaris`) |
+
+### Tree Configuration
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--catalog-name` | benchmarkcatalog | Catalog/warehouse name |
+| `--namespace-width` | varies | Width of N-ary namespace tree |
+| `--namespace-depth` | varies | Depth of namespace tree |
+| `--tables-per-ns` | varies | Tables per leaf namespace |
+| `--views-per-ns` | varies | Views per leaf namespace |
+| `--columns` | 10 | Columns per table/view schema |
+| `--properties` | 5 | Properties per entity |
+| `--base-location` | s3://benchmark | Base S3 location for tables |
+
+### Benchmark Control
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--concurrent` | 20 | Number of concurrent workers |
+| `--duration` | 5m | Benchmark duration |
+| `--autoterm` | false | Enable auto-termination when throughput stabilizes |
+| `--autoterm.dur` | 15s | Stability window for autoterm |
+| `--autoterm.pct` | 7.5 | Throughput variance threshold (%) |
+
+## Tree Structure
+
+The `--namespace-width` and `--namespace-depth` flags define an N-ary tree of namespaces. Tables and views are created only in leaf namespaces.
+
+### Calculations
+- Total namespaces = `(width^depth - 1) / (width - 1)` for width > 1
+- Leaf namespaces = `width^(depth-1)`
+- Total tables = `leaf_namespaces * tables_per_ns`
+- Total views = `leaf_namespaces * views_per_ns`
+
+### Example Tree (width=2, depth=3)
+```
+ns_0
+├── ns_1
+│   ├── ns_3 (leaf: tables, views)
+│   └── ns_4 (leaf: tables, views)
+└── ns_2
+    ├── ns_5 (leaf: tables, views)
+    └── ns_6 (leaf: tables, views)
+```
+
+## Multiple Hosts / Catalog Pool
+
+Multiple catalog hosts can be specified for load balancing:
+
+```bash
+# Comma-separated
+--host=host1:9001,host2:9001,host3:9001
+
+# Expandable pattern
+--host=host{1...10}:9001
+```
+
+Requests are distributed across hosts using round-robin.
+
+---
+
+## ICEBERG CATALOG-READ
+
+Benchmarks Iceberg REST catalog read operations.
+
+### Usage
+```bash
+warp iceberg catalog-read [FLAGS]
+```
+
+### Workflow
+1. Creates N-ary namespace tree with tables and views
+2. Spawns workers that execute read operations from a shuffled pool
+
+### Default Tree Configuration
+- `--namespace-width`: 2
+- `--namespace-depth`: 3
+- `--tables-per-ns`: 5
+- `--views-per-ns`: 5
+
+### Operation Distribution Flags
+
+Weights control the proportion of each operation type:
+
+| Flag | Default | Operation |
+|------|---------|-----------|
+| `--ns-list-distrib` | 10 | List child namespaces |
+| `--ns-head-distrib` | 10 | Check namespace exists |
+| `--ns-get-distrib` | 10 | Load namespace properties |
+| `--table-list-distrib` | 10 | List tables in namespace |
+| `--table-head-distrib` | 10 | Check table exists |
+| `--table-get-distrib` | 10 | Load table metadata |
+| `--view-list-distrib` | 10 | List views in namespace |
+| `--view-head-distrib` | 10 | Check view exists |
+| `--view-get-distrib` | 10 | Load view metadata |
+
+### Operations Recorded
+- `NS_LIST`, `NS_HEAD`, `NS_GET`: Namespace operations
+- `TABLE_LIST`, `TABLE_HEAD`, `TABLE_GET`: Table operations
+- `VIEW_LIST`, `VIEW_HEAD`, `VIEW_GET`: View operations
+
+### Example
+```bash
+# Default read benchmark
+warp iceberg catalog-read \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin
+
+# Heavy table reads
+warp iceberg catalog-read \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --table-get-distrib=50 \
+  --table-list-distrib=20
+```
+
+---
+
+## ICEBERG CATALOG-COMMITS
+
+Benchmarks Iceberg REST catalog commit generation by updating table/view properties.
+
+### Usage
+```bash
+warp iceberg catalog-commits [FLAGS]
+```
+
+### Workflow
+1. Creates N-ary namespace tree with tables and views
+2. Workers are split between table updates and view updates (default: 50/50 split of `--concurrent`)
+
+### Default Tree Configuration
+- `--namespace-width`: 2
+- `--namespace-depth`: 3
+- `--tables-per-ns`: 5
+- `--views-per-ns`: 5
+
+### Additional Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--table-commits-throughput` | 0 | Number of table update workers (0 = use `--concurrent/2`) |
+| `--view-commits-throughput` | 0 | Number of view update workers (0 = use `--concurrent/2`) |
+| `--max-retries` | 4 | Retries on 409 Conflict or 500 errors |
+| `--retry-backoff` | 100ms | Initial backoff duration |
+| `--backoff-max` | 60s | Maximum backoff duration |
+
+**Note:** When you set explicit values, `--concurrent` is ignored. Total workers = `table-commits-throughput + view-commits-throughput`.
+
+### Operations Recorded
+- `TABLE_UPDATE`: Table property update
+- `VIEW_UPDATE`: View property update
+
+### Example
+```bash
+# Basic commit benchmark
+warp iceberg catalog-commits \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin
+
+# More table commits than view commits
+warp iceberg catalog-commits \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --table-commits-throughput=15 \
+  --view-commits-throughput=5
+
+# Tables only (no views)
+warp iceberg catalog-commits \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --views-per-ns=0
+```
+
+---
+
+## ICEBERG CATALOG-MIXED
+
+Benchmarks mixed read/write workload with configurable operation distribution.
+
+### Usage
+```bash
+warp iceberg catalog-mixed [FLAGS]
+```
+
+### Workflow
+1. Creates N-ary namespace tree with tables and views
+2. Workers execute random mix of read and update operations from shuffled pool
+
+### Default Tree Configuration
+- `--namespace-width`: 2
+- `--namespace-depth`: 3
+- `--tables-per-ns`: 5
+- `--views-per-ns`: 5
+
+### Operation Distribution Flags
+
+All read operations from catalog-read plus update operations:
+
+| Flag | Default | Operation |
+|------|---------|-----------|
+| `--ns-update-distrib` | 0 | Update namespace properties |
+| `--table-update-distrib` | 5 | Update table properties |
+| `--view-update-distrib` | 5 | Update view properties |
+
+### Additional Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--max-retries` | 5 | Retries for update operations on conflict |
+| `--retry-backoff` | 100ms | Initial backoff duration |
+| `--backoff-max` | 2s | Maximum backoff duration |
+
+### Operations Recorded
+- All read operations from catalog-read
+- `NS_UPDATE`, `TABLE_UPDATE`, `VIEW_UPDATE`: Update operations
+
+### Example
+```bash
+# Default mixed workload
+warp iceberg catalog-mixed \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin
+
+# Read-only (disable all updates)
+warp iceberg catalog-mixed \
+  --host=localhost:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --table-update-distrib=0 \
+  --view-update-distrib=0
+```
+
+---
+
+## ICEBERG SUSTAINED
+
+Run a sustained Iceberg workload with controlled request rates. Designed for long-running tests with specific RPS limits for commits and reads.
+
+### Usage
+```bash
+warp iceberg sustained [FLAGS]
+```
+
+### Workflow
+1. Creates warehouse namespace/table tree structure
+2. Downloads or generates parquet data files
+3. Optionally uploads files once during prepare (`--skip-upload`)
+4. Runs two concurrent workloads:
+   - **Commits**: Upload parquet files and commit to Iceberg tables (controlled by `--rps-limit`)
+   - **Reads**: LoadTable operations (enabled with `--simulate-read`, controlled by `--read-rps-limit`)
+
+### Default Tree Configuration
+- `--namespace-width`: 1
+- `--namespace-depth`: 1
+- `--tables-per-ns`: 1
+
+### Additional Flags
+
+#### Data Configuration
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--num-files` | 10 | Parquet files to generate (used for commits) |
+| `--rows-per-file` | 10000 | Rows per parquet file |
+| `--cache-dir` | /tmp/warp-iceberg-cache | Local cache for data files |
+
+#### TPC-DS Data
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tpcds` | false | Use TPC-DS benchmark data from GCS |
+| `--scale-factor` | sf100 | TPC-DS scale (sf1, sf10, sf100, sf1000) |
+| `--tpcds-table` | store_sales | TPC-DS table name |
+
+#### Commit Control
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--files-per-commit` | 1 | Number of files to include per commit |
+| `--skip-upload` | true | Upload files once in prepare, then only benchmark commits |
+| `--rps-limit` | 0 | RPS limit for commit workers (0 = unlimited) |
+
+#### Read Simulation
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--simulate-read` | false | Enable parallel LoadTable reads during benchmark |
+| `--read-concurrent` | 20 | Number of read workers |
+| `--read-rps-limit` | 400 | RPS limit for read workers (0 = unlimited) |
+
+#### Retry/Conflict Handling
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--max-retries` | 4 | Maximum commit retries on conflict |
+| `--backoff-base` | 100ms | Base backoff duration for retries |
+| `--backoff-max` | 60s | Maximum backoff duration |
+
+### Operations Recorded
+- `UPLOAD`: Parquet file upload to S3 (when not using `--skip-upload`)
+- `COMMIT`: Iceberg table commit with file references
+- `TABLE_GET`: LoadTable read operations (when `--simulate-read` enabled)
+
+### Example
+```bash
+# Sustained commits (1 every 2 sec) with 400 reads/sec
+warp iceberg sustained \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --duration=1h \
+  --concurrent=1 \
+  --rps-limit=0.5 \
+  --simulate-read \
+  --read-concurrent=10 \
+  --read-rps-limit=400
+
+# Commit-only benchmark (no reads)
+warp iceberg sustained \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --rps-limit=1
+
+# With uploads during benchmark (not just prepare)
+warp iceberg sustained \
+  --host=localhost:9000 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --skip-upload=false \
+  --duration=1h
+```
+
+---
+
+## Apache Polaris Configuration
+
+To benchmark an Apache Polaris catalog:
+
+```bash
+warp iceberg catalog-read \
+  --host=polaris.example.com:8181 \
+  --access-key=client_id \
+  --secret-key=client_secret \
+  --external-catalog=polaris \
+  --catalog-name=warehouse \
+  --base-location=s3://bucket
+```
+
+The access-key and secret-key are used as OAuth2 client credentials.
+
+---
+
+## Distributed Benchmarking
+
+Iceberg benchmarks support distributed mode with multiple warp clients:
+
+```bash
+# Start clients on separate machines
+warp client :7761
+
+# Run distributed benchmark from server
+warp iceberg catalog-read \
+  --warp-client=client-{1...4}:7761 \
+  --host=catalog-server:9001 \
+  --access-key=minioadmin \
+  --secret-key=minioadmin \
+  --concurrent=50 \
+  --duration=5m
+```
+
+In distributed mode:
+- Only the first client (ClientIdx=0) creates and cleans up the dataset
+- All clients participate in the benchmark phase
+- Results are merged by the server
+
+---
+
+## Output and Analysis
+
+Benchmark results are saved to `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`.
+
+```bash
+# Analyze results
+warp analyze warp-operation-2024-01-15[120000]-AbCd.csv.zst
+
+# Compare two runs
+warp cmp before.csv.zst after.csv.zst
+
+# Merge results from multiple clients
+warp merge client1.csv.zst client2.csv.zst
+```
+
+### Metrics Recorded
+
+Each operation records:
+- Operation type (e.g., NS_LIST, TABLE_GET)
+- Start/End timestamps (nanosecond precision)
+- Entity identifier (namespace path, table name)
+- Error message (if failed)
+
+### Analysis Output
+- Throughput (ops/sec)
+- Latency percentiles (p50, p90, p99, p99.9)
+- Error counts and rates
+- Per-host breakdown (with `--analyze.v`)
