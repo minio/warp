@@ -13,14 +13,20 @@ metadata:
     {{- end }}
 spec:
   template:
-    {{- if .Values.job.restartOnUpgrade }}
     metadata:
+      labels:
+        {{- include "warp.selectorLabels" . | nindent 8 }}
+      {{- if .Values.job.restartOnUpgrade }}
       annotations:
         # Force pod restart on upgrade by including a timestamp or revision
         rollme: {{ .Release.Revision | quote }}
-    {{- end }}
+      {{- end }}
     spec:
       restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: {{ include "warp.fullname" . }}
         image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
