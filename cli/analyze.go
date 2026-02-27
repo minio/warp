@@ -485,9 +485,9 @@ func printAnalysis(ctx *cli.Context, w io.Writer, o bench.Operations) {
 		console.SetColor("Print", color.New(color.FgHiWhite))
 		console.Print("\nThroughput, split into ", len(segs.Segments), " x ", dur, ":\n")
 		console.SetColor("Print", color.New(color.FgWhite))
-		console.Println(" * Fastest:", aggregate.SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLong(dur, details))
-		console.Println(" * 50% Median:", aggregate.SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLong(dur, details))
-		console.Println(" * Slowest:", aggregate.SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLong(dur, details))
+		console.Println(" * Fastest:", aggregate.SegmentSmall{BPS: segs.FastestBPS, OPS: segs.FastestOPS, Start: segs.FastestStart}.StringLongOp(dur, details, ops.Throughput.Objects))
+		console.Println(" * 50% Median:", aggregate.SegmentSmall{BPS: segs.MedianBPS, OPS: segs.MedianOPS, Start: segs.MedianStart}.StringLongOp(dur, details, ops.Throughput.Objects))
+		console.Println(" * Slowest:", aggregate.SegmentSmall{BPS: segs.SlowestBPS, OPS: segs.SlowestOPS, Start: segs.SlowestStart}.StringLongOp(dur, details, ops.Throughput.Objects))
 	}
 }
 

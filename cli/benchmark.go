@@ -312,6 +312,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		fmt.Println("")
 		fmt.Println(rep)
 	}
+
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		ui.SetPhase("Cleanup")
 		monitor.InfoLn("Starting cleanup...")

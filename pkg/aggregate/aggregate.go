@@ -221,6 +221,7 @@ func Aggregate(o bench.Operations, opts Options) Aggregated {
 			total := ops.Total(!opts.Prefiltered)
 			a.StartTime, a.EndTime = ops.TimeRange()
 			a.Throughput.fill(total)
+			a.Throughput.OpType = typ
 			a.Throughput.Segmented = &ThroughputSegmented{
 				SegmentDurationMillis: durToMillis(segmentDur),
 			}

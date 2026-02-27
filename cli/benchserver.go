@@ -157,7 +157,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	req := serverRequest{
 		Operation: serverReqBenchmark,
 	}
-	req.Benchmark.Command = ctx.Command.Name
+	req.Benchmark.Command = ctx.Command.FullName()
 	req.Benchmark.Args = ctx.Args()
 	req.Benchmark.Flags = make(map[string]string)
 
