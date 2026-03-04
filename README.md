@@ -176,9 +176,53 @@ Note that parameters apply to *each* client.
 So if `--concurrent=8` is specified each client will run with 8 concurrent operations. 
 If a warp server is unable to connect to a client the entire benchmark is aborted.
 
-If the warp server looses connection to a client during a benchmark run an error will 
-be displayed and the server will attempt to reconnect. 
+If the warp server looses connection to a client during a benchmark run an error will
+be displayed and the server will attempt to reconnect.
 If the server is unable to reconnect, the benchmark will continue with the remaining clients.
+
+## Multi-NIC Benchmarking
+
+When client machines have multiple NICs connected to different storage network subnets,
+run **one `warp client` process per NIC**, specifying the listen IP explicitly:
+
+```
+# On each client machine (e.g. with NICs 192.168.11.2 and 192.168.12.2):
+warp client 192.168.11.2:7761
+warp client 192.168.12.2:7761
+```
+
+Warp automatically source-binds all outbound S3 connections to the listen IP,
+so each process sends traffic exclusively via its assigned NIC.
+This guarantees full NIC utilisation with no cross-NIC leakage.
+
+On the benchmark server, list every client address across all NICs:
+
+```
+λ warp get --duration=3m \
+    --warp-client=192.168.11.{1...9}:7761,192.168.12.{1...9}:7761 \
+    --host=192.168.11.{1...8}:9000,192.168.12.{1...8}:9000 \
+    --access-key=minio --secret-key=minio123
+```
+
+> **Important:** do not list both NIC addresses of the same machine using a
+> single `warp client` process (e.g. `warp client 0.0.0.0:7761` combined with
+> both IPs in `--warp-client`). That causes the benchmark server to count the
+> same operations twice, inflating reported throughput. Always run one process
+> per NIC with an explicit listen IP.
+
+### Standalone multi-NIC mode
+
+When running warp directly (without `warp client`) against a multi-homed storage
+cluster, source-binding is applied automatically per destination host using the
+OS routing table. For example:
+
+```
+λ warp get --host=192.168.11.1:9000,192.168.12.1:9000 ...
+```
+
+Connections to `192.168.11.1` will egress via the `192.168.11.x` interface and
+connections to `192.168.12.1` via `192.168.12.x`, provided the routing table is
+configured correctly (one route per subnet via the corresponding NIC).
 
 ### Manually Distributed Benchmarking
 

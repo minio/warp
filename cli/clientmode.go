@@ -18,6 +18,7 @@
 package cli
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,11 @@ import (
 	"github.com/minio/mc/pkg/probe"
 	"github.com/minio/pkg/v3/console"
 )
+
+// clientListenIP is the IP portion of the address this warp client is listening on.
+// When non-empty, all outbound S3 connections are source-bound to this IP,
+// ensuring traffic egresses via the correct NIC.
+var clientListenIP string
 
 var clientFlags = []cli.Flag{}
 
@@ -69,6 +75,13 @@ func mainClient(ctx *cli.Context) error {
 	default:
 		fatal(errInvalidArgument(), "Too many parameters")
 	}
+	// Extract the IP portion of the listen address and use it as the source IP
+	// for all outbound S3 benchmark connections, ensuring NIC affinity.
+	if ip, _, err := net.SplitHostPort(addr); err == nil && ip != "" {
+		clientListenIP = ip
+		console.Infoln("Binding S3 connections to", clientListenIP)
+	}
+
 	http.HandleFunc("/ws", serveWs)
 	console.Infoln("Listening on", addr, "Press Ctrl+C to exit.")
 	fatalIf(probe.NewError(http.ListenAndServe(addr, nil)), "Unable to start client")
