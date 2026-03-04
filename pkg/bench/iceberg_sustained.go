@@ -117,14 +117,42 @@ func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
 	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
 	b.loadedTables = make(map[string]*table.Table, len(treeTables))
 
+	// Use at least 30 retries so non-primary clients wait long enough for the
+	// primary client to finish creating tables before giving up.
+	maxRetries := b.MaxRetries
+	if maxRetries < 30 {
+		maxRetries = 30
+	}
+
 	for i, tbl := range treeTables {
 		ident := append([]string{}, tbl.Namespace...)
 		ident = append(ident, tbl.Name)
 
 		cat := b.getCatalog()
-		loadedTbl, err := cat.LoadTable(ctx, ident)
-		if err != nil {
-			return fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+		var loadedTbl *table.Table
+		var lastErr error
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			if attempt > 0 {
+				backoff := b.BackoffBase * time.Duration(1<<uint(attempt-1))
+				if backoff > b.BackoffMax || backoff <= 0 {
+					backoff = b.BackoffMax
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(backoff):
+				}
+			}
+			loadedTbl, lastErr = cat.LoadTable(ctx, ident)
+			if lastErr == nil {
+				break
+			}
+			if !warpiceberg.IsNoSuchTable(lastErr) {
+				return fmt.Errorf("failed to load table %s: %w", tbl.Name, lastErr)
+			}
+		}
+		if lastErr != nil {
+			return fmt.Errorf("failed to load table %s: %w", tbl.Name, lastErr)
 		}
 
 		key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
@@ -581,7 +609,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 				tbl := b.tables[tableIdx%len(b.tables)]
 				tableIdx++
 
-				b.doLoadTable(ctx, rcv, tbl, uint32(workerID))
+				b.doLoadTable(context.Background(), rcv, tbl, uint32(workerID))
 			}
 		}(i)
 	}
