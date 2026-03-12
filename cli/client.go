@@ -143,10 +143,29 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	return nil
 }
 
+// detectLocalIP returns the local IP that the OS would use to reach host.
+// It uses the UDP routing trick (no packets are sent).
+func detectLocalIP(host string) string {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil || h == "" {
+		h = host
+	}
+	conn, err := net.Dial("udp", h+":9")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
 // getClient creates a client with the specified host and the options set in the context.
 func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 	var creds *credentials.Credentials
-	transport := clientTransport(ctx)
+	localIP := clientListenIP
+	if localIP == "" {
+		localIP = detectLocalIP(host)
+	}
+	transport := clientTransportWithLocalIP(ctx, localIP)
 	switch strings.ToUpper(ctx.String("signature")) {
 	case "S3V4":
 		// if Signature version '4' use NewV4 directly.
@@ -217,13 +236,19 @@ func getClient(ctx *cli.Context, host string) (*minio.Client, error) {
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
+	return clientTransportWithLocalIP(ctx, "")
+}
+
+// clientTransportWithLocalIP creates a transport that binds outbound connections
+// to localIP (empty string means no binding, OS picks the source address).
+func clientTransportWithLocalIP(ctx *cli.Context, localIP string) http.RoundTripper {
 	switch {
 	case ctx.Bool("ktls"):
-		return clientTransportKTLS(ctx)
+		return clientTransportKTLS(ctx, localIP)
 	case ctx.Bool("tls"):
-		return clientTransportTLS(ctx)
+		return clientTransportTLS(ctx, localIP)
 	default:
-		return clientTransportDefault(ctx)
+		return clientTransportDefault(ctx, localIP)
 	}
 }
 

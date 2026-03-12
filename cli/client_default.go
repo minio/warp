@@ -23,6 +23,6 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportDefault(ctx *cli.Context) http.RoundTripper {
-	return newClientTransport(ctx)
+func clientTransportDefault(ctx *cli.Context, localIP string) http.RoundTripper {
+	return newClientTransport(ctx, withLocalAddr(localIP))
 }

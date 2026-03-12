@@ -32,7 +32,30 @@ var netDialer = &net.Dialer{
 	KeepAlive: 10 * time.Second,
 }
 
+// makeDialer returns a Dialer optionally bound to localIP.
+func makeDialer(localIP string) *net.Dialer {
+	d := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}
+	if localIP != "" {
+		d.LocalAddr = &net.TCPAddr{IP: net.ParseIP(localIP)}
+	}
+	return d
+}
+
 type transportOption func(transport *http.Transport)
+
+// withLocalAddr returns a transportOption that binds outbound TCP connections
+// to localIP, ensuring they egress via the NIC that owns that address.
+func withLocalAddr(localIP string) transportOption {
+	return func(transport *http.Transport) {
+		if localIP == "" {
+			return
+		}
+		transport.DialContext = makeDialer(localIP).DialContext
+	}
+}
 
 func withTLSConfig(tlsConfig *tls.Config) transportOption {
 	return func(transport *http.Transport) {

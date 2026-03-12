@@ -25,7 +25,7 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportTLS(ctx *cli.Context) http.RoundTripper {
+func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -41,5 +41,5 @@ func clientTransportTLS(ctx *cli.Context) http.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	return newClientTransport(ctx, withTLSConfig(tlsConfig))
+	return newClientTransport(ctx, withTLSConfig(tlsConfig), withLocalAddr(localIP))
 }
