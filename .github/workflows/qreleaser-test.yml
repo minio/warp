@@ -6,11 +6,10 @@ on:
       release_type:
         description: "Release type"
         required: true
-        default: "release"
+        default: "stable"
         type: choice
         options:
-          - release
-          - edge
+          - stable
       version_tag:
         description: "Version tag (e.g., v1.5.0)"
         required: true
@@ -64,12 +63,19 @@ jobs:
         id: release-type
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "type=${{ inputs.release_type }}" >> $GITHUB_OUTPUT
+            TYPE="${{ inputs.release_type }}"
             echo "version=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
           else
-            # For PRs, use a test version
-            echo "type=release" >> $GITHUB_OUTPUT
+            TYPE="stable"
             echo "version=v10.0.0" >> $GITHUB_OUTPUT
+          fi
+          echo "type=${TYPE}" >> $GITHUB_OUTPUT
+
+          # Map type to directory name (used in artifact paths)
+          if [ "$TYPE" = "stable" ]; then
+            echo "type_dir=release" >> $GITHUB_OUTPUT
+          else
+            echo "type_dir=${TYPE}" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Q Release (Test Mode)
@@ -85,7 +91,7 @@ jobs:
       - name: Verify Release Artifacts
         run: |
           find ${{ github.workspace }}/warp-release -type f
-          ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type }}/linux-amd64/warp --version
+          ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-amd64/warp --version
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
