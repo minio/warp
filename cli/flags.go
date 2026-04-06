@@ -18,7 +18,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -347,11 +346,6 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		// set burst to 1 as limiter will always be called to wait for 1 token
 		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
 	}
-	// Parse hosts to get a target IP for the transport signature
-	hosts := parseHosts(ctx.String("host"), false)
-	if len(hosts) == 0 {
-		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to initialize transport")
-	}
 	// Create put options now, so ensure that trailing headers are set.
 	putOpts := putOpts(ctx)
 	return bench.Common{
@@ -364,7 +358,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
-		Transport:     clientTransport(ctx, hosts[0]),
+		Transport:     clientTransport(ctx),
 		UpdateStatus:  statusln,
 		TotalClients:  1, // Default to 1 for single-client mode
 	}

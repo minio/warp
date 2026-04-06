@@ -26,7 +26,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -52,15 +51,21 @@ const (
 	hostSelectTypeWeighed    hostSelectType = "weighed"
 )
 
-func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
-	rawHost := ctx.String("host")
-	hosts := parseHosts(rawHost, ctx.Bool("resolve-host"))
+// hostPair holds a resolved host and the original hostname it was resolved from.
+// originalHost is "" when --resolve-host is not used (no pinning needed).
+type hostPair struct {
+	resolved     string // IP:port to dial
+	originalHost string // original hostname (for S3 signing + SNI)
+}
 
-	switch len(hosts) {
+func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
+	pairs := parseHostPairs(ctx.String("host"), ctx.Bool("resolve-host"))
+
+	switch len(pairs) {
 	case 0:
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO client")
 	case 1:
-		cl, err := getClient(ctx, hosts[0])
+		cl, err := getClient(ctx, pairs[0].resolved, pairs[0].originalHost)
 		fatalIf(probe.NewError(err), "Unable to create MinIO client")
 
 		return func() (*minio.Client, func()) {
@@ -73,9 +78,9 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		// Do round-robin.
 		var current int
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
-		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
+		clients := make([]*minio.Client, len(pairs))
+		for i := range pairs {
+			cl, err := getClient(ctx, pairs[i].resolved, pairs[i].originalHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
@@ -90,20 +95,20 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 		// Keep track of handed out clients.
 		// Select random between the clients that have the fewest handed out.
 		var mu sync.Mutex
-		clients := make([]*minio.Client, len(hosts))
-		for i := range hosts {
-			cl, err := getClient(ctx, hosts[i])
+		clients := make([]*minio.Client, len(pairs))
+		for i := range pairs {
+			cl, err := getClient(ctx, pairs[i].resolved, pairs[i].originalHost)
 			fatalIf(probe.NewError(err), "Unable to create MinIO client")
 			clients[i] = cl
 		}
-		running := make([]int, len(hosts))
-		lastFinished := make([]time.Time, len(hosts))
+		running := make([]int, len(pairs))
+		lastFinished := make([]time.Time, len(pairs))
 		{
 			// Start with a random host
 			now := time.Now()
-			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(hosts))
+			off := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(pairs))
 			for i := range lastFinished {
-				lastFinished[i] = now.Add(time.Duration(i + off%len(hosts)))
+				lastFinished[i] = now.Add(time.Duration(i + off%len(pairs)))
 			}
 		}
 		find := func() int {
@@ -162,39 +167,19 @@ func detectLocalIP(host string) string {
 }
 
 // getClient creates a client with the specified host and the options set in the context.
-func getClient(
-	ctx *cli.Context,
-	host string,
-) (*minio.Client, error) {
-	// Initial parse
-	u, _ := url.Parse(host)
-	// Handle missing scheme (e.g., if host is "10.0.0.1:9000")
-	if u == nil || u.Host == "" {
-		scheme := "http"
-		if ctx.Bool("tls") || ctx.Bool("ktls") {
-			scheme = "https"
-		}
-		// If 'host' was just "10.0.0.1:9000", url.Parse fails. We fix it here:
-		u, _ = url.Parse(fmt.Sprintf("%s://%s", scheme, host))
-	}
-	// Final validation
-	if u == nil || u.Host == "" {
-		return nil, fmt.Errorf("invalid host provided: %s", host)
-	}
-	// Set the logical endpoint (the name used for S3 signing)
-	endpointHost := u.Host
-	// Determine if we are actually pinning to a specific IP/Host
-	pinTarget := ""
-	if host != endpointHost {
-		pinTarget = host
-	}
-	transport := clientTransport(ctx, pinTarget)
+// host is the resolved IP:port to dial; originalHost is the logical hostname for S3 signing
+// and SNI (empty when --resolve-host is not used).
+func getClient(ctx *cli.Context, host, originalHost string) (*minio.Client, error) {
 	var creds *credentials.Credentials
 	localIP := clientListenIP
 	if localIP == "" {
 		localIP = detectLocalIP(host)
 	}
-	transport := clientTransportWithLocalIP(ctx, localIP)
+	endpoint := host
+	if originalHost != "" {
+		endpoint = originalHost
+	}
+	transport := clientTransportWithLocalIP(ctx, localIP, host, originalHost)
 	switch strings.ToUpper(ctx.String("signature")) {
 	case "S3V4":
 		// if Signature version '4' use NewV4 directly.
@@ -218,7 +203,7 @@ func getClient(
 		if ctx.Bool("tls") || ctx.Bool("ktls") {
 			proto = "https"
 		}
-		stsEndPoint := fmt.Sprintf("%s://%s", proto, endpointHost)
+		stsEndPoint := fmt.Sprintf("%s://%s", proto, endpoint)
 		creds, err = credentials.NewSTSWebIdentity(stsEndPoint, func() (*credentials.WebIdentityToken, error) {
 			stsToken := ctx.String("sts-web-token")
 			if stsTokenFile, hasFilePrefix := strings.CutPrefix(stsToken, "file:"); hasFilePrefix {
@@ -243,7 +228,7 @@ func getClient(
 	} else if ctx.String("lookup") == "path" {
 		lookup = minio.BucketLookupPath
 	}
-	cl, err := minio.New(endpointHost, &minio.Options{
+	cl, err := minio.New(endpoint, &minio.Options{
 		Creds:           creds,
 		Secure:          ctx.Bool("tls") || ctx.Bool("ktls"),
 		Region:          ctx.String("region"),
@@ -265,19 +250,21 @@ func getClient(
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {
-	return clientTransportWithLocalIP(ctx, "")
+	return clientTransportWithLocalIP(ctx, "", "", "")
 }
 
 // clientTransportWithLocalIP creates a transport that binds outbound connections
 // to localIP (empty string means no binding, OS picks the source address).
-func clientTransportWithLocalIP(ctx *cli.Context, localIP string) http.RoundTripper {
+// When resolvedHost and originalHost are both non-empty, the transport also rewrites
+// dial addresses from originalHost to resolvedHost and sets TLS SNI from originalHost.
+func clientTransportWithLocalIP(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
 	switch {
 	case ctx.Bool("ktls"):
-		return clientTransportKTLS(ctx, localIP)
+		return clientTransportKTLS(ctx, localIP, resolvedHost, originalHost)
 	case ctx.Bool("tls"):
-		return clientTransportTLS(ctx, localIP)
+		return clientTransportTLS(ctx, localIP, resolvedHost, originalHost)
 	default:
-		return clientTransportDefault(ctx, localIP)
+		return clientTransportDefault(ctx, localIP, resolvedHost)
 	}
 }
 
@@ -354,6 +341,39 @@ func parseHosts(h string, resolveDNS bool) []string {
 	return resolved
 }
 
+// parseHostPairs parses the host string into hostPair slices. When resolveDNS is true,
+// each hostname is resolved to its IPs and each IP becomes a separate pair carrying the
+// original hostname so that S3 signing and SNI remain correct.
+func parseHostPairs(h string, resolveDNS bool) []hostPair {
+	raw := parseHosts(h, false)
+	if !resolveDNS {
+		pairs := make([]hostPair, len(raw))
+		for i, r := range raw {
+			pairs[i] = hostPair{resolved: r}
+		}
+		return pairs
+	}
+	var pairs []hostPair
+	for _, hostport := range raw {
+		host, port, _ := net.SplitHostPort(hostport)
+		if host == "" {
+			host = hostport
+		}
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			fatalIf(probe.NewError(err), "Could not get IPs for "+hostport)
+		}
+		for _, ip := range ips {
+			resolved := ip.String()
+			if port != "" {
+				resolved = ip.String() + ":" + port
+			}
+			pairs = append(pairs, hostPair{resolved: resolved, originalHost: hostport})
+		}
+	}
+	return pairs
+}
+
 // mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)
 func mustGetSystemCertPool() *x509.CertPool {
 	rootCAs, err := certs.GetRootCAs("")
@@ -367,15 +387,19 @@ func mustGetSystemCertPool() *x509.CertPool {
 }
 
 func newAdminClient(ctx *cli.Context) *madmin.AdminClient {
-	hosts := parseHosts(ctx.String("host"), ctx.Bool("resolve-host"))
-	if len(hosts) == 0 {
+	pairs := parseHostPairs(ctx.String("host"), ctx.Bool("resolve-host"))
+	if len(pairs) == 0 {
 		fatalIf(probe.NewError(errors.New("no host defined")), "Unable to create MinIO admin client")
 	}
 
-	cl, err := madmin.NewWithOptions(hosts[0], &madmin.Options{
+	endpoint := pairs[0].resolved
+	if pairs[0].originalHost != "" {
+		endpoint = pairs[0].originalHost
+	}
+	cl, err := madmin.NewWithOptions(endpoint, &madmin.Options{
 		Creds:     credentials.NewStaticV4(ctx.String("access-key"), ctx.String("secret-key"), ""),
 		Secure:    ctx.Bool("tls") || ctx.Bool("ktls"),
-		Transport: clientTransport(ctx, hosts[0]),
+		Transport: clientTransportWithLocalIP(ctx, "", pairs[0].resolved, pairs[0].originalHost),
 	})
 	fatalIf(probe.NewError(err), "Unable to create MinIO admin client")
 	cl.SetAppInfo(appName, pkg.Version)
