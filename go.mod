@@ -150,7 +150,7 @@ require (
 	github.com/dgryski/go-camellia v0.0.0-20191119043421-69a8a13fb23d // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
-	github.com/emmansun/gmsm v0.40.0 // indirect
+	github.com/emmansun/gmsm v0.41.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
