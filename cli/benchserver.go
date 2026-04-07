@@ -103,10 +103,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		return false, nil
 	}
 
-	if ctx.Bool("autoterm") && ctx.Bool("full") {
-		return true, errors.New("use of -autoterm cannot be used with --full on remote benchmarks")
-	}
-
 	var ui ui
 	if !globalQuiet && !globalJSON {
 		go ui.Run()
@@ -217,7 +213,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	var updates chan aggregate.UpdateReq
 	srv := wui.New(nil)
 	showAddress := ""
-	if !ctx.Bool("full") {
+	{
 		updates = make(chan aggregate.UpdateReq, 10)
 		monitor.SetUpdate(updates)
 		if ctx.Bool("web") {
@@ -245,9 +241,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	ui.SetSubText("Press 'q' to stop benchmark. " + showAddress)
 
 	if ctx.Bool("autoterm") {
-		if ctx.Bool("full") {
-			return true, errors.New("use of -autoterm cannot be combined with -full on remote benchmarks")
-		}
 		common.AutoTermDur = ctx.Duration("autoterm.dur")
 		common.AutoTermScale = ctx.Float64("autoterm.pct") / 100
 		if common.AutoTermDur > 0 {
@@ -267,7 +260,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	prof.stop(context.Background(), ctx, fileName+".profiles.zip")
 
 	ui.SetPhase("Downloading Operations")
-	if updates == nil {
+	if ctx.Bool("full") {
 		downloaded := conns.downloadOps()
 		switch len(downloaded) {
 		case 0:
@@ -299,6 +292,31 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 					infoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".csv.zst"))
 				}()
 			}
+		}
+		// --full is additive: also download and write the json.zst aggregate.
+		{
+			final := conns.downloadAggr()
+			final.Commandline = commandLine(ctx)
+			final.WarpVersion = GlobalVersion
+			final.WarpDate = GlobalDate
+			final.WarpCommit = GlobalCommit
+			f, err := os.Create(fileName + ".json.zst")
+			if err != nil {
+				monitor.Errorln("Unable to write benchmark data:", err)
+			} else {
+				func() {
+					defer f.Close()
+					enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+					fatalIf(probe.NewError(err), "Unable to compress benchmark output")
+					defer enc.Close()
+					js := json.NewEncoder(enc)
+					js.SetIndent("", "  ")
+					err = js.Encode(final)
+					fatalIf(probe.NewError(err), "Unable to write benchmark output")
+					monitor.InfoLn(fmt.Sprintf("Benchmark data written to %q\n", fileName+".json.zst"))
+				}()
+			}
+			monitor.UpdateAggregate(&final, fileName)
 		}
 		monitor.OperationsReady(allOps, fileName, commandLine(ctx))
 		ui.Update(tea.Quit())
