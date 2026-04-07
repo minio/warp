@@ -78,6 +78,10 @@ var benchFlags = []cli.Flag{
 		Usage: "Do not clear bucket before or after running benchmarks. Use when running multiple clients.",
 	},
 	cli.BoolFlag{
+		Name:  "json-output",
+		Usage: "Save benchmark data in JSON format instead of the default TSV format. Cannot be combined with --autoterm in distributed mode.",
+	},
+	cli.BoolFlag{
 		Name:   "keep-data",
 		Usage:  "Leave benchmark data. Do not run cleanup after benchmark. Bucket will still be cleaned prior to benchmark",
 		Hidden: true,
@@ -570,7 +574,7 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 	// Add collectors
 	common := b.GetCommon()
 
-	if !ctx.Bool("full") {
+	if !ctx.Bool("json-output") {
 		updates := make(chan aggregate.UpdateReq, 1000)
 		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), common.ExtraOut)
 		common.Collector = c

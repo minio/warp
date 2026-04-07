@@ -103,8 +103,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		return false, nil
 	}
 
-	if ctx.Bool("autoterm") && ctx.Bool("full") {
-		return true, errors.New("use of -autoterm cannot be used with --full on remote benchmarks")
+	if ctx.Bool("autoterm") && ctx.Bool("json-output") {
+		return true, errors.New("use of -autoterm cannot be combined with --json-output on remote benchmarks")
 	}
 
 	var ui ui
@@ -217,7 +217,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	var updates chan aggregate.UpdateReq
 	srv := wui.New(nil)
 	showAddress := ""
-	if !ctx.Bool("full") {
+	if ctx.Bool("json-output") {
 		updates = make(chan aggregate.UpdateReq, 10)
 		monitor.SetUpdate(updates)
 		if ctx.Bool("web") {
@@ -245,8 +245,8 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	ui.SetSubText("Press 'q' to stop benchmark. " + showAddress)
 
 	if ctx.Bool("autoterm") {
-		if ctx.Bool("full") {
-			return true, errors.New("use of -autoterm cannot be combined with -full on remote benchmarks")
+		if ctx.Bool("json-output") {
+			return true, errors.New("use of -autoterm cannot be combined with --json-output on remote benchmarks")
 		}
 		common.AutoTermDur = ctx.Duration("autoterm.dur")
 		common.AutoTermScale = ctx.Float64("autoterm.pct") / 100
