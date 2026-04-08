@@ -150,7 +150,7 @@ func mainAnalyze(ctx *cli.Context) error {
 				if !globalQuiet && !globalJSON {
 					console.SetColor("Print", color.New(color.FgHiYellow))
 					console.Println("\nWARNING: Analyzing .csv.zst without --full produces aggregated results (1-second buckets), not accurate per-operation statistics.")
-					console.Println("         For precise latency percentiles and throughput, use: warp analyze --full <file>\n")
+					console.Println("         For precise latency percentiles and throughput, use: warp analyze --full <file>")
 					console.SetColor("Print", color.New(color.FgWhite))
 				}
 				opCh := make(chan bench.Operation, 10000)
