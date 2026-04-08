@@ -144,6 +144,15 @@ func mainReplay(c *cli.Context) error {
 	s3Target := c.String("s3-target")
 	cfgPath := c.String("config") // added flag below
 
+	// short hostname used as client_id in replay CSV output
+	clientID := "replay"
+	if hn, err := os.Hostname(); err == nil {
+		if dot := strings.IndexByte(hn, '.'); dot > 0 {
+			hn = hn[:dot]
+		}
+		clientID = hn
+	}
+
 	// optional: validate the override URL up‐front
 	if s3Target != "" {
 		if _, err := url.ParseRequestURI(s3Target); err != nil {
@@ -319,7 +328,7 @@ func mainReplay(c *cli.Context) error {
 
 		opWG.Add(1)
 		go executeOperation(context.Background(), cl, entry,
-			csvChan, &opWG)
+			csvChan, clientID, &opWG)
 	}
 
 	/* wait for all PUT/GET/… goroutines */
@@ -392,6 +401,7 @@ func executeOperation(
 	cl *minio.Client,
 	e *warpLogEntry,
 	logChan chan<- []string,
+	clientID string,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -458,7 +468,7 @@ func executeOperation(
 			e.Index,
 			e.Thread,
 			e.Op,
-			"replay",
+			clientID,
 			"1",
 			strconv.FormatInt(e.Bytes, 10),
 			cl.EndpointURL().String(),
