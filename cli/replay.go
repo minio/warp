@@ -23,11 +23,11 @@ import (
     "bufio"
     "bytes"
     "context"
+    cryptorand "crypto/rand"
     "encoding/csv"
     "fmt"
     "io"
     "log"
-    //"flag"
     "net/url"
     "os"
     "path/filepath"
@@ -41,7 +41,6 @@ import (
     "github.com/minio/minio-go/v7"
     "github.com/minio/minio-go/v7/pkg/credentials"
 
-    "github.com/russfellows/warp-replay/pkg/generator"
     "github.com/russfellows/warp-replay/pkg/config"
     "github.com/russfellows/warp-replay/pkg/state"
 )
@@ -76,16 +75,6 @@ var replayCmd = cli.Command{
         cli.BoolFlag{
             Name:  "insecure",
             Usage: "Disable TLS certificate verification",
-        },
-        cli.IntFlag{
-            Name:  "dedupe",
-            Usage: "Dedupe factor for generated data (higher → *more* repetition)",
-            Value: 4,
-        },
-        cli.IntFlag{
-            Name:  "compress",
-            Usage: "Compression factor for generated data (higher → easier to compress)",
-            Value: 2,
         },
         cli.BoolFlag{
             Name:  "log-warp-ops",
@@ -147,8 +136,6 @@ func mainReplay(c *cli.Context) error {
         return cli.NewExitError("Error: supply S3 credentials via flags or env vars", 1)
     }
 
-    dedupeFactor := c.Int("dedupe")
-    compressFactor := c.Int("compress")
     insecureTLS := c.Bool("insecure")
     logWarpOps := c.Bool("log-warp-ops")
     s3Target := c.String("s3-target")
@@ -329,7 +316,7 @@ func mainReplay(c *cli.Context) error {
 
         opWG.Add(1)
         go executeOperation(context.Background(), cl, entry,
-            dedupeFactor, compressFactor, csvChan, &opWG)
+            csvChan, &opWG)
     }
 
     /* wait for all PUT/GET/… goroutines */
@@ -394,7 +381,6 @@ func executeOperation(
     ctx context.Context,
     cl *minio.Client,
     e *warpLogEntry,
-    dedupe, comp int,
     logChan chan<- []string,
     wg *sync.WaitGroup,
 ) {
@@ -433,7 +419,8 @@ func executeOperation(
             }
         }
     case "PUT":
-        data := generator.GenerateControlledData(int(e.Bytes), dedupe, comp)
+        data := make([]byte, e.Bytes)
+        _, _ = cryptorand.Read(data)
         _, err := cl.PutObject(ctx, e.Bucket, e.Object,
             bytes.NewReader(data), e.Bytes, minio.PutObjectOptions{})
         if err != nil {

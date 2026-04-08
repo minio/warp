@@ -26,11 +26,12 @@ require (
 	github.com/jfsmig/prng v0.0.2
 	github.com/klauspost/compress v1.18.4
 	github.com/minio/cli v1.24.2
-	github.com/minio/madmin-go/v4 v4.6.3
+	github.com/minio/madmin-go/v4 v4.10.0
 	github.com/minio/mc v0.0.0-20251106162529-77f82e18b540
 	github.com/minio/md5-simd v1.1.2
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/minio/pkg/v3 v3.6.1
+	github.com/minio/warp v1.4.0
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
@@ -405,3 +406,4 @@ require (
 	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20250301125049-0df0534333a4 // indirect
 )
+replace github.com/minio/warp => ./
