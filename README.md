@@ -1,11 +1,17 @@
-![warp](https://raw.githubusercontent.com/minio/warp/master/warp_logo.png)
+# Fork of the MinIO Warp Repository
+This is a fork of the original MinIO warp project, which is an S3 benchmarking tool.
 
-S3 benchmarking tool.
+# Changes from Original Warp
+This fork provides one significant addition to the warp tool, the ability to "replay" a warp logfile. 
+Since warp logs contain essentially a recording or trace of every I/O that occured, it is possible to 
+use this log file to recreate the original workload.  Additionally, it is possible to utilize 
+other tools that create trace files in the same format, and then replay that workload with 
 
-# Download
-
-## From binary
-[Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
+## Tools Able to Create Trace Files
+The [s3dlio](https://github.com/russfellows/s3dlio) I/O library is able to create trace logfiles
+in the warp format.  This makes it possible to run any workload, that utilizes the s3dlio library
+to perform I/O, and generate a warp compatible trace file.  Then that workload can be replayed
+using this project, warp-replay.
 
 ## Build with source
 
@@ -14,7 +20,7 @@ Warp requires minimum Go `go1.21`, please ensure you have compatible version for
 You can follow easy step below to build project
 - Clone project
 ```
-λ git clone https://github.com/minio/warp.git
+λ git clone https://github.com/russefellows/warp-replay.git
 ```
 - Change directory and build
 ```
@@ -94,9 +100,46 @@ See [README_TABLES.md](README_TABLES.md) for detailed documentation.
 Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
 Most benchmarks will also use different prefixes for each "thread" running.
 
-By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. 
-A custom file name can be specified using the `--benchdata` parameter. 
-The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
+By default benchmarks save an aggregated summary to a file named
+`warp-operation-yyyy-mm-dd[hhmmss]-xxxx.json.zst`. A custom base name can be specified
+using the `--benchdata` parameter.
+
+## Full Per-Transaction Logging (`--full`)
+
+Adding `--full` to any benchmark command enables full per-transaction logging. With this
+flag warp writes **both** output files:
+
+| File | Contents |
+|------|----------|
+| `<benchdata>.csv.zst` | Every individual request — one row per operation, [zstandard](https://facebook.github.io/zstd/)-compressed CSV/TSV |
+| `<benchdata>.json.zst` | Aggregated summary (same as default) |
+
+```bash
+warp put --host=... --full
+```
+
+### Analyzing Results
+
+To get accurate per-operation statistics from a `.csv.zst` file, pass `--full` to `warp analyze`:
+
+```bash
+warp analyze --full warp-put-2026-04-07[162451]-xxxx.csv.zst
+```
+
+This reads every individual operation and computes exact latency percentiles and throughput
+split across the full time range.
+
+Running `warp analyze` on a `.csv.zst` **without `--full`** re-aggregates operations into
+1-second buckets (the same representation stored in `.json.zst`). This loses per-operation
+granularity — latency percentiles and throughput can differ slightly, and per-request
+filtering flags (`--analyze.op`, `--analyze.host`, `--analyze.skip`, `--analyze.limit`) have
+no additional effect over the `.json.zst` path. Warp will print a warning in this case.
+
+> **Note:** Passing `--full` when analyzing a `.json.zst` file is silently ignored —
+> aggregate files do not contain individual operations.
+
+Without `--full` only the `.json.zst` aggregate is written and `warp analyze` must be
+pointed at that file instead.
 
 ## Multiple Hosts
 

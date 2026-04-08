@@ -137,7 +137,8 @@ func NewFn(opts ...Option) (func() Source, error) {
 	}, nil
 }
 
-const asciiLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890()"
+// Remove parens, because they are problematic, added dash "-" and underscore "_" in their place
+const asciiLetters = "abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234567890"
 
 var asciiLetterBytes [len(asciiLetters)]byte
 

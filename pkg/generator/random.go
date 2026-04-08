@@ -23,7 +23,7 @@ import (
 	"math/rand"
 	"sync/atomic"
 
-	"github.com/minio/pkg/v3/rng"
+	rngfix "github.com/minio/warp/pkg/generator/rngfix"
 )
 
 func WithRandomData() RandomOpts {
@@ -77,7 +77,7 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	source  *rng.Reader
+	source  *rngfix.Reader
 	rng     *rand.Rand
 	obj     Object
 	o       Options
@@ -98,7 +98,7 @@ func newRandom(o Options) (Source, error) {
 		return nil, fmt.Errorf("size must be >= 0, got %d", size)
 	}
 
-	input, err := rng.NewReader(rng.WithRNG(rand.New(rndSrc)), rng.WithSize(o.totalSize))
+	input, err := rngfix.NewReader(rngfix.WithRNG(rand.New(rndSrc)), rngfix.WithSize(o.totalSize))
 	if err != nil {
 		return nil, err
 	}
