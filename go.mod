@@ -2,7 +2,7 @@ module github.com/minio/warp
 
 go 1.25.0
 
-toolchain go1.25.7
+toolchain go1.25.9
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
@@ -24,12 +24,12 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jfsmig/prng v0.0.2
-	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/compress v1.18.5
 	github.com/minio/cli v1.24.2
-	github.com/minio/madmin-go/v4 v4.6.3
+	github.com/minio/madmin-go/v4 v4.6.7
 	github.com/minio/mc v0.0.0-20251106162529-77f82e18b540
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.98
+	github.com/minio/minio-go/v7 v7.0.100
 	github.com/minio/pkg/v3 v3.6.1
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
