@@ -129,7 +129,7 @@ func mergeJSON(ctx *cli.Context, args []string) error {
 func mergeCSV(ctx *cli.Context, args []string) error {
 	zstdDec, _ := zstd.NewReader(nil)
 	defer zstdDec.Close()
-	var allOps bench.Operations
+	var allOps bench.Operations //nolint:prealloc
 	threads := uint32(0)
 	log := console.Printf
 	if globalQuiet {
