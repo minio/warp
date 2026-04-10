@@ -217,7 +217,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:   "resolve-host",
-		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). This can break SSL certificates, use --insecure if so",
+		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records)",
 		Hidden: true,
 	},
 	cli.IntFlag{

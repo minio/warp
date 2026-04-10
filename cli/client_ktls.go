@@ -18,6 +18,8 @@
 package cli
 
 import (
+	"context"
+	"net"
 	stdHttp "net/http"
 	"os"
 	"time"
@@ -27,7 +29,15 @@ import (
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) stdHttp.RoundTripper {
+	var sni string
+	if originalHost != "" {
+		if h, _, err := net.SplitHostPort(originalHost); err == nil {
+			sni = h
+		} else {
+			sni = originalHost
+		}
+	}
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -36,6 +46,7 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
 		// Extra configs
@@ -54,16 +65,42 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 
 	netD := makeDialer(localIP)
 
+	getDialAddr := func(addr string) string {
+		if originalHost == "" || resolvedHost == "" {
+			return addr
+		}
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = addr
+			port = "443"
+		}
+		targetHost, _, err := net.SplitHostPort(resolvedHost)
+		if err != nil {
+			targetHost = resolvedHost
+		}
+		if host != targetHost {
+			return net.JoinHostPort(targetHost, port)
+		}
+		return addr
+	}
+
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
-		dialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		tlsDialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
+		h1Dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr := getDialAddr(addr)
+			return tlsDialer.DialContext(ctx, network, dialAddr)
+		}
+		return newClientTransport(ctx, withDialTLSContext(h1Dialer))
 	}
 
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netD.DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr := getDialAddr(addr)
+			return netD.DialContext(ctx, network, dialAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.

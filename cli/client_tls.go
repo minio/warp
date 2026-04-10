@@ -19,13 +19,22 @@ package cli
 
 import (
 	"crypto/tls"
+	"net"
 	"net/http"
 	"os"
 
 	"github.com/minio/cli"
 )
 
-func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
+func clientTransportTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
+	var sni string
+	if originalHost != "" {
+		if h, _, err := net.SplitHostPort(originalHost); err == nil {
+			sni = h
+		} else {
+			sni = originalHost
+		}
+	}
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -34,6 +43,7 @@ func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
+		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 	}
 
@@ -41,5 +51,12 @@ func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	return newClientTransport(ctx, withTLSConfig(tlsConfig), withLocalAddr(localIP))
+	dialer := makeDialer(localIP)
+	opts := []transportOption{withTLSConfig(tlsConfig)}
+	if originalHost != "" {
+		opts = append(opts, withResolveHost(resolvedHost, originalHost, dialer, true))
+	} else {
+		opts = append(opts, withLocalAddr(localIP))
+	}
+	return newClientTransport(ctx, opts...)
 }
