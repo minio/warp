@@ -596,7 +596,13 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	return nil
 }
 
-func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
+// addCollector sets up the operation collector for the benchmark.
+//
+// The optional fullExtra channels are only meaningful when --full is set.
+// When fullExtra is non-empty, ops are streamed to those channels instead of
+// being accumulated in memory (streaming mode). When fullExtra is empty and
+// --full is set, ops are accumulated in memory for batch write (legacy mode).
+func addCollector(ctx *cli.Context, b bench.Benchmark, fullExtra ...chan<- bench.Operation) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
 	common := b.GetCommon()
 	if common.DiscardOutput {
 		common.Collector = bench.NewNullCollector(common.ExtraOut...)
@@ -605,13 +611,25 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 	// Always create the live aggregating collector for real-time display and autoterm.
 	updates := make(chan aggregate.UpdateReq, 1000)
 	if ctx.Bool("full") {
-		// --full additionally collects every individual operation so that a
-		// per-transaction csv.zst file is written after the benchmark.
-		// Each op is forwarded to the live collector via the extra channel,
-		// so live display and autoterm continue to work normally.
+		// --full collects every individual operation for csv.zst output.
+		// Each op is also forwarded to the live collector so real-time display
+		// and autoterm continue to work normally.
 		liveC := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), nil)
+		// Build the fan-out target list: common extras + live collector.
+		extras := append(append([]chan<- bench.Operation{}, common.ExtraOut...), liveC.Receiver())
+		if len(fullExtra) > 0 {
+			// Streaming mode: ops flow to the streaming writer channels; no
+			// in-memory accumulation.  Collector.Close() will close the
+			// streaming writer's channel; caller should call writer.Wait()
+			// afterwards.
+			extras = append(extras, fullExtra...)
+			common.Collector = bench.NewNullCollector(extras...)
+			return bench.EmptyOpsCollector, updates
+		}
+		// Batch fallback mode: accumulate ops in memory (used when no
+		// streaming writer is wired in, e.g. distributed agent path).
 		var retrieveOps bench.OpsCollector
-		common.Collector, retrieveOps = bench.NewOpsCollector(append(common.ExtraOut, liveC.Receiver())...)
+		common.Collector, retrieveOps = bench.NewOpsCollector(extras...)
 		return retrieveOps, updates
 	}
 	// Default: live aggregating collector only; no per-transaction file.

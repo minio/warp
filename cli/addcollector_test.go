@@ -17,9 +17,11 @@ package cli
 import (
 	"context"
 	"flag"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	mcli "github.com/minio/cli"
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
@@ -337,5 +339,193 @@ func TestAddCollector_FullMode_OpValuesPreserved(t *testing.T) {
 	}
 	if got.Thread != op.Thread {
 		t.Errorf("Thread: got %d want %d", got.Thread, op.Thread)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 tests: streaming mode via addCollector's fullExtra parameter
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Test 8: streaming mode — ops go to the channel, not to in-memory store
+// ---------------------------------------------------------------------------
+
+// When a streaming channel is passed to addCollector and --full is set:
+//   - retrieveOps must return empty (ops are streamed, not buffered in RAM)
+//   - the streaming channel must receive every op
+func TestAddCollector_StreamingMode_OpsGoToChannel(t *testing.T) {
+	ctx := makeCtx(true) // --full
+
+	streamCh := make(chan bench.Operation, 100)
+	b := &stubBench{}
+
+	retrieveOps, updates := addCollector(ctx, b, streamCh)
+	if updates == nil {
+		t.Fatal("expected non-nil updates in streaming mode")
+	}
+
+	const numOps = 8
+	for i := 0; i < numOps; i++ {
+		sendOp(t, b.Collector)
+	}
+	// Collector.Close() closes streamCh (it is in the fan-out extra list).
+	b.Collector.Close()
+
+	// In streaming mode, retrieveOps must return empty (no in-memory accumulation).
+	ops := retrieveOps()
+	if len(ops) != 0 {
+		t.Errorf("streaming mode: expected 0 in-memory ops, got %d", len(ops))
+	}
+
+	// All ops must have arrived on the streaming channel.
+	var received int
+	for range streamCh {
+		received++
+	}
+	if received != numOps {
+		t.Errorf("streaming channel: expected %d ops, got %d", numOps, received)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: streaming mode — live collector still receives every op
+// ---------------------------------------------------------------------------
+
+// --full with streaming must be additive: both the streaming channel AND the
+// live aggregate collector receive every op.
+func TestAddCollector_StreamingMode_LiveCollectorAlsoReceives(t *testing.T) {
+	ctx := makeCtx(true)
+
+	streamCh := make(chan bench.Operation, 100)
+	b := &stubBench{}
+
+	_, updates := addCollector(ctx, b, streamCh)
+
+	const numOps = 5
+	for i := 0; i < numOps; i++ {
+		sendOp(t, b.Collector)
+	}
+	b.Collector.Close()
+
+	// Drain streaming channel so the test doesn't block.
+	var streamed int
+	for range streamCh {
+		streamed++
+	}
+	if streamed != numOps {
+		t.Errorf("streaming channel: expected %d ops, got %d", numOps, streamed)
+	}
+
+	// Live collector must also have received all ops.
+	final := requestFinal(t, updates)
+	if final == nil {
+		t.Fatal("live aggregate is nil; streaming mode must not disable live collector")
+	}
+	if final.Total.TotalRequests == 0 {
+		t.Errorf("live TotalRequests == 0; ops were not forwarded to live collector in streaming mode")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: backward-compat — batch fallback when no streaming channel given
+// ---------------------------------------------------------------------------
+
+// Passing no fullExtra channel with --full keeps the existing batch behaviour:
+// retrieveOps returns all ops (needed for distributed agent path).
+func TestAddCollector_FullMode_BatchFallback_NoChannel(t *testing.T) {
+	ctx := makeCtx(true)
+	b := &stubBench{}
+
+	// No extra channel → existing batch mode.
+	retrieveOps, updates := addCollector(ctx, b)
+	if updates == nil {
+		t.Fatal("expected non-nil updates in batch fallback mode")
+	}
+
+	const numOps = 4
+	for i := 0; i < numOps; i++ {
+		sendOp(t, b.Collector)
+	}
+	b.Collector.Close()
+
+	ops := retrieveOps()
+	if len(ops) != numOps {
+		t.Errorf("batch fallback: expected %d in-memory ops, got %d", numOps, len(ops))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: end-to-end — streaming path writes correct csv.zst file
+// ---------------------------------------------------------------------------
+
+// Full pipeline: addCollector with a StreamingOpsWriter → send ops → close
+// collector (which closes writer channel) → wait writer → read back file.
+func TestAddCollector_Streaming_EndToEnd(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/out.csv.zst"
+	const wantClientID = "e2eID"
+
+	csvWriter, err := bench.NewStreamingOpsWriter(path, wantClientID, "")
+	if err != nil {
+		t.Fatalf("NewStreamingOpsWriter: %v", err)
+	}
+
+	ctx := makeCtx(true)
+	b := &stubBench{}
+
+	retrieveOps, updates := addCollector(ctx, b, csvWriter.Receiver())
+	if updates == nil {
+		t.Fatal("expected non-nil updates in streaming end-to-end test")
+	}
+
+	const numOps = 12
+	now := time.Now().Truncate(time.Millisecond)
+	for i := 0; i < numOps; i++ {
+		b.Collector.Receiver() <- bench.Operation{
+			OpType: "GET",
+			Thread: uint32(i % 4),
+			Start:  now,
+			End:    now.Add(time.Duration(i+1) * time.Millisecond),
+			Size:   int64(1024 * (i + 1)),
+		}
+	}
+	// Collector.Close() closes csvWriter.Receiver() as an extra channel.
+	b.Collector.Close()
+
+	// Streaming mode: no in-memory ops.
+	ops := retrieveOps()
+	if len(ops) != 0 {
+		t.Errorf("expected 0 in-memory ops in streaming mode, got %d", len(ops))
+	}
+
+	// Wait for writer to flush to disk.
+	if err := csvWriter.Wait(); err != nil {
+		t.Fatalf("csvWriter.Wait: %v", err)
+	}
+
+	// Read back and validate.
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open csv file: %v", err)
+	}
+	defer f.Close()
+
+	dec, err := zstd.NewReader(f)
+	if err != nil {
+		t.Fatalf("zstd.NewReader: %v", err)
+	}
+	defer dec.Close()
+
+	written, err := bench.OperationsFromCSV(dec, false, 0, 0, func(string, ...any) {})
+	if err != nil {
+		t.Fatalf("OperationsFromCSV: %v", err)
+	}
+	if len(written) != numOps {
+		t.Errorf("csv file: expected %d ops, got %d", numOps, len(written))
+	}
+	for i, op := range written {
+		if op.ClientID != wantClientID {
+			t.Errorf("op[%d] ClientID: got %q, want %q", i, op.ClientID, wantClientID)
+		}
 	}
 }
