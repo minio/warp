@@ -37,4 +37,3 @@ func (s *StateManager) LookupOrSet(objID, target string) string {
 	s.m[objID] = entry{target: target, expire: now.Add(s.ttl)}
 	return target
 }
-

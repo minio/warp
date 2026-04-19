@@ -18,8 +18,8 @@
 package main
 
 import (
-	"os"
 	"github.com/russfellows/warp-replay/cli"
+	"os"
 )
 
 var (

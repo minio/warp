@@ -109,7 +109,7 @@ func init() {
 		mergeCmd,
 		clientCmd,
 		runCmd,
-		replayCmd,	// New entry for our replay command
+		replayCmd, // New entry for our replay command
 	}
 	appCmds = append(append(appCmds, a...), b...)
 	benchCmds = a
