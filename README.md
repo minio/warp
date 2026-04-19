@@ -112,6 +112,24 @@ flag warp writes **both** output files:
 warp put --host=... --full
 ```
 
+> **Note:** `--full` buffers every individual operation in memory during the benchmark run.
+> Memory overhead scales with operation count and grows with concurrency — measured on a
+> real MinIO target at 64 KiB objects:
+>
+> | Duration | Concurrency | Extra memory | Bytes per op |
+> |----------|-------------|--------------|--------------|
+> | 30 s     | 8           | +9 MB        | ~310 B/op    |
+> | 120 s    | 8           | +84 MB       | ~740 B/op    |
+> | 60 s     | 32          | +124 MB      | ~850 B/op    |
+>
+> At high concurrency the per-op overhead grows due to Go's GC arena behavior. A 1-hour
+> run at 32 concurrent workers could accumulate several GB of additional memory.
+>
+> Analysis time also differs: a `.csv.zst` file takes ~5× longer to analyze with `--full`
+> and ~13× longer to re-aggregate without it, compared to a `.json.zst` aggregate (which
+> analyzes in under 0.2 s regardless of run length). For most benchmarks the overhead is
+> acceptable; avoid `--full` for very long or very high-concurrency runs.
+
 ### Analyzing Results
 
 To get accurate per-operation statistics from a `.csv.zst` file, pass `--full` to `warp analyze`:

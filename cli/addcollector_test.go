@@ -1,6 +1,6 @@
 package cli
 
-// Tests for addCollector behaviour.
+// Tests for addCollector behavior.
 //
 // The invariants we care about:
 //
@@ -95,8 +95,8 @@ func TestAddCollector_DefaultMode_NoOpsStored(t *testing.T) {
 	}
 
 	// Send an operation to the collector and close it.
-	sendOp(t, b.Common.Collector)
-	b.Common.Collector.Close()
+	sendOp(t, b.Collector)
+	b.Collector.Close()
 
 	// Without --full, retrieveOps is EmptyOpsCollector → must return empty.
 	ops := retrieveOps()
@@ -125,9 +125,9 @@ func TestAddCollector_FullMode_OpsAreCollected(t *testing.T) {
 
 	const numOps = 5
 	for i := 0; i < numOps; i++ {
-		sendOp(t, b.Common.Collector)
+		sendOp(t, b.Collector)
 	}
-	b.Common.Collector.Close()
+	b.Collector.Close()
 
 	ops := retrieveOps()
 	if len(ops) != numOps {
@@ -151,11 +151,11 @@ func TestAddCollector_FullMode_LiveCollectorAlsoReceivesOps(t *testing.T) {
 
 	const numOps = 3
 	for i := 0; i < numOps; i++ {
-		sendOp(t, b.Common.Collector)
+		sendOp(t, b.Collector)
 	}
 	// Close flushes bench.OpsCollector and, via the extra channel, also
 	// signals the live collector to finish computing its aggregate.
-	b.Common.Collector.Close()
+	b.Collector.Close()
 
 	// Sanity-check: per-transaction ops are present.
 	ops := retrieveOps()
@@ -197,9 +197,9 @@ func TestAddCollector_DefaultMode_UpdatesChannelFunctional(t *testing.T) {
 	// Send ops then close.
 	const numOps = 4
 	for i := 0; i < numOps; i++ {
-		sendOp(t, b.Common.Collector)
+		sendOp(t, b.Collector)
 	}
-	b.Common.Collector.Close()
+	b.Collector.Close()
 
 	// The updates channel is buffered (capacity 1000); a write must not block.
 	// A Reset request is a no-op for the live collector and safe to use here.
@@ -258,7 +258,7 @@ func TestAddCollector_DiscardOutput_NullCollector(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // This test validates the core contract: --full must not disable any existing
-// behaviour, only add the per-transaction csv.zst path on top.
+// behavior, only add the per-transaction csv.zst path on top.
 // We verify this by confirming both the ops slice AND the live aggregate are
 // non-empty after the same set of operations.
 func TestAddCollector_FullMode_IsAdditive(t *testing.T) {
@@ -275,9 +275,9 @@ func TestAddCollector_FullMode_IsAdditive(t *testing.T) {
 	// Send ops.
 	const numOps = 6
 	for i := 0; i < numOps; i++ {
-		sendOp(t, b.Common.Collector)
+		sendOp(t, b.Collector)
 	}
-	b.Common.Collector.Close()
+	b.Collector.Close()
 
 	// Per-transaction store must be full.
 	ops := retrieveOps()
@@ -315,8 +315,8 @@ func TestAddCollector_FullMode_OpValuesPreserved(t *testing.T) {
 		Size:   8192,
 		Thread: 3,
 	}
-	b.Common.Collector.Receiver() <- op
-	b.Common.Collector.Close()
+	b.Collector.Receiver() <- op
+	b.Collector.Close()
 
 	ops := retrieveOps()
 	if len(ops) != 1 {

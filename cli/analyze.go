@@ -149,8 +149,8 @@ func mainAnalyze(ctx *cli.Context) error {
 			} else {
 				if !globalQuiet && !globalJSON {
 					console.SetColor("Print", color.New(color.FgHiYellow))
-					console.Println("\nWARNING: Analyzing .csv.zst without --full produces aggregated results (1-second buckets), not accurate per-operation statistics.")
-					console.Println("         For precise latency percentiles and throughput, use: warp analyze --full <file>\n")
+					console.Println("Note: Analyzing .csv.zst without --full re-aggregates into 1-second buckets (same as .json.zst).")
+					console.Println("      Use 'warp analyze --full <file>' for exact per-operation latency and throughput.")
 					console.SetColor("Print", color.New(color.FgWhite))
 				}
 				opCh := make(chan bench.Operation, 10000)
