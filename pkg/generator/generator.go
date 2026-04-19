@@ -162,9 +162,49 @@ func randASCIIBytes(dst []byte, rng *rand.Rand) {
 	}
 }
 
-// GetExpRandSize will return an exponential random size from 1 to and including max.
-// Minimum size: 127 bytes, max scale is 256 times smaller than max size.
-// Average size will be max_size * 0.179151.
+// GetLogNormalRandSize returns a log-normally distributed random size clamped to [minSize, maxSize].
+// sigma is the standard deviation in log-space (natural log); pass 0 to use the default of 1.0.
+// The median is fixed at maxSize/10. With the default sigma=1.0 this spans approximately
+// 8-9 doublings at 3σ and produces a mean of ~16.5% of maxSize — closely matching the
+// character of the original log₂ distribution but with a proper bell-curve shape in log-space.
+// Rejection sampling ensures the result stays within [minSize, maxSize].
+func GetLogNormalRandSize(rng *rand.Rand, minSize, maxSize int64, sigma float64) int64 {
+	if maxSize-minSize < 10 {
+		if maxSize-minSize <= 0 {
+			return 0
+		}
+		return 1 + minSize + rng.Int63n(maxSize-minSize)
+	}
+	if minSize <= 0 {
+		minSize = 1
+	}
+	if sigma <= 0 {
+		sigma = 1.0
+	}
+	// mu is chosen so the median (geometric mean) sits at maxSize/10.
+	mu := math.Log(float64(maxSize) / 10.0)
+
+	// Rejection-sample: for reasonable sigma this converges in <5 draws.
+	for i := 0; i < 100; i++ {
+		size := int64(math.Round(math.Exp(mu + sigma*rng.NormFloat64())))
+		if size >= minSize && size <= maxSize {
+			return size
+		}
+	}
+	// Fallback: hard clamp (only reached for very tight ranges vs. sigma).
+	size := int64(math.Round(math.Exp(mu + sigma*rng.NormFloat64())))
+	if size < minSize {
+		return minSize
+	}
+	if size > maxSize {
+		return maxSize
+	}
+	return size
+}
+
+// GetExpRandSize returns a log₂-distributed random size from minSize to maxSize.
+// Equal number of objects are produced for each doubling of the size range.
+// Average size is approximately max_size * 0.179.
 func GetExpRandSize(rng *rand.Rand, minSize, maxSize int64) int64 {
 	if maxSize-minSize < 10 {
 		if maxSize-minSize <= 0 {

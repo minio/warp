@@ -39,7 +39,21 @@ var genFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:  "obj.randsize",
-		Usage: "Randomize size of objects so they will be up to the specified size",
+		Usage: "Randomize object sizes up to --obj.size using the legacy log\u2082 distribution (backward compatible).",
+	},
+	cli.BoolFlag{
+		Name:  "obj.rand-log2",
+		Usage: "Randomize object sizes using the legacy log\u2082 distribution (equal count per doubling). Alias for --obj.randsize.",
+	},
+	cli.BoolFlag{
+		Name:  "obj.rand-logn",
+		Usage: "Randomize object sizes using a lognormal distribution (bell curve in log-space, realistic workloads). Median = obj.size/10.",
+	},
+	cli.Float64Flag{
+		Name:  "obj.randsize.sigma",
+		Value: 0,
+		Usage: "Log-space standard deviation for the lognormal distribution (--obj.rand-logn). " +
+			"Typical values: 0.75 (narrow), 1.0 (default), 1.5 (wide).",
 	},
 }
 
@@ -92,7 +106,15 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 			fatalIf(probe.NewError(fmt.Errorf("unexpected obj.size specified: %s", ctx.String(sizeField))), "Invalid obj.size parameter")
 		}
 
-		opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
+		// Determine random-size mode. --obj.rand-logn takes priority; --obj.randsize and
+		// --obj.rand-log2 both use the legacy log₂ distribution for backward compatibility.
+		switch {
+		case ctx.Bool("obj.rand-logn"):
+			opts = append(opts, generator.WithRandomSizeMode("logn"), generator.WithRandomSizeSigma(ctx.Float64("obj.randsize.sigma")))
+		case ctx.Bool("obj.randsize") || ctx.Bool("obj.rand-log2"):
+			opts = append(opts, generator.WithRandomSizeMode("log2"))
+		}
+		opts = append([]generator.Option{g.Apply()}, opts...)
 	}
 
 	src, err := generator.NewFn(opts...)

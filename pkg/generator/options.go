@@ -34,7 +34,12 @@ type Options struct {
 	minSize      int64
 	totalSize    int64
 	randomPrefix int
-	randSize     bool
+	// randSizeMode controls random-size behaviour:
+	//   ""      – disabled (fixed size)
+	//   "log2"  – legacy log₂ distribution (--obj.randsize / --obj.rand-log2)
+	//   "logn"  – lognormal distribution   (--obj.rand-logn)
+	randSizeMode  string
+	randSizeSigma float64 // log-space sigma for lognormal; 0 means use default (1.0)
 
 	// Activates the use of a distribution of sizes
 	flagSizesDistribution bool
@@ -51,10 +56,14 @@ func (o Options) getSize(rng *rand.Rand) int64 {
 	if o.flagSizesDistribution {
 		return o.sizesDistribution.Poll(rng)
 	}
-	if !o.randSize {
+	switch o.randSizeMode {
+	case "log2":
+		return GetExpRandSize(rng, o.minSize, o.totalSize)
+	case "logn":
+		return GetLogNormalRandSize(rng, o.minSize, o.totalSize, o.randSizeSigma)
+	default:
 		return o.totalSize
 	}
-	return GetExpRandSize(rng, o.minSize, o.totalSize)
 }
 
 // GeneratePrefix returns a prefix string based on the configured options.
@@ -104,7 +113,7 @@ func WithMinMaxSize(minSize, maxSize int64) Option {
 		if minSize > maxSize {
 			return errors.New("WithMinMaxSize: minSize must be < maxSize")
 		}
-		if o.randSize && maxSize < 256 {
+		if o.randSizeMode != "" && maxSize < 256 {
 			return errors.New("WithMinMaxSize: random sized objects should be at least 256 bytes")
 		}
 
@@ -120,7 +129,7 @@ func WithSize(n int64) Option {
 		if n <= 0 {
 			return errors.New("WithSize: size must be > 0")
 		}
-		if o.randSize && o.totalSize < 256 {
+		if o.randSizeMode != "" && o.totalSize < 256 {
 			return errors.New("WithSize: random sized objects should be at least 256 bytes")
 		}
 
@@ -129,13 +138,50 @@ func WithSize(n int64) Option {
 	}
 }
 
-// WithRandomSize will randomize the size from 1 byte to the total size set.
+// WithRandomSize sets the legacy log₂ random-size mode when b is true.
+// Kept for backward compatibility; equivalent to WithRandomSizeMode("log2").
 func WithRandomSize(b bool) Option {
 	return func(o *Options) error {
-		if b && o.totalSize > 0 && o.totalSize < 256 {
-			return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
+		if b {
+			if o.totalSize > 0 && o.totalSize < 256 {
+				return errors.New("WithRandomSize: Random sized objects should be at least 256 bytes")
+			}
+			o.randSizeMode = "log2"
 		}
-		o.randSize = b
+		return nil
+	}
+}
+
+// WithRandomSizeMode sets the random-size distribution:
+//
+//	"log2" – legacy log₂ distribution (equal count per doubling, upstream behaviour)
+//	"logn" – lognormal distribution  (bell curve in log-space, realistic workloads)
+//	""     – fixed size (no randomisation)
+func WithRandomSizeMode(mode string) Option {
+	return func(o *Options) error {
+		switch mode {
+		case "log2", "logn", "":
+		default:
+			return errors.New("WithRandomSizeMode: mode must be \"log2\", \"logn\", or \"\"")
+		}
+		if mode != "" && o.totalSize > 0 && o.totalSize < 256 {
+			return errors.New("WithRandomSizeMode: random sized objects should be at least 256 bytes")
+		}
+		if mode != "" {
+			o.randSizeMode = mode
+		}
+		return nil
+	}
+}
+
+// WithRandomSizeSigma sets the log-space standard deviation for the lognormal size
+// distribution (used with --obj.rand-logn). Pass 0 to use the default of 1.0.
+func WithRandomSizeSigma(sigma float64) Option {
+	return func(o *Options) error {
+		if sigma < 0 {
+			return errors.New("WithRandomSizeSigma: sigma must be >= 0")
+		}
+		o.randSizeSigma = sigma
 		return nil
 	}
 }

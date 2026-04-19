@@ -131,7 +131,7 @@ func (r *randomSrc) Object() *Object {
 }
 
 func (r *randomSrc) String() string {
-	if r.o.randSize {
+	if r.o.randSizeMode != "" {
 		return fmt.Sprintf("Random data; random size up to %d bytes", r.o.totalSize)
 	}
 	return fmt.Sprintf("Random data; %d bytes total", r.o.totalSize)

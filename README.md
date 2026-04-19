@@ -86,6 +86,66 @@ warp-replay run --full benchmark.yaml
 
 ---
 
+## Realistic Object Size Distribution (`--obj.randsize`)
+
+The upstream `--obj.randsize` flag uses a **log₂ (log-base-2) distribution**: it samples
+uniformly in log₂-space, which means every doubling of size gets equal probability weight.
+The resulting curve has no "typical" object size — objects are as likely to fall in the
+4–8 MB range as in the 50–100 MB range, which does not resemble real-world workloads.
+
+warp-replay replaces this with a **lognormal distribution** — the standard statistical model
+for real-world file system and object store size distributions. The distribution is
+parameterised so its **median sits at `maxSize / 10`** and with the default σ=1.0 it spans
+approximately 8–9 doublings, closely matching the _spread_ of the original while producing a
+realistic bell-curve shape in log-space (many mid-sized objects, a natural tail of large ones).
+The mean is approximately **16.5% of maxSize** — nearly identical to the original's 17.9%.
+
+Both distributions are shown below in the same sorted-sample format used in the upstream README
+(X = objects sorted ascending by size, Y = size in bytes):
+
+![Comparison of legacy log₂ vs. new lognormal --obj.randsize distribution](docs/randsize_distribution.png)
+
+*50,000 samples, maxSize=100 MB. Left: legacy log₂ (upstream) — perfectly flat, equal count
+per doubling, no "typical" size. Right: warp-replay lognormal (σ=1.0, median=10 MB) —
+clear bell curve, similar span.*
+
+### Tuning the spread
+
+Three flags control random-size behaviour:
+
+| Flag | Distribution | Backward compat? |
+|------|-------------|-----------------|
+| `--obj.randsize` | Legacy log₂ (original upstream behaviour) | **Yes** — unchanged |
+| `--obj.rand-log2` | Legacy log₂ (explicit alias) | Yes |
+| `--obj.rand-logn` | Lognormal (new, realistic) | — |
+
+`--obj.randsize.sigma` applies only to `--obj.rand-logn` and controls the log-space standard
+deviation (default **1.0**, ~9 doublings of spread):
+
+| `--obj.randsize.sigma` | Spread | Typical use |
+|------------------------|--------|-------------|
+| `0.75` | Narrow — ~6 doublings | Focused, same-tier stress test |
+| `1.0` | Default — ~9 doublings | General purpose |
+| `1.5` | Wide — ~13 doublings | Archival / mixed-tier workloads |
+
+```bash
+# Backward-compatible: identical to original warp behaviour
+warp-replay put --obj.size=100MiB --obj.randsize
+
+# Explicit log₂ alias
+warp-replay put --obj.size=100MiB --obj.rand-log2
+
+# New lognormal (bell curve, realistic workloads)
+warp-replay put --obj.size=100MiB --obj.rand-logn
+
+# Lognormal with tighter distribution (σ=0.75)
+warp-replay put --obj.size=100MiB --obj.rand-logn --obj.randsize.sigma=0.75
+```
+
+YAML config equivalents: `obj.rand-size` (log₂), `obj.rand-log-2` (log₂), `obj.rand-log-n` (lognormal), `obj.rand-size-sigma`.
+
+---
+
 ## Analyzing Results
 
 The built-in `warp analyze` command provides basic analysis. For **much faster,
