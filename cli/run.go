@@ -45,6 +45,10 @@ var runCmd = cli.Command{
 			Name:  "var",
 			Usage: "Set variables for template replacement. Can be used multiple times. Example: ObjSize=1KB",
 		},
+		cli.BoolFlag{
+			Name:  "full",
+			Usage: "Write a full per-operation log to <benchdata>.csv.zst in addition to the normal benchmark data.",
+		},
 	},
 	CustomHelpTemplate: `NAME:
   {{.HelpName}} - {{.Usage}}
@@ -254,6 +258,13 @@ func mainExec(ctx *cli.Context) error {
 		if err != nil {
 			err := fmt.Errorf("parsing parameters (%v:%v): %w", k, v, err)
 			fatal(probe.NewError(err), "error setting flags")
+		}
+	}
+
+	// Propagate --full from the run command context into the benchmark context.
+	if ctx.Bool("full") {
+		if err := ctx2.Set("full", "true"); err != nil {
+			fatal(probe.NewError(err), "error propagating --full flag")
 		}
 	}
 
