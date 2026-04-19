@@ -20,3 +20,7 @@ dist
 
 # qreleaser state file
 .release-state.sh
+
+# local secrets — never commit
+.env
+warp-test

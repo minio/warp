@@ -118,6 +118,15 @@ flag warp writes **both** output files:
 warp put --host=... --full
 ```
 
+> **Note:** `--full` streams every individual operation directly to the `.csv.zst` file
+> as it completes, using a background goroutine. Memory overhead is constant (~1.5 MB)
+> regardless of benchmark duration or concurrency — earlier releases buffered all ops in
+> memory, which scaled to several GB for long high-concurrency runs.
+>
+> Analysis time differs by file type: a `.csv.zst` file takes ~5× longer to analyze with
+> `--full` and ~13× longer to re-aggregate without it, compared to a `.json.zst` aggregate
+> (which analyzes in under 0.2 s regardless of run length).  The `.json.zst` aggregate is
+> always written alongside the `.csv.zst` when `--full` is used, so both are available.
 ### Analyzing Results
 
 To get accurate per-operation statistics from a `.csv.zst` file, pass `--full` to `warp analyze`:

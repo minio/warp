@@ -132,7 +132,30 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		go ui.Run()
 	}
 
-	retrieveOps, updates := addCollector(ctx, b)
+	// Generate the output file name and client ID here — before addCollector —
+	// so the streaming writer (if --full) can be wired into the collector
+	// fan-out from the start of the benchmark.
+	fileName := ctx.String("benchdata")
+	cID := pRandASCII(4)
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
+	}
+
+	// When --full is set, create the streaming csv.zst writer immediately.
+	// The file exists on disk from this point so a partial record is available
+	// even if the benchmark is interrupted before it finishes.
+	var csvWriter *bench.StreamingOpsWriter
+	if ctx.Bool("full") {
+		var werr error
+		csvWriter, werr = bench.NewStreamingOpsWriter(fileName+".csv.zst", cID, commandLine(ctx))
+		fatalIf(probe.NewError(werr), "Unable to create benchmark data file")
+	}
+
+	var fullExtra []chan<- bench.Operation
+	if csvWriter != nil {
+		fullExtra = []chan<- bench.Operation{csvWriter.Receiver()}
+	}
+	retrieveOps, updates := addCollector(ctx, b, fullExtra...)
 	c.UpdateStatus = ui.SetSubText
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), updates)
@@ -216,12 +239,6 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(start)
 	}()
 
-	fileName := ctx.String("benchdata")
-	cID := pRandASCII(4)
-	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
-	}
-
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
 	monitor.InfoLn("Starting benchmark in", time.Until(tStart).Round(time.Second))
@@ -231,6 +248,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	ctx2 = context.Background()
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
+
+	// Flush the streaming writer — Collector.Close() above closed its channel;
+	// Wait() blocks until the background goroutine has flushed to disk.
+	if csvWriter != nil {
+		if werr := csvWriter.Wait(); werr != nil {
+			monitor.Errorln("Error finalizing benchmark data:", werr)
+		} else {
+			monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n", fileName+".csv.zst"))
+		}
+	}
 
 	// Previous context is canceled, create a new...
 	monitor.InfoLn("Saving benchmark data")
@@ -596,7 +623,13 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	return nil
 }
 
-func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
+// addCollector sets up the operation collector for the benchmark.
+//
+// The optional fullExtra channels are only meaningful when --full is set.
+// When fullExtra is non-empty, ops are streamed to those channels instead of
+// being accumulated in memory (streaming mode). When fullExtra is empty and
+// --full is set, ops are accumulated in memory for batch write (legacy mode).
+func addCollector(ctx *cli.Context, b bench.Benchmark, fullExtra ...chan<- bench.Operation) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
 	common := b.GetCommon()
 	if common.DiscardOutput {
 		common.Collector = bench.NewNullCollector(common.ExtraOut...)
@@ -605,13 +638,25 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 	// Always create the live aggregating collector for real-time display and autoterm.
 	updates := make(chan aggregate.UpdateReq, 1000)
 	if ctx.Bool("full") {
-		// --full additionally collects every individual operation so that a
-		// per-transaction csv.zst file is written after the benchmark.
-		// Each op is forwarded to the live collector via the extra channel,
-		// so live display and autoterm continue to work normally.
+		// --full collects every individual operation for csv.zst output.
+		// Each op is also forwarded to the live collector so real-time display
+		// and autoterm continue to work normally.
 		liveC := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), nil)
+		// Build the fan-out target list: common extras + live collector.
+		extras := append(append([]chan<- bench.Operation{}, common.ExtraOut...), liveC.Receiver())
+		if len(fullExtra) > 0 {
+			// Streaming mode: ops flow to the streaming writer channels; no
+			// in-memory accumulation.  Collector.Close() will close the
+			// streaming writer's channel; caller should call writer.Wait()
+			// afterwards.
+			extras = append(extras, fullExtra...)
+			common.Collector = bench.NewNullCollector(extras...)
+			return bench.EmptyOpsCollector, updates
+		}
+		// Batch fallback mode: accumulate ops in memory (used when no
+		// streaming writer is wired in, e.g. distributed agent path).
 		var retrieveOps bench.OpsCollector
-		common.Collector, retrieveOps = bench.NewOpsCollector(append(common.ExtraOut, liveC.Receiver())...)
+		common.Collector, retrieveOps = bench.NewOpsCollector(extras...)
 		return retrieveOps, updates
 	}
 	// Default: live aggregating collector only; no per-transaction file.

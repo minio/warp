@@ -275,15 +275,8 @@ func mainReplay(c *cli.Context) error {
 		}
 
 		objID := extractObjectID(entry) // implement for your TSV format
-		resolved := entry.Endpoint
-		if cfg != nil {
-			// a) config-level wildcard mapping
-			if m, _ := cfg.Resolve(entry.Endpoint); m != "" {
-				resolved = m
-			}
-		}
 		// start from the trace’s original host
-		resolved = entry.Endpoint
+		resolved := entry.Endpoint
 		if cfg != nil {
 			// a) host_mapping with round-robin “one→many”
 			if targets, ok := cfg.HostMapping[entry.Endpoint]; ok && len(targets) > 0 {

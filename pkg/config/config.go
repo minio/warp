@@ -11,11 +11,11 @@ import (
 
 // ReplayConfig defines the structure of our YAML configuration.
 type ReplayConfig struct {
-	DefaultS3Targets    []string          `yaml:"default_s3_targets"`
-// 1 to 1 host mapping
-//	HostMapping         map[string]string `yaml:"host_mapping"`
-// 1 to many host mapping
-	HostMapping map[string][]string `yaml:"host_mapping"`
+	DefaultS3Targets []string `yaml:"default_s3_targets"`
+	// 1 to 1 host mapping
+	//	HostMapping         map[string]string `yaml:"host_mapping"`
+	// 1 to many host mapping
+	HostMapping         map[string][]string     `yaml:"host_mapping"`
 	StateTrackingConfig `yaml:"state_tracking"` // Nested struct
 }
 
@@ -26,14 +26,14 @@ type StateTrackingConfig struct {
 	ProducerOperations     []string `yaml:"producer_operations"`
 }
 
-// compiledHostMapping stores direct and regex-compiled mappings.
-type compiledHostMapping struct {
-	//Direct   map[string]string
-	Direct map[string][]string
+// CompiledHostMapping stores direct and regex-compiled mappings.
+type CompiledHostMapping struct {
+	// Direct map[string]string
+	Direct   map[string][]string
 	Wildcard []struct {
 		Pattern *regexp.Regexp
 		Targets []string
-		//Target  string
+		// Target string
 	}
 }
 
@@ -50,53 +50,52 @@ func LoadConfig(filePath string) (*ReplayConfig, error) {
 	}
 
 	// Default state tracking settings if not specified
-	if cfg.StateTrackingConfig.RetentionWindowSeconds == 0 {
-		cfg.StateTrackingConfig.RetentionWindowSeconds = 600 // Default 10 minutes
+	if cfg.RetentionWindowSeconds == 0 {
+		cfg.RetentionWindowSeconds = 600 // Default 10 minutes
 	}
-	if len(cfg.StateTrackingConfig.ProducerOperations) == 0 {
-		cfg.StateTrackingConfig.ProducerOperations = []string{"PutObject", "CreateBucket"} // Common S3 producers
+	if len(cfg.ProducerOperations) == 0 {
+		cfg.ProducerOperations = []string{"PutObject", "CreateBucket"} // Common S3 producers
 	}
-
 
 	return &cfg, nil
 }
 
 // NewCompiledHostMapping processes the raw host_mapping from config
 // to separate direct matches from wildcard/regex patterns and compile regexes.
-//func NewCompiledHostMapping(rawMappings map[string]string) (*compiledHostMapping, error) {
-func NewCompiledHostMapping(rawMappings map[string][]string) (*compiledHostMapping, error) {
-	cm := &compiledHostMapping{
-		//Direct:   make(map[string]string),
-		Direct:    make(map[string][]string),
+// func NewCompiledHostMapping(rawMappings map[string]string) (*CompiledHostMapping, error) {
+func NewCompiledHostMapping(rawMappings map[string][]string) (*CompiledHostMapping, error) {
+	cm := &CompiledHostMapping{
+		// Direct: make(map[string]string),
+		Direct: make(map[string][]string),
 		Wildcard: []struct {
 			Pattern *regexp.Regexp
-			Targets	[]string
-			//Target  string
+			Targets []string
+			// Target string
 		}{},
 	}
 
-//	for original, target := range rawMappings {
+	//	for original, target := range rawMappings {
 	for original, targets := range rawMappings {
 		// Heuristic: If it contains common regex metacharacters, treat as regex.
 		// Otherwise, treat as a direct string match.
 		if containsRegexMetachar(original) {
 			// Prepend and append ^$ to ensure full string match
 			regexPattern := "^" + original + "$"
-			
+
 			re, err := regexp.Compile(regexPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid regex pattern '%s' in host_mapping: %w", original, err)
 			}
 			cm.Wildcard = append(cm.Wildcard, struct {
 				Pattern *regexp.Regexp
-				Targets	[]string
+				Targets []string
 			}{Pattern: re, Targets: targets})
-			//cm.Wildcard = append(cm.Wildcard, struct {
-				//Pattern *regexp.Regexp
-				//Target  string
-			//}{Pattern: re, Target: target})
+			// cm.Wildcard = append(cm.Wildcard, struct {
+			// Pattern *regexp.Regexp
+			// Target  string
+			// }{Pattern: re, Target: target})
 		} else {
-			//cm.Direct[original] = target
+			// cm.Direct[original] = target
 			cm.Direct[original] = targets
 		}
 	}
@@ -107,40 +106,39 @@ func NewCompiledHostMapping(rawMappings map[string][]string) (*compiledHostMappi
 // keep the old cfg.Resolve(host) code path. It recompiles the mapping
 // once per call; that’s fine for replay workloads.
 func (cfg *ReplayConfig) Resolve(originalHost string) (string, error) {
-    mapper, err := NewCompiledHostMapping(cfg.HostMapping)
-    if err != nil {
-        return "", err
-    }
-    rr := 0 // single-shot call – round-robin index local
-    return mapper.ResolveTarget(originalHost, cfg.DefaultS3Targets, &rr), nil
+	mapper, err := NewCompiledHostMapping(cfg.HostMapping)
+	if err != nil {
+		return "", err
+	}
+	rr := 0 // single-shot call – round-robin index local
+	return mapper.ResolveTarget(originalHost, cfg.DefaultS3Targets, &rr), nil
 }
 
 // ResolveTarget resolves the new target URL based on original host,
 // using direct mapping, then regex mapping, then default targets (round-robin).
-//func (cm *compiledHostMapping) ResolveTarget(originalHost string, defaultTargets []string, roundRobinIdx *int) string {
-func (cm *compiledHostMapping) ResolveTarget(originalHost string, defaultTargets []string, roundRobinIdx *int) string {
+// func (cm *CompiledHostMapping) ResolveTarget(originalHost string, defaultTargets []string, roundRobinIdx *int) string {
+func (cm *CompiledHostMapping) ResolveTarget(originalHost string, defaultTargets []string, roundRobinIdx *int) string {
 	// 1. Check explicit direct mappings
-	//if target, ok := cm.Direct[originalHost]; ok {
+	// if target, ok := cm.Direct[originalHost]; ok {
 	//	return target
 	//}
-        if targets, ok := cm.Direct[originalHost]; ok && len(targets) > 0 {
-	       i := *roundRobinIdx % len(targets)
-	       target := targets[i]
-	       *roundRobinIdx = (*roundRobinIdx + 1) % len(targets)
-	       return target
-     }
-
+	if targets, ok := cm.Direct[originalHost]; ok && len(targets) > 0 {
+		i := *roundRobinIdx % len(targets)
+		target := targets[i]
+		*roundRobinIdx = (*roundRobinIdx + 1) % len(targets)
+		return target
+	}
 
 	// 2. Check regex mappings
 	// Iterate through wildcard patterns in the order they were defined in YAML.
 	// The first match wins. This is important if you have overlapping patterns.
 	for _, mapping := range cm.Wildcard {
 		if mapping.Pattern.MatchString(originalHost) {
-		//	return mapping.Target
-		i := *roundRobinIdx % len(mapping.Targets)
-		target := mapping.Targets[i]
-		*roundRobinIdx = (*roundRobinIdx + 1) % len(mapping.Targets)
-		return target
+			//	return mapping.Target
+			i := *roundRobinIdx % len(mapping.Targets)
+			target := mapping.Targets[i]
+			*roundRobinIdx = (*roundRobinIdx + 1) % len(mapping.Targets)
+			return target
 		}
 	}
 
