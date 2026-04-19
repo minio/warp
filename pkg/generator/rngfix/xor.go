@@ -19,7 +19,7 @@ package rngfix
 
 // xor32Go will do out[x] = in[x] ^ v[x mod 32]
 // len(in) must >= len(out) and length must be a multiple of 32.
-func xor32Go(in, out []byte, v *[4]uint64) {
+func xor32Go(in, out []byte, v *[4]uint64) { //nolint:unused
 	if unsafeEnabled {
 		// Faster with "unsafe", slower without.
 		var i int

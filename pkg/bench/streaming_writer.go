@@ -38,7 +38,7 @@ import (
 // Standalone usage (tests):
 //  1. Create with NewStreamingOpsWriter.
 //  2. Send ops to Receiver().
-//  3. Call Close() to flush and finalise.
+//  3. Call Close() to flush and finalize.
 type StreamingOpsWriter struct {
 	ch       chan Operation
 	done     chan struct{}
@@ -95,14 +95,14 @@ func NewStreamingOpsWriter(path, clientID, cmdLine string) (*StreamingOpsWriter,
 			if err := op.WriteCSV(bw, idx); err != nil {
 				w.err = err
 				// Drain remaining ops so senders are not blocked indefinitely.
-				for range w.ch {
+				for range w.ch { //nolint:revive // intentionally empty drain loop
 				}
 				break
 			}
 			idx++
 		}
 
-		// Write trailing command-line comment (mirrors Operations.CSV behaviour).
+		// Write trailing command-line comment (mirrors Operations.CSV behavior).
 		if w.err == nil && len(w.cmdLine) > 0 {
 			for txt := range strings.SplitSeq(w.cmdLine, "\n") {
 				if _, err := fmt.Fprintf(bw, "# %s\n", txt); err != nil {

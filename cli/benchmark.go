@@ -253,7 +253,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	// Wait() blocks until the background goroutine has flushed to disk.
 	if csvWriter != nil {
 		if werr := csvWriter.Wait(); werr != nil {
-			monitor.Errorln("Error finalising benchmark data:", werr)
+			monitor.Errorln("Error finalizing benchmark data:", werr)
 		} else {
 			monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n", fileName+".csv.zst"))
 		}

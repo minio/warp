@@ -25,15 +25,15 @@ import (
 	"unsafe"
 )
 
-const unsafeEnabled = true
+const unsafeEnabled = true //nolint:unused
 
-func load64(b []byte, i int) uint64 {
+func load64(b []byte, i int) uint64 { //nolint:unused
 	// return binary.LittleEndian.Uint64(b[i:])
 	// return *(*uint64)(unsafe.Pointer(&b[i]))
 	return *(*uint64)(unsafe.Pointer(uintptr(unsafe.Pointer(&b[0])) + uintptr(i)*unsafe.Sizeof(b[0])))
 }
 
-func store64(b []byte, i int, v uint64) {
+func store64(b []byte, i int, v uint64) { //nolint:unused
 	// binary.LittleEndian.PutUint64(b, v)
 	*(*uint64)(unsafe.Pointer(uintptr(unsafe.Pointer(&b[0])) + uintptr(i)*unsafe.Sizeof(b[0]))) = v
 }
