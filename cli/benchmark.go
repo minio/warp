@@ -132,7 +132,30 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		go ui.Run()
 	}
 
-	retrieveOps, updates := addCollector(ctx, b)
+	// Generate the output file name and client ID here — before addCollector —
+	// so the streaming writer (if --full) can be wired into the collector
+	// fan-out from the start of the benchmark.
+	fileName := ctx.String("benchdata")
+	cID := pRandASCII(4)
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
+	}
+
+	// When --full is set, create the streaming csv.zst writer immediately.
+	// The file exists on disk from this point so a partial record is available
+	// even if the benchmark is interrupted before it finishes.
+	var csvWriter *bench.StreamingOpsWriter
+	if ctx.Bool("full") {
+		var werr error
+		csvWriter, werr = bench.NewStreamingOpsWriter(fileName+".csv.zst", cID, commandLine(ctx))
+		fatalIf(probe.NewError(werr), "Unable to create benchmark data file")
+	}
+
+	var fullExtra []chan<- bench.Operation
+	if csvWriter != nil {
+		fullExtra = []chan<- bench.Operation{csvWriter.Receiver()}
+	}
+	retrieveOps, updates := addCollector(ctx, b, fullExtra...)
 	c.UpdateStatus = ui.SetSubText
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), updates)
@@ -216,12 +239,6 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(start)
 	}()
 
-	fileName := ctx.String("benchdata")
-	cID := pRandASCII(4)
-	if fileName == "" {
-		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
-	}
-
 	prof, err := startProfiling(ctx2, ctx)
 	fatalIf(probe.NewError(err), "Unable to start profile.")
 	monitor.InfoLn("Starting benchmark in", time.Until(tStart).Round(time.Second))
@@ -231,6 +248,16 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	ctx2 = context.Background()
 	prof.stop(ctx2, ctx, fileName+".profiles.zip")
+
+	// Flush the streaming writer — Collector.Close() above closed its channel;
+	// Wait() blocks until the background goroutine has flushed to disk.
+	if csvWriter != nil {
+		if werr := csvWriter.Wait(); werr != nil {
+			monitor.Errorln("Error finalising benchmark data:", werr)
+		} else {
+			monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n", fileName+".csv.zst"))
+		}
+	}
 
 	// Previous context is canceled, create a new...
 	monitor.InfoLn("Saving benchmark data")
