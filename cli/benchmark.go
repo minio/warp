@@ -274,6 +274,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 					enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 					if err != nil {
 						monitor.Errorln("Unable to compress benchmark data:", err)
+						return
 					}
 					defer enc.Close()
 					js := json.NewEncoder(enc)
