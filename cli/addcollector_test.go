@@ -222,7 +222,7 @@ func TestAddCollector_DiscardOutput_NullCollector(t *testing.T) {
 	t.Run("full=false", func(t *testing.T) {
 		ctx := makeCtx(false)
 		b := &stubBench{}
-		b.Common.DiscardOutput = true
+		b.DiscardOutput = true
 
 		retrieveOps, updates := addCollector(ctx, b)
 
@@ -239,7 +239,7 @@ func TestAddCollector_DiscardOutput_NullCollector(t *testing.T) {
 	t.Run("full=true", func(t *testing.T) {
 		ctx := makeCtx(true)
 		b := &stubBench{}
-		b.Common.DiscardOutput = true
+		b.DiscardOutput = true
 
 		retrieveOps, updates := addCollector(ctx, b)
 
