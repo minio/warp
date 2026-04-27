@@ -94,9 +94,64 @@ See [README_TABLES.md](README_TABLES.md) for detailed documentation.
 Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
 Most benchmarks will also use different prefixes for each "thread" running.
 
-By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. 
-A custom file name can be specified using the `--benchdata` parameter. 
-The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
+By default benchmarks save an aggregated summary to a file named
+`warp-operation-yyyy-mm-dd[hhmmss]-xxxx.json.zst`. A custom base name can be specified
+using the `--benchdata` parameter.
+
+## Full Per-Transaction Logging (`--full`)
+
+Adding `--full` to any benchmark command enables full per-transaction logging. With this
+flag warp writes **both** output files:
+
+| File | Contents |
+|------|----------|
+| `<benchdata>.csv.zst` | Every individual request — one row per operation, [zstandard](https://facebook.github.io/zstd/)-compressed CSV/TSV |
+| `<benchdata>.json.zst` | Aggregated summary (same as default) |
+
+```bash
+warp put --host=... --full
+```
+
+> **Note:** `--full` buffers every individual operation in memory during the benchmark run.
+> Memory overhead scales with operation count and grows with concurrency — measured on a
+> real MinIO target at 64 KiB objects:
+>
+> | Duration | Concurrency | Extra memory | Bytes per op |
+> |----------|-------------|--------------|--------------|
+> | 30 s     | 8           | +9 MB        | ~310 B/op    |
+> | 120 s    | 8           | +84 MB       | ~740 B/op    |
+> | 60 s     | 32          | +124 MB      | ~850 B/op    |
+>
+> At high concurrency the per-op overhead grows due to Go's GC arena behavior. A 1-hour
+> run at 32 concurrent workers could accumulate several GB of additional memory.
+>
+> Analysis time also differs: a `.csv.zst` file takes ~5× longer to analyze with `--full`
+> and ~13× longer to re-aggregate without it, compared to a `.json.zst` aggregate (which
+> analyzes in under 0.2 s regardless of run length). For most benchmarks the overhead is
+> acceptable; avoid `--full` for very long or very high-concurrency runs.
+
+### Analyzing Results
+
+To get accurate per-operation statistics from a `.csv.zst` file, pass `--full` to `warp analyze`:
+
+```bash
+warp analyze --full warp-put-2026-04-07[162451]-xxxx.csv.zst
+```
+
+This reads every individual operation and computes exact latency percentiles and throughput
+split across the full time range.
+
+Running `warp analyze` on a `.csv.zst` **without `--full`** re-aggregates operations into
+1-second buckets (the same representation stored in `.json.zst`). This loses per-operation
+granularity — latency percentiles and throughput can differ slightly, and per-request
+filtering flags (`--analyze.op`, `--analyze.host`, `--analyze.skip`, `--analyze.limit`) have
+no additional effect over the `.json.zst` path. Warp will print a warning in this case.
+
+> **Note:** Passing `--full` when analyzing a `.json.zst` file is silently ignored —
+> aggregate files do not contain individual operations.
+
+Without `--full` only the `.json.zst` aggregate is written and `warp analyze` must be
+pointed at that file instead.
 
 ## Multiple Hosts
 

@@ -256,6 +256,37 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 				}()
 			}
 		}
+		// --full is additive: also write the json.zst aggregate alongside csv.zst.
+		if updates != nil {
+			finalCh := make(chan *aggregate.Realtime, 1)
+			updates <- aggregate.UpdateReq{Final: true, C: finalCh}
+			final := <-finalCh
+			final.Commandline = commandLine(ctx)
+			final.WarpVersion = GlobalVersion
+			final.WarpDate = GlobalDate
+			final.WarpCommit = GlobalCommit
+			f, err := os.Create(fileName + ".json.zst")
+			if err != nil {
+				monitor.Errorln("Unable to write benchmark data:", err)
+			} else {
+				func() {
+					defer f.Close()
+					enc, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+					if err != nil {
+						monitor.Errorln("Unable to compress benchmark data:", err)
+						return
+					}
+					defer enc.Close()
+					js := json.NewEncoder(enc)
+					js.SetIndent("", "  ")
+					err = js.Encode(final)
+					if err != nil {
+						monitor.Errorln("Unable to write benchmark data:", err)
+					}
+					monitor.InfoLn(fmt.Sprintf("\nBenchmark data written to %q\n\n", fileName+".json.zst"))
+				}()
+			}
+		}
 		monitor.OperationsReady(ops, fileName, commandLine(ctx))
 		var buf bytes.Buffer
 		printAnalysis(ctx, &buf, ops)
@@ -567,22 +598,27 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 }
 
 func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
-	// Add collectors
 	common := b.GetCommon()
-
-	if !ctx.Bool("full") {
-		updates := make(chan aggregate.UpdateReq, 1000)
-		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), common.ExtraOut)
-		common.Collector = c
-		return bench.EmptyOpsCollector, updates
-	}
 	if common.DiscardOutput {
 		common.Collector = bench.NewNullCollector(common.ExtraOut...)
 		return bench.EmptyOpsCollector, nil
 	}
-	var retrieveOps bench.OpsCollector
-	common.Collector, retrieveOps = bench.NewOpsCollector(common.ExtraOut...)
-	return retrieveOps, nil
+	// Always create the live aggregating collector for real-time display and autoterm.
+	updates := make(chan aggregate.UpdateReq, 1000)
+	if ctx.Bool("full") {
+		// --full additionally collects every individual operation so that a
+		// per-transaction csv.zst file is written after the benchmark.
+		// Each op is forwarded to the live collector via the extra channel,
+		// so live display and autoterm continue to work normally.
+		liveC := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), nil)
+		var retrieveOps bench.OpsCollector
+		common.Collector, retrieveOps = bench.NewOpsCollector(append(common.ExtraOut, liveC.Receiver())...)
+		return retrieveOps, updates
+	}
+	// Default: live aggregating collector only; no per-transaction file.
+	c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), common.ExtraOut)
+	common.Collector = c
+	return bench.EmptyOpsCollector, updates
 }
 
 type runningProfiles struct {

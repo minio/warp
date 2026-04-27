@@ -147,6 +147,12 @@ func mainAnalyze(ctx *cli.Context) error {
 					log("Loading %q", arg)
 				}
 			} else {
+				if !globalQuiet && !globalJSON {
+					console.SetColor("Print", color.New(color.FgHiYellow))
+					console.Println("Note: Analyzing .csv.zst without --full re-aggregates into 1-second buckets (same as .json.zst).")
+					console.Println("      Use 'warp analyze --full <file>' for exact per-operation latency and throughput.")
+					console.SetColor("Print", color.New(color.FgWhite))
+				}
 				opCh := make(chan bench.Operation, 10000)
 				go func() {
 					err := bench.StreamOperationsFromCSV(rc, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
