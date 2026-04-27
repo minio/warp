@@ -162,8 +162,18 @@ func parseChecksum(ctx *cli.Context) (useMD5 bool, ct minio.ChecksumType) {
 			ct = minio.ChecksumCRC64NVME
 		case "MD5":
 			useMD5 = true
+		case "MD5CS":
+			ct = minio.ChecksumMD5
+		case "SHA512":
+			ct = minio.ChecksumSHA512
+		case "XXH64":
+			ct = minio.ChecksumXXHash64
+		case "XXH3":
+			ct = minio.ChecksumXXHash3
+		case "XXH128":
+			ct = minio.ChecksumXXHash128
 		default:
-			err := fmt.Errorf("unknown checksum type: %s. Should be one of CRC64NVME, MD5, CRC32, CRC32C, CRC32-FO, CRC32C-FO, SHA1 or SHA256", cs)
+			err := fmt.Errorf("unknown checksum type: %s. Should be one of CRC64NVME, MD5, CRC32, CRC32C, CRC32-FO, CRC32C-FO, SHA1, SHA256, MD5CS, SHA512, XXH64, XXH3 or XXH128", cs)
 			fatalIf(probe.NewError(err), "")
 		}
 		if ct.IsSet() {

@@ -297,7 +297,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "checksum",
-		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
+		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1, SHA256, MD5, MD5CS, SHA512, XXH64, XXH3 or XXH128. Requires server trailing headers (AWS, MinIO)",
 		Value: "",
 	},
 }

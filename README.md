@@ -435,7 +435,7 @@ It is possible by forcing md5 checksums on data by using the `--md5` option.
 To test [POST Object](https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html) operations use `-post` parameter.
 
 To add a [checksum](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html) to the uploaded objects, use `--checksum` parameter.
-The following checksums are supported: `CRC32` (composite), `CRC32-FO` (full object), `CRC32C`, `CRC32-FO`, `CRC32C`, `SHA1`, `SHA256` and `CRC64NVME`.
+The following checksums are supported: `CRC32` (composite), `CRC32-FO` (full object), `CRC32C`, `CRC32C-FO`, `SHA1`, `SHA256`, `CRC64NVME`, `MD5`, `MD5CS`, `SHA512`, `XXH64`, `XXH3` and `XXH128`.
 Adding a checksum will always disable MD5 checksums.
 
 ## DELETE
