@@ -208,8 +208,7 @@ func (a *aggregatedStats) add(o bench.Operation) {
 	if a.reqMin == 0 || dur < a.reqMin {
 		a.reqMin = dur
 	}
-	if o.FirstByte != nil {
-		ttfb := o.FirstByte.Sub(o.Start)
+	if ttfb := o.TTFB(); ttfb > 0 {
 		a.ttfb += ttfb
 		if ttfb > a.ttfbMax {
 			a.ttfbMax = ttfb

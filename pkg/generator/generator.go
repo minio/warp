@@ -23,6 +23,7 @@ import (
 	"math"
 	"math/rand"
 	"runtime"
+	"time"
 )
 
 // Option provides options for data generation.
@@ -45,7 +46,7 @@ type Source interface {
 type Object struct {
 	// Reader will return a reader that will return the number of requested bytes
 	// and EOF on all subsequent calls.
-	Reader io.ReadSeeker
+	Reader LastByter
 
 	// A random generated name.
 	Name string
@@ -59,6 +60,13 @@ type Object struct {
 
 	// Size of the object to expect.
 	Size int64
+}
+
+type LastByter interface {
+	io.ReadSeeker
+
+	// LastByte returns the last time the reader returned from a read.
+	LastByte() *time.Time
 }
 
 // Objects is a slice of objects.

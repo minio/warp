@@ -125,6 +125,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					op.Start = time.Now()
 					res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 					op.End = time.Now()
+					op.LastByte = obj.Reader.LastByte()
 					if err != nil {
 						err := fmt.Errorf("upload error: %w", err)
 						d.Error(err)

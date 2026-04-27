@@ -163,9 +163,10 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) error {
 				op.Endpoint = client.EndpointURL().String()
 				op.Start = time.Now()
 				tarLength := int64(buf.Len())
-				// fmt.Println(op.Size, "->", tarLength, math.Round(100*float64(tarLength)/float64(op.Size)), "%")
-				res, err := client.PutObject(nonTerm, s.Bucket, obj.Name+".tar", &buf, tarLength, opts)
+				lbr := lastByteRecorder{r: &buf}
+				res, err := client.PutObject(nonTerm, s.Bucket, obj.Name+".tar", &lbr, tarLength, opts)
 				op.End = time.Now()
+				op.LastByte = lbr.t
 				if err != nil {
 					s.Error("upload error: ", err)
 					op.Err = err.Error()
