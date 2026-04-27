@@ -408,7 +408,8 @@ Throughput, split into 299 x 1s:
 ```
 
 The `GET` operations will contain the time until the first byte was received.
-This can be accessed using the `--analyze.v` parameter.
+All upload operations will contain the time from the last byte sent until the response was received.
+These can be accessed using the `--analyze.v` parameter.
 
 It is possible to test speed of partial file requests using the `--range` option.
 This will start reading each object at a random offset and read a random number of bytes.
@@ -868,7 +869,8 @@ Throughput, split into 59 x 1s:
  * Slowest: 1430.5KiB/s, 5721.95 obj/s (1s, starting 12:31:59 CET)
 ```
 
-* `TTFB` is the time from request was sent to the first byte was received.
+* `TTFB` for downloads is the time from the request was sent until the first byte of the response was received.
+* `TTFB` for uploads is the time from the last byte of the request body was sent until the response was received.
 * `First Access` is the first access per object.
 * `Last Access` is the last access per object.
 

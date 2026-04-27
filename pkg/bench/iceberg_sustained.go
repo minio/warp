@@ -522,10 +522,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 						op.Size = info.Size()
 						opts := b.PutOpts
 						opts.ContentType = "application/octet-stream"
+						lbr := lastByteRecorder{r: f}
 						op.Start = time.Now()
 
-						_, err = client.PutObject(opCtx, tableBucket, objName, f, info.Size(), opts)
+						_, err = client.PutObject(opCtx, tableBucket, objName, &lbr, info.Size(), opts)
 						op.End = time.Now()
+						op.LastByte = lbr.t
 						f.Close()
 
 						if err != nil {

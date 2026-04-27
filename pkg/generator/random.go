@@ -20,11 +20,41 @@ package generator
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"sync/atomic"
+	"time"
 
 	"github.com/minio/pkg/v3/rng"
 )
+
+// trackingReader wraps rng.Reader to record when Read returns io.EOF.
+type trackingReader struct {
+	*rng.Reader
+	lastByte atomic.Pointer[time.Time]
+}
+
+func (t *trackingReader) Read(p []byte) (n int, err error) {
+	n, err = t.Reader.Read(p)
+	if err == io.EOF {
+		now := time.Now()
+		t.lastByte.Store(&now)
+	}
+	return n, err
+}
+
+func (t *trackingReader) ReadAt(p []byte, off int64) (n int, err error) {
+	n, err = t.Reader.ReadAt(p, off)
+	if err == io.EOF {
+		now := time.Now()
+		t.lastByte.Store(&now)
+	}
+	return n, err
+}
+
+func (t *trackingReader) LastByte() *time.Time {
+	return t.lastByte.Load()
+}
 
 func WithRandomData() RandomOpts {
 	return randomOptsDefaults()
@@ -77,7 +107,7 @@ func randomOptsDefaults() RandomOpts {
 }
 
 type randomSrc struct {
-	source  *rng.Reader
+	source  trackingReader
 	rng     *rand.Rand
 	obj     Object
 	o       Options
@@ -105,7 +135,7 @@ func newRandom(o Options) (Source, error) {
 	r := randomSrc{
 		o:      o,
 		rng:    rand.New(rndSrc),
-		source: input,
+		source: trackingReader{Reader: input},
 		obj: Object{
 			Reader:      nil,
 			Name:        "",
@@ -124,9 +154,9 @@ func (r *randomSrc) Object() *Object {
 	r.obj.Size = r.o.getSize(r.rng)
 	r.obj.setName(fmt.Sprintf("%d.%s.rnd", n, string(nBuf[:])))
 
-	// Reset scrambler
 	r.source.ResetSize(r.obj.Size)
-	r.obj.Reader = r.source
+	r.source.lastByte.Store(nil)
+	r.obj.Reader = &r.source
 	return &r.obj
 }
 

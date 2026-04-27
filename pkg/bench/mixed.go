@@ -314,6 +314,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 					op.Start = time.Now()
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
+					op.LastByte = obj.Reader.LastByte()
 					if err != nil {
 						g.Error("upload error:", err)
 						op.Err = err.Error()

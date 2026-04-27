@@ -121,6 +121,7 @@ func (u *Append) Start(ctx context.Context, wait chan struct{}) error {
 					res, err = client.AppendObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, aOpts)
 				}
 				op.End = time.Now()
+				op.LastByte = obj.Reader.LastByte()
 				if err != nil {
 					u.Error("upload error: ", err)
 					op.Err = err.Error()
