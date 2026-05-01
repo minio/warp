@@ -659,6 +659,14 @@ func checkBenchmark(ctx *cli.Context) {
 			fatalIf(errDummy(), "autoterm.pct cannot be zero or negative")
 		}
 	}
+	if mode := ctx.String("concurrent-mode"); mode != "" {
+		if mode != "fixed" {
+			fatalIf(errDummy(), "concurrent-mode %q unrecognized. Supported values: 'fixed'", mode)
+		}
+		if ctx.Float64("rps-limit") <= 0 {
+			fatalIf(errDummy(), "--concurrent-mode=fixed requires --rps-limit to be set")
+		}
+	}
 }
 
 // time format for start time.

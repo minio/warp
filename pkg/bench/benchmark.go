@@ -104,6 +104,12 @@ type Common struct {
 	// ratelimiting
 	RpsLimiter *rate.Limiter
 
+	// RpsSleepDur is set when --concurrent-mode=fixed. Each goroutine sleeps
+	// this duration between operations instead of competing for a shared token
+	// bucket, keeping all --concurrent goroutines active with warm connections.
+	// Value is concurrent/rps-limit seconds, computed once at startup.
+	RpsSleepDur time.Duration
+
 	// Transport used.
 	Transport http.RoundTripper
 
@@ -261,10 +267,17 @@ func (c *Common) prepareProgress(progress float64) {
 }
 
 func (c *Common) rpsLimit(ctx context.Context) error {
+	if c.RpsSleepDur > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(c.RpsSleepDur):
+			return nil
+		}
+	}
 	if c.RpsLimiter == nil {
 		return nil
 	}
-
 	return c.RpsLimiter.Wait(ctx)
 }
 

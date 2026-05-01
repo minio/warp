@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
@@ -281,6 +282,11 @@ var ioFlags = []cli.Flag{
 		Value: 0,
 		Usage: "Rate limit each instance to this number of requests per second (0 to disable)",
 	},
+	cli.StringFlag{
+		Name:  "concurrent-mode",
+		Value: "",
+		Usage: "Concurrency mode. 'fixed' keeps all --concurrent goroutines active throughout the run using per-goroutine sleep pacing (sleep = concurrent/rps-limit). Requires --rps-limit. Default treats --concurrent as a maximum.",
+	},
 	cli.BoolFlag{
 		Name:   "stdout",
 		Usage:  "Send operations to stdout",
@@ -337,9 +343,14 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
+	var rpsSleepDur time.Duration
 	if rpsLimit > 0 {
-		// set burst to 1 as limiter will always be called to wait for 1 token
-		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
+		if ctx.String("concurrent-mode") == "fixed" {
+			rpsSleepDur = time.Duration(float64(ctx.Int("concurrent")) / rpsLimit * float64(time.Second))
+		} else {
+			// set burst to 1 as limiter will always be called to wait for 1 token
+			rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
+		}
 	}
 	// Create put options now, so ensure that trailing headers are set.
 	putOpts := putOpts(ctx)
@@ -353,6 +364,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
+		RpsSleepDur:   rpsSleepDur,
 		Transport:     clientTransport(ctx),
 		UpdateStatus:  statusln,
 	}
