@@ -409,7 +409,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 	if b.SimulateRead {
 		readWorkers = b.ReadConcurrent
 		if b.ReadRpsLimit > 0 {
-			b.readRpsLimiter = rate.NewLimiter(rate.Limit(b.ReadRpsLimit), 1)
+			b.readRpsLimiter = rate.NewLimiter(rate.Limit(b.ReadRpsLimit), readWorkers)
 		}
 	}
 	wg.Add(b.Concurrency + readWorkers)

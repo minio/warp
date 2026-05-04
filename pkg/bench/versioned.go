@@ -82,10 +82,6 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				default:
 				}
 
-				if g.rpsLimit(ctx) != nil {
-					return
-				}
-
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
