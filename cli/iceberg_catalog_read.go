@@ -297,7 +297,7 @@ func getIcebergCommon(ctx *cli.Context) bench.Common {
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
 	if rpsLimit > 0 {
-		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
+		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), ctx.Int("concurrent"))
 	}
 
 	return bench.Common{
