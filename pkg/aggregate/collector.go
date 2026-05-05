@@ -38,8 +38,9 @@ func LiveCollector(ctx context.Context, updates chan UpdateReq, clientID string,
 		updates = make(chan UpdateReq, 1000)
 	}
 	c.updates = updates
+	rcv := c.rcv
 	go func() {
-		final := Live(c.rcv, updates, clientID, extra)
+		final := Live(rcv, updates, clientID, extra)
 		for {
 			select {
 			case <-ctx.Done():
