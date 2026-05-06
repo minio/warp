@@ -13,11 +13,14 @@ dl_upload_enabled: true  # Upload binaries to dl.min.io
 
 # Container images
 containers:
-  image:
-    - quay.io/minio/aistor/warp
-  archs: [amd64, arm64]
-  fips_enabled: false
-  dockerfile: Dockerfile.v2.release
+  - name: quay
+    image: quay.io/minio/aistor/warp
+    archs: [amd64, arm64]
+    fips_enabled: false
+    dockerfile: Dockerfile.v2.release
+    rolling_tags:
+      stable: latest
+    edge_enabled: false
 
 # Package generation (deb/rpm/apk via pkger)
 packaging:

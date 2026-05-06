@@ -27,7 +27,7 @@ import (
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper {
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -52,16 +52,18 @@ func clientTransportKTLS(ctx *cli.Context) stdHttp.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
+	netD := makeDialer(localIP)
+
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
-		dialer := &tls.Dialer{NetDialer: netDialer, Config: tlsConfig}
+		dialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
 		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
 	}
 
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netDialer.DialContext,
+		DialContext:           netD.DialContext,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.

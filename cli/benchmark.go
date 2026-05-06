@@ -681,6 +681,9 @@ func checkBenchmark(ctx *cli.Context) {
 			fatalIf(errDummy(), "autoterm.pct cannot be zero or negative")
 		}
 	}
+	if ctx.Int("concurrent") <= 0 {
+		fatalIf(errDummy(), "invalid concurrent value: %d", ctx.Int("concurrent"))
+	}
 }
 
 // time format for start time.
