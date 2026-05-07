@@ -117,12 +117,7 @@ func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
 	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
 	b.loadedTables = make(map[string]*table.Table, len(treeTables))
 
-	// Use at least 30 retries so non-primary clients wait long enough for the
-	// primary client to finish creating tables before giving up.
 	maxRetries := b.MaxRetries
-	if maxRetries < 30 {
-		maxRetries = 30
-	}
 
 	for i, tbl := range treeTables {
 		ident := append([]string{}, tbl.Namespace...)
@@ -609,7 +604,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 				tbl := b.tables[tableIdx%len(b.tables)]
 				tableIdx++
 
-				b.doLoadTable(context.Background(), rcv, tbl, uint32(workerID))
+				b.doLoadTable(ctx, rcv, tbl, uint32(workerID))
 			}
 		}(i)
 	}
