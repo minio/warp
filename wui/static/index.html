@@ -3,80 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warp Benchmark Results</title>
+    <title>Warp · S3 Benchmark</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <div class="header-left">
-            <h1>Warp</h1>
-            <p id="benchmark-type" class="subtitle"></p>
+    <div class="ambient" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <div class="topbar-left">
+            <a class="brand" href="https://github.com/minio/warp" aria-label="Warp">
+                <img class="brand-logo brand-logo-dark" src="img/warp-logo-dark.png" alt="Warp">
+                <img class="brand-logo brand-logo-light" src="img/warp-logo.png" alt="Warp">
+            </a>
+            <span class="brand-divider" aria-hidden="true"></span>
+            <span class="brand-sub" id="benchmark-type">S3 Benchmark</span>
         </div>
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-            <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-            <span id="theme-label">Light</span>
-        </button>
+        <div class="topbar-right">
+            <span class="status-pill" id="live-pill">
+                <span class="status-dot" id="live-dot"></span>
+                <span id="live-label">Ready</span>
+            </span>
+            <span class="meta" id="last-tick">—</span>
+            <button class="btn btn-outline btn-icon" id="theme-toggle" aria-label="Toggle theme">
+                <svg id="theme-icon-dark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg id="theme-icon-light" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
     </header>
 
     <main>
-        <!-- Benchmark Configuration Card -->
-        <section class="config-card" id="config-card">
-            <!-- Dynamically populated -->
-        </section>
-
-        <!-- Hero Stats -->
-        <section class="hero-stats" id="hero-stats">
-            <!-- Dynamically populated -->
-        </section>
-
-        <!-- Operation Cards - Main Focus -->
-        <section class="operation-cards" id="operation-cards">
-            <!-- Dynamically populated -->
-        </section>
-
-        <!-- Detailed Views -->
-        <section class="detailed-section">
-            <nav class="tabs">
-                <button class="tab active" data-tab="hosts">By Server</button>
-                <button class="tab" data-tab="clients">By Client</button>
-            </nav>
-
-            <!-- Hosts Tab -->
-            <section id="tab-hosts" class="tab-content active">
-                <div class="table-container" id="hosts-container">
-                    <!-- Dynamically populated -->
+        <section class="card">
+            <header class="card-header">
+                <div>
+                    <h2 class="card-title">Execution</h2>
+                    <p class="card-description">Command and parameters for this run</p>
                 </div>
-            </section>
-
-            <!-- Clients Tab -->
-            <section id="tab-clients" class="tab-content">
-                <div class="table-container" id="clients-container">
-                    <!-- Dynamically populated -->
+                <span class="op-pill" id="config-op">—</span>
+            </header>
+            <div class="card-content">
+                <div class="cmd-line">
+                    <span class="prompt">$</span>
+                    <code id="cmd-line-code">warp</code>
+                    <button class="cmd-copy" id="cmd-copy" aria-label="Copy command">
+                        <svg id="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        </svg>
+                        <svg id="copy-icon-done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
                 </div>
-            </section>
+                <div class="config-grid" id="config-grid"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <div>
+                    <h2 class="card-title">Summary</h2>
+                    <p class="card-description">Aggregate performance across all operations</p>
+                </div>
+            </header>
+            <div class="card-content">
+                <div class="hero-grid" id="hero-stats"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <div>
+                    <h2 class="card-title">Operations</h2>
+                    <p class="card-description">Per-operation throughput, latency, and time-to-first-byte</p>
+                </div>
+                <span class="block-meta" id="op-count">—</span>
+            </header>
+            <div class="card-content">
+                <div class="op-stack" id="operation-cards"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <div>
+                    <h2 class="card-title">Breakdown</h2>
+                    <p class="card-description">Distributed performance across servers and clients</p>
+                </div>
+                <nav class="seg-tabs" role="tablist" aria-label="Breakdown view">
+                    <button class="seg-tab active" data-tab="hosts" role="tab" id="tab-trigger-hosts" aria-selected="true" aria-controls="tab-hosts" tabindex="0">By server</button>
+                    <button class="seg-tab" data-tab="clients" role="tab" id="tab-trigger-clients" aria-selected="false" aria-controls="tab-clients" tabindex="-1">By client</button>
+                </nav>
+            </header>
+            <div class="card-content">
+                <section id="tab-hosts" class="tab-content active" role="tabpanel" aria-labelledby="tab-trigger-hosts">
+                    <div class="table-wrap" id="hosts-container"></div>
+                </section>
+                <section id="tab-clients" class="tab-content" role="tabpanel" aria-labelledby="tab-trigger-clients" hidden>
+                    <div class="table-wrap" id="clients-container"></div>
+                </section>
+            </div>
         </section>
     </main>
 
-    <footer>
-        <p>Generated by <a href="https://github.com/minio/warp">Warp</a></p>
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <footer class="footer-bar">
+        <span>Generated by <a href="https://github.com/minio/warp">Warp</a></span>
+        <span class="footer-tip">Press <kbd>T</kbd> theme · <kbd>R</kbd> refresh · <kbd>1</kbd>/<kbd>2</kbd> tabs</span>
     </footer>
 
     <script src="app.js"></script>
