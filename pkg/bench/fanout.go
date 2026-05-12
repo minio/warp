@@ -73,6 +73,11 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				default:
 				}
+
+				if u.rpsLimit(ctx) != nil {
+					return
+				}
+
 				obj := src.Object()
 				for i := range opts.Entries {
 					opts.Entries[i] = minio.PutObjectFanOutEntry{
@@ -99,6 +104,7 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) error {
 				op.Start = time.Now()
 				res, err := client.PutObjectFanOut(nonTerm, u.Bucket, obj.Reader, opts)
 				op.End = time.Now()
+				op.LastByte = obj.Reader.LastByte()
 				if err != nil {
 					u.Error("upload error: ", err)
 					op.Err = err.Error()

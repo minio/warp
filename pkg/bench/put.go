@@ -32,6 +32,22 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
+// lastByteRecorder records the time when Read returns io.EOF.
+// For uploads, this approximates when the request body was fully consumed.
+type lastByteRecorder struct {
+	t *time.Time
+	r io.Reader
+}
+
+func (l *lastByteRecorder) Read(p []byte) (n int, err error) {
+	n, err = l.r.Read(p)
+	if err == io.EOF {
+		t := time.Now()
+		l.t = &t
+	}
+	return n, err
+}
+
 // Put benchmarks upload speed.
 type Put struct {
 	Common
@@ -119,6 +135,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 					}
 				}
 				op.End = time.Now()
+				op.LastByte = obj.Reader.LastByte()
 				if err != nil {
 					u.Error("upload error: ", err)
 					op.Err = err.Error()

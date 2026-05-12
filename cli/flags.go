@@ -297,7 +297,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:  "checksum",
-		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1 or SHA256. Requires server trailing headers (AWS, MinIO)",
+		Usage: "Add checksum to uploaded object. Values: CRC64NVME, CRC32[-FO], CRC32C[-FO], SHA1, SHA256, MD5, MD5CS, SHA512, XXH64, XXH3 or XXH128. Requires server trailing headers (AWS, MinIO)",
 		Value: "",
 	},
 }
@@ -343,8 +343,8 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
 	if rpsLimit > 0 {
-		// set burst to 1 as limiter will always be called to wait for 1 token
-		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 1)
+		// Allow for concurrent bursts.
+		rpsLimiter = rate.NewLimiter(rate.Limit(rpsLimit), ctx.Int("concurrent"))
 	}
 	// Create put options now, so ensure that trailing headers are set.
 	putOpts := putOpts(ctx)

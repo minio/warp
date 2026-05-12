@@ -82,10 +82,6 @@ func (g *Versioned) Prepare(ctx context.Context) error {
 				default:
 				}
 
-				if g.rpsLimit(ctx) != nil {
-					return
-				}
-
 				obj := src.Object()
 				client, clDone := g.Client()
 				opts.ContentType = obj.ContentType
@@ -213,6 +209,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) error {
 					op.Start = time.Now()
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
 					op.End = time.Now()
+					op.LastByte = obj.Reader.LastByte()
 					if err != nil {
 						g.Error("upload error: ", err)
 						op.Err = err.Error()

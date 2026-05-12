@@ -143,8 +143,8 @@ github.com/apache/arrow-go/v18 v18.5.1 h1:yaQ6zxMGgf9YCYw4/oaeOU3AULySDlAYDOcnr4
 github.com/apache/arrow-go/v18 v18.5.1/go.mod h1:OCCJsmdq8AsRm8FkBSSmYTwL/s4zHW9CqxeBxEytkNE=
 github.com/apache/iceberg-go v0.4.1-0.20260210180002-a33fb54d81a1 h1:HgUnVSW4bi1bQdMsWLGazNl5qGe9r1buFAH3wR/RP64=
 github.com/apache/iceberg-go v0.4.1-0.20260210180002-a33fb54d81a1/go.mod h1:2m+p1W4msQp+aP+I16YYZocUPyGpn+PJinJjtU1KChQ=
-github.com/apache/thrift v0.22.0 h1:r7mTJdj51TMDe6RtcmNdQxgn9XcyfGDOzegMDRg47uc=
-github.com/apache/thrift v0.22.0/go.mod h1:1e7J/O1Ae6ZQMTYdy9xa3w9k+XHWPfRvdPyJeynQ+/g=
+github.com/apache/thrift v0.23.0 h1:wKR6YnefQSEnxpEfmgTPuJibNG4bF0p2TK34tHLWi3s=
+github.com/apache/thrift v0.23.0/go.mod h1:zPt6WxgvTOM6hF92y8C+MkEM5LMxZuk4JcQOiU4Esvs=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew1u1fNQOlOtuGxQY=
@@ -730,12 +730,12 @@ github.com/minio/mc v0.0.0-20251106162529-77f82e18b540 h1:OAeamQLGQyf7sT/JEocLpA
 github.com/minio/mc v0.0.0-20251106162529-77f82e18b540/go.mod h1:bqx15FhQpl5JfYU3yRM4iz2z2K6DiVSaPbj9P7trZZA=
 github.com/minio/md5-simd v1.1.2 h1:Gdi1DZK69+ZVMoNHRXJyNcxrMA4dSxoYHZSQbirFg34=
 github.com/minio/md5-simd v1.1.2/go.mod h1:MzdKDxYpY2BT9XQFocsiZf/NKVtR7nkE4RoEpN+20RM=
-github.com/minio/minio-go/v7 v7.0.100 h1:ShkWi8Tyj9RtU57OQB2HIXKz4bFgtVib0bbT1sbtLI8=
-github.com/minio/minio-go/v7 v7.0.100/go.mod h1:EtGNKtlX20iL2yaYnxEigaIvj0G0GwSDnifnG8ClIdw=
+github.com/minio/minio-go/v7 v7.1.0 h1:QEt5IStDpxgGjEdtOgpiZ5QhmSl3ax7qy61vi2SwHO8=
+github.com/minio/minio-go/v7 v7.1.0/go.mod h1:Dm7WS1AgLmBa0NcQD6SeJnJf+K/EUW3GR7Ks6olB3OA=
 github.com/minio/mux v1.9.0 h1:dWafQFyEfGhJvK6AwLOt83bIG5bxKxKJnKMCi0XAaoA=
 github.com/minio/mux v1.9.0/go.mod h1:1pAare17ZRL5GpmNL+9YmqHoWnLmMZF9C/ioUCfy0BQ=
-github.com/minio/pkg/v3 v3.6.2-0.20260409155827-4972fb513d70 h1:s63aPxXTULGZUTOLcJp4dJvwvEIBorrd8AMyox0IhQQ=
-github.com/minio/pkg/v3 v3.6.2-0.20260409155827-4972fb513d70/go.mod h1:EPJ7BeIIv/CqkcMH9cOCuZOv29vdzZNN70mw5PG1YNM=
+github.com/minio/pkg/v3 v3.7.0 h1:0aL3kyWUTwqKXMMq5SQG89UU6u4+Ov2kAdtRS9I8WSQ=
+github.com/minio/pkg/v3 v3.7.0/go.mod h1:EPJ7BeIIv/CqkcMH9cOCuZOv29vdzZNN70mw5PG1YNM=
 github.com/minio/websocket v1.6.0 h1:CPvnQvNvlVaQmvw5gtJNyYQhg4+xRmrPNhBbv8BdpAE=
 github.com/minio/websocket v1.6.0/go.mod h1:COH1CePZfHT9Ec1O7vZjTlX5uEPpyYnrifPNbu665DM=
 github.com/mitchellh/go-homedir v1.1.0 h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y=

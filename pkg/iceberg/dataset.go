@@ -322,6 +322,20 @@ func toTableIdentifier(namespace []string, name string) table.Identifier {
 	return append(namespace, name)
 }
 
+// IsNoSuchTable returns true if the error indicates a table does not exist yet.
+func IsNoSuchTable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, catalog.ErrNoSuchTable) {
+		return true
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "NoSuchTable") ||
+		strings.Contains(errStr, "does not exist") ||
+		strings.Contains(errStr, "not found")
+}
+
 func IsAlreadyExists(err error) bool {
 	if err == nil {
 		return false

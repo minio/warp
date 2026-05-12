@@ -38,6 +38,7 @@ type Operation struct {
 	Start      time.Time  `json:"start"`
 	End        time.Time  `json:"end"`
 	FirstByte  *time.Time `json:"first_byte"`
+	LastByte   *time.Time `json:"last_byte"`
 	OpType     string     `json:"type"`
 	Err        string     `json:"err"`
 	File       string     `json:"file,omitempty"`
@@ -174,11 +175,16 @@ func (o Operation) Aggregate(s *Segment) (done bool) {
 }
 
 // TTFB returns the time to first byte or 0 if nothing was recorded.
+// For uploads, LastByte records when the request body was fully read (EOF),
+// so TTFB is the time from that point until the response was received.
 func (o Operation) TTFB() time.Duration {
-	if o.FirstByte == nil {
-		return 0
+	if o.LastByte != nil {
+		return o.End.Sub(*o.LastByte)
 	}
-	return o.FirstByte.Sub(o.Start)
+	if o.FirstByte != nil {
+		return o.FirstByte.Sub(o.Start)
+	}
+	return 0
 }
 
 // SortByStartTime will sort the operations by start time.
@@ -314,11 +320,7 @@ func (o Operations) Median(m float64) Operation {
 // Smallest first.
 func (o Operations) SortByTTFB() {
 	sort.Slice(o, func(i, j int) bool {
-		a, b := &o[i], &o[j]
-		if a.FirstByte == nil || b.FirstByte == nil {
-			return a.Start.Before(b.Start)
-		}
-		return a.FirstByte.UnixNano()-a.Start.UnixNano() < b.FirstByte.UnixNano()-b.Start.UnixNano()
+		return o[i].TTFB() < o[j].TTFB()
 	})
 }
 
@@ -326,7 +328,7 @@ func (o Operations) SortByTTFB() {
 func (o Operations) FilterByHasTTFB(hasTTFB bool) Operations {
 	dst := make(Operations, 0, len(o))
 	for _, o := range o {
-		if (o.FirstByte != nil) == hasTTFB {
+		if (o.FirstByte != nil || o.LastByte != nil) == hasTTFB {
 			dst = append(dst, o)
 		}
 	}
@@ -1047,7 +1049,7 @@ func (o Operations) FilterErrors() Operations {
 // The comment, if any, is written at the end of the file, each line prefixed with '# '.
 func (o Operations) CSV(w io.Writer, comment string) error {
 	bw := bufio.NewWriter(w)
-	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tend\tduration_ns\tcat\n")
+	_, err := bw.WriteString("idx\tthread\top\tclient_id\tn_objects\tbytes\tendpoint\tfile\terror\tstart\tfirst_byte\tlast_byte\tend\tduration_ns\tcat\n")
 	if err != nil {
 		return err
 	}
@@ -1071,11 +1073,14 @@ func (o Operations) CSV(w io.Writer, comment string) error {
 }
 
 func (o Operation) WriteCSV(w io.Writer, i int) error {
-	var ttfb string
+	var firstByte, lastByte string
 	if o.FirstByte != nil {
-		ttfb = o.FirstByte.Format(time.RFC3339Nano)
+		firstByte = o.FirstByte.Format(time.RFC3339Nano)
 	}
-	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, o.Thread, o.OpType, o.ClientID, o.ObjPerOp, o.Size, csvEscapeString(o.Endpoint), o.File, csvEscapeString(o.Err), o.Start.Format(time.RFC3339Nano), ttfb, o.End.Format(time.RFC3339Nano), o.End.Sub(o.Start)/time.Nanosecond, o.Categories)
+	if o.LastByte != nil {
+		lastByte = o.LastByte.Format(time.RFC3339Nano)
+	}
+	_, err := fmt.Fprintf(w, "%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n", i, o.Thread, o.OpType, o.ClientID, o.ObjPerOp, o.Size, csvEscapeString(o.Endpoint), o.File, csvEscapeString(o.Err), o.Start.Format(time.RFC3339Nano), firstByte, lastByte, o.End.Format(time.RFC3339Nano), o.End.Sub(o.Start)/time.Nanosecond, o.Categories)
 	return err
 }
 
@@ -1170,6 +1175,16 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 			}
 			ttfb = &t
 		}
+		var lastByte *time.Time
+		if idx, ok := fieldIdx["last_byte"]; ok {
+			if lb := values[idx]; lb != "" {
+				t, err := time.Parse(time.RFC3339Nano, lb)
+				if err != nil {
+					return err
+				}
+				lastByte = &t
+			}
+		}
 		end, err := time.Parse(time.RFC3339Nano, values[fieldIdx["end"]])
 		if err != nil {
 			return err
@@ -1208,6 +1223,7 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 			ObjPerOp:   int(objs),
 			Start:      start,
 			FirstByte:  ttfb,
+			LastByte:   lastByte,
 			End:        end,
 			Err:        values[fieldIdx["error"]],
 			Size:       size,

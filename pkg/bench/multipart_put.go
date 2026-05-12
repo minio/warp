@@ -146,6 +146,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint32, objectNam
 				op.Start = time.Now()
 				res, err := core.PutObjectPart(nonTerm, g.Bucket, objectName, uploadID, partIdx, obj.Reader, obj.Size, opts)
 				op.End = time.Now()
+				op.LastByte = obj.Reader.LastByte()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					g.Error(err)

@@ -117,14 +117,37 @@ func (b *Iceberg) prepareNonPrimaryClient(ctx context.Context) error {
 	b.tables = make([]warpiceberg.TableInfo, len(treeTables))
 	b.loadedTables = make(map[string]*table.Table, len(treeTables))
 
+	maxRetries := b.MaxRetries
+
 	for i, tbl := range treeTables {
 		ident := append([]string{}, tbl.Namespace...)
 		ident = append(ident, tbl.Name)
 
 		cat := b.getCatalog()
-		loadedTbl, err := cat.LoadTable(ctx, ident)
-		if err != nil {
-			return fmt.Errorf("failed to load table %s: %w", tbl.Name, err)
+		var loadedTbl *table.Table
+		var lastErr error
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			if attempt > 0 {
+				backoff := b.BackoffBase * time.Duration(1<<uint(attempt-1))
+				if backoff > b.BackoffMax || backoff <= 0 {
+					backoff = b.BackoffMax
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(backoff):
+				}
+			}
+			loadedTbl, lastErr = cat.LoadTable(ctx, ident)
+			if lastErr == nil {
+				break
+			}
+			if !warpiceberg.IsNoSuchTable(lastErr) {
+				return fmt.Errorf("failed to load table %s: %w", tbl.Name, lastErr)
+			}
+		}
+		if lastErr != nil {
+			return fmt.Errorf("failed to load table %s: %w", tbl.Name, lastErr)
 		}
 
 		key := fmt.Sprintf("%s.%s", strings.Join(tbl.Namespace, "."), tbl.Name)
@@ -409,7 +432,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 	if b.SimulateRead {
 		readWorkers = b.ReadConcurrent
 		if b.ReadRpsLimit > 0 {
-			b.readRpsLimiter = rate.NewLimiter(rate.Limit(b.ReadRpsLimit), 1)
+			b.readRpsLimiter = rate.NewLimiter(rate.Limit(b.ReadRpsLimit), readWorkers)
 		}
 	}
 	wg.Add(b.Concurrency + readWorkers)
@@ -522,10 +545,12 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 						op.Size = info.Size()
 						opts := b.PutOpts
 						opts.ContentType = "application/octet-stream"
+						lbr := lastByteRecorder{r: f}
 						op.Start = time.Now()
 
-						_, err = client.PutObject(opCtx, tableBucket, objName, f, info.Size(), opts)
+						_, err = client.PutObject(opCtx, tableBucket, objName, &lbr, info.Size(), opts)
 						op.End = time.Now()
+						op.LastByte = lbr.t
 						f.Close()
 
 						if err != nil {

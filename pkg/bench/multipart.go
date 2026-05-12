@@ -130,6 +130,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 				op.Start = time.Now()
 				res, err := core.PutObjectPart(ctx, g.Bucket, obj.Name, g.UploadID, partN, obj.Reader, obj.Size, mpopts)
 				op.End = time.Now()
+				op.LastByte = obj.Reader.LastByte()
 				if err != nil {
 					err := fmt.Errorf("upload error: %w", err)
 					g.Error(err)

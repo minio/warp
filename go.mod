@@ -29,8 +29,8 @@ require (
 	github.com/minio/madmin-go/v4 v4.6.7
 	github.com/minio/mc v0.0.0-20251106162529-77f82e18b540
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.0.100
-	github.com/minio/pkg/v3 v3.6.2-0.20260409155827-4972fb513d70
+	github.com/minio/minio-go/v7 v7.1.0
+	github.com/minio/pkg/v3 v3.7.0
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
 	github.com/posener/complete v1.2.3
@@ -91,7 +91,7 @@ require (
 	github.com/alingse/nilnesserr v0.2.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/apache/thrift v0.22.0 // indirect
+	github.com/apache/thrift v0.23.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/ashanbrown/forbidigo/v2 v2.3.0 // indirect
 	github.com/ashanbrown/makezero/v2 v2.1.0 // indirect
