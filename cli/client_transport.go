@@ -69,6 +69,36 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
+// withResolveHost rewrites the dial address from the logical hostname to the
+// resolved IP when --resolve-host is active. Only activates when originalHost != "".
+// Proxy connections are not rewritten (if addr doesn't match our target, it's a proxy).
+func withResolveHost(resolvedHost, originalHost string, dialer *net.Dialer, isTLS bool) transportOption {
+	return func(transport *http.Transport) {
+		if originalHost == "" || resolvedHost == "" {
+			return
+		}
+		targetHost, _, err := net.SplitHostPort(resolvedHost)
+		if err != nil {
+			targetHost = resolvedHost
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = addr
+				port = "80"
+				if isTLS {
+					port = "443"
+				}
+			}
+			dialAddr := addr
+			if host != targetHost {
+				dialAddr = net.JoinHostPort(targetHost, port)
+			}
+			return dialer.DialContext(ctx, network, dialAddr)
+		}
+	}
+}
+
 func newClientTransport(ctx *cli.Context, options ...transportOption) http.RoundTripper {
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
