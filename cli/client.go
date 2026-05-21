@@ -264,7 +264,7 @@ func clientTransportWithLocalIP(ctx *cli.Context, localIP, resolvedHost, origina
 	case ctx.Bool("tls"):
 		return clientTransportTLS(ctx, localIP, resolvedHost, originalHost)
 	default:
-		return clientTransportDefault(ctx, localIP, resolvedHost)
+		return clientTransportDefault(ctx, localIP, resolvedHost, originalHost)
 	}
 }
 
@@ -359,6 +359,8 @@ func parseHostPairs(h string, resolveDNS bool) []hostPair {
 		if host == "" {
 			host = hostport
 		}
+		// IPs are resolved once at startup and pinned for the duration of the
+		// benchmark run. TTL-based refresh is intentionally not supported.
 		ips, err := net.LookupIP(host)
 		if err != nil {
 			fatalIf(probe.NewError(err), "Could not get IPs for "+hostport)
@@ -366,7 +368,8 @@ func parseHostPairs(h string, resolveDNS bool) []hostPair {
 		for _, ip := range ips {
 			resolved := ip.String()
 			if port != "" {
-				resolved = ip.String() + ":" + port
+				// Use net.JoinHostPort so IPv6 addresses get correct bracket formatting.
+				resolved = net.JoinHostPort(ip.String(), port)
 			}
 			pairs = append(pairs, hostPair{resolved: resolved, originalHost: hostport})
 		}

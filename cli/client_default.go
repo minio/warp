@@ -23,10 +23,10 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportDefault(ctx *cli.Context, localIP, resolvedHost string) http.RoundTripper {
+func clientTransportDefault(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
 	dialer := makeDialer(localIP)
 	if resolvedHost != "" {
-		return newClientTransport(ctx, withResolveHost(resolvedHost, resolvedHost, dialer, false))
+		return newClientTransport(ctx, withResolveHost(resolvedHost, originalHost, dialer, false))
 	}
 	return newClientTransport(ctx, withLocalAddr(localIP))
 }

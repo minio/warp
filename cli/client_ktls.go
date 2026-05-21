@@ -30,14 +30,7 @@ import (
 )
 
 func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) stdHttp.RoundTripper {
-	var sni string
-	if originalHost != "" {
-		if h, _, err := net.SplitHostPort(originalHost); err == nil {
-			sni = h
-		} else {
-			sni = originalHost
-		}
-	}
+	sni := sniFromHost(originalHost)
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -65,6 +58,9 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 
 	netD := makeDialer(localIP)
 
+	// origHostname is the bare hostname used to identify which dial addresses
+	// should be rewritten to the resolved IP. Proxy addresses won't match.
+	origHostname := sniFromHost(originalHost)
 	getDialAddr := func(addr string) string {
 		if originalHost == "" || resolvedHost == "" {
 			return addr
@@ -78,7 +74,9 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 		if err != nil {
 			targetHost = resolvedHost
 		}
-		if host != targetHost {
+		// Only rewrite when the target is our original hostname.
+		// Proxy addresses won't match and are left untouched.
+		if host == origHostname {
 			return net.JoinHostPort(targetHost, port)
 		}
 		return addr

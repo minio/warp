@@ -69,9 +69,23 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
+// sniFromHost extracts the bare hostname from a host:port string for use as
+// TLS ServerName (SNI). Returns "" if originalHost is empty, which lets Go
+// derive SNI automatically from the dial address.
+func sniFromHost(originalHost string) string {
+	if originalHost == "" {
+		return ""
+	}
+	if h, _, err := net.SplitHostPort(originalHost); err == nil {
+		return h
+	}
+	return originalHost
+}
+
 // withResolveHost rewrites the dial address from the logical hostname to the
 // resolved IP when --resolve-host is active. Only activates when originalHost != "".
-// Proxy connections are not rewritten (if addr doesn't match our target, it's a proxy).
+// Proxy connections are not rewritten: only connections whose target matches the
+// original hostname are rewritten; proxy addresses are left unchanged.
 func withResolveHost(resolvedHost, originalHost string, dialer *net.Dialer, isTLS bool) transportOption {
 	return func(transport *http.Transport) {
 		if originalHost == "" || resolvedHost == "" {
@@ -81,6 +95,9 @@ func withResolveHost(resolvedHost, originalHost string, dialer *net.Dialer, isTL
 		if err != nil {
 			targetHost = resolvedHost
 		}
+		// Extract the bare original hostname once, outside the closure,
+		// so we can correctly identify which connections to rewrite.
+		origHostname := sniFromHost(originalHost)
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -91,7 +108,9 @@ func withResolveHost(resolvedHost, originalHost string, dialer *net.Dialer, isTL
 				}
 			}
 			dialAddr := addr
-			if host != targetHost {
+			// Only rewrite when the target is our original hostname.
+			// Proxy addresses won't match and are left untouched.
+			if host == origHostname {
 				dialAddr = net.JoinHostPort(targetHost, port)
 			}
 			return dialer.DialContext(ctx, network, dialAddr)

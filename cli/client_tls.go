@@ -19,7 +19,6 @@ package cli
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
 	"os"
 
@@ -27,14 +26,7 @@ import (
 )
 
 func clientTransportTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
-	var sni string
-	if originalHost != "" {
-		if h, _, err := net.SplitHostPort(originalHost); err == nil {
-			sni = h
-		} else {
-			sni = originalHost
-		}
-	}
+	sni := sniFromHost(originalHost)
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
