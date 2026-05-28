@@ -182,6 +182,12 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_KTLS",
 	},
 	cli.StringFlag{
+		Name:   "rdma",
+		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct, requires -tags=rdma + libcudart). Empty disables RDMA.",
+		EnvVar: appNameUC + "_RDMA",
+		Value:  "",
+	},
+	cli.StringFlag{
 		Name:   "region",
 		Usage:  "Specify a custom region",
 		EnvVar: appNameUC + "_REGION",
@@ -355,6 +361,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Bucket:        ctx.String("bucket"),
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts,
+		RDMAMode:      ctx.String("rdma"),
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,

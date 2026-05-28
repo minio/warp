@@ -53,6 +53,12 @@ type Common struct {
 	// Default Put options.
 	PutOpts minio.PutObjectOptions
 
+	// RDMAMode selects the per-op buffer source for minio-go's S3-over-RDMA
+	// dispatch. Empty disables RDMA. "cpu" allocates host memory. "gpu"
+	// allocates a CUDA device buffer (requires -tags=rdma,cuda + libcudart
+	// at build time) and lets the NIC GPU-Direct RDMA into it.
+	RDMAMode string
+
 	PrepareProgress chan float64
 
 	// Custom is returned to server if set by clients.

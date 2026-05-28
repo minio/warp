@@ -257,6 +257,46 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 				if g.Versions > 1 {
 					opts.VersionID = obj.VersionID
 				}
+				if g.RDMAMode != RDMAModeOff {
+					// Allocate a host or GPU sink buffer (per --rdma) for
+					// minio-go's RDMA dispatch path; the server RDMA-writes
+					// the object directly into it. Object size is known
+					// from the corresponding upload (op.Size, already
+					// adjusted for random ranges above).
+					buf, berr := allocRDMABuf(g.RDMAMode, int(op.Size))
+					if berr != nil {
+						g.Error("rdma alloc:", berr)
+						op.Err = berr.Error()
+						op.End = time.Now()
+						rcv <- op
+						cldone()
+						continue
+					}
+					opts.RDMABuffer = buf.ptr
+					opts.RDMABufferSize = buf.size
+					o, gerr := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
+					if gerr != nil {
+						g.Error("download error:", gerr)
+						op.Err = gerr.Error()
+						op.End = time.Now()
+						freeRDMABuf(buf)
+						rcv <- op
+						cldone()
+						continue
+					}
+					info, _ := o.Stat()
+					n := info.Size
+					op.End = time.Now()
+					if n != op.Size && op.Err == "" {
+						op.Err = fmt.Sprint("unexpected download size. want:", op.Size, ", got:", n)
+						g.Error(op.Err)
+					}
+					freeRDMABuf(buf)
+					rcv <- op
+					cldone()
+					o.Close()
+					continue
+				}
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
 					g.Error("download error:", err)

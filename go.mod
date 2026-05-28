@@ -2,7 +2,7 @@ module github.com/minio/warp
 
 go 1.25.0
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
@@ -24,12 +24,12 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jfsmig/prng v0.0.2
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 	github.com/minio/cli v1.24.2
 	github.com/minio/madmin-go/v4 v4.6.7
 	github.com/minio/mc v0.0.0-20251106162529-77f82e18b540
 	github.com/minio/md5-simd v1.1.2
-	github.com/minio/minio-go/v7 v7.1.0
+	github.com/minio/minio-go/v7 v7.2.0
 	github.com/minio/pkg/v3 v3.7.0
 	github.com/minio/websocket v1.6.0
 	github.com/muesli/termenv v0.16.0
@@ -167,7 +167,6 @@ require (
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/ghostiam/protogetter v0.3.20 // indirect
 	github.com/go-critic/go-critic v0.14.3 // indirect
-	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -407,7 +406,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/ini.v1 v1.67.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect
