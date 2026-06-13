@@ -111,6 +111,109 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
 });
 
+// Export the dashboard to PDF as a faithful copy of the web UI. Each card/section
+// is screenshotted individually with html2canvas (small canvases avoid Safari's
+// whole-page size limit) and flowed into the PDF, slicing any section taller than
+// a page. Forces light theme so the export is print-friendly.
+async function exportPdf() {
+    const btn = document.getElementById('export-pdf');
+    if (!window.jspdf || !window.jspdf.jsPDF || typeof html2canvas === 'undefined') {
+        alert('PDF library failed to load (no network access to the CDN?).');
+        return;
+    }
+
+    const prev = getTheme();
+    if (prev !== 'light') setTheme('light'); // recreate charts dark-on-light
+    document.body.classList.add('exporting'); // higher-contrast cmd line/config for print
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    await new Promise((r) => setTimeout(r, 300)); // let charts repaint
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 8;
+        const usableW = pageW - 2 * margin;
+        const usableH = pageH - 2 * margin;
+        let y = margin;
+        let firstOnPage = true;
+
+        const place = (canvas) => {
+            if (!canvas || !canvas.width || !canvas.height) return;
+            const pxPerMm = canvas.width / usableW;
+            const fullHmm = canvas.height / pxPerMm;
+            if (fullHmm <= usableH) {
+                if (!firstOnPage && y + fullHmm > pageH - margin) { doc.addPage(); y = margin; }
+                doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, y, usableW, fullHmm, undefined, 'FAST');
+                y += fullHmm + 4;
+                firstOnPage = false;
+            } else {
+                // Taller than a page: slice into full-page strips.
+                if (!firstOnPage) { doc.addPage(); y = margin; }
+                const sliceHpx = usableH * pxPerMm;
+                for (let sy = 0; sy < canvas.height; sy += sliceHpx) {
+                    const hpx = Math.min(sliceHpx, canvas.height - sy);
+                    const strip = document.createElement('canvas');
+                    strip.width = canvas.width; strip.height = hpx;
+                    const sx = strip.getContext('2d');
+                    sx.fillStyle = '#ffffff'; sx.fillRect(0, 0, strip.width, strip.height);
+                    sx.drawImage(canvas, 0, sy, canvas.width, hpx, 0, 0, canvas.width, hpx);
+                    if (sy > 0) doc.addPage();
+                    doc.addImage(strip.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, usableW, hpx / pxPerMm, undefined, 'FAST');
+                }
+                doc.addPage(); y = margin; firstOnPage = true;
+            }
+        };
+
+        const opts = {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true,
+            // Drop the command-line box (renders poorly / low contrast) and any
+            // zero-size canvas from the screenshot.
+            ignoreElements: (el) =>
+                (el.classList && el.classList.contains('cmd-line')) ||
+                (el.tagName === 'CANVAS' &&
+                    (el.width === 0 || el.height === 0 || el.offsetWidth === 0 || el.offsetHeight === 0)),
+        };
+
+        for (const el of collectExportTargets()) {
+            // eslint-disable-next-line no-await-in-loop
+            place(await html2canvas(el, opts));
+        }
+
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+        doc.save(`warp-report-${stamp}.pdf`);
+    } catch (err) {
+        console.error('PDF export failed:', err);
+        alert('PDF export failed: ' + (err && err.message ? err.message : err));
+    } finally {
+        document.body.classList.remove('exporting');
+        if (prev !== 'light') setTheme(prev);
+        if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    }
+}
+
+// collectExportTargets returns the visible UI blocks to screenshot, at a small
+// enough granularity that each canvas stays well under browser size limits.
+function collectExportTargets() {
+    const out = [];
+    const visible = (el) => el && el.offsetParent !== null && el.offsetHeight > 0;
+    document.querySelectorAll('main > section.card').forEach((card) => {
+        const ops = [...card.querySelectorAll('.op-card')].filter(visible);
+        const subs = [...card.querySelectorAll('.op-table-section')].filter(visible);
+        if (ops.length) ops.forEach((o) => out.push(o));
+        else if (subs.length) subs.forEach((s) => out.push(s));
+        else if (visible(card)) out.push(card);
+    });
+    return out;
+}
+
+
+document.getElementById('export-pdf')?.addEventListener('click', exportPdf);
+
 // ----- Toast -----
 function showToast(message, opts = {}) {
     const container = document.getElementById('toast-container');

@@ -1288,3 +1288,44 @@ th.cmp-run-col {
     word-break: break-all;
     max-width: 220px;
 }
+
+/* ── Print / Export-PDF ─────────────────────────────────────── */
+@media print {
+    .ambient,
+    .footer-bar,
+    .toast-container,
+    .topbar-right,
+    #export-pdf,
+    #theme-toggle { display: none !important; }
+
+    html, body { background: #fff !important; }
+    main { max-width: none !important; padding: 0 !important; }
+    .topbar { position: static !important; border-bottom: 1px solid #ddd !important; }
+
+    /* Keep cards/charts from splitting across pages. */
+    .card, .op-card, section, .cmp-table-block, .cmp-chart-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    @page { margin: 12mm; }
+}
+
+/* ── Higher-contrast command line / config while exporting to PDF ───────── */
+body.exporting .cmd-line { background: #f4f6f8; border-color: #d7dbe0; }
+body.exporting .cmd-line code,
+body.exporting .cmd-line code .arg-flag { color: #1b1f27 !important; }
+body.exporting .cmd-line code .arg-val { color: #c0264a !important; }
+body.exporting .cmd-line code .cont { opacity: 1 !important; }
+body.exporting .cmd-line .prompt { color: #c0264a !important; }
+body.exporting .config-cell .label { color: #4a5260 !important; }
+body.exporting .config-cell .value { color: #1b1f27 !important; }
+
+/* Freeze all animations/transitions during export so nothing is captured
+   mid-fade (the staggered cardEnter animation made the first card faint). */
+body.exporting *,
+body.exporting *::before,
+body.exporting *::after {
+    animation: none !important;
+    transition: none !important;
+}
+body.exporting main > .card { opacity: 1 !important; transform: none !important; }

@@ -25,6 +25,233 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
 });
 
+// Print palette (fixed, so the PDF reads on white regardless of UI theme).
+const PDF = {
+    accent: [232, 74, 107],   // pink (after)
+    before: [154, 160, 170],  // grey (before)
+    slate: [35, 41, 51],
+    good: [31, 157, 87],
+    bad: [210, 59, 48],
+    muted: [110, 116, 128],
+};
+
+// exportValueLabelPlugin draws each bar's exact value above it (dark, for print).
+const exportValueLabelPlugin = {
+    id: 'exportValueLabels',
+    afterDatasetsDraw(chart) {
+        const ds = chart.data.datasets[0];
+        if (!ds || !ds._labels) return;
+        const meta = chart.getDatasetMeta(0);
+        const { ctx } = chart;
+        ctx.save();
+        ctx.font = "600 16px 'General Sans', Arial, sans-serif";
+        ctx.fillStyle = '#222';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        meta.data.forEach((bar, i) => {
+            const l = ds._labels[i];
+            if (l != null) ctx.fillText(l, bar.x, bar.y - 5);
+        });
+        ctx.restore();
+    },
+};
+
+// whiteBgPlugin fills the canvas white so JPEG export (no alpha) isn't black.
+const whiteBgPlugin = {
+    id: 'whiteBg',
+    beforeDraw(chart) {
+        const { ctx } = chart;
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, chart.width, chart.height);
+        ctx.restore();
+    },
+};
+
+// renderExportChart renders one metric chart offscreen at 2x DPI with fixed
+// print colors and returns a JPEG data URL. JPEG (vs PNG) and 2x DPI keep the
+// charts crisp while keeping the PDF file size small.
+function renderExportChart(spec) {
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:460px;height:300px;';
+    const canvas = document.createElement('canvas');
+    holder.appendChild(canvas);
+    document.body.appendChild(holder);
+    const chart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: [LBL.before, LBL.after],
+            datasets: [{
+                data: [spec.beforeVal, spec.afterVal],
+                backgroundColor: ['#9aa0aa', '#e84a6b'],
+                borderRadius: 4,
+                _labels: [spec.beforeStr, spec.afterStr],
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            devicePixelRatio: 2,
+            layout: { padding: { top: 26 } },
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+                x: { grid: { display: false }, ticks: { display: false } },
+                y: { beginAtZero: true, grace: '18%', grid: { color: '#e3e6ea' }, ticks: { color: '#555', font: { size: 15 }, maxTicksLimit: 4 } },
+            },
+        },
+        plugins: [whiteBgPlugin, exportValueLabelPlugin],
+    });
+    const url = chart.toBase64Image('image/jpeg', 0.9);
+    chart.destroy();
+    holder.remove();
+    return url;
+}
+
+// Export the comparison to a polished, report-grade PDF (jsPDF + autotable) that
+// mirrors the UI's styling. Charts are rendered offscreen at high DPI; no
+// html2canvas (which fails inconsistently across browsers).
+async function exportPdf() {
+    const btn = document.getElementById('export-pdf');
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('PDF library failed to load (no network access to the CDN?).');
+        return;
+    }
+    const data = window._cmpData;
+    if (!data || !data.ops || !data.ops.length) { alert('Nothing to export yet.'); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    await new Promise((r) => setTimeout(r, 30)); // let the button repaint
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 12;
+        const contentW = pageW - 2 * margin;
+        let y = margin;
+        const ensure = (h) => { if (y + h > pageH - margin) { doc.addPage(); y = margin; } };
+
+        // Legend: grey "before" + pink "after" swatches with run labels.
+        const drawLegend = (x, yy) => {
+            doc.setFontSize(8);
+            doc.setFillColor(...PDF.before); doc.rect(x, yy - 2.6, 3, 3, 'F');
+            doc.setTextColor(...PDF.muted); doc.text(LBL.before, x + 4, yy);
+            const x2 = x + 4 + doc.getTextWidth(LBL.before) + 6;
+            doc.setFillColor(...PDF.accent); doc.rect(x2, yy - 2.6, 3, 3, 'F');
+            doc.text(LBL.after, x2 + 4, yy);
+            doc.setTextColor(0);
+        };
+
+        // Title band.
+        doc.setFillColor(...PDF.accent); doc.rect(0, 0, pageW, 3, 'F');
+        doc.setFontSize(18); doc.setTextColor(...PDF.slate);
+        doc.text('Warp Benchmark Comparison', margin, y + 4);
+        y += 10;
+        doc.setFontSize(9); doc.setTextColor(...PDF.muted);
+        doc.text(`Before:  ${LBL.before}`, margin, y); y += 4.5;
+        doc.text(`After:   ${LBL.after}`, margin, y); y += 4.5;
+        doc.text(`Generated ${new Date().toLocaleString()}`, margin, y); y += 7;
+        doc.setTextColor(0);
+
+        data.ops.forEach((op, i) => {
+            ensure(16);
+            // Operation header bar (slate, like the UI's op header).
+            doc.setFillColor(...PDF.slate);
+            doc.roundedRect(margin, y, contentW, 8, 1.5, 1.5, 'F');
+            doc.setTextColor(255); doc.setFontSize(12);
+            doc.text(op.op, margin + 3, y + 5.6);
+            doc.setTextColor(0);
+            y += 12;
+
+            if (op.error) {
+                doc.setFontSize(9); doc.setTextColor(...PDF.bad);
+                doc.text('Cannot compare: ' + op.error, margin, y);
+                doc.setTextColor(0); y += 8;
+                return;
+            }
+
+            // Chart sections: per-metric mini bar charts (high-DPI), 3 per row.
+            const chartSections = [
+                [`chart-${i}-tput`, 'Throughput (MiB/s)'],
+                [`chart-${i}-req`, 'Request duration (ms)'],
+                [`chart-${i}-ttfb`, 'Time to first byte (ms)'],
+            ];
+            const perRow = 3, gap = 5;
+            const cw = (contentW - (perRow - 1) * gap) / perRow;
+            const imgH = cw * 0.66;
+            const cellH = 5 + imgH;
+            for (const [prefix, secTitle] of chartSections) {
+                const specs = chartSpecs.filter((s) => s.id.startsWith(prefix + '-'));
+                if (!specs.length) continue;
+                ensure(10);
+                doc.setFontSize(10); doc.setTextColor(...PDF.slate);
+                doc.text(secTitle, margin, y);
+                drawLegend(margin + doc.getTextWidth(secTitle) + 8, y);
+                doc.setTextColor(0);
+                y += 4;
+                for (let k = 0; k < specs.length; k++) {
+                    const col = k % perRow;
+                    if (col === 0) ensure(cellH + 2);
+                    const x = margin + col * (cw + gap);
+                    doc.setFontSize(8); doc.setTextColor(...PDF.muted);
+                    doc.text(specs[k].name || '', x + cw / 2, y + 3.2, { align: 'center', maxWidth: cw });
+                    doc.setTextColor(0);
+                    try {
+                        doc.addImage(renderExportChart(specs[k]), 'JPEG', x, y + 5, cw, imgH, undefined, 'FAST');
+                    } catch (e) { /* skip a chart that fails to render */ }
+                    if (col === perRow - 1 || k === specs.length - 1) y += cellH + 2;
+                }
+                y += 2;
+            }
+
+            // Tables, with green/red "Change" cells matching the UI.
+            const sections = [
+                ['Overview', op.info], ['Throughput', op.throughput],
+                ['Request duration', op.requests], ['Time to first byte', op.ttfb],
+            ];
+            sections.forEach(([title, rows]) => {
+                if (!rows || !rows.length) return;
+                ensure(16);
+                doc.setFontSize(10); doc.setTextColor(...PDF.slate);
+                doc.text(title, margin, y); doc.setTextColor(0);
+                y += 2;
+                doc.autoTable({
+                    startY: y,
+                    margin: { left: margin, right: margin },
+                    head: [['Metric', LBL.before, LBL.after, 'Change']],
+                    body: rows.map((r) => [r.name, r.before, r.after, r.change || '—']),
+                    styles: { fontSize: 8, cellPadding: 1.6 },
+                    headStyles: { fillColor: PDF.slate },
+                    alternateRowStyles: { fillColor: [245, 247, 249] },
+                    columnStyles: { 0: { fontStyle: 'bold' }, 3: { halign: 'right' } },
+                    didParseCell: (d) => {
+                        if (d.section === 'body' && d.column.index === 3) {
+                            const imp = rows[d.row.index].improved;
+                            if (imp === true) d.cell.styles.textColor = PDF.good;
+                            else if (imp === false) d.cell.styles.textColor = PDF.bad;
+                        }
+                    },
+                });
+                y = doc.lastAutoTable.finalY + 5;
+            });
+            y += 3;
+        });
+
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+        doc.save(`warp-compare-${stamp}.pdf`);
+    } catch (err) {
+        console.error('PDF export failed:', err);
+        alert('PDF export failed: ' + (err && err.message ? err.message : err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    }
+}
+
+document.getElementById('export-pdf')?.addEventListener('click', exportPdf);
+
 document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
     if (e.key === 't' || e.key === 'T') {
@@ -102,6 +329,7 @@ function metricSection(prefix, title, unit, rows, labelFn) {
         const metric = labelFn ? labelFn(r.name) : r.name;
         chartSpecs.push({
             id,
+            name: metric,
             unit,
             beforeVal: r.before_num,
             afterVal: r.after_num,
@@ -252,6 +480,7 @@ async function load() {
         const resp = await fetch('api/compare' + location.search);
         if (!resp.ok) throw new Error(`server returned ${resp.status}`);
         const data = await resp.json();
+        window._cmpData = data; // used by the PDF export
         LBL.before = shortName(data.before_file);
         LBL.after = shortName(data.after_file);
         renderFiles(data);
