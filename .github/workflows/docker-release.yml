@@ -1,0 +1,66 @@
+name: Build and push Docker image
+
+# Build a multi-arch image and push it to the GitHub Container Registry whenever
+# a version tag (e.g. v1.5.0) is pushed. The git tag is baked into the binary
+# version via Docker build args.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute build metadata
+        id: vars
+        run: |
+          echo "short_commit=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            RELEASE_TAG=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+            SHORT_COMMIT=${{ steps.vars.outputs.short_commit }}
+            RELEASE_TIME=${{ steps.vars.outputs.build_time }}
