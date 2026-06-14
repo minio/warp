@@ -30,9 +30,15 @@ func Compare(before, after *LiveAggregate, op string) (*bench.Comparison, error)
 	if before.TotalErrors > 0 || after.TotalErrors > 0 {
 		return nil, fmt.Errorf("errors recorded in benchmark run. before: %v, after %d", before.TotalErrors, after.TotalErrors)
 	}
-	if after.Throughput.Segmented == nil || after.Throughput.Segmented.Segments == nil ||
-		before.Throughput.Segmented == nil || before.Throughput.Segmented.Segments == nil {
-		return nil, fmt.Errorf("no segments found in benchmark run. before: %v, after %v", before.Throughput.Segmented.Segments, after.Throughput.Segmented.Segments)
+	beforeHasSegs := before.Throughput.Segmented != nil && before.Throughput.Segmented.Segments != nil
+	afterHasSegs := after.Throughput.Segmented != nil && after.Throughput.Segmented.Segments != nil
+	if !beforeHasSegs || !afterHasSegs {
+		// Don't dereference the (possibly nil) Segmented in the message.
+		return nil, fmt.Errorf("no throughput segments to compare (before has segments: %v, after has segments: %v); the run may be too short", beforeHasSegs, afterHasSegs)
+	}
+	if before.TotalRequests == 0 || after.TotalRequests == 0 {
+		// Avoids a divide-by-zero computing objects-per-operation below.
+		return nil, fmt.Errorf("no requests recorded to compare (before: %d, after: %d)", before.TotalRequests, after.TotalRequests)
 	}
 	res.Op = op
 	as := after.Throughput.Segmented.Segments
