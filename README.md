@@ -2,6 +2,84 @@
 
 S3 benchmarking tool.
 
+---
+
+> ## 🍴 This is a fork of [minio/warp](https://github.com/minio/warp)
+>
+> This repository extends upstream **warp** with a **web-based benchmark control plane**
+> and a **redesigned results UI**, while keeping 100% of warp's original CLI behaviour.
+> Everything below the "Upstream warp documentation" divider is the original warp README.
+
+## What this fork adds
+
+This fork keeps all of warp's benchmarks and adds a UI layer on top of them:
+
+- **🎛️ Benchmark Control Plane (`warp control`)** — a long-lived web service to
+  define, save and run benchmark scenarios across a pool of distributed warp clients,
+  then browse and compare results — all from the browser. No more hand-built command lines.
+- **📊 Redesigned web dashboard (`--web`)** — a live, modern dashboard for any
+  benchmark run (throughput, latency, TTFB, per-host and per-client breakdowns).
+- **🆚 Comparison view with charts** — compare two runs side-by-side with before/after
+  tables and grouped bar charts (`warp cmp --web`, `warp analyze --web`, or from the control plane).
+- **🔌 Configurable web UI address (`--web.addr`)** — pin the UI to a fixed host/port
+  so it can sit behind a reverse proxy (e.g. HAProxy).
+
+### Control plane at a glance
+
+```
+Browser ──► warp control (coordinator + UI + store)
+                 │  scenarios · targets · client pool · runs · results · compare
+                 └── WebSocket fan-out ──► warp client #1..#N ──► S3 endpoint
+```
+
+- **Scenarios** — named benchmark definitions (method, object size, duration,
+  concurrency, mixed distribution, plus any advanced warp flag). Portable; no secrets.
+- **Targets** — S3 endpoint + credentials + bucket, with a one-click connectivity **Check**.
+- **Client pool** — register running `warp client` load generators; reachability checks.
+- **Runs** — launch a scenario against a target on selected clients; view results in the
+  dashboard or compare two runs — all in the UI.
+
+## Quick start (control plane)
+
+```bash
+# 1. Build
+go build -o warp .
+
+# 2. Start one or more load generators (bind to a routable address, not 127.0.0.1)
+./warp client 0.0.0.0:7761
+
+# 3. Start the control plane (loopback by default; use 0.0.0.0 behind a proxy)
+./warp control --addr 127.0.0.1:7762 --dir warp-control
+```
+
+Open <http://127.0.0.1:7762> and:
+
+1. **Targets** → add your S3 endpoint + credentials + bucket → **Check**.
+2. **Clients** → add each `warp client` address (e.g. `127.0.0.1:7761`) → **Check**.
+3. **Scenarios** → define a benchmark (method, size, duration, …) → **Save**.
+4. **Run** it, then **View results** / **Compare** two runs from the **Runs** tab.
+
+> Data (scenarios, targets, client pool, run history) is stored under `--dir`
+> (`warp-control/` by default). Credentials live only in targets and are redacted in API responses.
+
+## Standalone web UI (no control plane)
+
+The redesigned dashboard and comparison view also work directly on the CLI:
+
+```bash
+# Live dashboard during a run, on a fixed port
+./warp get --web --web.addr 127.0.0.1:7762 --host ... --bucket ... --duration 30s
+
+# Visual before/after comparison of two result files
+./warp cmp --web before.csv.zst after.csv.zst
+```
+
+---
+
+# Upstream warp documentation
+
+The remainder of this file is the original **minio/warp** documentation, preserved as-is.
+
 # Download
 
 ## From binary
