@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warp Control · Sign in</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:#0d1014; color:#e6e9ee;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+  .card { width:min(380px,92vw); background:#14181e; border:1px solid #262e3a;
+    border-radius:14px; padding:32px 28px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  .brand { font-weight:700; font-size:20px; margin-bottom:4px; }
+  .brand span { color:#8b94a3; font-weight:500; }
+  .sub { color:#8b94a3; font-size:13px; margin-bottom:22px; }
+  label { display:block; font-size:12px; color:#8b94a3; margin:14px 0 6px; }
+  input { width:100%; background:#1b212a; border:1px solid #262e3a; color:#e6e9ee;
+    padding:10px 12px; border-radius:8px; font-size:14px; }
+  input:focus { outline:none; border-color:#e84a6b; }
+  button { width:100%; margin-top:22px; background:#e84a6b; border:none; color:#fff;
+    padding:11px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  .err { background:rgba(232,85,74,.12); border:1px solid rgba(232,85,74,.4);
+    color:#e8554a; padding:9px 12px; border-radius:8px; font-size:13px; margin-bottom:8px; }
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <div class="brand">⚡ Warp <span>Control Plane</span></div>
+    <div class="sub">Sign in to continue</div>
+    {{ERROR}}
+    <label for="u">Username</label>
+    <input id="u" name="username" autocomplete="username" autofocus required>
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>

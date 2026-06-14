@@ -333,6 +333,10 @@ $('#refresh-runs').addEventListener('click', loadRuns);
 // --- Init ---
 async function init() {
     try {
+        const info = await api('GET', '/api/auth');
+        if (info && info.enabled) $('#logout-btn').hidden = false;
+    } catch (e) { /* ignore */ }
+    try {
         await loadTargets();
         await loadClients();
         await loadScenarios();

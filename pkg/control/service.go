@@ -41,6 +41,7 @@ type Service struct {
 	exec    Executor
 	dataDir string
 	runsDir string
+	auth    *auth
 	runMu   sync.Mutex // serializes runs; only one benchmark may run at a time
 
 	resultMu    sync.Mutex
@@ -55,13 +56,28 @@ func NewService(store *Store, exec Executor, dataDir string) *Service {
 		exec:        exec,
 		dataDir:     dataDir,
 		runsDir:     filepath.Join(dataDir, "runs"),
+		auth:        newAuth(),
 		resultCache: map[string]*aggregate.Realtime{},
 	}
+}
+
+// AuthEnabled reports whether login protection is active (credentials configured).
+func (s *Service) AuthEnabled() bool { return s.auth.enabled }
+
+// handleAuthInfo lets the UI know whether auth is enabled (to show Logout).
+func (s *Service) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": s.auth.enabled})
 }
 
 // Handler returns the HTTP handler for the service.
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
+
+	// Authentication (login/logout are reachable without a session).
+	mux.HandleFunc("GET /login", s.auth.handleLoginPage)
+	mux.HandleFunc("POST /login", s.auth.handleLogin)
+	mux.HandleFunc("GET /logout", s.auth.handleLogout)
+	mux.HandleFunc("POST /logout", s.auth.handleLogout)
 
 	mux.HandleFunc("GET /api/scenarios", s.listScenarios)
 	mux.HandleFunc("POST /api/scenarios", s.createScenario)
@@ -80,6 +96,8 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/clients/{id}", s.deleteClient)
 	mux.HandleFunc("POST /api/clients/{id}/check", s.checkClient)
 
+	mux.HandleFunc("GET /api/auth", s.handleAuthInfo)
+
 	mux.HandleFunc("GET /api/runs", s.listRuns)
 	mux.HandleFunc("GET /api/runs/{id}", s.getRun)
 
@@ -95,7 +113,8 @@ func (s *Service) Handler() http.Handler {
 		panic("control: static assets: " + err.Error())
 	}
 	mux.Handle("/", http.FileServerFS(staticFS))
-	return recoverMiddleware(mux)
+	// Auth wraps the mux; recover is outermost so panics anywhere become 500s.
+	return recoverMiddleware(s.auth.middleware(mux))
 }
 
 // recoverMiddleware turns a panic in any handler into a 500 response instead of

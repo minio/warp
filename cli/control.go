@@ -84,6 +84,11 @@ func mainControl(ctx *cli.Context) error {
 
 	console.Infoln("Warp control plane listening on http://" + addr)
 	console.Infoln("Store:", storePath)
+	if svc.AuthEnabled() {
+		console.Infoln("Authentication: enabled (login required)")
+	} else {
+		console.Infoln("Authentication: disabled — set WARP_CONTROL_USER and WARP_CONTROL_PASSWORD to require login")
+	}
 	err = server.ListenAndServe()
 	fatalIf(probe.NewError(err), "Control-plane server stopped")
 	return nil
