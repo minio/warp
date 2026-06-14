@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warp · Control Plane</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">⚡ Warp <span>Control Plane</span></div>
+        <nav class="tabs">
+            <button class="tab active" data-tab="scenarios">Scenarios</button>
+            <button class="tab" data-tab="targets">Targets</button>
+            <button class="tab" data-tab="clients">Clients</button>
+            <button class="tab" data-tab="runs">Runs</button>
+        </nav>
+        <button class="btn small theme-toggle" id="theme-toggle" aria-label="Toggle dark/light theme">☾</button>
+    </header>
+
+    <main>
+        <section id="tab-scenarios" class="panel active">
+            <div class="panel-head"><h2>Scenarios</h2></div>
+            <form id="scenario-form" class="card form">
+                <h3>New scenario</h3>
+                <div class="grid">
+                    <label>Name<input name="name" required></label>
+                    <label>Method
+                        <select name="method">
+                            <option>get</option><option>put</option><option>mixed</option>
+                            <option>delete</option><option>stat</option><option>list</option>
+                        </select>
+                    </label>
+                    <label>Object size<input name="obj_size" value="256KiB"></label>
+                    <label>Duration<input name="duration" value="30s"></label>
+                    <label>Objects<input name="objects" type="number" value="100"></label>
+                    <label>Concurrent<input name="concurrent" type="number" value="20"></label>
+                </div>
+                <fieldset class="mixed-only">
+                    <legend>Mixed distribution</legend>
+                    <div class="grid">
+                        <label>GET<input name="get_distrib" type="number" value="50"></label>
+                        <label>PUT<input name="put_distrib" type="number" value="50"></label>
+                        <label>STAT<input name="stat_distrib" type="number" value="0"></label>
+                        <label>DELETE<input name="delete_distrib" type="number" value="0"></label>
+                    </div>
+                </fieldset>
+                <details class="advanced">
+                    <summary>Advanced options</summary>
+
+                    <fieldset>
+                        <legend>Data generation</legend>
+                        <div class="grid">
+                            <label>Generator
+                                <select data-flag="obj.generator">
+                                    <option value="">random (default)</option>
+                                    <option value="csv">csv</option>
+                                </select>
+                            </label>
+                            <label>Part size (multipart)<input data-flag="part.size" placeholder="e.g. 16MiB"></label>
+                        </div>
+                        <div class="toggles">
+                            <label class="check"><input type="checkbox" data-flag="obj.randsize"> Randomize object size</label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Object behavior</legend>
+                        <div class="grid">
+                            <label>Custom prefix<input data-flag="prefix" placeholder="e.g. bench/"></label>
+                            <label>Storage class<input data-flag="storage-class" placeholder="e.g. STANDARD"></label>
+                            <label>Checksum
+                                <select data-flag="checksum">
+                                    <option value="">none (default)</option>
+                                    <option>CRC32</option><option>CRC32C</option><option>CRC64NVME</option>
+                                    <option>SHA1</option><option>SHA256</option><option>XXH128</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="toggles">
+                            <label class="check"><input type="checkbox" data-flag="md5"> Add MD5 to uploads</label>
+                            <label class="check"><input type="checkbox" data-flag="disable-multipart"> Disable multipart</label>
+                            <label class="check"><input type="checkbox" data-flag="keep-data"> Keep data after run</label>
+                            <label class="check"><input type="checkbox" data-flag="noprefix"> Disable prefixes</label>
+                            <label class="check"><input type="checkbox" data-flag="encrypt"> Server-side encrypt</label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Connection</legend>
+                        <div class="grid">
+                            <label>Host lookup
+                                <select data-flag="lookup">
+                                    <option value="">auto (default)</option>
+                                    <option value="host">virtual-host style</option>
+                                    <option value="path">path style</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="toggles">
+                            <label class="check"><input type="checkbox" data-flag="insecure"> Skip TLS verification</label>
+                            <label class="check"><input type="checkbox" data-flag="http2"> Enable HTTP/2</label>
+                            <label class="check"><input type="checkbox" data-flag="disable-http-keepalive"> Disable keep-alive</label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Throughput &amp; termination</legend>
+                        <div class="grid">
+                            <label>Requests/sec limit (per client)<input type="number" min="0" data-flag="rps-limit" placeholder="0 = off"></label>
+                        </div>
+                        <div class="toggles">
+                            <label class="check"><input type="checkbox" data-flag="autoterm"> Auto-terminate when stable</label>
+                            <label class="check"><input type="checkbox" data-flag="stress"> Stress mode (discard output)</label>
+                        </div>
+                    </fieldset>
+                </details>
+                <button class="btn primary" type="submit">Save scenario</button>
+            </form>
+            <div id="scenarios-list" class="list"></div>
+        </section>
+
+        <section id="tab-targets" class="panel">
+            <div class="panel-head"><h2>Targets</h2></div>
+            <form id="target-form" class="card form">
+                <h3>New target</h3>
+                <div class="grid">
+                    <label>Name<input name="name" required></label>
+                    <label>Endpoint (host:port)<input name="endpoint" placeholder="s3.example.com" required></label>
+                    <label>Bucket<input name="bucket" required></label>
+                    <label>Region<input name="region" placeholder="us-east-1"></label>
+                    <label>Access key<input name="access_key"></label>
+                    <label>Secret key<input name="secret_key" type="password"></label>
+                    <label class="check"><input name="tls" type="checkbox" checked> TLS</label>
+                </div>
+                <button class="btn primary" type="submit">Save target</button>
+            </form>
+            <div id="targets-list" class="list"></div>
+        </section>
+
+        <section id="tab-clients" class="panel">
+            <div class="panel-head"><h2>Client pool</h2></div>
+            <form id="client-form" class="card form">
+                <h3>Add client</h3>
+                <div class="grid">
+                    <label>Name<input name="name" required></label>
+                    <label>Address (host:port)<input name="address" placeholder="10.0.0.5:7761" required></label>
+                </div>
+                <button class="btn primary" type="submit">Add client</button>
+                <p class="hint">Start a client with: <code>warp client 0.0.0.0:7761</code></p>
+            </form>
+            <div id="clients-list" class="list"></div>
+        </section>
+
+        <section id="tab-runs" class="panel">
+            <div class="panel-head"><h2>Runs</h2><button class="btn" id="refresh-runs">Refresh</button></div>
+            <div id="runs-list" class="list"></div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="run-modal" hidden>
+        <div class="modal">
+            <h3 id="run-modal-title">Run scenario</h3>
+            <label>Target<select id="run-target"></select></label>
+            <div class="run-clients-head">
+                <span>Run on clients</span>
+                <button type="button" class="btn small" id="run-clients-all">Toggle all</button>
+            </div>
+            <div id="run-clients" class="run-clients"></div>
+            <div class="modal-actions">
+                <button class="btn" id="run-cancel">Cancel</button>
+                <button class="btn primary" id="run-confirm">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="app.js"></script>
+</body>
+</html>

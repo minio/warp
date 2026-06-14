@@ -109,6 +109,7 @@ func init() {
 		mergeCmd,
 		clientCmd,
 		runCmd,
+		controlCmd,
 	}
 	appCmds = append(append(appCmds, a...), b...)
 	benchCmds = a
