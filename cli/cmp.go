@@ -32,6 +32,7 @@ import (
 
 	"github.com/minio/warp/pkg/aggregate"
 	"github.com/minio/warp/pkg/bench"
+	"github.com/minio/warp/wui"
 )
 
 var cmpFlags = []cli.Flag{}
@@ -63,6 +64,12 @@ func mainCmp(ctx *cli.Context) error {
 	if globalQuiet {
 		log = nil
 	}
+
+	if ctx.Bool("web") {
+		serveCompareWeb(ctx, args[0], args[1], log)
+		return nil
+	}
+
 	// Open "before" and "after" files
 	rc, agg := openInput(args[0])
 	defer rc.Close()
@@ -236,6 +243,50 @@ func printCompareLegacy(ctx *cli.Context, before, after bench.Operations) {
 			console.Println("* Slowest:", cmp.Slowest)
 		}
 	}
+}
+
+// serveCompareWeb loads both inputs, builds the comparison and serves it in the web UI.
+func serveCompareWeb(ctx *cli.Context, beforeFile, afterFile string, log func(msg string, v ...any)) {
+	before := loadRealtime(ctx, beforeFile, log)
+	after := loadRealtime(ctx, afterFile, log)
+
+	data := wui.BuildCompareData(before, after, beforeFile, afterFile, ctx.String("analyze.op"))
+	srv := wui.NewCompare(data)
+	addr, err := srv.Start(ctx.String("web.addr"))
+	fatalIf(probe.NewError(err), "Failed to start web server")
+
+	url := addr + "/compare.html"
+	console.Println("Web UI (comparison) available at:", url)
+	if err := srv.OpenBrowserPath("/compare.html"); err != nil {
+		console.Println("Could not open browser automatically. Please visit:", url)
+	}
+	console.Println("Press Enter to exit...")
+	srv.WaitForKeypress()
+	srv.Shutdown()
+}
+
+// loadRealtime loads a benchmark data file (aggregated JSON or raw CSV) into a Realtime aggregate.
+func loadRealtime(ctx *cli.Context, arg string, log func(msg string, v ...any)) *aggregate.Realtime {
+	rc, isJSON := openInput(arg)
+	defer rc.Close()
+
+	if isJSON {
+		var rt aggregate.Realtime
+		if err := json.NewDecoder(rc).Decode(&rt); err != nil {
+			fatalIf(probe.NewError(err), "Unable to parse input")
+		}
+		return &rt
+	}
+
+	if log != nil {
+		log("Loading %q", arg)
+	}
+	opCh := make(chan bench.Operation, 10000)
+	go func() {
+		err := bench.StreamOperationsFromCSV(rc, false, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log, opCh)
+		fatalIf(probe.NewError(err), "Unable to parse input")
+	}()
+	return aggregate.Live(opCh, nil, "", nil)
 }
 
 func checkCmp(ctx *cli.Context) {

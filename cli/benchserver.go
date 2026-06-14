@@ -92,6 +92,7 @@ type serverRequest struct {
 	Stage        benchmarkStage       `json:"stage"`
 	ClientIdx    int                  `json:"client_idx"`
 	TotalClients int                  `json:"total_clients"`
+	Host         string               `json:"host,omitempty"` // address the server uses to reach this client; used as its result identity
 	Aggregate    bool                 `json:"aggregate"`
 	UpdateReq    *aggregate.UpdateReq `json:"update_req,omitempty"`
 }
@@ -183,6 +184,9 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	// Connect to hosts, send benchmark requests.
 	ui.StartPrepare("Preparing", nil, nil)
 	for i := range conns.hosts {
+		// Tell each client the address we reach it by, so its results are
+		// identified by that address rather than a random per-run ID.
+		req.Host = conns.hosts[i]
 		resp, err := conns.roundTrip(i, req)
 		fatalIf(probe.NewError(err), "Unable to send benchmark info to warp client")
 		if resp.Err != "" {
@@ -221,7 +225,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		updates = make(chan aggregate.UpdateReq, 10)
 		monitor.SetUpdate(updates)
 		if ctx.Bool("web") {
-			addr, err := srv.Start()
+			addr, err := srv.Start(ctx.String("web.addr"))
 			srv.WithPoll(updates)
 			fatalIf(probe.NewError(err), "Failed to start web server")
 			showAddress = "Web UI: " + addr

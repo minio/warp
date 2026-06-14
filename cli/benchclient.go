@@ -104,6 +104,7 @@ func (s serverRequest) executeBenchmark(ctx context.Context) (*clientBenchmark, 
 	cb.init(ctx)
 	cb.clientIdx = s.ClientIdx
 	cb.totalClients = s.TotalClients
+	cb.clientID = s.Host
 	activeBenchmarkMu.Lock()
 	activeBenchmark = &cb
 	activeBenchmarkMu.Unlock()

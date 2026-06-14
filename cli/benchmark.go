@@ -132,7 +132,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		go ui.Run()
 	}
 
-	retrieveOps, updates := addCollector(ctx, b)
+	retrieveOps, updates := addCollector(ctx, b, "")
 	c.UpdateStatus = ui.SetSubText
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), updates)
@@ -178,7 +178,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	srv := wui.New(nil)
 	showAddress := ""
 	if ctx.Bool("web") {
-		addr, err := srv.Start()
+		addr, err := srv.Start(ctx.String("web.addr"))
 		srv.WithPoll(updates)
 		fatalIf(probe.NewError(err), "Failed to start web server")
 		showAddress = "Web UI: " + addr
@@ -345,6 +345,7 @@ type clientBenchmark struct {
 	updates      chan<- aggregate.UpdateReq
 	clientIdx    int
 	totalClients int
+	clientID     string // server-assigned identity (its address); empty for non-distributed
 	sync.Mutex
 }
 
@@ -440,7 +441,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 		return err
 	}
 
-	retrieveOps, updates := addCollector(ctx, b)
+	retrieveOps, updates := addCollector(ctx, b, cb.clientID)
 	common := b.GetCommon()
 	common.UpdateStatus = func(s string) {
 		console.Infoln(s)
@@ -501,7 +502,13 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	if err != nil {
 		return err
 	}
-	ops.SetClientID(cID)
+	// Identify results by the server-assigned address when distributed, so the
+	// dashboard's "by client" view shows the client rather than a random ID.
+	resultID := cID
+	if cb.clientID != "" {
+		resultID = cb.clientID
+	}
+	ops.SetClientID(resultID)
 	ops.SortByStartTime()
 	common.Collector.Close()
 
@@ -566,13 +573,19 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	return nil
 }
 
-func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
+func addCollector(ctx *cli.Context, b bench.Benchmark, clientID string) (bench.OpsCollector, chan<- aggregate.UpdateReq) {
 	// Add collectors
 	common := b.GetCommon()
 
+	// Identify this client's live aggregate by clientID when provided (its
+	// server-assigned address in distributed mode); otherwise use a random ID.
+	if clientID == "" {
+		clientID = pRandASCII(4)
+	}
+
 	if !ctx.Bool("full") {
 		updates := make(chan aggregate.UpdateReq, 1000)
-		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), common.ExtraOut)
+		c := aggregate.LiveCollector(context.Background(), updates, clientID, common.ExtraOut)
 		common.Collector = c
 		return bench.EmptyOpsCollector, updates
 	}
