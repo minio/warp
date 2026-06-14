@@ -35,6 +35,7 @@ import (
 // Server is a web UI server for displaying benchmark results.
 type Server struct {
 	data     atomic.Pointer[aggregate.Realtime]
+	compare  atomic.Pointer[CompareData]
 	poll     atomic.Pointer[chan<- aggregate.UpdateReq]
 	server   *http.Server
 	listener net.Listener
@@ -45,6 +46,13 @@ type Server struct {
 func New(data *aggregate.Realtime) *Server {
 	s := Server{}
 	s.data.Store(data)
+	return &s
+}
+
+// NewCompare creates a new web UI server that serves a before/after comparison.
+func NewCompare(data *CompareData) *Server {
+	s := Server{}
+	s.compare.Store(data)
 	return &s
 }
 
@@ -60,12 +68,18 @@ func (s *Server) WithPoll(updates chan<- aggregate.UpdateReq) {
 	s.poll.Store(&updates)
 }
 
-// Start starts the web server on an automatically assigned port.
+// Start starts the web server on the given address.
+// If addr is empty, a loopback address with an automatically assigned port
+// is used ("127.0.0.1:0"). Use a fixed address (e.g. "127.0.0.1:7762" or
+// "0.0.0.0:7762") to place the UI behind a reverse proxy such as HAProxy.
 // Returns the address the server is listening on.
-func (s *Server) Start() (string, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func (s *Server) Start(addr string) (string, error) {
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return "", fmt.Errorf("failed to start listener: %w", err)
+		return "", fmt.Errorf("failed to start listener on %q: %w", addr, err)
 	}
 	s.listener = listener
 	s.addr = listener.Addr().String()
@@ -97,7 +111,13 @@ func (s *Server) Address() string {
 
 // OpenBrowser attempts to open the default browser to the server address.
 func (s *Server) OpenBrowser() error {
-	url := s.Address()
+	return s.OpenBrowserPath("")
+}
+
+// OpenBrowserPath attempts to open the default browser to the server address
+// joined with the given path (e.g. "/compare.html").
+func (s *Server) OpenBrowserPath(path string) error {
+	url := s.Address() + path
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {

@@ -36,8 +36,26 @@ func (s *Server) registerHandlers(mux *http.ServeMux) {
 	// API endpoint for benchmark data
 	mux.HandleFunc("GET /api/data", s.handleData)
 
+	// API endpoint for before/after comparison data
+	mux.HandleFunc("GET /api/compare", s.handleCompare)
+
 	// Serve static files
 	mux.Handle("/", http.FileServerFS(staticFS))
+}
+
+// handleCompare returns the before/after comparison data as JSON.
+func (s *Server) handleCompare(w http.ResponseWriter, _ *http.Request) {
+	data := s.compare.Load()
+	if data == nil {
+		http.Error(w, "no comparison data available", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "Failed to encode data: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // apiResponse wraps the benchmark data with metadata.

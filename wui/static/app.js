@@ -111,6 +111,109 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
 });
 
+// Export the dashboard to PDF as a faithful copy of the web UI. Each card/section
+// is screenshotted individually with html2canvas (small canvases avoid Safari's
+// whole-page size limit) and flowed into the PDF, slicing any section taller than
+// a page. Forces light theme so the export is print-friendly.
+async function exportPdf() {
+    const btn = document.getElementById('export-pdf');
+    if (!window.jspdf || !window.jspdf.jsPDF || typeof html2canvas === 'undefined') {
+        alert('PDF library failed to load (no network access to the CDN?).');
+        return;
+    }
+
+    const prev = getTheme();
+    if (prev !== 'light') setTheme('light'); // recreate charts dark-on-light
+    document.body.classList.add('exporting'); // higher-contrast cmd line/config for print
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    await new Promise((r) => setTimeout(r, 300)); // let charts repaint
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 8;
+        const usableW = pageW - 2 * margin;
+        const usableH = pageH - 2 * margin;
+        let y = margin;
+        let firstOnPage = true;
+
+        const place = (canvas) => {
+            if (!canvas || !canvas.width || !canvas.height) return;
+            const pxPerMm = canvas.width / usableW;
+            const fullHmm = canvas.height / pxPerMm;
+            if (fullHmm <= usableH) {
+                if (!firstOnPage && y + fullHmm > pageH - margin) { doc.addPage(); y = margin; }
+                doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, y, usableW, fullHmm, undefined, 'FAST');
+                y += fullHmm + 4;
+                firstOnPage = false;
+            } else {
+                // Taller than a page: slice into full-page strips.
+                if (!firstOnPage) { doc.addPage(); y = margin; }
+                const sliceHpx = usableH * pxPerMm;
+                for (let sy = 0; sy < canvas.height; sy += sliceHpx) {
+                    const hpx = Math.min(sliceHpx, canvas.height - sy);
+                    const strip = document.createElement('canvas');
+                    strip.width = canvas.width; strip.height = hpx;
+                    const sx = strip.getContext('2d');
+                    sx.fillStyle = '#ffffff'; sx.fillRect(0, 0, strip.width, strip.height);
+                    sx.drawImage(canvas, 0, sy, canvas.width, hpx, 0, 0, canvas.width, hpx);
+                    if (sy > 0) doc.addPage();
+                    doc.addImage(strip.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, usableW, hpx / pxPerMm, undefined, 'FAST');
+                }
+                doc.addPage(); y = margin; firstOnPage = true;
+            }
+        };
+
+        const opts = {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true,
+            // Drop the command-line box (renders poorly / low contrast) and any
+            // zero-size canvas from the screenshot.
+            ignoreElements: (el) =>
+                (el.classList && el.classList.contains('cmd-line')) ||
+                (el.tagName === 'CANVAS' &&
+                    (el.width === 0 || el.height === 0 || el.offsetWidth === 0 || el.offsetHeight === 0)),
+        };
+
+        for (const el of collectExportTargets()) {
+            // eslint-disable-next-line no-await-in-loop
+            place(await html2canvas(el, opts));
+        }
+
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+        doc.save(`warp-report-${stamp}.pdf`);
+    } catch (err) {
+        console.error('PDF export failed:', err);
+        alert('PDF export failed: ' + (err && err.message ? err.message : err));
+    } finally {
+        document.body.classList.remove('exporting');
+        if (prev !== 'light') setTheme(prev);
+        if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    }
+}
+
+// collectExportTargets returns the visible UI blocks to screenshot, at a small
+// enough granularity that each canvas stays well under browser size limits.
+function collectExportTargets() {
+    const out = [];
+    const visible = (el) => el && el.offsetParent !== null && el.offsetHeight > 0;
+    document.querySelectorAll('main > section.card').forEach((card) => {
+        const ops = [...card.querySelectorAll('.op-card')].filter(visible);
+        const subs = [...card.querySelectorAll('.op-table-section')].filter(visible);
+        if (ops.length) ops.forEach((o) => out.push(o));
+        else if (subs.length) subs.forEach((s) => out.push(s));
+        else if (visible(card)) out.push(card);
+    });
+    return out;
+}
+
+
+document.getElementById('export-pdf')?.addEventListener('click', exportPdf);
+
 // ----- Toast -----
 function showToast(message, opts = {}) {
     const container = document.getElementById('toast-container');
@@ -346,6 +449,14 @@ function sampleData(arr, maxPoints = 200) {
     return sampled;
 }
 
+// throughputSegs returns segments sorted by start time, then downsampled.
+// Segments arrive sorted by throughput (for median/fastest/slowest stats), so
+// they must be re-sorted by time before plotting or the line zigzags.
+function throughputSegs(arr) {
+    if (!arr) return arr;
+    return sampleData([...arr].sort((a, b) => new Date(a.start) - new Date(b.start)));
+}
+
 // ----- Tabs -----
 document.querySelectorAll('.seg-tab').forEach(tab => {
     tab.addEventListener('click', () => activateTab(tab.dataset.tab));
@@ -385,7 +496,9 @@ const POLL_INTERVAL_MS = 2000;
 
 async function loadData() {
     try {
-        const response = await fetch('/api/data');
+        // Relative path + query so this works both standalone (served at "/")
+        // and mounted under a run-scoped prefix (e.g. /dash/?run=ID).
+        const response = await fetch('api/data' + location.search);
         if (!response.ok) throw new Error('Failed to load data');
         const apiResponse = await response.json();
         data = apiResponse.data || apiResponse;
@@ -596,9 +709,18 @@ function renderHeroStats() {
 }
 
 // ----- Operation cards -----
+// measuredOpTypes returns op types that have a measured benchmark window.
+// It excludes preparation-phase operations (e.g. the PUT uploads done before a
+// GET run) which have no throughput segments or duration, so they don't render
+// as empty/zeroed sections.
+function measuredOpTypes() {
+    return Object.keys(data.by_op_type || {})
+        .filter((t) => (data.by_op_type[t]?.throughput?.measure_duration_millis || 0) > 0);
+}
+
 function renderOperationCards() {
     const container = document.getElementById('operation-cards');
-    const opTypes = Object.keys(data.by_op_type || {});
+    const opTypes = measuredOpTypes();
     document.getElementById('op-count').textContent = `${opTypes.length} operation${opTypes.length === 1 ? '' : 's'}`;
 
     if (opTypes.length === 0) {
@@ -829,14 +951,30 @@ function chartScales(opts) {
     return {
         x: {
             type: 'time',
-            time: { displayFormats: { second: 'HH:mm:ss', minute: 'HH:mm' } },
+            time: {
+                // 24h formats for every granularity, so short (sub-second) runs
+                // don't fall back to the locale default ("5:05:38.000 p.m.").
+                tooltipFormat: 'HH:mm:ss.SSS',
+                displayFormats: {
+                    millisecond: 'HH:mm:ss.SSS',
+                    second: 'HH:mm:ss',
+                    minute: 'HH:mm:ss',
+                    hour: 'HH:mm',
+                    day: 'MMM d',
+                },
+            },
             grid: { display: false },
             ticks: { font: { size: 10 }, color: p.fgFaint, maxRotation: 0, autoSkipPadding: 14 },
             border: { display: false },
         },
         y: {
             beginAtZero: true,
-            title: opts?.yTitle ? { display: false } : undefined,
+            title: opts?.yTitle ? {
+                display: true,
+                text: opts.yTitle,
+                font: { size: 10, weight: '600', family: "'General Sans', sans-serif" },
+                color: p.fgFaint,
+            } : undefined,
             grid: { color: chartGridColor, lineWidth: 1, drawTicks: false },
             ticks: { font: { size: 10 }, color: p.fgFaint, padding: 8 },
             border: { display: false },
@@ -868,13 +1006,14 @@ function createGradientFill(ctx, color, opacity) {
 
 function renderOpThroughputChart(opType, idx) {
     const opData = data.by_op_type[opType];
-    const segments = sampleData(opData?.throughput?.segmented?.segments);
+    const segments = throughputSegs(opData?.throughput?.segmented?.segments);
     if (!segments) return;
     const canvas = document.getElementById(`op-throughput-${idx}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const color = getOpColor(opType);
     const useOps = useOpsAxis(opData);
+    const unit = useOps ? 'obj/s' : 'MiB/s';
 
     new Chart(ctx, {
         type: 'line',
@@ -888,15 +1027,27 @@ function renderOpThroughputChart(opType, idx) {
                 borderColor: color,
                 backgroundColor: createGradientFill(ctx, color, 0.18),
                 fill: true,
-                pointRadius: 0,
+                // Show markers for short runs; rely on hover for dense ones.
+                pointRadius: segments.length <= 60 ? 2.5 : 0,
+                pointHoverRadius: 5,
+                pointBackgroundColor: color,
+                pointBorderColor: color,
             }],
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
-            plugins: { legend: { display: false } },
-            scales: chartScales({ yTitle: useOps ? 'obj/s' : 'MiB/s' }),
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (c) => `${c.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`,
+                    },
+                },
+            },
+            scales: chartScales({ yTitle: unit }),
         },
     });
 }
@@ -980,7 +1131,7 @@ function hexToRgba(hex, a) {
 // ----- Hosts -----
 function renderHostsTable() {
     const container = document.getElementById('hosts-container');
-    const opTypes = Object.keys(data.by_op_type || {}).sort();
+    const opTypes = measuredOpTypes().sort();
     const hosts = [...(data.total?.hosts || [])].sort();
 
     if (hosts.length === 0 || opTypes.length === 0) {
@@ -1036,7 +1187,7 @@ function renderHostsTable() {
 
 function renderClientsTable() {
     const container = document.getElementById('clients-container');
-    const opTypes = Object.keys(data.by_op_type || {}).sort();
+    const opTypes = measuredOpTypes().sort();
     const clients = [...(data.total?.clients || [])].sort();
 
     if (clients.length === 0 || opTypes.length === 0) {
@@ -1096,7 +1247,7 @@ function getSeriesColor(i) { return pc(seriesColors[i % seriesColors.length]); }
 function renderHostThroughputChart(opType, idx, hosts) {
     const opData = data.by_op_type[opType];
     const byHostData = data.by_host || {};
-    const segments = sampleData(opData?.throughput?.segmented?.segments);
+    const segments = throughputSegs(opData?.throughput?.segmented?.segments);
     const useOps = useOpsAxis(opData);
     const canvas = document.getElementById(`host-chart-${idx}`);
     if (!canvas) return;
@@ -1105,7 +1256,7 @@ function renderHostThroughputChart(opType, idx, hosts) {
     const datasets = [];
     hosts.forEach((host, i) => {
         const hostAgg = byHostData[host];
-        const segs = sampleData(hostAgg?.throughput?.segmented?.segments);
+        const segs = throughputSegs(hostAgg?.throughput?.segmented?.segments);
         if (segs && segs.length > 0) {
             datasets.push({
                 label: host,
@@ -1154,7 +1305,7 @@ function renderHostThroughputChart(opType, idx, hosts) {
 function renderClientThroughputChart(opType, idx, clients) {
     const opData = data.by_op_type[opType];
     const byClientData = data.by_client || {};
-    const segments = sampleData(opData?.throughput?.segmented?.segments);
+    const segments = throughputSegs(opData?.throughput?.segmented?.segments);
     const useOps = useOpsAxis(opData);
     const canvas = document.getElementById(`client-chart-${idx}`);
     if (!canvas) return;
@@ -1163,7 +1314,7 @@ function renderClientThroughputChart(opType, idx, clients) {
     const datasets = [];
     clients.forEach((client, i) => {
         const clientAgg = byClientData[client];
-        const segs = sampleData(clientAgg?.throughput?.segmented?.segments);
+        const segs = throughputSegs(clientAgg?.throughput?.segmented?.segments);
         if (segs && segs.length > 0) {
             datasets.push({
                 label: client,

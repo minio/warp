@@ -1133,3 +1133,199 @@ body.theme-fading * {
     .op-card-body { padding: 12px; }
     .footer-bar { padding: 14px 16px 24px; }
 }
+
+/* ── Comparison view ───────────────────────────────────────── */
+.cmp-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.cmp-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: hsl(var(--muted) / 0.5);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+.cmp-file code { color: hsl(var(--foreground)); }
+.cmp-file-tag {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+.cmp-file-tag.before {
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+}
+.cmp-file-tag.after {
+    color: hsl(var(--info));
+    background: hsl(var(--info) / 0.12);
+    border: 1px solid hsl(var(--info) / 0.3);
+}
+
+.cmp-table-block { margin-top: 18px; }
+.cmp-table-block:first-child { margin-top: 0; }
+.cmp-table-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 8px;
+}
+table.cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+table.cmp-table th {
+    text-align: right;
+    padding: 8px 14px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    border-bottom: 1px solid hsl(var(--border));
+    white-space: nowrap;
+}
+table.cmp-table th:first-child { text-align: left; }
+table.cmp-table td {
+    padding: 8px 14px;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+table.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-metric { color: hsl(var(--foreground)); font-weight: 500; }
+.cmp-num {
+    text-align: right;
+    font-family: var(--font-mono);
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+}
+.cmp-change {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 999px;
+}
+.cmp-change.good {
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.12);
+}
+.cmp-change.bad {
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.12);
+}
+.cmp-change.neutral { color: hsl(var(--muted-foreground)); }
+
+/* ── Comparison charts (per-metric mini charts) ────────────── */
+.cmp-section { margin-bottom: 24px; }
+.cmp-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.cmp-section-head .cmp-table-title { margin-bottom: 0; }
+.cmp-unit { color: hsl(var(--muted-foreground)); font-weight: 500; text-transform: none; }
+.cmp-legend { display: flex; gap: 14px; }
+.cmp-leg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+.cmp-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+.cmp-metric-card {
+    background: hsl(var(--muted) / 0.4);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-sm);
+    padding: 10px 10px 6px;
+}
+.cmp-metric-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    text-align: center;
+    margin-bottom: 6px;
+}
+.cmp-mini-wrap {
+    position: relative;
+    height: 150px;
+}
+
+/* ── Comparison file labels ────────────────────────────────── */
+.cmp-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+}
+.cmp-swatch.before { background: #9aa0aa; }
+.cmp-swatch.after  { background: #e84a6b; }
+.cmp-file-name {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 12px;
+    color: hsl(var(--foreground));
+}
+.cmp-file code { color: hsl(var(--muted-foreground)); font-size: 12px; }
+th.cmp-run-col {
+    white-space: normal;
+    word-break: break-all;
+    max-width: 220px;
+}
+
+/* ── Print / Export-PDF ─────────────────────────────────────── */
+@media print {
+    .ambient,
+    .footer-bar,
+    .toast-container,
+    .topbar-right,
+    #export-pdf,
+    #theme-toggle { display: none !important; }
+
+    html, body { background: #fff !important; }
+    main { max-width: none !important; padding: 0 !important; }
+    .topbar { position: static !important; border-bottom: 1px solid #ddd !important; }
+
+    /* Keep cards/charts from splitting across pages. */
+    .card, .op-card, section, .cmp-table-block, .cmp-chart-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    @page { margin: 12mm; }
+}
+
+/* ── Higher-contrast command line / config while exporting to PDF ───────── */
+body.exporting .cmd-line { background: #f4f6f8; border-color: #d7dbe0; }
+body.exporting .cmd-line code,
+body.exporting .cmd-line code .arg-flag { color: #1b1f27 !important; }
+body.exporting .cmd-line code .arg-val { color: #c0264a !important; }
+body.exporting .cmd-line code .cont { opacity: 1 !important; }
+body.exporting .cmd-line .prompt { color: #c0264a !important; }
+body.exporting .config-cell .label { color: #4a5260 !important; }
+body.exporting .config-cell .value { color: #1b1f27 !important; }
+
+/* Freeze all animations/transitions during export so nothing is captured
+   mid-fade (the staggered cardEnter animation made the first card faint). */
+body.exporting *,
+body.exporting *::before,
+body.exporting *::after {
+    animation: none !important;
+    transition: none !important;
+}
+body.exporting main > .card { opacity: 1 !important; transform: none !important; }

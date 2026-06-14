@@ -17,7 +17,21 @@
 
 package wui
 
-import "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
 //go:embed static/*
 var staticFiles embed.FS
+
+// StaticFS returns the dashboard's static assets (index.html, app.js,
+// compare.html, etc.) rooted at the asset directory. The control plane uses this
+// to serve the dashboard and comparison views through its own HTTP server.
+func StaticFS() fs.FS {
+	sub, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		panic("wui: static assets: " + err.Error())
+	}
+	return sub
+}
