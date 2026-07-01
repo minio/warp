@@ -95,7 +95,8 @@ func (c *CmpReqs) String() string {
 	if c == nil {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
+	return fmt.Sprintf(
+		"Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
 		plusPositiveD(c.Average),
 		c.Average.Round(time.Millisecond/20),
 		plusPositiveD(c.Average),
@@ -145,12 +146,14 @@ func (c CmpSegment) String() string {
 	mibA, _, objsA := c.After.SpeedPerSec()
 
 	if c.ThroughputPerSec != 0 {
-		speed = fmt.Sprintf("%s%.02f%% (%s%.1f MiB/s) throughput, ",
+		speed = fmt.Sprintf(
+			"%s%.02f%% (%s%.1f MiB/s) throughput, ",
 			plusPositiveF(c.ThroughputPerSec), c.ThroughputPerSec,
 			plusPositiveF(c.ThroughputPerSec), mibA-mibB,
 		)
 	}
-	return fmt.Sprintf("%s%s%.02f%% (%s%.1f) obj/s",
+	return fmt.Sprintf(
+		"%s%s%.02f%% (%s%.1f) obj/s",
 		speed, plusPositiveF(c.ObjPerSec), c.ObjPerSec,
 		plusPositiveF(objsA-objsB), objsA-objsB,
 	)
@@ -198,7 +201,8 @@ func (t *TTFBCmp) String() string {
 	if t == nil {
 		return ""
 	}
-	return fmt.Sprintf("Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
+	return fmt.Sprintf(
+		"Avg: %s%v (%s%.f%%), P50: %s%v (%s%.f%%), P99: %s%v (%s%.f%%), Best: %s%v (%s%.f%%), Worst: %s%v (%s%.f%%) StdDev: %s%v (%s%.f%%)",
 		plusPositiveD(t.Average),
 		t.Average.Round(time.Millisecond/20),
 		plusPositiveD(t.Average),

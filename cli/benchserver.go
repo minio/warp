@@ -353,7 +353,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
 		ui.SetPhase("Cleanup")
 		monitor.InfoLn("Starting cleanup...")
-		b.Cleanup(context.Background())
+		// With per-client buckets there is no shared base bucket for the
+		// server to clean; each client clears its own bucket in the cleanup
+		// stage below.
+		if !ctx.Bool("bucket-per-client") {
+			b.Cleanup(context.Background())
+		}
 
 		err = conns.startStageAll(stageCleanup, time.Now(), false)
 		if err != nil {

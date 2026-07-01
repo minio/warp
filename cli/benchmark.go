@@ -116,6 +116,11 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	if ab != nil {
 		c.ClientIdx = ab.clientIdx
 		c.TotalClients = ab.totalClients
+		if ctx.Bool("bucket-per-client") {
+			// Give this client its own bucket so distributed clients do
+			// not share/clobber each other's data.
+			c.Bucket = fmt.Sprintf("%s-%d", c.Bucket, c.ClientIdx)
+		}
 		return runClientBenchmark(ctx, b, ab)
 	}
 	if done, err := runServerBenchmark(ctx, b); done || err != nil {

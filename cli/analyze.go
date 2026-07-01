@@ -572,7 +572,8 @@ func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool)
 			", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
 			", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
 			", StdDev: ", time.Duration(reqs.StdDev)*time.Millisecond,
-			"\n")
+			"\n",
+		)
 
 		if reqs.FirstByte != nil {
 			console.Println(" * TTFB:", reqs.FirstByte)
@@ -588,7 +589,8 @@ func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool)
 				", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
 				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
 				", StdDev: ", time.Duration(reqs.StdDev)*time.Millisecond,
-				"\n")
+				"\n",
+			)
 			if reqs.FirstByte != nil {
 				console.Print(" * First Access TTFB: ", reqs.FirstByte, "\n")
 			}
@@ -603,7 +605,8 @@ func printRequestAnalysis(_ *cli.Context, ops aggregate.Operation, details bool)
 				", Fastest: ", time.Duration(reqs.FastestMillis)*time.Millisecond,
 				", Slowest: ", time.Duration(reqs.SlowestMillis)*time.Millisecond,
 				", StdDev: ", time.Duration(reqs.StdDev)*time.Millisecond,
-				"\n")
+				"\n",
+			)
 			if reqs.FirstByte != nil {
 				console.Print(" * Last Access TTFB: ", reqs.FirstByte, "\n")
 			}

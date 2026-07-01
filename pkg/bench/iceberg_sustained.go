@@ -255,7 +255,8 @@ tableLoop:
 			var loadedTbl *table.Table
 			var err error
 			if b.ExternalCatalog != warpiceberg.ExternalCatalogNone {
-				loadedTbl, err = cat.CreateTable(errCtx, ident, schema,
+				loadedTbl, err = cat.CreateTable(
+					errCtx, ident, schema,
 					catalogpkg.WithLocation(tbl.Location),
 				)
 			} else {

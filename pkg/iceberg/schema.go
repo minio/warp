@@ -24,7 +24,8 @@ import (
 // BenchmarkDataSchema returns the Iceberg schema for benchmark data files.
 // This matches the Arrow schema in BenchmarkSchema() in parquet.go.
 func BenchmarkDataSchema() *iceberg.Schema {
-	return iceberg.NewSchema(0,
+	return iceberg.NewSchema(
+		0,
 		iceberg.NestedField{
 			ID:       1,
 			Name:     "id",

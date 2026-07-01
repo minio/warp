@@ -236,7 +236,8 @@ func GetCachedTPCDSFiles(cfg TPCDSConfig) ([]string, error) {
 
 // StoreSalesSchema returns the Iceberg schema for TPC-DS store_sales table.
 func StoreSalesSchema() *iceberg.Schema {
-	return iceberg.NewSchema(0,
+	return iceberg.NewSchema(
+		0,
 		iceberg.NestedField{ID: 1, Name: "ss_sold_date_sk", Type: iceberg.PrimitiveTypes.Int64, Required: false},
 		iceberg.NestedField{ID: 2, Name: "ss_sold_time_sk", Type: iceberg.PrimitiveTypes.Int64, Required: false},
 		iceberg.NestedField{ID: 3, Name: "ss_item_sk", Type: iceberg.PrimitiveTypes.Int64, Required: false},

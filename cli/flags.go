@@ -210,6 +210,10 @@ var ioFlags = []cli.Flag{
 		Value: appName + "-benchmark-bucket",
 		Usage: "Bucket to use for benchmark data. ALL DATA WILL BE DELETED IN BUCKET!",
 	},
+	cli.BoolFlag{
+		Name:  "bucket-per-client",
+		Usage: "In distributed mode, give each warp client its own bucket by appending the client index to --bucket (e.g. bucket-0, bucket-1). Each client creates, uses and clears its own bucket.",
+	},
 	cli.StringFlag{
 		Name:  "host-select",
 		Value: string(hostSelectTypeWeighed),

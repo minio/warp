@@ -238,7 +238,8 @@ func (s RequestSizeRange) String() string {
 	if s.MergedEntries <= 0 || s.Requests == 0 {
 		return ""
 	}
-	return fmt.Sprint("Average: ", bench.Throughput(s.BpsAverage),
+	return fmt.Sprint(
+		"Average: ", bench.Throughput(s.BpsAverage),
 		", 50%: ", bench.Throughput(s.BpsMedian),
 		", 90%: ", bench.Throughput(s.Bps90),
 		", 99%: ", bench.Throughput(s.Bps99),
@@ -252,7 +253,8 @@ func (s RequestSizeRange) StringByN() string {
 		return ""
 	}
 	mul := 1 / float64(s.MergedEntries)
-	return fmt.Sprint("Avg: ", bench.Throughput(s.BpsAverage*mul),
+	return fmt.Sprint(
+		"Avg: ", bench.Throughput(s.BpsAverage*mul),
 		", 50%: ", bench.Throughput(s.BpsMedian*mul),
 		", 90%: ", bench.Throughput(s.Bps90*mul),
 		", 99%: ", bench.Throughput(s.Bps99*mul),

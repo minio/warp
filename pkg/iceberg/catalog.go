@@ -216,7 +216,8 @@ func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tabl
 	}
 
 	// Table doesn't exist, create it
-	tbl, err = cat.CreateTable(ctx, ident, schema,
+	tbl, err = cat.CreateTable(
+		ctx, ident, schema,
 		catalog.WithProperties(iceberg.Properties{
 			"format-version": "2",
 		}),
@@ -251,7 +252,8 @@ func LoadOrCreateTable(ctx context.Context, cat catalog.Catalog, namespace, tabl
 	_ = cat.DropTable(ctx, ident)
 	time.Sleep(500 * time.Millisecond)
 
-	tbl, err = cat.CreateTable(ctx, ident, schema,
+	tbl, err = cat.CreateTable(
+		ctx, ident, schema,
 		catalog.WithProperties(iceberg.Properties{
 			"format-version": "2",
 		}),

@@ -116,7 +116,8 @@ tableLoop:
 			defer func() { <-sem }()
 
 			ident := toTableIdentifier(tbl.Namespace, tbl.Name)
-			_, err := d.getCatalog().CreateTable(errCtx, ident, schema,
+			_, err := d.getCatalog().CreateTable(
+				errCtx, ident, schema,
 				catalog.WithLocation(tbl.Location),
 				catalog.WithProperties(props),
 			)
@@ -181,7 +182,8 @@ viewLoop:
 
 			ident := toTableIdentifier(vw.Namespace, vw.Name)
 			version := rest.BuildIcebergViewVersion(vw.Namespace, vw.Name)
-			_, err := d.getCatalog().CreateView(errCtx, ident, version, schema,
+			_, err := d.getCatalog().CreateView(
+				errCtx, ident, version, schema,
 				catalog.WithViewLocation(vw.Location),
 				catalog.WithViewProperties(props),
 			)
