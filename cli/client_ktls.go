@@ -18,6 +18,8 @@
 package cli
 
 import (
+	"context"
+	"net"
 	stdHttp "net/http"
 	"os"
 	"time"
@@ -53,17 +55,27 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 	}
 
 	netD := makeDialer(localIP)
+	cache := getDNSCache(ctx)
 
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
 		dialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		dialTLS := dialer.DialContext
+		if cache.enabled() {
+			dialTLS = cachedDialTLS(cache, netD, tlsConfig)
+		}
+		return newClientTransport(ctx, withDialTLSContext(dialTLS))
+	}
+
+	h2Dial := netD.DialContext
+	if cache.enabled() {
+		h2Dial = cache.dialContext(netD.DialContext)
 	}
 
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netD.DialContext,
+		DialContext:           h2Dial,
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
@@ -88,4 +100,29 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 	}
 
 	return &http.CompatableTransport{Transport: tr}
+}
+
+// cachedDialTLS returns a DialTLSContext that resolves the FQDN through the
+// shared DNS cache for the TCP connection while pinning the TLS ServerName to
+// the original FQDN. Unlike the plain DialContext paths (where net/http derives
+// SNI from the request URL), a tls.Dialer derives SNI from the dial address, so
+// substituting an IP would break SNI/certificate validation unless ServerName
+// is set explicitly here.
+func cachedDialTLS(cache *dnsCache, netD *net.Dialer, cfg *tls.Config) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialAddr := addr
+		c := cfg.Clone()
+		if host, port, err := net.SplitHostPort(addr); err == nil && host != "" && net.ParseIP(host) == nil {
+			if c.ServerName == "" {
+				c.ServerName = host
+			}
+			ip, lerr := cache.lookup(ctx, host)
+			if lerr != nil {
+				return nil, lerr
+			}
+			dialAddr = net.JoinHostPort(ip, port)
+		}
+		d := &tls.Dialer{NetDialer: netD, Config: c}
+		return d.DialContext(ctx, network, dialAddr)
+	}
 }

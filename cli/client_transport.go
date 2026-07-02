@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/minio/cli"
@@ -30,6 +31,24 @@ import (
 var netDialer = &net.Dialer{
 	Timeout:   10 * time.Second,
 	KeepAlive: 10 * time.Second,
+}
+
+// sharedDNSCache is the process-wide DNS cache, initialized once from the
+// --dns-cache-ttl flag. It is shared by every transport/client so a single
+// FQDN is resolved at most once per TTL regardless of concurrency or the
+// number of clients created by host selection.
+var (
+	dnsCacheOnce   sync.Once
+	sharedDNSCache *dnsCache
+)
+
+// getDNSCache returns the shared DNS cache, initializing it on first use from
+// the --dns-cache-ttl flag value.
+func getDNSCache(ctx *cli.Context) *dnsCache {
+	dnsCacheOnce.Do(func() {
+		sharedDNSCache = newDNSCache(ctx.Duration("dns-cache-ttl"))
+	})
+	return sharedDNSCache
 }
 
 // makeDialer returns a Dialer optionally bound to localIP.
@@ -95,6 +114,14 @@ func newClientTransport(ctx *cli.Context, options ...transportOption) http.Round
 
 	for _, option := range options {
 		option(tr)
+	}
+
+	// Route the TCP dial through the shared DNS cache (no-op when the TTL is
+	// 0 or the host is a literal IP). Only DialContext is wrapped here; the
+	// kTLS non-HTTP/2 path installs a cache-aware DialTLSContext itself, so we
+	// must not clobber it.
+	if cache := getDNSCache(ctx); cache.enabled() && tr.DialContext != nil && tr.DialTLSContext == nil {
+		tr.DialContext = cache.dialContext(tr.DialContext)
 	}
 
 	return tr

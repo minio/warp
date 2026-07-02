@@ -220,6 +220,10 @@ var ioFlags = []cli.Flag{
 		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). This can break SSL certificates, use --insecure if so",
 		Hidden: true,
 	},
+	cli.DurationFlag{
+		Name:  "dns-cache-ttl",
+		Usage: "Cache DNS resolution of the host FQDN for this duration to avoid a DNS query per connection at high concurrency. 0 disables caching. The FQDN is kept for TLS SNI and the Host header",
+	},
 	cli.IntFlag{
 		Name:  "concurrent",
 		Value: 20,
