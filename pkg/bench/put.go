@@ -124,7 +124,27 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 				var err error
 				var res minio.UploadInfo
 				if !u.PostObject {
-					res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					if u.RDMAMode != RDMAModeOff {
+						// Stage generator output into a CPU or GPU buffer
+						// (per --rdma) so minio-go's RDMA dispatch path can
+						// RDMA-WRITE it directly. Builds without -tags=rdma
+						// surface a clear error via minio-go's stub instead
+						// of silently falling back to HTTP.
+						buf, berr := allocRDMABuf(u.RDMAMode, int(obj.Size))
+						if berr != nil {
+							err = berr
+						} else if serr := stageToRDMABuf(buf, obj.Reader); serr != nil {
+							err = fmt.Errorf("rdma upload prep: %w", serr)
+							freeRDMABuf(buf)
+						} else {
+							opts.RDMABuffer = buf.ptr
+							opts.RDMABufferSize = buf.size
+							res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, nil, obj.Size, opts)
+							freeRDMABuf(buf)
+						}
+					} else {
+						res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					}
 				} else {
 					op.OpType = http.MethodPost
 					var verID string
