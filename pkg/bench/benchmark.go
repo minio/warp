@@ -55,7 +55,7 @@ type Common struct {
 
 	// RDMAMode selects the per-op buffer source for minio-go's S3-over-RDMA
 	// dispatch. Empty disables RDMA. "cpu" allocates host memory. "gpu"
-	// allocates a CUDA device buffer (requires -tags=rdma,cuda + libcudart
+	// allocates a CUDA device buffer (requires -tags=rdma + libcudart
 	// at build time) and lets the NIC GPU-Direct RDMA into it.
 	RDMAMode string
 

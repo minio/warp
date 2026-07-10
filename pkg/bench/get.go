@@ -284,17 +284,21 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 						cldone()
 						continue
 					}
-					info, _ := o.Stat()
-					n := info.Size
+					info, serr := o.Stat()
 					op.End = time.Now()
+					if serr != nil {
+						op.Err = serr.Error()
+						g.Error("stat error:", serr)
+					}
+					n := info.Size
 					if n != op.Size && op.Err == "" {
 						op.Err = fmt.Sprint("unexpected download size. want:", op.Size, ", got:", n)
 						g.Error(op.Err)
 					}
+					o.Close()
 					freeRDMABuf(buf)
 					rcv <- op
 					cldone()
-					o.Close()
 					continue
 				}
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)

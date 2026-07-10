@@ -32,14 +32,15 @@ func allocRDMAGPU(size int) (*rdmaBuf, error) {
 	}
 	var devPtr unsafe.Pointer
 	if rc := C.cudaMalloc(&devPtr, C.size_t(size)); rc != 0 {
-		return nil, fmt.Errorf("cudaMalloc(%d): cudaError=%d", size, int(rc))
+		return nil, fmt.Errorf("cudaMalloc(%d): %s", size, C.GoString(C.cudaGetErrorString(rc)))
 	}
 	return &rdmaBuf{ptr: devPtr, size: size, mode: RDMAModeGPU}, nil
 }
 
 // stageToGPU reads `size` bytes from src into a CPU bounce buffer, then
 // cudaMemcpys host-to-device into the registered GPU buffer. The bounce
-// buffer is reused per chunk to keep the per-op allocation budget low.
+// buffer is allocated per call at b.size; for very large objects this
+// means the full object size is resident in host memory during staging.
 func stageToGPU(b *rdmaBuf, src io.Reader) error {
 	if b == nil || b.size == 0 || src == nil {
 		return nil
@@ -53,7 +54,7 @@ func stageToGPU(b *rdmaBuf, src io.Reader) error {
 		C.size_t(b.size),
 		C.cudaMemcpyHostToDevice)
 	if rc != 0 {
-		return fmt.Errorf("cudaMemcpy H2D: cudaError=%d", int(rc))
+		return fmt.Errorf("cudaMemcpy H2D: %s", C.GoString(C.cudaGetErrorString(rc)))
 	}
 	return nil
 }
