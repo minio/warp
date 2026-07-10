@@ -19,6 +19,10 @@ import (
 	"unsafe"
 )
 
+// HasRDMA reports whether warp was built with -tags=rdma, i.e. whether
+// GPU-Direct RDMA (--rdma=gpu) is available.
+const HasRDMA = true
+
 // allocRDMAGPU allocates a CUDA device buffer of size bytes. The
 // returned rdmaBuf carries the device pointer in ptr; the NIC GPU-
 // Direct RDMA-writes / reads into it via minio-go's RDMA dispatch.

@@ -346,6 +346,11 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	}
 	noOps := ctx.Bool("stress")
 
+	rdmaMode := ctx.String("rdma")
+	if rdmaMode == bench.RDMAModeGPU && !bench.HasRDMA {
+		fatalIf(errDummy(), "--rdma=gpu requires building warp with -tags=rdma (libcudart + libminiocpp)")
+	}
+
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
 	if rpsLimit > 0 {
@@ -361,7 +366,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Bucket:        ctx.String("bucket"),
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts,
-		RDMAMode:      ctx.String("rdma"),
+		RDMAMode:      rdmaMode,
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,
