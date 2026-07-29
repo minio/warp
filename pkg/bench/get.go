@@ -212,26 +212,15 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 			opts := g.GetOpts
 			done := ctx.Done()
 
-			// One sink buffer per worker, reused for every op and grown only
-			// when a larger object turns up. Allocating per op made the
-			// address churn: cudaMalloc hands a freed device address straight
-			// back to another worker, and libminiocpp registers RDMA
-			// descriptors keyed by address on a process-wide cuObjClient, so
-			// one worker's deregister tears down the registration another is
-			// still writing into (SIGSEGV inside miniocpp_get_object).
-			var wbuf *rdmaBuf
-			defer func() {
-				if wbuf != nil {
-					freeRDMABuf(wbuf)
-				}
-			}()
-
 			// GPU buffers are registered by libcufile from whichever OS
 			// thread cgo happens to use, and registration resolves the device
 			// through the thread's current CUDA context. Pin the worker to one
 			// thread and bind the context there, or registration intermittently
 			// fails with CUDA_ERROR_INVALID_CONTEXT and every such GET silently
 			// degrades to the non-RDMA path.
+			//
+			// Registered before the buffer cleanup below so that, defers being
+			// LIFO, the thread stays locked until after cudaFree has run.
 			if g.RDMAMode == RDMAModeGPU {
 				runtime.LockOSThread()
 				defer runtime.UnlockOSThread()
@@ -240,6 +229,16 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 					return
 				}
 			}
+
+			// One sink buffer per worker, reused for every op and grown only
+			// when a larger object turns up, so a transfer costs no device
+			// allocation.
+			var wbuf *rdmaBuf
+			defer func() {
+				if wbuf != nil {
+					freeRDMABuf(wbuf)
+				}
+			}()
 
 			<-wait
 			for {
