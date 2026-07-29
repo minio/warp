@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -211,6 +212,35 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 			opts := g.GetOpts
 			done := ctx.Done()
 
+			// One sink buffer per worker, reused for every op and grown only
+			// when a larger object turns up. Allocating per op made the
+			// address churn: cudaMalloc hands a freed device address straight
+			// back to another worker, and libminiocpp registers RDMA
+			// descriptors keyed by address on a process-wide cuObjClient, so
+			// one worker's deregister tears down the registration another is
+			// still writing into (SIGSEGV inside miniocpp_get_object).
+			var wbuf *rdmaBuf
+			defer func() {
+				if wbuf != nil {
+					freeRDMABuf(wbuf)
+				}
+			}()
+
+			// GPU buffers are registered by libcufile from whichever OS
+			// thread cgo happens to use, and registration resolves the device
+			// through the thread's current CUDA context. Pin the worker to one
+			// thread and bind the context there, or registration intermittently
+			// fails with CUDA_ERROR_INVALID_CONTEXT and every such GET silently
+			// degrades to the non-RDMA path.
+			if g.RDMAMode == RDMAModeGPU {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				if berr := bindGPUThread(); berr != nil {
+					g.Error("rdma gpu bind:", berr)
+					return
+				}
+			}
+
 			<-wait
 			for {
 				select {
@@ -258,28 +288,34 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 					opts.VersionID = obj.VersionID
 				}
 				if g.RDMAMode != RDMAModeOff {
-					// Allocate a host or GPU sink buffer (per --rdma) for
-					// minio-go's RDMA dispatch path; the server RDMA-writes
-					// the object directly into it. Object size is known
-					// from the corresponding upload (op.Size, already
-					// adjusted for random ranges above).
-					buf, berr := allocRDMABuf(g.RDMAMode, int(op.Size))
-					if berr != nil {
-						g.Error("rdma alloc:", berr)
-						op.Err = berr.Error()
-						op.End = time.Now()
-						rcv <- op
-						cldone()
-						continue
+					// Host or GPU sink buffer (per --rdma) for minio-go's
+					// RDMA dispatch path; the server RDMA-writes the object
+					// directly into it. Object size is known from the
+					// corresponding upload (op.Size, already adjusted for
+					// random ranges above).
+					if wbuf == nil || wbuf.size < int(op.Size) {
+						if wbuf != nil {
+							freeRDMABuf(wbuf)
+							wbuf = nil
+						}
+						buf, berr := allocRDMABuf(g.RDMAMode, int(op.Size))
+						if berr != nil {
+							g.Error("rdma alloc:", berr)
+							op.Err = berr.Error()
+							op.End = time.Now()
+							rcv <- op
+							cldone()
+							continue
+						}
+						wbuf = buf
 					}
-					opts.RDMABuffer = buf.ptr
-					opts.RDMABufferSize = buf.size
+					opts.RDMABuffer = wbuf.ptr
+					opts.RDMABufferSize = int(op.Size)
 					o, gerr := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
 					if gerr != nil {
 						g.Error("download error:", gerr)
 						op.Err = gerr.Error()
 						op.End = time.Now()
-						freeRDMABuf(buf)
 						rcv <- op
 						cldone()
 						continue
@@ -296,7 +332,6 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 						g.Error(op.Err)
 					}
 					o.Close()
-					freeRDMABuf(buf)
 					rcv <- op
 					cldone()
 					continue
