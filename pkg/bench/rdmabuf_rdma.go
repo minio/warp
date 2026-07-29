@@ -23,6 +23,25 @@ import (
 // GPU-Direct RDMA (--rdma=gpu) is available.
 const HasRDMA = true
 
+// bindGPUThread makes the primary CUDA context current on the calling OS
+// thread. cuFileBufRegister resolves the device via cuCtxGetDevice, which
+// fails with CUDA_ERROR_INVALID_CONTEXT on any thread that has never issued a
+// CUDA call — and cgo runs a goroutine's calls on whatever thread it likes, so
+// registration lands on a context-less thread and the whole transfer falls
+// back. Callers must runtime.LockOSThread() first so the binding still holds
+// when the RDMA dispatch reaches libcufile.
+func bindGPUThread() error {
+	if rc := C.cudaSetDevice(0); rc != 0 {
+		return fmt.Errorf("cudaSetDevice(0): %s", C.GoString(C.cudaGetErrorString(rc)))
+	}
+	// cudaSetDevice defers context creation; force it now so the first
+	// registration on this thread already has a current context.
+	if rc := C.cudaFree(nil); rc != 0 {
+		return fmt.Errorf("cudaFree(nil): %s", C.GoString(C.cudaGetErrorString(rc)))
+	}
+	return nil
+}
+
 // allocRDMAGPU allocates a CUDA device buffer of size bytes. The
 // returned rdmaBuf carries the device pointer in ptr; the NIC GPU-
 // Direct RDMA-writes / reads into it via minio-go's RDMA dispatch.

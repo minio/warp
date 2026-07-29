@@ -14,6 +14,9 @@ import "io"
 // GPU-Direct RDMA (--rdma=gpu) is available.
 const HasRDMA = false
 
+// bindGPUThread is a no-op without -tags=rdma; there is no CUDA context.
+func bindGPUThread() error { return nil }
+
 // allocRDMAGPU is unsupported on builds without -tags=rdma. Selecting
 // --rdma=gpu produces a clear error rather than silently falling back
 // to CPU memory.
