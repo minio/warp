@@ -182,6 +182,12 @@ var ioFlags = []cli.Flag{
 		EnvVar: appNameUC + "_KTLS",
 	},
 	cli.StringFlag{
+		Name:   "rdma",
+		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct, requires -tags=rdma + libcudart). Empty disables RDMA.",
+		EnvVar: appNameUC + "_RDMA",
+		Value:  "",
+	},
+	cli.StringFlag{
 		Name:   "region",
 		Usage:  "Specify a custom region",
 		EnvVar: appNameUC + "_REGION",
@@ -340,6 +346,17 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	}
 	noOps := ctx.Bool("stress")
 
+	rdmaMode := ctx.String("rdma")
+	switch rdmaMode {
+	case bench.RDMAModeOff, bench.RDMAModeCPU:
+	case bench.RDMAModeGPU:
+		if !bench.HasRDMA {
+			fatalIf(errDummy(), "--rdma=gpu requires building warp with -tags=rdma (libcudart + libminiocpp)")
+		}
+	default:
+		fatalIf(errDummy(), `--rdma must be "cpu", "gpu", or empty (got %q)`, rdmaMode)
+	}
+
 	rpsLimit := ctx.Float64("rps-limit")
 	var rpsLimiter *rate.Limiter
 	if rpsLimit > 0 {
@@ -355,6 +372,7 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Bucket:        ctx.String("bucket"),
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts,
+		RDMAMode:      rdmaMode,
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,

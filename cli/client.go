@@ -236,6 +236,7 @@ func getClient(ctx *cli.Context, host, originalHost string) (*minio.Client, erro
 		CustomMD5:       md5simd.NewServer().NewHash,
 		Transport:       transport,
 		TrailingHeaders: useTrailingHeaders.Load(),
+		EnableRDMA:      ctx.String("rdma") != "",
 	})
 	if err != nil {
 		return nil, err

@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -211,6 +212,34 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 			opts := g.GetOpts
 			done := ctx.Done()
 
+			// GPU buffers are registered by libcufile from whichever OS
+			// thread cgo happens to use, and registration resolves the device
+			// through the thread's current CUDA context. Pin the worker to one
+			// thread and bind the context there, or registration intermittently
+			// fails with CUDA_ERROR_INVALID_CONTEXT and every such GET silently
+			// degrades to the non-RDMA path.
+			//
+			// Registered before the buffer cleanup below so that, defers being
+			// LIFO, the thread stays locked until after cudaFree has run.
+			if g.RDMAMode == RDMAModeGPU {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				if berr := bindGPUThread(); berr != nil {
+					g.Error("rdma gpu bind:", berr)
+					return
+				}
+			}
+
+			// One sink buffer per worker, reused for every op and grown only
+			// when a larger object turns up, so a transfer costs no device
+			// allocation.
+			var wbuf *rdmaBuf
+			defer func() {
+				if wbuf != nil {
+					freeRDMABuf(wbuf)
+				}
+			}()
+
 			<-wait
 			for {
 				select {
@@ -256,6 +285,55 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 				var err error
 				if g.Versions > 1 {
 					opts.VersionID = obj.VersionID
+				}
+				if g.RDMAMode != RDMAModeOff {
+					// Host or GPU sink buffer (per --rdma) for minio-go's
+					// RDMA dispatch path; the server RDMA-writes the object
+					// directly into it. Object size is known from the
+					// corresponding upload (op.Size, already adjusted for
+					// random ranges above).
+					if wbuf == nil || wbuf.size < int(op.Size) {
+						if wbuf != nil {
+							freeRDMABuf(wbuf)
+							wbuf = nil
+						}
+						buf, berr := allocRDMABuf(g.RDMAMode, int(op.Size))
+						if berr != nil {
+							g.Error("rdma alloc:", berr)
+							op.Err = berr.Error()
+							op.End = time.Now()
+							rcv <- op
+							cldone()
+							continue
+						}
+						wbuf = buf
+					}
+					opts.RDMABuffer = wbuf.ptr
+					opts.RDMABufferSize = int(op.Size)
+					o, gerr := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
+					if gerr != nil {
+						g.Error("download error:", gerr)
+						op.Err = gerr.Error()
+						op.End = time.Now()
+						rcv <- op
+						cldone()
+						continue
+					}
+					info, serr := o.Stat()
+					op.End = time.Now()
+					if serr != nil {
+						op.Err = serr.Error()
+						g.Error("stat error:", serr)
+					}
+					n := info.Size
+					if n != op.Size && op.Err == "" {
+						op.Err = fmt.Sprint("unexpected download size. want:", op.Size, ", got:", n)
+						g.Error(op.Err)
+					}
+					o.Close()
+					rcv <- op
+					cldone()
+					continue
 				}
 				o, err := client.GetObject(nonTerm, g.Bucket, obj.Name, opts)
 				if err != nil {
