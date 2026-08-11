@@ -3,9 +3,14 @@
 # Build warp with S3-over-RDMA support.
 #
 # Builds libminiocpp with RDMA enabled, then builds warp against it and
-# packages a tarball: the binary resolves its bundled libminiocpp/cuObj shared
-# objects through an $ORIGIN/lib rpath, so no LD_LIBRARY_PATH or system-wide
-# install is needed on the target host.
+# packages a tarball: the binary resolves its bundled libminiocpp and cuObj
+# shared objects through an $ORIGIN/lib rpath, so those need no
+# LD_LIBRARY_PATH or system-wide install.
+#
+# The target host still supplies the rest of the RDMA stack -- libibverbs,
+# librdmacm, libnuma and the vendor provider such as libmlx5 -- because those
+# are tied to its kernel driver. --rdma=gpu additionally needs a CUDA runtime
+# the installed NVIDIA driver supports.
 #
 # The result supports both --rdma=cpu and --rdma=gpu. CUDA is loaded with
 # dlopen at run time rather than linked, so the same binary runs on hosts
@@ -17,9 +22,9 @@
 #   --version    version string baked into `warp --version` (default: git describe)
 #   --out        output directory (default: ./dist-rdma)
 #
-# Prerequisites (Debian/Ubuntu):
+# Build prerequisites (Debian/Ubuntu):
 #   apt-get install -y cmake g++ git libibverbs-dev librdmacm-dev libnuma-dev
-#   plus Go.
+#   plus Go. No CUDA package is needed, even for --rdma=gpu support.
 
 set -euo pipefail
 

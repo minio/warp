@@ -90,10 +90,15 @@ jobs:
       run: |
         go build -tags=rdma -o /tmp/warp .
         go vet -tags=rdma ./...
+        go test -race -tags=rdma ./...
         /tmp/warp --version
         # CUDA is dlopened, so the binary must still start on this CUDA-less
         # runner and reject --rdma=gpu with a diagnosis rather than failing to
         # load. This is the property that lets one binary serve both modes.
-        /tmp/warp put --rdma=gpu --host 127.0.0.1:9000 >/tmp/gpu.log 2>&1 || true
+        if /tmp/warp put --rdma=gpu --host 127.0.0.1:9000 >/tmp/gpu.log 2>&1; then
+          echo "expected --rdma=gpu to fail on a host without CUDA" >&2
+          cat /tmp/gpu.log
+          exit 1
+        fi
         cat /tmp/gpu.log
         grep -q "CUDA runtime" /tmp/gpu.log

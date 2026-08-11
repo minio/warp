@@ -88,10 +88,11 @@ Each archive contains the `warp` binary and the libminiocpp and cuObj libraries
 in a `lib` directory next to it. Unpack the archive and run the binary from
 where you unpacked it; it finds those libraries on its own.
 
-The host supplies the rest of the RDMA stack: `libibverbs1`, `librdmacm1`,
-`libnuma1` and the vendor provider such as `libmlx5`. These are tied to the
-kernel driver, so bundling them would break more often than it would help; an
-RDMA-capable host already has them.
+The host must supply the rest of the RDMA stack itself: `libibverbs1`,
+`librdmacm1`, `libnuma1` and the vendor provider such as `libmlx5`. These are
+tied to the kernel driver, so bundling them would break more often than it
+would help. Install them if they are missing, or transfers fail or fall back to
+HTTP.
 
 ```bash
 λ tar xzf warp-rdma_linux_amd64.tar.gz
