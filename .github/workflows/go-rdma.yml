@@ -17,15 +17,14 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.config.tags }} (${{ matrix.config.arch }})
+    name: Build rdma (${{ matrix.config.arch }})
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
-        - { os: ubuntu-latest,    arch: "amd64", tags: "rdma",      cuda: false }
-        - { os: ubuntu-24.04-arm, arch: "arm64", tags: "rdma",      cuda: false }
-        - { os: ubuntu-latest,    arch: "amd64", tags: "rdma,cuda", cuda: true }
+        - { os: ubuntu-latest,    arch: "amd64" }
+        - { os: ubuntu-24.04-arm, arch: "arm64" }
 
     steps:
     - name: Checkout warp
@@ -61,11 +60,6 @@ jobs:
     - name: Set up CMake
       uses: lukka/get-cmake@v4.4.2
 
-    - name: Install CUDA runtime headers
-      if: matrix.config.cuda
-      run: |
-        sudo apt-get -qy install nvidia-cuda-dev
-
     - name: Build and install libminiocpp.so with RDMA
       shell: bash
       run: |
@@ -89,11 +83,17 @@ jobs:
       with:
         go-version-file: "warp/go.mod"
 
-    - name: Build and vet with -tags=${{ matrix.config.tags }}
+    - name: Build and vet with -tags=rdma
       working-directory: warp
       env:
         CGO_ENABLED: "1"
       run: |
-        go build -tags=${{ matrix.config.tags }} -o /tmp/warp .
-        go vet -tags=${{ matrix.config.tags }} ./...
+        go build -tags=rdma -o /tmp/warp .
+        go vet -tags=rdma ./...
         /tmp/warp --version
+        # CUDA is dlopened, so the binary must still start on this CUDA-less
+        # runner and reject --rdma=gpu with a diagnosis rather than failing to
+        # load. This is the property that lets one binary serve both modes.
+        /tmp/warp put --rdma=gpu --host 127.0.0.1:9000 >/tmp/gpu.log 2>&1 || true
+        cat /tmp/gpu.log
+        grep -q "CUDA runtime" /tmp/gpu.log

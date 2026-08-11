@@ -355,8 +355,11 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 			fatalIf(errDummy(), "--rdma=cpu requires the RDMA build of warp (built with -tags=rdma against libminiocpp)")
 		}
 	case bench.RDMAModeGPU:
-		if !bench.HasRDMAGPU {
-			fatalIf(errDummy(), "--rdma=gpu requires the GPU-Direct build of warp (built with -tags=rdma,cuda against libminiocpp + libcudart)")
+		if !bench.HasRDMA {
+			fatalIf(errDummy(), "--rdma=gpu requires the RDMA build of warp (built with -tags=rdma against libminiocpp)")
+		}
+		if !bench.HasRDMAGPU() {
+			fatalIf(errDummy(), "--rdma=gpu is unavailable: %s", bench.RDMAGPUUnavailable())
 		}
 	default:
 		fatalIf(errDummy(), `--rdma must be "cpu", "gpu", or empty (got %q)`, rdmaMode)

@@ -77,10 +77,12 @@ HTTP numbers as if they were RDMA numbers.
 
 The standard release binaries are built without cgo, so RDMA dispatch is not
 compiled into them. Those binaries refuse `--rdma` at startup rather than
-failing on every operation. Two extra archives are published per release:
+failing on every operation. One extra archive is published per release and
+architecture, `warp-rdma_linux_amd64.tar.gz` and `warp-rdma_linux_arm64.tar.gz`.
 
-- `warp-rdma_linux_amd64.tar.gz` and `warp-rdma_linux_arm64.tar.gz` support `--rdma=cpu`.
-- `warp-rdma-gpu_linux_amd64.tar.gz` also supports `--rdma=gpu`.
+A single binary serves both modes. The CUDA runtime is loaded on demand rather
+than linked, so the archive runs on hosts with no CUDA installed at all; only
+`--rdma=gpu` needs it, and it says so plainly when it is missing.
 
 Each archive contains the `warp` binary and the libminiocpp and cuObj libraries
 in a `lib` directory next to it. Unpack the archive and run the binary from
@@ -106,13 +108,12 @@ compiler, CMake 3.31 or newer, and the RDMA headers. On Debian or Ubuntu:
 Then run:
 
 ```bash
-λ ./scripts/build-rdma.sh          # produces warp-rdma_linux_<arch>.tar.gz
-λ ./scripts/build-rdma.sh --gpu    # adds --rdma=gpu, needs the CUDA runtime headers
+λ ./scripts/build-rdma.sh    # produces warp-rdma_linux_<arch>.tar.gz
 ```
 
 The script builds [minio-cpp](https://github.com/minio/minio-cpp) with RDMA
 enabled and links warp against it. It is also how the published archives are
-built, and it is the only way to get an arm64 GPU-Direct build.
+built. No CUDA package is needed to build, even for `--rdma=gpu` support.
 
 ## Running the benchmark
 

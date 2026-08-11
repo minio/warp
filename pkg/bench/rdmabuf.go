@@ -101,7 +101,8 @@ func freeRDMABuf(b *rdmaBuf) {
 	b.size = 0
 }
 
-// errRDMAGPUUnsupported is returned by the stub GPU allocator built
-// without -tags=rdma,cuda.
+// errRDMAGPUUnsupported is returned when the CUDA runtime is unavailable,
+// either because warp was built without -tags=rdma or because libcudart
+// could not be loaded on this host.
 var errRDMAGPUUnsupported = errors.New(
-	"rdma=gpu requires building warp with -tags=rdma,cuda (libminiocpp + libcudart)")
+	"rdma=gpu requires an RDMA build of warp and the CUDA runtime on this host")

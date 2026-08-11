@@ -3,26 +3,26 @@
 # Build warp with S3-over-RDMA support.
 #
 # Builds libminiocpp with RDMA enabled, then builds warp against it and
-# packages a self-contained tarball: the binary resolves its bundled
-# libminiocpp/cuObj shared objects through an $ORIGIN/lib rpath, so no
-# LD_LIBRARY_PATH or system-wide install is needed on the target host.
+# packages a tarball: the binary resolves its bundled libminiocpp/cuObj shared
+# objects through an $ORIGIN/lib rpath, so no LD_LIBRARY_PATH or system-wide
+# install is needed on the target host.
+#
+# The result supports both --rdma=cpu and --rdma=gpu. CUDA is loaded with
+# dlopen at run time rather than linked, so the same binary runs on hosts
+# without CUDA and needs no CUDA packages to build.
 #
 # Usage:
-#   scripts/build-rdma.sh [--gpu] [--version VERSION] [--out DIR]
+#   scripts/build-rdma.sh [--version VERSION] [--out DIR]
 #
-#   --gpu        also link CUDA (adds -tags=cuda) so --rdma=gpu works.
-#                Requires the CUDA runtime dev files at build time and the
-#                CUDA runtime + driver on the machine running the benchmark.
 #   --version    version string baked into `warp --version` (default: git describe)
 #   --out        output directory (default: ./dist-rdma)
 #
 # Prerequisites (Debian/Ubuntu):
 #   apt-get install -y cmake g++ git libibverbs-dev librdmacm-dev libnuma-dev
-#   plus Go, and for --gpu the cuda-cudart-dev package.
+#   plus Go.
 
 set -euo pipefail
 
-GPU=0
 VERSION=""
 OUT=""
 WORK=""
@@ -36,7 +36,6 @@ need_value() {
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-	--gpu) GPU=1 ;;
 	--version)
 		need_value "$@"
 		VERSION="$2"
@@ -127,10 +126,6 @@ echo ">>> building libminiocpp with RDMA"
 
 TAGS="kqueue,rdma"
 NAME="warp-rdma"
-if [ "${GPU}" = "1" ]; then
-	TAGS="${TAGS},cuda"
-	NAME="warp-rdma-gpu"
-fi
 
 STAGE="${WORK}/stage/${NAME}"
 rm -rf "${STAGE}"

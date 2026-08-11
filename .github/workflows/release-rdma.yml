@@ -28,17 +28,14 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.config.name }} (${{ matrix.config.arch }})
+    name: warp-rdma (${{ matrix.config.arch }})
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
-        - { os: ubuntu-latest,    arch: "amd64", name: "warp-rdma",     gpu: false }
-        - { os: ubuntu-24.04-arm, arch: "arm64", name: "warp-rdma",     gpu: false }
-        # GPU-Direct (--rdma=gpu) additionally links the CUDA runtime. arm64
-        # GPU builds are not published; build them with scripts/build-rdma.sh --gpu.
-        - { os: ubuntu-latest,    arch: "amd64", name: "warp-rdma-gpu", gpu: true }
+        - { os: ubuntu-latest,    arch: "amd64" }
+        - { os: ubuntu-24.04-arm, arch: "arm64" }
 
     steps:
     - name: Checkout
@@ -58,11 +55,6 @@ jobs:
     - name: Set up CMake
       uses: lukka/get-cmake@v4.4.2
 
-    - name: Install CUDA runtime headers
-      if: matrix.config.gpu
-      run: |
-        sudo apt-get -qy install nvidia-cuda-dev
-
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
@@ -71,16 +63,15 @@ jobs:
     - name: Build RDMA release artifact
       env:
         VERSION: ${{ inputs.tag || github.ref_name }}
-        GPU_FLAG: ${{ matrix.config.gpu && '--gpu' || '' }}
       run: |
-        ./scripts/build-rdma.sh ${GPU_FLAG} \
+        ./scripts/build-rdma.sh \
           --version "${VERSION}" \
           --out "${GITHUB_WORKSPACE}/dist-rdma"
 
     - name: Upload artifact to workflow run
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.config.name }}-linux-${{ matrix.config.arch }}
+        name: warp-rdma-linux-${{ matrix.config.arch }}
         path: dist-rdma/
 
     - name: Attach artifact to release
