@@ -18,8 +18,5 @@ dist
 # zst files
 *.zst
 
-# written by libcufile when running an RDMA build
-cufile.log
-
 # qreleaser state file
 .release-state.sh
