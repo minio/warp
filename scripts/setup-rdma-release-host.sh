@@ -94,11 +94,20 @@ VCPKG_REF="${VCPKG_REF:-2026.07.29}"
 CMAKE_MIN="3.31"
 CMAKE_VERSION="${CMAKE_VERSION:-3.31.6}"
 
+run_privileged() {
+	if [ "$(id -u)" = 0 ]; then
+		"$@"
+	else
+		sudo "$@"
+	fi
+}
+
+# Writes into the prefix need privilege only when it is not already ours.
 as_root() {
 	if [ -w "${PREFIX}" ]; then
 		"$@"
 	else
-		sudo "$@"
+		run_privileged "$@"
 	fi
 }
 
@@ -145,8 +154,8 @@ fi
 
 echo ">>> installing build dependencies"
 if command -v apt-get >/dev/null 2>&1; then
-	sudo apt-get -qq update || true
-	sudo apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
+	run_privileged apt-get -qq update || true
+	run_privileged apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
 		build-essential git curl zip unzip tar pkg-config \
 		libibverbs-dev librdmacm-dev libnuma-dev
 else
@@ -172,11 +181,28 @@ if [ -z "${host_cmake}" ] ||
 fi
 echo ">>> using cmake $(cmake --version | head -1 | awk '{print $3}')"
 
-if [ ! -d "${WORK}/vcpkg" ]; then
-	git clone --depth 1 --branch "${VCPKG_REF}" https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
-fi
-if [ ! -d "${WORK}/minio-cpp" ]; then
-	git clone --depth 1 --branch "${MINIO_CPP_REF}" "${MINIO_CPP_REPO}" "${WORK}/minio-cpp"
+# Enforce the pins on every run: a checkout left behind at an older ref is how a
+# host ends up building unpinned sources after the pin moves.
+sync_checkout() {
+	local dir="$1" repo="$2" ref="$3" before=""
+	if [ -d "${dir}/.git" ]; then
+		before="$(git -C "${dir}" rev-parse HEAD)"
+		git -C "${dir}" remote set-url origin "${repo}"
+		git -C "${dir}" fetch --depth 1 origin "${ref}"
+		git -C "${dir}" checkout --detach FETCH_HEAD
+	else
+		rm -rf "${dir}"
+		git clone --depth 1 --branch "${ref}" "${repo}" "${dir}"
+	fi
+	CHECKOUT_CHANGED=0
+	[ "${before}" = "$(git -C "${dir}" rev-parse HEAD)" ] || CHECKOUT_CHANGED=1
+}
+
+sync_checkout "${WORK}/vcpkg" https://github.com/microsoft/vcpkg "${VCPKG_REF}"
+sync_checkout "${WORK}/minio-cpp" "${MINIO_CPP_REPO}" "${MINIO_CPP_REF}"
+# Otherwise the install step copies the previous ref's archives into the prefix.
+if [ "${CHECKOUT_CHANGED}" = 1 ]; then
+	rm -rf "${WORK}/minio-cpp/build" "${WORK}/minio-cpp/vcpkg_installed"
 fi
 
 echo ">>> building libminiocpp ${MINIO_CPP_REF} with RDMA"
@@ -218,6 +244,7 @@ verify_prefix
 
 # Same flags .goreleaser/qreleaser.yaml composes, so a link that works here
 # works in the release.
+SMOKE_BUILT=0
 if command -v go >/dev/null 2>&1 && [ -f "${REPO_DIR}/go.mod" ]; then
 	echo ">>> smoke building warp with -tags=rdma"
 	cd "${REPO_DIR}"
@@ -226,6 +253,14 @@ if command -v go >/dev/null 2>&1 && [ -f "${REPO_DIR}/go.mod" ]; then
 		CGO_LDFLAGS="-L${PREFIX}/lib -Wl,-rpath-link,${PREFIX}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")" \
 		go build -trimpath -tags=kqueue,rdma -o "${WORK}/warp-rdma-smoke" .
 	"${WORK}/warp-rdma-smoke" --version
+	SMOKE_BUILT=1
+else
+	echo ">>> WARNING: no Go toolchain or no go.mod under ${REPO_DIR}; skipped the smoke build" >&2
+	echo ">>> run --verify-only from a warp checkout to link-test before releasing" >&2
 fi
 
-echo ">>> release host provisioned; qreleaser can build warp-rdma against ${PREFIX}"
+if [ "${SMOKE_BUILT}" = 1 ]; then
+	echo ">>> release host provisioned and link-tested; qreleaser can build warp-rdma against ${PREFIX}"
+else
+	echo ">>> release host provisioned, smoke build SKIPPED; qreleaser can build warp-rdma against ${PREFIX}"
+fi
