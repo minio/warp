@@ -19,6 +19,13 @@ on:
 permissions:
   contents: write
 
+# A tag push and a manual dispatch for the same tag would otherwise upload
+# to the same release assets concurrently. Queue them instead of cancelling,
+# so an upload in flight is never interrupted.
+concurrency:
+  group: release-rdma-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: ${{ matrix.config.name }} (${{ matrix.config.arch }})
@@ -39,6 +46,7 @@ jobs:
       with:
         ref: ${{ inputs.tag || github.ref }}
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Install system dependencies
       run: |
@@ -48,7 +56,7 @@ jobs:
     # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
     # own on arm64, so provision it explicitly on both architectures.
     - name: Set up CMake
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@v4.4.2
 
     - name: Install CUDA runtime headers
       if: matrix.config.gpu
@@ -61,11 +69,13 @@ jobs:
         go-version-file: "go.mod"
 
     - name: Build RDMA release artifact
+      env:
+        VERSION: ${{ inputs.tag || github.ref_name }}
+        GPU_FLAG: ${{ matrix.config.gpu && '--gpu' || '' }}
       run: |
-        ./scripts/build-rdma.sh \
-          ${{ matrix.config.gpu && '--gpu' || '' }} \
-          --version "${{ inputs.tag || github.ref_name }}" \
-          --out "${{ github.workspace }}/dist-rdma"
+        ./scripts/build-rdma.sh ${GPU_FLAG} \
+          --version "${VERSION}" \
+          --out "${GITHUB_WORKSPACE}/dist-rdma"
 
     - name: Upload artifact to workflow run
       uses: actions/upload-artifact@v4
@@ -77,15 +87,20 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ inputs.tag || github.ref_name }}
+        REPO: ${{ github.repository }}
       run: |
         # The release for this tag is created by the main release pipeline,
-        # which may still be running. Wait for it before uploading.
+        # which may still be running. Wait for it before uploading, and keep
+        # retrying a failed upload rather than letting bash -e end the job.
         for i in $(seq 1 30); do
-          if gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "${TAG}" dist-rdma/* --clobber --repo "${{ github.repository }}"
-            exit 0
+          if gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+            if gh release upload "${TAG}" dist-rdma/* --clobber --repo "${REPO}"; then
+              exit 0
+            fi
+            echo "upload failed, retrying in 60s ($i/30)" >&2
+          else
+            echo "release ${TAG} not published yet, retrying in 60s ($i/30)"
           fi
-          echo "release ${TAG} not published yet, retrying in 60s ($i/30)"
           sleep 60
         done
         echo "release ${TAG} never appeared; artifacts are attached to this workflow run" >&2

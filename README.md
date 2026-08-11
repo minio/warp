@@ -54,8 +54,9 @@ If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.
 # S3 over RDMA
 
 The `--rdma` flag sends PUT and GET payloads over RDMA instead of HTTP.
-Warp allocates one registered buffer per operation and lets the network card
-transfer object data directly into or out of it:
+Each worker keeps one registered buffer, reused across operations and grown
+only when a larger object turns up, and the network card transfers object data
+directly into or out of it:
 
 | Value        | Buffer                | Use it for                                      |
 |--------------|-----------------------|-------------------------------------------------|
@@ -74,26 +75,37 @@ HTTP numbers as if they were RDMA numbers.
 
 ## Getting a warp binary with RDMA support
 
-RDMA dispatch is compiled in, so the standard release binaries do not have it —
-they are built without cgo, and warp refuses `--rdma` rather than failing on
-every operation. Two extra archives are published per release:
+The standard release binaries are built without cgo, so RDMA dispatch is not
+compiled into them. Those binaries refuse `--rdma` at startup rather than
+failing on every operation. Two extra archives are published per release:
 
 - `warp-rdma_linux_amd64.tar.gz` and `warp-rdma_linux_arm64.tar.gz` support `--rdma=cpu`.
 - `warp-rdma-gpu_linux_amd64.tar.gz` also supports `--rdma=gpu`.
 
-Each archive contains the `warp` binary and the shared libraries it needs in a
-`lib` directory next to it. Unpack the archive and run the binary from where
-you unpacked it; it finds its libraries on its own.
+Each archive contains the `warp` binary and the libminiocpp and cuObj libraries
+in a `lib` directory next to it. Unpack the archive and run the binary from
+where you unpacked it; it finds those libraries on its own.
 
-```
+The host supplies the rest of the RDMA stack: `libibverbs1`, `librdmacm1`,
+`libnuma1` and the vendor provider such as `libmlx5`. These are tied to the
+kernel driver, so bundling them would break more often than it would help; an
+RDMA-capable host already has them.
+
+```bash
 λ tar xzf warp-rdma_linux_amd64.tar.gz
 λ ./warp-rdma/warp get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
 ```
 
-To build one yourself, install CMake 3.31 or newer, `libibverbs-dev`,
-`librdmacm-dev` and `libnuma-dev`, then run:
+To build one yourself you need Go (the version in `go.mod`), git, a C++17
+compiler, CMake 3.31 or newer, and the RDMA headers. On Debian or Ubuntu:
 
+```bash
+λ sudo apt-get install g++ git libibverbs-dev librdmacm-dev libnuma-dev
 ```
+
+Then run:
+
+```bash
 λ ./scripts/build-rdma.sh          # produces warp-rdma_linux_<arch>.tar.gz
 λ ./scripts/build-rdma.sh --gpu    # adds --rdma=gpu, needs the CUDA runtime headers
 ```

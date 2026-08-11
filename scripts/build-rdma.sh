@@ -27,18 +27,28 @@ VERSION=""
 OUT=""
 WORK=""
 
+need_value() {
+	[ $# -ge 2 ] || {
+		echo "$1 requires a value" >&2
+		exit 1
+	}
+}
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--gpu) GPU=1 ;;
 	--version)
+		need_value "$@"
 		VERSION="$2"
 		shift
 		;;
 	--out)
+		need_value "$@"
 		OUT="$2"
 		shift
 		;;
 	--work)
+		need_value "$@"
 		WORK="$2"
 		shift
 		;;
@@ -62,14 +72,24 @@ VERSION="${VERSION:-$(git -C "${REPO_DIR}" describe --tags --always --dirty 2>/d
 PREFIX="${WORK}/prefix"
 mkdir -p "${WORK}" "${PREFIX}"
 
+# The cuObj libraries are picked by the host architecture, so the Go build has
+# to target it too. Derive both from uname rather than the ambient GOARCH/GOOS,
+# which would otherwise mislabel the archive or cross-build against host libs.
 case "$(uname -m)" in
-x86_64) CUOBJ_ARCH=x86_64 ;;
-aarch64 | arm64) CUOBJ_ARCH=aarch64 ;;
+x86_64)
+	CUOBJ_ARCH=x86_64
+	GOARCH=amd64
+	;;
+aarch64 | arm64)
+	CUOBJ_ARCH=aarch64
+	GOARCH=arm64
+	;;
 *)
 	echo "unsupported architecture: $(uname -m) (RDMA builds are linux/amd64 and linux/arm64 only)" >&2
 	exit 1
 	;;
 esac
+export GOARCH GOOS=linux
 
 # vcpkg is pinned: its port scripts track the newest CMake, and a floating
 # checkout breaks the build on whatever CMake the distribution ships.
@@ -145,9 +165,11 @@ cp -P "${PREFIX}"/lib/libminiocpp.so* "${STAGE}/lib/"
 cp -P "${PREFIX}"/lib/libcufile*.so* "${PREFIX}"/lib/libcuobj*.so* "${STAGE}/lib/"
 cp "${REPO_DIR}/README.md" "${REPO_DIR}/LICENSE" "${STAGE}/"
 
-GOARCH="$(go env GOARCH)"
 TARBALL="${OUT}/${NAME}_linux_${GOARCH}.tar.gz"
-tar -czf "${TARBALL}" -C "$(dirname "${STAGE}")" "${NAME}"
+# Normalized entry order, timestamps and ownership, and gzip without its own
+# timestamp, so identical inputs produce an identical archive and checksum.
+tar --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner \
+	-cf - -C "$(dirname "${STAGE}")" "${NAME}" | gzip -n >"${TARBALL}"
 (cd "${OUT}" && sha256sum "$(basename "${TARBALL}")" >"$(basename "${TARBALL}").sha256sum")
 
 echo ">>> ${TARBALL}"

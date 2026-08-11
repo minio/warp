@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build ${{ matrix.config.tags }} (${{ matrix.config.arch }})
@@ -29,12 +32,14 @@ jobs:
       uses: actions/checkout@v5
       with:
         path: "warp"
+        persist-credentials: false
 
     - name: Checkout minio-cpp
       uses: actions/checkout@v5
       with:
         repository: minio/minio-cpp
         path: "minio-cpp"
+        persist-credentials: false
 
     # Pinned: vcpkg's port scripts track the newest CMake, and a floating
     # checkout breaks against whatever CMake the runner image ships.
@@ -44,6 +49,7 @@ jobs:
         repository: microsoft/vcpkg
         ref: "2026.07.29"
         path: "vcpkg"
+        persist-credentials: false
 
     - name: Install system dependencies
       run: |
@@ -53,7 +59,7 @@ jobs:
     # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
     # own on arm64, so provision it explicitly on both architectures.
     - name: Set up CMake
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@v4.4.2
 
     - name: Install CUDA runtime headers
       if: matrix.config.cuda
