@@ -71,11 +71,21 @@ aarch64 | arm64) CUOBJ_ARCH=aarch64 ;;
 	;;
 esac
 
+# vcpkg is pinned: its port scripts track the newest CMake, and a floating
+# checkout breaks the build on whatever CMake the distribution ships.
+VCPKG_REF="${VCPKG_REF:-2026.07.29}"
+CMAKE_VERSION="$(cmake --version | head -1 | awk '{print $3}')"
+if [ "$(printf '%s\n3.31\n' "${CMAKE_VERSION%.*}" | sort -V | head -1)" != "3.31" ]; then
+	echo "cmake ${CMAKE_VERSION} is too old; vcpkg ${VCPKG_REF} needs 3.31 or newer" >&2
+	exit 1
+fi
+
 if [ ! -d "${WORK}/vcpkg" ]; then
-	git clone --depth 1 https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
+	git clone --depth 1 --branch "${VCPKG_REF}" https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
 fi
 if [ ! -d "${WORK}/minio-cpp" ]; then
-	git clone --depth 1 "${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}" "${WORK}/minio-cpp"
+	git clone --depth 1 --branch "${MINIO_CPP_REF:-main}" \
+		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}" "${WORK}/minio-cpp"
 fi
 
 echo ">>> building libminiocpp with RDMA"

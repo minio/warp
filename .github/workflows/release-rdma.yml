@@ -43,7 +43,12 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get -qy update
-        sudo apt-get -qy install cmake libibverbs-dev librdmacm-dev libnuma-dev
+        sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev
+
+    # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
+    # own on arm64, so provision it explicitly on both architectures.
+    - name: Set up CMake
+      uses: lukka/get-cmake@latest
 
     - name: Install CUDA runtime headers
       if: matrix.config.gpu

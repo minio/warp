@@ -90,8 +90,8 @@ you unpacked it; it finds its libraries on its own.
 λ ./warp-rdma/warp get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
 ```
 
-To build one yourself, install `cmake`, `libibverbs-dev`, `librdmacm-dev` and
-`libnuma-dev`, then run:
+To build one yourself, install CMake 3.31 or newer, `libibverbs-dev`,
+`librdmacm-dev` and `libnuma-dev`, then run:
 
 ```
 λ ./scripts/build-rdma.sh          # produces warp-rdma_linux_<arch>.tar.gz
