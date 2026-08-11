@@ -35,6 +35,45 @@ builds:
     hooks:
       post: sh -c "cd $(dirname {{ .Path }}) && sha256sum $(basename {{ .Path }}) > $(basename {{ .Path }}).sha256sum"
 
+  # S3-over-RDMA build, published alongside the stock binary as the warp-rdma
+  # variant. It links libminiocpp through cgo, so unlike the build above it
+  # cannot be cross-compiled and is limited to the release host's own
+  # architecture. CUDA is loaded at run time rather than linked, so one binary
+  # serves --rdma=cpu and --rdma=gpu and no CUDA package is needed to build.
+  #
+  # The release host needs libminiocpp built with RDMA plus libibverbs,
+  # librdmacm and libnuma. Point MINIOCPP_PREFIX at the install prefix if it is
+  # not /usr/local. Set WARP_SKIP_RDMA=true to drop the variant from a release
+  # when the host is not provisioned for it.
+  #
+  # Note this binary resolves libminiocpp and the cuObj libraries from the host
+  # at run time. The self-contained archive with those bundled is built
+  # separately by scripts/build-rdma.sh.
+  - id: warp-rdma
+    main: ./
+    binary: warp-rdma
+    skip: '{{ envOrDefault "WARP_SKIP_RDMA" "false" }}'
+    env:
+      - CGO_ENABLED=1
+      - CGO_CFLAGS=-I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include
+      - CGO_LDFLAGS=-L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+      - --tags=kqueue,rdma
+    ldflags:
+      - -s -w
+      - -X github.com/minio/warp/pkg.ReleaseTag={{ .Version }}
+      - -X github.com/minio/warp/pkg.CommitID={{ .FullCommit }}
+      - -X github.com/minio/warp/pkg.Version={{ .Version }}
+      - -X github.com/minio/warp/pkg.ShortCommitID={{ .ShortCommit }}
+      - -X github.com/minio/warp/pkg.ReleaseTime={{ .Date }}
+    hooks:
+      post: sh -c "cd $(dirname {{ .Path }}) && sha256sum $(basename {{ .Path }}) > $(basename {{ .Path }}).sha256sum"
+
 archives:
   - id: warp-archive
     formats: [binary]
