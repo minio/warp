@@ -65,18 +65,15 @@ builds:
       # goreleaser replaces same-named variables rather than merging them, so
       # carry any flags the release host already set.
       #
-      # --enable-new-dtags pins the tag to DT_RUNPATH rather than leaving it to
-      # the host linker's default, and DT_RUNPATH is deliberate: DT_RPATH would
-      # outrank LD_LIBRARY_PATH and stop a user of the published binary
-      # substituting their own libminiocpp.
-      #
-      # DT_RUNPATH is not transitive, though. It resolves libminiocpp itself,
-      # but libminiocpp carries no runpath of its own, so its cuObj
-      # dependencies come from the host's library search path regardless. A
-      # non-default MINIOCPP_PREFIX therefore has to be on that path anyway,
-      # via ldconfig or equivalent.
+      # libminiocpp is linked statically, together with its vcpkg dependencies,
+      # so the published binary needs neither on the target host. cgo links
+      # with gcc rather than g++, so the C++ runtime and every transitive
+      # archive have to be named explicitly. Only the cuObj libraries stay
+      # dynamic -- they are vendor shared objects with no static form -- and
+      # the /usr/lib/warp rpath is where the RDMA package installs them.
+      # Keep this list in step with RDMA_LINK_LIBS in scripts/build-rdma.sh.
       - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include
-      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,--enable-new-dtags
+      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags -lminiocpp -lcuobjclient -lcufile -lcurlpp -lcurl -lssl -lcrypto -lINIReader -linih -lpugixml -lz -lstdc++ -lm -ldl -lpthread
     goos:
       - linux
     goarch:

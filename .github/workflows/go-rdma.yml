@@ -68,7 +68,7 @@ jobs:
         ../vcpkg/vcpkg install
         cmake . -B ./build \
           -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_SHARED_LIBS=ON \
+          -DBUILD_SHARED_LIBS=OFF \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
@@ -76,6 +76,8 @@ jobs:
         sudo cmake --install ./build
         cuobj_arch=$([ "${{ matrix.config.arch }}" = "amd64" ] && echo x86_64 || echo aarch64)
         sudo cp -P vendor/cuobj/lib/${cuobj_arch}/* /usr/local/lib/
+        # libminiocpp is static; its vcpkg archives must sit beside it to link.
+        sudo cp -P vcpkg_installed/*/lib/*.a /usr/local/lib/
         sudo ldconfig
 
     - name: Set up Go

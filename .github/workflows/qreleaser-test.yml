@@ -71,13 +71,15 @@ jobs:
           ../vcpkg/vcpkg install
           cmake . -B ./build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON \
+            -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
             -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
             -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
           cmake --build ./build --config Release -j 4
           sudo cmake --install ./build
           sudo cp -P vendor/cuobj/lib/x86_64/* /usr/local/lib/
+          # libminiocpp is static; its vcpkg archives must sit beside it to link.
+          sudo cp -P vcpkg_installed/*/lib/*.a /usr/local/lib/
           sudo ldconfig
           # The libraries are installed system-wide now, and the workspace is
           # what qreleaser releases from, so leave no extra trees behind in it.
