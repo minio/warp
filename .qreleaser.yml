@@ -5,12 +5,6 @@
 binary_name: warp
 goreleaser_config: .goreleaser/qreleaser.yaml
 
-# Extra binaries built by the same goreleaser config. warp-rdma is the
-# S3-over-RDMA build; it links libminiocpp through cgo, so it is linux/amd64
-# only and needs the RDMA libraries on the release host.
-variants:
-  - warp-rdma
-
 # Versioning - warp uses semantic versions (v1.4.0) not date-based
 use_semver: true  # Requires Q_VERSION_TAG env var
 

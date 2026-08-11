@@ -142,20 +142,21 @@ jobs:
         run: |
           find ${{ github.workspace }}/warp-release -type f
           "${ARCH_DIR}/warp" --version
-          # The warp-rdma variant must land beside the stock binary rather than
+          # The RDMA flavor must land beside the stock binary rather than
           # replacing it, and must actually run.
-          "${ARCH_DIR}/warp-rdma" --version
+          "${ARCH_DIR}/warp.rdma" --version
           # It is the RDMA build, so it accepts --rdma=cpu where the stock
-          # binary refuses it. Guards against the variant being a copy of the
-          # stock binary under a different name.
+          # binary refuses it. Both are named warp inside their dist directories,
+          # so without this the flavor could silently be a copy of the stock
+          # binary and nothing would notice.
           if "${ARCH_DIR}/warp" put --rdma=cpu --host 127.0.0.1:9000 >/dev/null 2>&1; then
             echo "stock warp unexpectedly accepted --rdma=cpu" >&2
             exit 1
           fi
-          "${ARCH_DIR}/warp-rdma" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/rdma.log 2>&1 || true
+          "${ARCH_DIR}/warp.rdma" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/rdma.log 2>&1 || true
           cat /tmp/rdma.log
           if grep -q "requires the RDMA build" /tmp/rdma.log; then
-            echo "warp-rdma is not an RDMA build" >&2
+            echo "warp.rdma is not an RDMA build" >&2
             exit 1
           fi
 
