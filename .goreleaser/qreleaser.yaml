@@ -71,9 +71,10 @@ builds:
       # archive have to be named explicitly. Only the cuObj libraries stay
       # dynamic -- they are vendor shared objects with no static form -- and
       # the /usr/lib/warp rpath is where the RDMA package installs them.
-      # Keep this list in step with RDMA_LINK_LIBS in scripts/build-rdma.sh.
+      # The library list lives in scripts/rdma-cgo-libs.txt so this config, the
+      # build script and the CI workflows cannot drift apart.
       - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include
-      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags -lminiocpp -lcuobjclient -lcufile -lcurlpp -lcurl -lssl -lcrypto -lINIReader -linih -lpugixml -lz -lstdc++ -lm -ldl -lpthread
+      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags {{ mustReadFile "scripts/rdma-cgo-libs.txt" }}
     goos:
       - linux
     goarch:

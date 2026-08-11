@@ -136,9 +136,9 @@ TAGS="kqueue,rdma"
 NAME="warp-rdma"
 
 # Static libminiocpp plus its transitive vcpkg archives, then the cuObj shared
-# objects. Order matters: the C++ runtime has to come after the archives that
-# reference it. Shared with .goreleaser/qreleaser.yaml, which links the same way.
-RDMA_LINK_LIBS="-lminiocpp -lcuobjclient -lcufile -lcurlpp -lcurl -lssl -lcrypto -lINIReader -linih -lpugixml -lz -lstdc++ -lm -ldl -lpthread"
+# objects. Kept in one file because .goreleaser/qreleaser.yaml and the CI
+# workflows have to link exactly the same way.
+RDMA_LINK_LIBS="$(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")"
 
 STAGE="${WORK}/stage/${NAME}"
 rm -rf "${STAGE}"

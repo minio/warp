@@ -90,6 +90,10 @@ jobs:
       env:
         CGO_ENABLED: "1"
       run: |
+        # libminiocpp is static, so minio-go's own -lminiocpp no longer drags in
+        # the C++ runtime or the vcpkg archives; name them from the one list the
+        # build script and goreleaser config also use.
+        export CGO_LDFLAGS="-L/usr/local/lib $(cat scripts/rdma-cgo-libs.txt)"
         go build -tags=rdma -o /tmp/warp .
         go vet -tags=rdma ./...
         go test -race -tags=rdma ./...
