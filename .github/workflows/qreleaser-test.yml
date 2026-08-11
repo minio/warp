@@ -149,16 +149,23 @@ jobs:
           # binary refuses it. Both are named warp inside their dist directories,
           # so without this the flavor could silently be a copy of the stock
           # binary and nothing would notice.
-          if "${ARCH_DIR}/warp" put --rdma=cpu --host 127.0.0.1:9000 >/dev/null 2>&1; then
+          if "${ARCH_DIR}/warp" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/stock.log 2>&1; then
             echo "stock warp unexpectedly accepted --rdma=cpu" >&2
             exit 1
           fi
+          cat /tmp/stock.log
+          grep -q "requires the RDMA build of warp" /tmp/stock.log
+
+          # Require a specific outcome from the flavor, not merely the absence
+          # of the refusal above: it has to get past the RDMA gate and fail at
+          # the network instead, so a crash or an unrelated error cannot pass.
           "${ARCH_DIR}/warp.rdma" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/rdma.log 2>&1 || true
           cat /tmp/rdma.log
           if grep -q "requires the RDMA build" /tmp/rdma.log; then
             echo "warp.rdma is not an RDMA build" >&2
             exit 1
           fi
+          grep -q "Error preparing server" /tmp/rdma.log
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

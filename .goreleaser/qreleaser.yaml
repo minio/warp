@@ -63,12 +63,20 @@ builds:
     env:
       - CGO_ENABLED=1
       # goreleaser replaces same-named variables rather than merging them, so
-      # carry any flags the release host already set. -rpath is emitted as
-      # DT_RUNPATH, deliberately not DT_RPATH: the binary can then find
-      # libminiocpp at a non-default prefix while a user of the published
-      # binary can still point LD_LIBRARY_PATH at their own copy.
+      # carry any flags the release host already set.
+      #
+      # --enable-new-dtags pins the tag to DT_RUNPATH rather than leaving it to
+      # the host linker's default, and DT_RUNPATH is deliberate: DT_RPATH would
+      # outrank LD_LIBRARY_PATH and stop a user of the published binary
+      # substituting their own libminiocpp.
+      #
+      # DT_RUNPATH is not transitive, though. It resolves libminiocpp itself,
+      # but libminiocpp carries no runpath of its own, so its cuObj
+      # dependencies come from the host's library search path regardless. A
+      # non-default MINIOCPP_PREFIX therefore has to be on that path anyway,
+      # via ldconfig or equivalent.
       - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include
-      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib
+      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,--enable-new-dtags
     goos:
       - linux
     goarch:
