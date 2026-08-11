@@ -28,11 +28,25 @@ cannot be cross-compiled.
 
 ### Package
 
+Every release artifact ships a `.sha256sum` beside it. Check it first:
+
+```bash
+λ sha256sum -c warp-rdma_<version>_amd64.deb.sha256sum
+warp-rdma_<version>_amd64.deb: OK
+```
+
+Then install:
+
 ```bash
 λ sudo dnf install warp-rdma-<version>-1.x86_64.rpm     # RHEL, Fedora, Rocky
 λ sudo apt install ./warp-rdma_<version>_amd64.deb      # Debian, Ubuntu
 λ sudo apk add --allow-untrusted warp-rdma_<version>_x86_64.apk
 ```
+
+apk needs `--allow-untrusted` because the package is not signed with a key in
+the host keyring. Verify the checksum above before using it. The published
+binaries also carry `.minisig` and `.asc` signatures if you want to check those
+against the MinIO release keys.
 
 The package installs `/usr/local/bin/warp` and the cuObj libraries it needs
 under `/usr/lib/warp`. It is a **drop-in replacement**: the command is `warp`,
@@ -52,8 +66,10 @@ Use it when you cannot install packages, or want several versions side by side.
 ### Host requirements
 
 The package bundles the cuObj libraries and links everything else statically, so
-the only things it needs from the host are:
+it needs only these from the host:
 
+- the base C and C++ runtime, `libc` and `libstdc++`, present on any
+  distribution
 - `libibverbs`, `librdmacm` and `libnuma`, declared as package dependencies
 - the vendor provider for your card, such as `libmlx5`, which must match the
   kernel driver and therefore cannot be bundled
@@ -188,6 +204,11 @@ newer, and the RDMA headers. On Debian or Ubuntu:
 λ sudo apt-get install g++ git libibverbs-dev librdmacm-dev libnuma-dev
 ```
 
+Distribution packages are often older than 3.31. `build-rdma.sh` checks the
+version and stops when it is too old, because vcpkg's port scripts need the
+newer one. Install a current CMake from
+[Kitware's apt repository](https://apt.kitware.com) or with `pip install cmake`.
+
 Then:
 
 ```bash
@@ -212,3 +233,16 @@ the same library list the release uses:
 libminiocpp is linked statically, so cgo, which links with `gcc` rather than
 `g++`, has to be told about the C++ runtime and every transitive archive by
 name. That list lives in `scripts/rdma-cgo-libs.txt`.
+
+The binary this produces still loads the cuObj libraries at run time, and
+nothing tells it where they are. Choose one:
+
+```bash
+λ sudo ldconfig                                  # if they are in a system path
+λ export LD_LIBRARY_PATH=/usr/local/lib          # per shell
+λ go build -tags=kqueue,rdma \
+    -ldflags "-extldflags=-Wl,-rpath,/usr/local/lib"   # baked into the binary
+```
+
+`build-rdma.sh` avoids the question by bundling the libraries in the archive and
+baking an `$ORIGIN/lib` rpath.

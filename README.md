@@ -61,8 +61,9 @@ If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.
 
 # S3 over RDMA
 
-The `--rdma` flag sends PUT and GET payloads over RDMA instead of HTTP, either
-into host memory (`--rdma=cpu`) or straight into GPU memory (`--rdma=gpu`).
+The `--rdma` flag attempts to send PUT and GET payloads over RDMA rather than
+HTTP, either into host memory (`--rdma=cpu`) or straight into GPU memory
+(`--rdma=gpu`). It falls back to HTTP when RDMA cannot be set up.
 
 Support is compiled in, so the standard binaries refuse `--rdma`. Install the
 `warp-rdma` package or archive from the release instead:
@@ -677,7 +678,8 @@ The "obj/s" indicates the number of append operations per second.
 ## ZIP
 
 The `zip` command benchmarks the MinIO [s3zip](https://blog.min.io/small-file-archives/) extension
-that allows
+which serves individual files from inside a zip archive without unpacking it
+first.
 
 This will upload a single zip file with 10000 individual files (change with `--files`) of 10KiB each (changed with `--obj.size`).
 
@@ -811,7 +813,7 @@ Operation: GET
 * Average: 92.05 MiB/s, 9652.01 obj/s
 ```
 
-The benchmark run is then divided into fixed duration _segments_ specified by `-analyze.dur`.
+The benchmark run is then divided into fixed duration _segments_ specified by `--analyze.dur`.
 For each segment the throughput is calculated across all threads.
 
 The analysis output will display the fastest, slowest and 50% median segment.

@@ -169,6 +169,14 @@ jobs:
           fi
           grep -q "Error preparing server" /tmp/rdma.log
 
+          # The post-transform hook renames the packages after pkger builds
+          # them, so their checksums are regenerated rather than carried over.
+          # Verify them, and fail if the flavor produced none at all.
+          ls "${ARCH_DIR}"/warp-rdma*.sha256sum >/dev/null
+          for f in "${ARCH_DIR}"/warp-rdma*.sha256sum; do
+            (cd "${ARCH_DIR}" && sha256sum -c "$(basename "${f}")")
+          done
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()
