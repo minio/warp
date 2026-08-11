@@ -119,6 +119,9 @@ func checkGetSyntax(ctx *cli.Context) {
 	if ctx.Int("versions") < 1 {
 		console.Fatal("At least one version must be tested")
 	}
+	if ctx.String("rdma") != "" && (ctx.Bool("range") || ctx.IsSet("range-size")) {
+		console.Fatal("Ranged GETs are not supported over RDMA; drop --range/--range-size or --rdma")
+	}
 	if ctx.Bool("list-existing") {
 		if ctx.Int("objects") < 0 {
 			console.Fatal("Object count must be 0 or greater")

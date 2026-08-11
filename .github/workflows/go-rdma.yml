@@ -1,0 +1,104 @@
+name: Build (RDMA)
+
+on:
+  pull_request:
+    branches:
+    - master
+  push:
+    branches:
+    - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build rdma (${{ matrix.config.arch }})
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - { os: ubuntu-latest,    arch: "amd64" }
+        - { os: ubuntu-24.04-arm, arch: "arm64" }
+
+    steps:
+    - name: Checkout warp
+      uses: actions/checkout@v5
+      with:
+        path: "warp"
+        persist-credentials: false
+
+    - name: Checkout minio-cpp
+      uses: actions/checkout@v5
+      with:
+        repository: minio/minio-cpp
+        path: "minio-cpp"
+        persist-credentials: false
+
+    # Pinned: vcpkg's port scripts track the newest CMake, and a floating
+    # checkout breaks against whatever CMake the runner image ships.
+    - name: Checkout vcpkg
+      uses: actions/checkout@v5
+      with:
+        repository: microsoft/vcpkg
+        ref: "2026.07.29"
+        path: "vcpkg"
+        persist-credentials: false
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get -qy update
+        sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev
+
+    # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
+    # own on arm64, so provision it explicitly on both architectures.
+    - name: Set up CMake
+      uses: lukka/get-cmake@v4.4.2
+
+    - name: Build and install libminiocpp.so with RDMA
+      shell: bash
+      run: |
+        ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        cd minio-cpp
+        ../vcpkg/vcpkg install
+        cmake . -B ./build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
+          -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
+        cmake --build ./build --config Release -j 4
+        sudo cmake --install ./build
+        cuobj_arch=$([ "${{ matrix.config.arch }}" = "amd64" ] && echo x86_64 || echo aarch64)
+        sudo cp -P vendor/cuobj/lib/${cuobj_arch}/* /usr/local/lib/
+        sudo ldconfig
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: "warp/go.mod"
+
+    - name: Build and vet with -tags=rdma
+      working-directory: warp
+      env:
+        CGO_ENABLED: "1"
+      run: |
+        go build -tags=rdma -o /tmp/warp .
+        go vet -tags=rdma ./...
+        go test -race -tags=rdma ./...
+        /tmp/warp --version
+        # CUDA is dlopened, so the binary must still start on this CUDA-less
+        # runner and reject --rdma=gpu with a diagnosis rather than failing to
+        # load. This is the property that lets one binary serve both modes.
+        if /tmp/warp put --rdma=gpu --host 127.0.0.1:9000 >/tmp/gpu.log 2>&1; then
+          echo "expected --rdma=gpu to fail on a host without CUDA" >&2
+          cat /tmp/gpu.log
+          exit 1
+        fi
+        cat /tmp/gpu.log
+        grep -q "CUDA runtime" /tmp/gpu.log

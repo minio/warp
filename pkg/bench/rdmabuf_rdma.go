@@ -8,20 +8,152 @@
 
 package bench
 
-// #cgo LDFLAGS: -lcudart
-// #include <cuda_runtime.h>
-// #include <stdlib.h>
+// The CUDA runtime is resolved with dlopen rather than linked, so one warp
+// binary serves both --rdma=cpu and --rdma=gpu. Linking libcudart would put it
+// in DT_NEEDED and stop the binary from starting at all on a host without CUDA,
+// which is most hosts that only want CPU-mode RDMA. Declaring the entry points
+// here also means no CUDA headers are needed to build.
+
+// #cgo LDFLAGS: -ldl
+// #include <dlfcn.h>
+// #include <stddef.h>
+//
+// typedef int (*warp_set_device_fn)(int);
+// typedef int (*warp_malloc_fn)(void **, size_t);
+// typedef int (*warp_free_fn)(void *);
+// typedef int (*warp_memcpy_fn)(void *, const void *, size_t, int);
+// typedef const char *(*warp_error_string_fn)(int);
+// typedef int (*warp_get_version_fn)(int *);
+//
+// static void *warp_cudart;
+// static warp_set_device_fn warp_set_device;
+// static warp_malloc_fn warp_malloc;
+// static warp_free_fn warp_free;
+// static warp_memcpy_fn warp_memcpy;
+// static warp_error_string_fn warp_error_string;
+//
+// // The lowest runtime version rejected as too new, and what the driver
+// // supports, so the CLI can say why --rdma=gpu is unavailable. Lowest, so a
+// // host carrying several runtimes is told about the nearest miss and hence
+// // the smallest driver upgrade that would help.
+// static int warp_cuda_rejected_runtime;
+// static int warp_cuda_driver;
+//
+// // warp_cuda_try opens one candidate and keeps it only if the installed
+// // driver is new enough to run it. A host can carry several runtimes, and
+// // loading one the driver cannot support fails every later call with
+// // "CUDA driver version is insufficient for CUDA runtime version".
+// static int warp_cuda_try(const char *soname) {
+//     warp_get_version_fn driver_version, runtime_version;
+//     int driver = 0, runtime = 0;
+//     void *h = dlopen(soname, RTLD_LAZY | RTLD_LOCAL);
+//     if (h == NULL) {
+//         return 0;
+//     }
+//     warp_set_device = (warp_set_device_fn)dlsym(h, "cudaSetDevice");
+//     warp_malloc = (warp_malloc_fn)dlsym(h, "cudaMalloc");
+//     warp_free = (warp_free_fn)dlsym(h, "cudaFree");
+//     warp_memcpy = (warp_memcpy_fn)dlsym(h, "cudaMemcpy");
+//     warp_error_string = (warp_error_string_fn)dlsym(h, "cudaGetErrorString");
+//     driver_version = (warp_get_version_fn)dlsym(h, "cudaDriverGetVersion");
+//     runtime_version = (warp_get_version_fn)dlsym(h, "cudaRuntimeGetVersion");
+//     if (warp_set_device == NULL || warp_malloc == NULL || warp_free == NULL ||
+//         warp_memcpy == NULL || warp_error_string == NULL ||
+//         driver_version == NULL || runtime_version == NULL) {
+//         dlclose(h);
+//         return 0;
+//     }
+//     if (driver_version(&driver) != 0 || runtime_version(&runtime) != 0 ||
+//         driver < runtime) {
+//         if (runtime > 0 &&
+//             (warp_cuda_rejected_runtime == 0 || runtime < warp_cuda_rejected_runtime)) {
+//             warp_cuda_rejected_runtime = runtime;
+//             warp_cuda_driver = driver;
+//         }
+//         warp_set_device = NULL;
+//         warp_malloc = NULL;
+//         warp_free = NULL;
+//         warp_memcpy = NULL;
+//         warp_error_string = NULL;
+//         dlclose(h);
+//         return 0;
+//     }
+//     warp_cudart = h;
+//     return 1;
+// }
+//
+// static int warp_cuda_load(void) {
+//     static const char *sonames[] = {
+//         "libcudart.so.13", "libcudart.so.12", "libcudart.so.11.0",
+//         "libcudart.so", NULL,
+//     };
+//     int i;
+//     if (warp_cudart != NULL) {
+//         return 1;
+//     }
+//     for (i = 0; sonames[i] != NULL; i++) {
+//         if (warp_cuda_try(sonames[i])) {
+//             return 1;
+//         }
+//     }
+//     return 0;
+// }
+//
+// static int warp_cuda_rejected(void) { return warp_cuda_rejected_runtime; }
+// static int warp_cuda_driver_version(void) { return warp_cuda_driver; }
+//
+// static int warp_cuda_set_device(int device) { return warp_set_device(device); }
+// static int warp_cuda_malloc(void **p, size_t n) { return warp_malloc(p, n); }
+// static int warp_cuda_free(void *p) { return warp_free(p); }
+// // 1 is cudaMemcpyHostToDevice, fixed by the CUDA runtime ABI.
+// static int warp_cuda_memcpy_h2d(void *dst, const void *src, size_t n) {
+//     return warp_memcpy(dst, src, n, 1);
+// }
+// static const char *warp_cuda_error(int rc) { return warp_error_string(rc); }
 import "C"
 
 import (
 	"fmt"
 	"io"
+	"sync"
 	"unsafe"
 )
 
 // HasRDMA reports whether warp was built with -tags=rdma, i.e. whether
-// GPU-Direct RDMA (--rdma=gpu) is available.
+// S3-over-RDMA dispatch is available. It requires libminiocpp at build and
+// run time.
 const HasRDMA = true
+
+var cudaLoad = sync.OnceValue(func() bool { return C.warp_cuda_load() != 0 })
+
+// HasRDMAGPU reports whether the CUDA runtime could be loaded, i.e. whether
+// --rdma=gpu can work on this host. Unlike HasRDMA this is a runtime property:
+// the same binary runs with and without CUDA present.
+func HasRDMAGPU() bool { return cudaLoad() }
+
+// RDMAGPUUnavailable explains why HasRDMAGPU is false. A host carrying a CUDA
+// runtime newer than its driver is the common case, and it is worth naming:
+// the fix is a driver upgrade, not installing CUDA.
+func RDMAGPUUnavailable() string {
+	if cudaLoad() {
+		return ""
+	}
+	if rejected := int(C.warp_cuda_rejected()); rejected > 0 {
+		return fmt.Sprintf("the oldest CUDA runtime on this host is %s, but the NVIDIA driver only supports up to %s; upgrade the driver or install a matching runtime",
+			cudaVersion(rejected), cudaVersion(int(C.warp_cuda_driver_version())))
+	}
+	return "no usable CUDA runtime (libcudart) was found on this host"
+}
+
+// cudaVersion renders CUDA's packed version integer, e.g. 12070 as "12.7".
+func cudaVersion(v int) string {
+	if v <= 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d.%d", v/1000, (v%1000)/10)
+}
+
+func cudaErr(rc C.int) string { return C.GoString(C.warp_cuda_error(rc)) }
 
 // bindGPUThread makes the primary CUDA context current on the calling OS
 // thread. cuFileBufRegister resolves the device via cuCtxGetDevice, which
@@ -31,13 +163,16 @@ const HasRDMA = true
 // back. Callers must runtime.LockOSThread() first so the binding still holds
 // when the RDMA dispatch reaches libcufile.
 func bindGPUThread() error {
-	if rc := C.cudaSetDevice(0); rc != 0 {
-		return fmt.Errorf("cudaSetDevice(0): %s", C.GoString(C.cudaGetErrorString(rc)))
+	if !cudaLoad() {
+		return errRDMAGPUUnsupported
+	}
+	if rc := C.warp_cuda_set_device(0); rc != 0 {
+		return fmt.Errorf("cudaSetDevice(0): %s", cudaErr(rc))
 	}
 	// cudaSetDevice defers context creation; force it now so the first
 	// registration on this thread already has a current context.
-	if rc := C.cudaFree(nil); rc != 0 {
-		return fmt.Errorf("cudaFree(nil): %s", C.GoString(C.cudaGetErrorString(rc)))
+	if rc := C.warp_cuda_free(nil); rc != 0 {
+		return fmt.Errorf("cudaFree(nil): %s", cudaErr(rc))
 	}
 	return nil
 }
@@ -46,34 +181,34 @@ func bindGPUThread() error {
 // returned rdmaBuf carries the device pointer in ptr; the NIC GPU-
 // Direct RDMA-writes / reads into it via minio-go's RDMA dispatch.
 func allocRDMAGPU(size int) (*rdmaBuf, error) {
+	if !cudaLoad() {
+		return nil, errRDMAGPUUnsupported
+	}
 	if size <= 0 {
 		return &rdmaBuf{mode: RDMAModeGPU}, nil
 	}
 	var devPtr unsafe.Pointer
-	if rc := C.cudaMalloc(&devPtr, C.size_t(size)); rc != 0 {
-		return nil, fmt.Errorf("cudaMalloc(%d): %s", size, C.GoString(C.cudaGetErrorString(rc)))
+	if rc := C.warp_cuda_malloc(&devPtr, C.size_t(size)); rc != 0 {
+		return nil, fmt.Errorf("cudaMalloc(%d): %s", size, cudaErr(rc))
 	}
 	return &rdmaBuf{ptr: devPtr, size: size, mode: RDMAModeGPU}, nil
 }
 
-// stageToGPU reads `size` bytes from src into a CPU bounce buffer, then
+// stageToGPU reads n bytes from src into a CPU bounce buffer, then
 // cudaMemcpys host-to-device into the registered GPU buffer. The bounce
-// buffer is allocated per call at b.size; for very large objects this
+// buffer is allocated per call at n bytes; for very large objects this
 // means the full object size is resident in host memory during staging.
-func stageToGPU(b *rdmaBuf, src io.Reader) error {
-	if b == nil || b.size == 0 || src == nil {
+func stageToGPU(b *rdmaBuf, src io.Reader, n int) error {
+	if b == nil || n <= 0 || src == nil {
 		return nil
 	}
-	host := make([]byte, b.size)
+	host := make([]byte, n)
 	if _, err := io.ReadFull(src, host); err != nil {
 		return err
 	}
-	rc := C.cudaMemcpy(b.ptr,
-		unsafe.Pointer(&host[0]),
-		C.size_t(b.size),
-		C.cudaMemcpyHostToDevice)
+	rc := C.warp_cuda_memcpy_h2d(b.ptr, unsafe.Pointer(&host[0]), C.size_t(n))
 	if rc != 0 {
-		return fmt.Errorf("cudaMemcpy H2D: %s", C.GoString(C.cudaGetErrorString(rc)))
+		return fmt.Errorf("cudaMemcpy H2D: %s", cudaErr(rc))
 	}
 	return nil
 }
@@ -83,6 +218,6 @@ func freeRDMAGPU(b *rdmaBuf) {
 	if b == nil || b.ptr == nil {
 		return
 	}
-	C.cudaFree(b.ptr)
+	C.warp_cuda_free(b.ptr)
 	b.ptr = nil
 }
