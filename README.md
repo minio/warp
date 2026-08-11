@@ -813,7 +813,7 @@ Operation: GET
 * Average: 92.05 MiB/s, 9652.01 obj/s
 ```
 
-The benchmark run is then divided into fixed duration _segments_ specified by `--analyze.dur`.
+The benchmark run is then divided into fixed-duration _segments_ specified by `--analyze.dur`.
 For each segment the throughput is calculated across all threads.
 
 The analysis output will display the fastest, slowest and 50% median segment.

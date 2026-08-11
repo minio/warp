@@ -171,11 +171,19 @@ jobs:
 
           # The post-transform hook renames the packages after pkger builds
           # them, so their checksums are regenerated rather than carried over.
-          # Verify them, and fail if the flavor produced none at all.
-          ls "${ARCH_DIR}"/warp-rdma*.sha256sum >/dev/null
-          for f in "${ARCH_DIR}"/warp-rdma*.sha256sum; do
-            (cd "${ARCH_DIR}" && sha256sum -c "$(basename "${f}")")
+          # Walk the packages rather than the manifests, so a package that lost
+          # its checksum fails here instead of passing unnoticed.
+          found=0
+          for pkg in "${ARCH_DIR}"/warp-rdma*.deb \
+                     "${ARCH_DIR}"/warp-rdma*.rpm \
+                     "${ARCH_DIR}"/warp-rdma*.apk; do
+            [ -e "${pkg}" ] || continue
+            found=1
+            # sha256sum -c fails when the manifest is missing, so this also
+            # requires every package to have one.
+            (cd "${ARCH_DIR}" && sha256sum -c "$(basename "${pkg}").sha256sum")
           done
+          [ "${found}" = 1 ] || { echo "no RDMA packages in ${ARCH_DIR}" >&2; exit 1; }
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
