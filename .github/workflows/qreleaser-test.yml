@@ -35,6 +35,54 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      # The release builds the warp-rdma variant, which links libminiocpp
+      # through cgo, so the runner needs the same RDMA prerequisites as a real
+      # release host. Without them the pipeline fails on miniocpp/c_api.h.
+      - name: Checkout minio-cpp
+        uses: actions/checkout@v4
+        with:
+          repository: minio/minio-cpp
+          path: "minio-cpp"
+          persist-credentials: false
+
+      # Pinned: vcpkg's port scripts track the newest CMake, and a floating
+      # checkout breaks against whatever CMake the runner image ships.
+      - name: Checkout vcpkg
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: "2026.07.29"
+          path: "vcpkg"
+          persist-credentials: false
+
+      - name: Install RDMA dependencies
+        run: |
+          sudo apt-get -qy update
+          sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev
+
+      - name: Set up CMake
+        uses: lukka/get-cmake@v4.4.2
+
+      - name: Build and install libminiocpp.so with RDMA
+        shell: bash
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          cd minio-cpp
+          ../vcpkg/vcpkg install
+          cmake . -B ./build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
+          cmake --build ./build --config Release -j 4
+          sudo cmake --install ./build
+          sudo cp -P vendor/cuobj/lib/x86_64/* /usr/local/lib/
+          sudo ldconfig
+          # The libraries are installed system-wide now, and the workspace is
+          # what qreleaser releases from, so leave no extra trees behind in it.
+          cd "${GITHUB_WORKSPACE}" && rm -rf minio-cpp vcpkg
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -89,9 +137,27 @@ jobs:
           qreleaser main ${{ github.repository }} ${{ steps.release-type.outputs.type }}
 
       - name: Verify Release Artifacts
+        env:
+          ARCH_DIR: ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-amd64
         run: |
           find ${{ github.workspace }}/warp-release -type f
-          ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-amd64/warp --version
+          "${ARCH_DIR}/warp" --version
+          # The warp-rdma variant must land beside the stock binary rather than
+          # replacing it, and must actually run.
+          "${ARCH_DIR}/warp-rdma" --version
+          # It is the RDMA build, so it accepts --rdma=cpu where the stock
+          # binary refuses it. Guards against the variant being a copy of the
+          # stock binary under a different name.
+          if "${ARCH_DIR}/warp" put --rdma=cpu --host 127.0.0.1:9000 >/dev/null 2>&1; then
+            echo "stock warp unexpectedly accepted --rdma=cpu" >&2
+            exit 1
+          fi
+          "${ARCH_DIR}/warp-rdma" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/rdma.log 2>&1 || true
+          cat /tmp/rdma.log
+          if grep -q "requires the RDMA build" /tmp/rdma.log; then
+            echo "warp-rdma is not an RDMA build" >&2
+            exit 1
+          fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
