@@ -25,6 +25,7 @@ import (
 	"maps"
 	"mime/multipart"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -96,6 +97,32 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 
 			done := ctx.Done()
 
+			// GPU buffers are registered by libcufile from whichever OS thread
+			// cgo happens to use, and registration resolves the device through
+			// the thread's current CUDA context. Pin the worker to one thread
+			// and bind the context there, or registration intermittently fails
+			// with CUDA_ERROR_INVALID_CONTEXT.
+			//
+			// Registered before the buffer cleanup below so that, defers being
+			// LIFO, the thread stays locked until after cudaFree has run.
+			if u.RDMAMode == RDMAModeGPU {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				if berr := bindGPUThread(); berr != nil {
+					u.Error("rdma gpu bind:", berr)
+					return
+				}
+			}
+
+			// One source buffer per worker, reused for every op and grown only
+			// when a larger object turns up, so an upload costs no allocation.
+			var wbuf *rdmaBuf
+			defer func() {
+				if wbuf != nil {
+					freeRDMABuf(wbuf)
+				}
+			}()
+
 			<-wait
 			for {
 				select {
@@ -127,20 +154,22 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 					if u.RDMAMode != RDMAModeOff {
 						// Stage generator output into a CPU or GPU buffer
 						// (per --rdma) so minio-go's RDMA dispatch path can
-						// RDMA-WRITE it directly. Builds without -tags=rdma
-						// surface a clear error via minio-go's stub instead
-						// of silently falling back to HTTP.
-						buf, berr := allocRDMABuf(u.RDMAMode, int(obj.Size))
-						if berr != nil {
-							err = berr
-						} else if serr := stageToRDMABuf(buf, obj.Reader); serr != nil {
-							err = fmt.Errorf("rdma upload prep: %w", serr)
-							freeRDMABuf(buf)
-						} else {
-							opts.RDMABuffer = buf.ptr
-							opts.RDMABufferSize = buf.size
-							res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, nil, obj.Size, opts)
-							freeRDMABuf(buf)
+						// RDMA-WRITE it directly.
+						if wbuf == nil || wbuf.size < int(obj.Size) {
+							if wbuf != nil {
+								freeRDMABuf(wbuf)
+								wbuf = nil
+							}
+							wbuf, err = allocRDMABuf(u.RDMAMode, int(obj.Size))
+						}
+						if err == nil {
+							if serr := stageToRDMABuf(wbuf, obj.Reader, int(obj.Size)); serr != nil {
+								err = fmt.Errorf("rdma upload prep: %w", serr)
+							} else {
+								opts.RDMABuffer = wbuf.ptr
+								opts.RDMABufferSize = int(obj.Size)
+								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, nil, obj.Size, opts)
+							}
 						}
 					} else {
 						res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)

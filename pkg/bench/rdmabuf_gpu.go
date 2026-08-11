@@ -1,4 +1,4 @@
-//go:build rdma
+//go:build rdma && cuda
 
 /*
  * Warp (C) 2019-2026 MinIO, Inc.
@@ -19,9 +19,10 @@ import (
 	"unsafe"
 )
 
-// HasRDMA reports whether warp was built with -tags=rdma, i.e. whether
-// GPU-Direct RDMA (--rdma=gpu) is available.
-const HasRDMA = true
+// HasRDMAGPU reports whether warp was built with -tags=rdma,cuda, i.e.
+// whether GPU-Direct RDMA (--rdma=gpu) is available. It requires the CUDA
+// runtime at build and run time, on top of everything HasRDMA needs.
+const HasRDMAGPU = true
 
 // bindGPUThread makes the primary CUDA context current on the calling OS
 // thread. cuFileBufRegister resolves the device via cuCtxGetDevice, which
@@ -56,21 +57,21 @@ func allocRDMAGPU(size int) (*rdmaBuf, error) {
 	return &rdmaBuf{ptr: devPtr, size: size, mode: RDMAModeGPU}, nil
 }
 
-// stageToGPU reads `size` bytes from src into a CPU bounce buffer, then
+// stageToGPU reads n bytes from src into a CPU bounce buffer, then
 // cudaMemcpys host-to-device into the registered GPU buffer. The bounce
-// buffer is allocated per call at b.size; for very large objects this
+// buffer is allocated per call at n bytes; for very large objects this
 // means the full object size is resident in host memory during staging.
-func stageToGPU(b *rdmaBuf, src io.Reader) error {
-	if b == nil || b.size == 0 || src == nil {
+func stageToGPU(b *rdmaBuf, src io.Reader, n int) error {
+	if b == nil || n <= 0 || src == nil {
 		return nil
 	}
-	host := make([]byte, b.size)
+	host := make([]byte, n)
 	if _, err := io.ReadFull(src, host); err != nil {
 		return err
 	}
 	rc := C.cudaMemcpy(b.ptr,
 		unsafe.Pointer(&host[0]),
-		C.size_t(b.size),
+		C.size_t(n),
 		C.cudaMemcpyHostToDevice)
 	if rc != 0 {
 		return fmt.Errorf("cudaMemcpy H2D: %s", C.GoString(C.cudaGetErrorString(rc)))

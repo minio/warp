@@ -25,6 +25,7 @@ import (
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/generator"
@@ -183,7 +184,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:   "rdma",
-		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct, requires -tags=rdma + libcudart). Empty disables RDMA.",
+		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct). Requires an RDMA build of warp. Empty disables RDMA.",
 		EnvVar: appNameUC + "_RDMA",
 		Value:  "",
 	},
@@ -348,13 +349,30 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 
 	rdmaMode := ctx.String("rdma")
 	switch rdmaMode {
-	case bench.RDMAModeOff, bench.RDMAModeCPU:
-	case bench.RDMAModeGPU:
+	case bench.RDMAModeOff:
+	case bench.RDMAModeCPU:
 		if !bench.HasRDMA {
-			fatalIf(errDummy(), "--rdma=gpu requires building warp with -tags=rdma (libcudart + libminiocpp)")
+			fatalIf(errDummy(), "--rdma=cpu requires the RDMA build of warp (built with -tags=rdma against libminiocpp)")
+		}
+	case bench.RDMAModeGPU:
+		if !bench.HasRDMAGPU {
+			fatalIf(errDummy(), "--rdma=gpu requires the GPU-Direct build of warp (built with -tags=rdma,cuda against libminiocpp + libcudart)")
 		}
 	default:
 		fatalIf(errDummy(), `--rdma must be "cpu", "gpu", or empty (got %q)`, rdmaMode)
+	}
+	// Only GET and PUT allocate a registered buffer and hand it to minio-go's
+	// RDMA dispatch. Any other benchmark would run entirely over HTTP and
+	// report the result as if RDMA had been used.
+	if rdmaMode != bench.RDMAModeOff {
+		switch ctx.Command.Name {
+		case "get", "put":
+		default:
+			fatalIf(errDummy(), "--rdma is only supported by the get and put benchmarks (got %q)", ctx.Command.Name)
+		}
+	}
+	if rdmaMode != bench.RDMAModeOff && !minio.IsRDMAAvailable() {
+		console.Infoln("Warning: RDMA requested but no S3 over RDMA connection was detected; transfers may fail or fall back")
 	}
 
 	rpsLimit := ctx.Float64("rps-limit")

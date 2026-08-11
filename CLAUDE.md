@@ -17,6 +17,12 @@ go build
 ./warp [command] [options]
 ```
 
+S3-over-RDMA (`--rdma`) is behind build tags and is not in the default binary:
+`-tags=rdma` links libminiocpp and enables `--rdma=cpu`; `-tags=rdma,cuda` adds
+the CUDA runtime and enables `--rdma=gpu`. `scripts/build-rdma.sh` builds the
+dependencies and packages a self-contained tarball; `.github/workflows/go-rdma.yml`
+keeps both tag combinations compiling.
+
 ### Testing
 ```bash
 # Run all tests with race detection

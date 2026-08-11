@@ -1,0 +1,87 @@
+name: Release (RDMA)
+
+# The regular release artifacts are built with CGO_ENABLED=0 and therefore
+# cannot do S3-over-RDMA: --rdma needs libminiocpp linked in. This workflow
+# builds the additional, self-contained RDMA tarballs and attaches them to
+# the release for the tag.
+
+on:
+  push:
+    tags:
+    - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload (e.g. v1.5.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }} (${{ matrix.config.arch }})
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - { os: ubuntu-latest,    arch: "amd64", name: "warp-rdma",     gpu: false }
+        - { os: ubuntu-24.04-arm, arch: "arm64", name: "warp-rdma",     gpu: false }
+        # GPU-Direct (--rdma=gpu) additionally links the CUDA runtime. arm64
+        # GPU builds are not published; build them with scripts/build-rdma.sh --gpu.
+        - { os: ubuntu-latest,    arch: "amd64", name: "warp-rdma-gpu", gpu: true }
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.tag || github.ref }}
+        fetch-depth: 0
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get -qy update
+        sudo apt-get -qy install cmake libibverbs-dev librdmacm-dev libnuma-dev
+
+    - name: Install CUDA runtime headers
+      if: matrix.config.gpu
+      run: |
+        sudo apt-get -qy install nvidia-cuda-dev
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: "go.mod"
+
+    - name: Build RDMA release artifact
+      run: |
+        ./scripts/build-rdma.sh \
+          ${{ matrix.config.gpu && '--gpu' || '' }} \
+          --version "${{ inputs.tag || github.ref_name }}" \
+          --out "${{ github.workspace }}/dist-rdma"
+
+    - name: Upload artifact to workflow run
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.config.name }}-linux-${{ matrix.config.arch }}
+        path: dist-rdma/
+
+    - name: Attach artifact to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ inputs.tag || github.ref_name }}
+      run: |
+        # The release for this tag is created by the main release pipeline,
+        # which may still be running. Wait for it before uploading.
+        for i in $(seq 1 30); do
+          if gh release view "${TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist-rdma/* --clobber --repo "${{ github.repository }}"
+            exit 0
+          fi
+          echo "release ${TAG} not published yet, retrying in 60s ($i/30)"
+          sleep 60
+        done
+        echo "release ${TAG} never appeared; artifacts are attached to this workflow run" >&2
+        exit 1

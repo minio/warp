@@ -7,6 +7,9 @@ S3 benchmarking tool.
 ## From binary
 [Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
 
+To benchmark S3 over RDMA, download the separate `warp-rdma_linux_*.tar.gz` archive instead.
+See [S3 over RDMA](#s3-over-rdma).
+
 ## Build with source
 
 Warp requires minimum Go `go1.21`, please ensure you have compatible version for this build. 
@@ -47,6 +50,71 @@ of objects using `--encrypt`. A random key will be generated and used for object
 To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) encryption use the `--sse-s3-encrypt` flag.
 
 If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) the older v2 signatures can be used with `--signature=S3V2`.
+
+# S3 over RDMA
+
+The `--rdma` flag sends PUT and GET payloads over RDMA instead of HTTP.
+Warp allocates one registered buffer per operation and lets the network card
+transfer object data directly into or out of it:
+
+| Value        | Buffer                | Use it for                                      |
+|--------------|-----------------------|-------------------------------------------------|
+| `--rdma=cpu` | Page-aligned host memory | RDMA between the server and host memory      |
+| `--rdma=gpu` | CUDA device memory    | GPU-Direct: the NIC transfers straight to the GPU |
+
+Leaving `--rdma` unset keeps the normal HTTP path. Only the `get` and `put`
+benchmarks support `--rdma`; the other benchmarks reject it rather than report
+HTTP numbers as if they were RDMA numbers.
+
+> [!IMPORTANT]
+> When an RDMA transfer cannot be set up, the underlying library falls back to
+> HTTP and the operation still succeeds. Warp cannot see that this happened, so
+> its output never tells you whether RDMA was used. Confirm that from the
+> storage server's S3 over RDMA counters before you trust a comparison.
+
+## Getting a warp binary with RDMA support
+
+RDMA dispatch is compiled in, so the standard release binaries do not have it —
+they are built without cgo, and warp refuses `--rdma` rather than failing on
+every operation. Two extra archives are published per release:
+
+- `warp-rdma_linux_amd64.tar.gz` and `warp-rdma_linux_arm64.tar.gz` support `--rdma=cpu`.
+- `warp-rdma-gpu_linux_amd64.tar.gz` also supports `--rdma=gpu`.
+
+Each archive contains the `warp` binary and the shared libraries it needs in a
+`lib` directory next to it. Unpack the archive and run the binary from where
+you unpacked it; it finds its libraries on its own.
+
+```
+λ tar xzf warp-rdma_linux_amd64.tar.gz
+λ ./warp-rdma/warp get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
+```
+
+To build one yourself, install `cmake`, `libibverbs-dev`, `librdmacm-dev` and
+`libnuma-dev`, then run:
+
+```
+λ ./scripts/build-rdma.sh          # produces warp-rdma_linux_<arch>.tar.gz
+λ ./scripts/build-rdma.sh --gpu    # adds --rdma=gpu, needs the CUDA runtime headers
+```
+
+The script builds [minio-cpp](https://github.com/minio/minio-cpp) with RDMA
+enabled and links warp against it. It is also how the published archives are
+built, and it is the only way to get an arm64 GPU-Direct build.
+
+## Running the benchmark
+
+The storage server must have S3 over RDMA enabled and reachable from the
+client. `--rdma=gpu` additionally needs an NVIDIA GPU with its driver and CUDA
+runtime installed on the client.
+
+Warp prints a warning at startup when it can tell that S3 over RDMA is not
+reachable. The probe is optimistic, so the absence of a warning is not proof
+that RDMA is working.
+
+`--rdma` works in [distributed mode](#distributed-benchmarking) as well. The
+server passes the flag to every client, so each client needs an RDMA-capable
+warp binary and its own RDMA path to the storage server.
 
 # Usage
 
