@@ -23,3 +23,4 @@ cufile.log
 
 # qreleaser state file
 .release-state.sh
+warp-release/

@@ -5,47 +5,55 @@ S3 benchmarking tool.
 # Download
 
 ## From binary
+
 [Download Binary Releases](https://github.com/minio/warp/releases) for various platforms.
 
-To benchmark S3 over RDMA, download the separate `warp-rdma_linux_*.tar.gz` archive instead.
-See [S3 over RDMA](#s3-over-rdma).
+To benchmark S3 over RDMA, take the separate `warp-rdma` package or archive
+instead. See [RDMA.md](RDMA.md).
 
 ## Build with source
 
-Warp requires minimum Go `go1.21`, please ensure you have compatible version for this build. 
+Warp requires minimum Go `go1.21`, please ensure you have compatible version for this build.
 
 You can follow easy step below to build project
+
 - Clone project
+
 ```
 λ git clone https://github.com/minio/warp.git
 ```
+
 - Change directory and build
+
 ```
 λ cd warp && go build
 ```
+
 - To run a test, please run
+
 ```
 λ ./warp [options]
 ```
+
 # Configuration
 
-Warp can be configured either using commandline parameters or environment variables. 
-The S3 server to use can be specified on the commandline using `--host`, `--access-key`, 
+Warp can be configured either using commandline parameters or environment variables.
+The S3 server to use can be specified on the commandline using `--host`, `--access-key`,
 `--secret-key` and optionally `--tls` and `--region` to specify TLS and a custom region.
 
-It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`, 
+It is also possible to set the same parameters using the `WARP_HOST`, `WARP_ACCESS_KEY`,
 `WARP_SECRET_KEY`, `WARP_REGION` and `WARP_TLS` environment variables.
 
 The credentials must be able to create, delete and list buckets and upload files and perform the operation requested.
 
-By default operations are performed on a bucket called `warp-benchmark-bucket`. 
-This can be changed using the `--bucket` parameter. 
+By default operations are performed on a bucket called `warp-benchmark-bucket`.
+This can be changed using the `--bucket` parameter.
 
 > [!WARNING]
-> Note the bucket will be *completely wiped* before and after each run, so it should **not** contain any data.
+> Note the bucket will be _completely wiped_ before and after each run, so it should **not** contain any data.
 
-If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html), 
-you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html) 
+If you are [running TLS](https://docs.min.io/docs/how-to-secure-access-to-minio-server-with-tls.html),
+you can enable [server-side-encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html)
 of objects using `--encrypt`. A random key will be generated and used for objects.
 To use [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) encryption use the `--sse-s3-encrypt` flag.
 
@@ -53,89 +61,26 @@ If your server is incompatible with [AWS v4 signatures](https://docs.aws.amazon.
 
 # S3 over RDMA
 
-The `--rdma` flag sends PUT and GET payloads over RDMA instead of HTTP.
-Each worker keeps one registered buffer, reused across operations and grown
-only when a larger object turns up, and the network card transfers object data
-directly into or out of it:
+The `--rdma` flag sends PUT and GET payloads over RDMA instead of HTTP, either
+into host memory (`--rdma=cpu`) or straight into GPU memory (`--rdma=gpu`).
 
-| Value        | Buffer                | Use it for                                      |
-|--------------|-----------------------|-------------------------------------------------|
-| `--rdma=cpu` | Page-aligned host memory | RDMA between the server and host memory      |
-| `--rdma=gpu` | CUDA device memory    | GPU-Direct: the NIC transfers straight to the GPU |
-
-Leaving `--rdma` unset keeps the normal HTTP path. Only the `get` and `put`
-benchmarks support `--rdma`; the other benchmarks reject it rather than report
-HTTP numbers as if they were RDMA numbers.
-
-> [!IMPORTANT]
-> When an RDMA transfer cannot be set up, the underlying library falls back to
-> HTTP and the operation still succeeds. Warp cannot see that this happened, so
-> its output never tells you whether RDMA was used. Confirm that from the
-> storage server's S3 over RDMA counters before you trust a comparison.
-
-## Getting a warp binary with RDMA support
-
-The standard release binaries are built without cgo, so RDMA dispatch is not
-compiled into them. Those binaries refuse `--rdma` at startup rather than
-failing on every operation. One extra archive is published per release and
-architecture, `warp-rdma_linux_amd64.tar.gz` and `warp-rdma_linux_arm64.tar.gz`.
-
-A single binary serves both modes. The CUDA runtime is loaded on demand rather
-than linked, so the archive runs on hosts with no CUDA installed at all; only
-`--rdma=gpu` needs it, and it says so plainly when it is missing.
-
-Each archive contains the `warp` binary and the libminiocpp and cuObj libraries
-in a `lib` directory next to it. Unpack the archive and run the binary from
-where you unpacked it; it finds those libraries on its own.
-
-The host must supply the rest of the RDMA stack itself: `libibverbs1`,
-`librdmacm1`, `libnuma1` and the vendor provider such as `libmlx5`. These are
-tied to the kernel driver, so bundling them would break more often than it
-would help. Install them if they are missing, or transfers fail or fall back to
-HTTP.
+Support is compiled in, so the standard binaries refuse `--rdma`. Install the
+`warp-rdma` package or archive from the release instead:
 
 ```bash
-λ tar xzf warp-rdma_linux_amd64.tar.gz
-λ ./warp-rdma/warp get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
+λ sudo apt install ./warp-rdma_<version>_amd64.deb   # or the rpm/apk
+λ warp get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
 ```
 
-To build one yourself you need Go (the version in `go.mod`), git, a C++17
-compiler, CMake 3.31 or newer, and the RDMA headers. On Debian or Ubuntu:
-
-```bash
-λ sudo apt-get install g++ git libibverbs-dev librdmacm-dev libnuma-dev
-```
-
-Then run:
-
-```bash
-λ ./scripts/build-rdma.sh    # produces warp-rdma_linux_<arch>.tar.gz
-```
-
-The script builds [minio-cpp](https://github.com/minio/minio-cpp) with RDMA
-enabled and links warp against it. It is also how the published archives are
-built. No CUDA package is needed to build, even for `--rdma=gpu` support.
-
-## Running the benchmark
-
-The storage server must have S3 over RDMA enabled and reachable from the
-client. `--rdma=gpu` additionally needs an NVIDIA GPU with its driver and CUDA
-runtime installed on the client.
-
-Warp prints a warning at startup when it can tell that S3 over RDMA is not
-reachable. The probe is optimistic, so the absence of a warning is not proof
-that RDMA is working.
-
-`--rdma` works in [distributed mode](#distributed-benchmarking) as well. The
-server passes the flag to every client, so each client needs an RDMA-capable
-warp binary and its own RDMA path to the storage server.
+See [RDMA.md](RDMA.md) for installation, host requirements, troubleshooting and
+how to build it yourself.
 
 # Usage
 
 `λ warp command [options]`
 
-Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8` 
-on port 9000 with the provided keys: 
+Example running a mixed type benchmark against 8 servers named `s3-server-1` to `s3-server-8`
+on port 9000 with the provided keys:
 
 `λ warp mixed --host=s3-server{1...8}:9000 --access-key=minio --secret-key=minio123 --autoterm`
 
@@ -150,8 +95,8 @@ configuration files for each benchmark type.
 
 To run a benchmark use `λ warp run <file.yml>`.
 
-Values can be injected from the commandline using one or multiple `-var VarName=Value`. 
-These values can be referenced inside YAML files with `{{.VarName}}`. 
+Values can be injected from the commandline using one or multiple `-var VarName=Value`.
+These values can be referenced inside YAML files with `{{.VarName}}`.
 Go [text templates](https://pkg.go.dev/text/template) are used for this.
 
 # Benchmarks
@@ -164,6 +109,7 @@ This can however also be tweaked using the `--concurrent` parameter.
 Warp includes benchmarks for Apache Iceberg REST catalog operations. These test catalog metadata performance including namespace, table, and view operations.
 
 Available commands:
+
 - `warp iceberg catalog-read` - Catalog read operations
 - `warp iceberg catalog-commits` - Commit generation via property updates
 - `warp iceberg catalog-mixed` - Mixed read/write workload
@@ -173,31 +119,31 @@ Supports MinIO AIStor Tables and Apache Polaris catalogs.
 
 See [README_TABLES.md](README_TABLES.md) for detailed documentation.
 
-Tweaking concurrency can have an impact on performance, especially if latency to the server is tested. 
+Tweaking concurrency can have an impact on performance, especially if latency to the server is tested.
 Most benchmarks will also use different prefixes for each "thread" running.
 
-By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`. 
-A custom file name can be specified using the `--benchdata` parameter. 
+By default all benchmarks save all request details to a file named `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`.
+A custom file name can be specified using the `--benchdata` parameter.
 The raw data is [zstandard](https://facebook.github.io/zstd/) compressed CSV data.
 
 ## Multiple Hosts
 
-Multiple S3 hosts can be specified as comma-separated values, for instance 
+Multiple S3 hosts can be specified as comma-separated values, for instance
 `--host=10.0.0.1:9000,10.0.0.2:9000` will switch between the specified servers.
 
-Alternatively numerical ranges can be specified using `--host=10.0.0.{1...10}:9000` which will add 
+Alternatively numerical ranges can be specified using `--host=10.0.0.{1...10}:9000` which will add
 `10.0.0.1` through `10.0.0.10`. This syntax can be used for any part of the host name and port.
 
 A file with newline separated hosts can also be specified using `file:` prefix and a file name.
 For distributed tests the file will be read locally and sent to each client.
 
-By default a host is chosen between the hosts that have the least number of requests running 
-and with the longest time since the last request finished. This will ensure that in cases where 
-hosts operate at different speeds that the fastest servers will get the most requests. 
-It is possible to choose a simple round-robin algorithm by using the `--host-select=roundrobin` parameter. 
+By default a host is chosen between the hosts that have the least number of requests running
+and with the longest time since the last request finished. This will ensure that in cases where
+hosts operate at different speeds that the fastest servers will get the most requests.
+It is possible to choose a simple round-robin algorithm by using the `--host-select=roundrobin` parameter.
 If there is only one host this parameter has no effect.
 
-When benchmarks are done per host averages will be printed out. 
+When benchmarks are done per host averages will be printed out.
 For further details, the `--analyze.v` parameter can also be used.
 
 # Distributed Benchmarking
@@ -243,7 +189,7 @@ The server will coordinate the benchmark runs and make sure they are run correct
 When the benchmark has finished, the combined benchmark info will be collected, merged and saved/displayed.
 Each client will also save its own data locally.
 
-Enabling server mode is done by adding `--warp-client=client-{1...10}:7761` 
+Enabling server mode is done by adding `--warp-client=client-{1...10}:7761`
 or a comma separated list of warp client hosts.
 Finally, a file with newline separated hosts can also be specified using `file:` prefix and a file name.
 If no host port is specified the default is added.
@@ -254,8 +200,8 @@ Example:
 λ warp get --duration=3m --warp-client=client-{1...10} --host=minio-server-{1...16} --access-key=minio --secret-key=minio123
 ```
 
-Note that parameters apply to *each* client. 
-So if `--concurrent=8` is specified each client will run with 8 concurrent operations. 
+Note that parameters apply to _each_ client.
+So if `--concurrent=8` is specified each client will run with 8 concurrent operations.
 If a warp server is unable to connect to a client the entire benchmark is aborted.
 
 If the warp server looses connection to a client during a benchmark run an error will
@@ -309,19 +255,19 @@ configured correctly (one route per subnet via the corresponding NIC).
 ### Manually Distributed Benchmarking
 
 While it is highly recommended to use the automatic distributed benchmarking warp can also
-be run manually on several machines at once. 
+be run manually on several machines at once.
 
-When running benchmarks on several clients, it is possible to synchronize 
-their start time using the `--syncstart` parameter. 
-The time format is 'hh:mm' where hours are specified in 24h format, 
-and parsed as local computer time. 
+When running benchmarks on several clients, it is possible to synchronize
+their start time using the `--syncstart` parameter.
+The time format is 'hh:mm' where hours are specified in 24h format,
+and parsed as local computer time.
 
 Using this will make it more reliable to [merge benchmarks](https://github.com/minio/warp#merging-benchmarks)
 from the clients for total result.
-This will combine the data as if it was run on the same client. 
-Only the time segments that was actually overlapping will be considered. 
+This will combine the data as if it was run on the same client.
+Only the time segments that was actually overlapping will be considered.
 
-When running benchmarks on several clients it is likely a good idea to specify the `--noclear` parameter 
+When running benchmarks on several clients it is likely a good idea to specify the `--noclear` parameter
 so clients don't accidentally delete each others data on startup.
 
 ## Benchmark Data
@@ -338,7 +284,7 @@ Different benchmark types will have different default values.
 
 #### Random File Sizes
 
-It is possible to randomize object sizes by specifying  `--obj.randsize` 
+It is possible to randomize object sizes by specifying `--obj.randsize`
 and files will have a "random" size up to `--obj.size`.
 However, there are some things to consider "under the hood".
 
@@ -380,9 +326,9 @@ Throughput, split into 29 x 1s:
  * Slowest: 4287.0MiB/s, 2399.84 obj/s (1s, starting 19:03:53 CEST)
 ```
 
-The average object size will be close to `--obj.size` multiplied by 0.179151. 
+The average object size will be close to `--obj.size` multiplied by 0.179151.
 
-To get a value for `--obj.size` multiply the desired average object size by 5.582 to get a maximum value. 
+To get a value for `--obj.size` multiply the desired average object size by 5.582 to get a maximum value.
 
 #### Bucketed File Size
 
@@ -397,49 +343,50 @@ E.g.: the value `4096:10740,8192:1685,16384:1623` will trigger objects whose siz
 between 0 and 4096 with a weight of 10740, between 4096 and 8192 with a weight of 1685,
 or between 8192 and 16384 with a weight of 1623.
 
-
 ## Automatic Termination
-Adding `--autoterm` parameter will enable automatic termination when results are considered stable. 
-To detect a stable setup, warp continuously downsample the current data to 
+
+Adding `--autoterm` parameter will enable automatic termination when results are considered stable.
+To detect a stable setup, warp continuously downsample the current data to
 25 data points stretched over the current timeframe.
 
-For a benchmark to be considered "stable", the last 7 of 25 data points must be within a specified percentage. 
+For a benchmark to be considered "stable", the last 7 of 25 data points must be within a specified percentage.
 Looking at the throughput over time, it could look like this:
 
 ![stable](https://user-images.githubusercontent.com/5663952/72053512-0df95900-327c-11ea-8bc5-9b4064fa595f.png)
 
-The red frame shows the window used to evaluate stability. 
-The height of the box is determined by the threshold percentage of the current speed. 
-This percentage is user configurable through `--autoterm.pct`, default 7.5%. 
+The red frame shows the window used to evaluate stability.
+The height of the box is determined by the threshold percentage of the current speed.
+This percentage is user configurable through `--autoterm.pct`, default 7.5%.
 The metric used for this is either MiB/s or obj/s depending on the benchmark type.
 
-To make sure there is a good sample data, a minimum duration of the 7 of 25 samples is set. 
+To make sure there is a good sample data, a minimum duration of the 7 of 25 samples is set.
 This is configurable `--autoterm.dur`. This specifies the minimum time length the benchmark must have been stable.
 
-If the benchmark doesn't autoterminate it will continue until the duration is reached. 
+If the benchmark doesn't autoterminate it will continue until the duration is reached.
 This cannot be used when benchmarks are running remotely.
 
-A permanent 'drift' in throughput will prevent automatic termination, 
+A permanent 'drift' in throughput will prevent automatic termination,
 if the drift is more than the specified percentage.
 This is by design since this should be recorded.
 
-When using automatic termination be aware that you should not compare average speeds, 
-since the length of the benchmark runs will likely be different. 
+When using automatic termination be aware that you should not compare average speeds,
+since the length of the benchmark runs will likely be different.
 Instead 50% medians are a much better metrics.
 
 ## Mixed
 
-Mixed mode benchmark will test several operation types at once. 
-The benchmark will upload `--objects` objects of size `--obj.size` and use these objects as a pool for the benchmark. 
+Mixed mode benchmark will test several operation types at once.
+The benchmark will upload `--objects` objects of size `--obj.size` and use these objects as a pool for the benchmark.
 As new objects are uploaded/deleted they are added/removed from the pool.
 
 The distribution of operations can be adjusted with the `--get-distrib`, `--stat-distrib`,
- `--put-distrib` and `--delete-distrib` parameters.  
- The final distribution will be determined by the fraction of each value of the total. 
- Note that `put-distrib` must be bigger or equal to `--delete-distrib` to not eventually run out of objects.  
+`--put-distrib` and `--delete-distrib` parameters.  
+ The final distribution will be determined by the fraction of each value of the total.
+Note that `put-distrib` must be bigger or equal to `--delete-distrib` to not eventually run out of objects.  
  To disable a type, set its distribution to 0.
 
 Example:
+
 ```
 λ warp mixed --duration=1m
 [...]
@@ -458,10 +405,10 @@ Operation: DELETE
  * 78.91 obj/s (59.927s, starting 07:44:05 PST) (10.0% of operations)
 ```
 
-
 A similar benchmark is called `versioned` which operates on versioned objects.
 
 ## GET
+
 Benchmarking get operations will attempt to download as many objects it can within `--duration`.
 
 By default, `--objects` objects of size `--obj.size` are uploaded before doing the actual bench.
@@ -495,7 +442,7 @@ These can be accessed using the `--analyze.v` parameter.
 
 It is possible to test speed of partial file requests using the `--range` option.
 This will start reading each object at a random offset and read a random number of bytes.
-Using this produces output similar to `--obj.randsize` - and they can even be combined. 
+Using this produces output similar to `--obj.randsize` - and they can even be combined.
 
 ## PUT
 
@@ -513,7 +460,7 @@ Throughput, split into 59 x 1s:
  * Slowest: 6.7MiB/s, 685.26 obj/s
 ```
 
-It is possible by forcing md5 checksums on data by using the `--md5` option. 
+It is possible by forcing md5 checksums on data by using the `--md5` option.
 
 To test [POST Object](https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html) operations use `-post` parameter.
 
@@ -549,13 +496,13 @@ Throughput, split into 59 x 1s:
 
 ## LIST
 
-Benchmarking list operations will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes. 
+Benchmarking list operations will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes.
 The list operations are done per prefix.
 
-If versioned listing should be tested, it is possible by setting `--versions=N` (default 1), 
+If versioned listing should be tested, it is possible by setting `--versions=N` (default 1),
 which will add multiple versions of each object and use `ListObjectVersions` for listing.
 
-The analysis will include the upload stats as `PUT` operations and the `LIST` operations separately. 
+The analysis will include the upload stats as `PUT` operations and the `LIST` operations separately.
 The time from request start to first object is recorded as well and can be accessed using the `--analyze.v` parameter.
 
 ```
@@ -570,7 +517,7 @@ Throughput, split into 59 x 1s:
 
 ## STAT
 
-Benchmarking [stat object](https://docs.min.io/docs/golang-client-api-reference#StatObject) operations 
+Benchmarking [stat object](https://docs.min.io/docs/golang-client-api-reference#StatObject) operations
 will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes.
 
 If versioned listing should be tested, it is possible by setting `--versions=n` (default 1),
@@ -581,6 +528,7 @@ The main benchmark will do individual requests to get object information for the
 Since the object size is of little importance, only objects per second is reported.
 
 Example:
+
 ```
 λ warp stat --autoterm
 [...]
@@ -600,6 +548,7 @@ Benchmarking [PutObjectRetention](https://docs.aws.amazon.com/AmazonS3/latest/AP
 will upload `--objects` objects of size `--obj.size` with `--concurrent` prefixes and `--versions` versions on each object.
 
 Example:
+
 ```
 λ warp retention --objects=2500 --duration=1m
 [...]
@@ -617,17 +566,17 @@ Throughput, split into 59 x 1s:
  * Slowest: 161.73 obj/s
 ```
 
-Note that since object locking can only be specified when creating a bucket, it may be needed to recreate the bucket. 
+Note that since object locking can only be specified when creating a bucket, it may be needed to recreate the bucket.
 Warp will attempt to do that automatically.
 
 ## MULTIPART
 
-Multipart benchmark will upload parts to a *single* object, and afterwards test download speed of parts.
+Multipart benchmark will upload parts to a _single_ object, and afterwards test download speed of parts.
 
 When running in distributed mode each client will upload the number of parts specified.
 
-Only `--concurrent` uploads will be started by each client, 
-so having `--parts` be a multiple of `--concurrent` is recommended, but not required. 
+Only `--concurrent` uploads will be started by each client,
+so having `--parts` be a multiple of `--concurrent` is recommended, but not required.
 
 ```
 λ warp multipart --parts=500 --part.size=10MiB
@@ -667,14 +616,14 @@ multiplied by `--part.concurrent`.
 ╭─────────────────────────────────╮
 │ WARP S3 Benchmark Tool by MinIO │
 ╰─────────────────────────────────╯
-                                                                       
+
 Benchmarking: Press 'q' to abort benchmark and print partial results...
-                                                                       
+
  λ █████████████████████████████████████████████████████████████████████████ 100%
-                                                                                       
-Reqs: 15867, Errs:0, Objs:15867, Bytes: 1983.4MiB                                      
+
+Reqs: 15867, Errs:0, Objs:15867, Bytes: 1983.4MiB
  -   PUTPART Average: 266 Obj/s, 33.2MiB/s; Current 260 Obj/s, 32.5MiB/s, 1193.7 ms/req
-                                                                                       
+
 Report: PUTPART. Concurrency: 400. Ran: 58s
  * Average: 33.36 MiB/s, 266.85 obj/s
  * Reqs: Avg: 1262.5ms, 50%: 935.3ms, 90%: 2773.8ms, 99%: 4395.2ms, Fastest: 53.6ms, Slowest: 6976.4ms, StdDev: 1027.5ms
@@ -693,7 +642,7 @@ Cleanup Done
 Benchmarks S3 Express One Zone [Append Object](https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-objects-append.html) operations.
 
 WARP will upload `--obj.size` objects for each `--concurrent` and append up to 10,000 parts to these.
-Each append operation will be one part and the size of each part will be `--part.size` - a new object will be created when the part limit is reached. 
+Each append operation will be one part and the size of each part will be `--part.size` - a new object will be created when the part limit is reached.
 
 If no `--checksum` is specified, the CRC64NVME checksum will be used. The checksum type must support full object checksums (CRC32, CRC32C, CRC64NVME).
 
@@ -728,13 +677,14 @@ The "obj/s" indicates the number of append operations per second.
 ## ZIP
 
 The `zip` command benchmarks the MinIO [s3zip](https://blog.min.io/small-file-archives/) extension
-that allows 
+that allows
 
 This will upload a single zip file with 10000 individual files (change with `--files`) of 10KiB each (changed with `--obj.size`).
 
 The benchmark will then download individual files concurrently and present the result as a GET benchmark.
 
 Example:
+
 ```
 λ warp zip --obj.size=1MiB -duration=1m
 warp: Benchmark data written to "warp-zip-2022-12-02[150109]-xmXj.csv.zst"
@@ -757,18 +707,19 @@ The Snowball benchmark will test uploading a "snowball" TAR file with multiple f
 
 Parameters:
 
-* `--obj.size=N` controls the size of each object inside the TAR file that is uploaded. Default is 512KiB.
-* `--objs.per=N` controls the number of objects per TAR file. Default is 50.
-* `--compress` will compress the TAR file before upload. Object data will be duplicated inside each TAR. This limits `--obj.size` to 10MiB.
+- `--obj.size=N` controls the size of each object inside the TAR file that is uploaded. Default is 512KiB.
+- `--objs.per=N` controls the number of objects per TAR file. Default is 50.
+- `--compress` will compress the TAR file before upload. Object data will be duplicated inside each TAR. This limits `--obj.size` to 10MiB.
 
 Since TAR operations are done in-memory the total size is limited to 1GiB.
 
-This is calculated as `--obj.size` * `--concurrent`. 
-If `--compress` is NOT specified this is also multiplied by `--objs.per`. 
+This is calculated as `--obj.size` \* `--concurrent`.
+If `--compress` is NOT specified this is also multiplied by `--objs.per`.
 
 Examples:
 
 Benchmark using default parameters. 50 x 512KiB duplicated objects inside each TAR file. Compressed.
+
 ```
 λ warp snowball --duration=30s --compress
 warp: Benchmark data written to "warp-snowball-2023-04-06[115116]-9S9Z.csv.zst"
@@ -785,6 +736,7 @@ warp: Cleanup Done.
 ```
 
 Test 1000 unique 1KB objects inside each snowball, with 2 concurrent uploads running:
+
 ```
 λ warp snowball --duration=60s --obj.size=1K --objs.per=1000 --concurrent=2
 warp: Benchmark data written to "warp-snowball-2023-04-06[114915]-W3zw.csv.zst"
@@ -811,12 +763,12 @@ This feature is only available on a recent MinIO server.
 
 Parameters:
 
-* `--obj.size=N` controls the size of each object that is uploaded. Default is 1MiB.
-* `--copies=N` controls the number of object copies per request. Default is 100.
+- `--obj.size=N` controls the size of each object that is uploaded. Default is 1MiB.
+- `--copies=N` controls the number of object copies per request. Default is 100.
 
-Size is calculated as `--obj.size` * `--copies`.
+Size is calculated as `--obj.size` \* `--copies`.
 
-Example: Use 8 concurrent uploads to copy a 512KB objects to 50 locations. 
+Example: Use 8 concurrent uploads to copy a 512KB objects to 50 locations.
 
 ```
 λ warp fanout --copies=50 --obj.size=512KiB --concurrent=8
@@ -837,7 +789,6 @@ The analysis throughput represents the object count and sizes as they are writte
 
 Request times shown with `--analyze.v` represents request time for each fan-out call.
 
-
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
@@ -846,23 +797,25 @@ The saved data can be re-evaluated by running `warp analyze (filename)`.
 
 ## Analysis Data
 
-All analysis will be done on a reduced part of the full data. 
-The data aggregation will *start* when all threads have completed one request
- and the time segment will *stop* when the last request of a thread is initiated.
+All analysis will be done on a reduced part of the full data.
+The data aggregation will _start_ when all threads have completed one request
+and the time segment will _stop_ when the last request of a thread is initiated.
 
 This is to exclude variations due to warm-up and threads finishing at different times.
 Therefore the analysis time will typically be slightly below the selected benchmark duration.
 
 Example:
+
 ```
 Operation: GET
 * Average: 92.05 MiB/s, 9652.01 obj/s
 ```
 
-The benchmark run is then divided into fixed duration *segments* specified by `-analyze.dur`. 
+The benchmark run is then divided into fixed duration _segments_ specified by `-analyze.dur`.
 For each segment the throughput is calculated across all threads.
 
 The analysis output will display the fastest, slowest and 50% median segment.
+
 ```
 Throughput, split into 59 x 1s:
  * Fastest: 97.9MiB/s, 10269.68 obj/s
@@ -872,10 +825,10 @@ Throughput, split into 59 x 1s:
 
 ### Analysis Parameters
 
-Beside the important `--analyze.dur` which specifies the time segment size for 
+Beside the important `--analyze.dur` which specifies the time segment size for
 aggregated data there are some additional parameters that can be used.
 
-Specifying `--analyze.v` will output time aggregated data per host instead of just averages. 
+Specifying `--analyze.v` will output time aggregated data per host instead of just averages.
 For instance:
 
 ```
@@ -889,7 +842,6 @@ Throughput by host:
         - 50% Median: 82.28 MiB/s, 82.28 obj/s (1s)
         - Slowest: 68.40 MiB/s, 68.40 obj/s (1s)
 ```
-
 
 `--analyze.op=GET` will only analyze GET operations.
 
@@ -951,48 +903,48 @@ Throughput, split into 59 x 1s:
  * Slowest: 1430.5KiB/s, 5721.95 obj/s (1s, starting 12:31:59 CET)
 ```
 
-* `TTFB` for downloads is the time from the request was sent until the first byte of the response was received.
-* `TTFB` for uploads is the time from the last byte of the request body was sent until the response was received.
-* `First Access` is the first access per object.
-* `Last Access` is the last access per object.
+- `TTFB` for downloads is the time from the request was sent until the first byte of the response was received.
+- `TTFB` for uploads is the time from the last byte of the request body was sent until the response was received.
+- `First Access` is the first access per object.
+- `Last Access` is the last access per object.
 
-The fastest and slowest request times are shown, as well as selected 
+The fastest and slowest request times are shown, as well as selected
 percentiles and the total amount is requests considered.
 
-Note that different metrics are used to select the number of requests per host and for the combined, 
+Note that different metrics are used to select the number of requests per host and for the combined,
 so there will likely be differences.
 
 ### Time Series CSV Output
 
-It is possible to output the CSV data of analysis using `--analyze.out=filename.csv` 
+It is possible to output the CSV data of analysis using `--analyze.out=filename.csv`
 which will write the CSV data to the specified file.
 
 These are the data fields exported:
 
 | Header              | Description                                                                                       |
-|---------------------|---------------------------------------------------------------------------------------------------|
+| ------------------- | ------------------------------------------------------------------------------------------------- |
 | `index`             | Index of the segment                                                                              |
 | `op`                | Operation executed                                                                                |
 | `host`              | If only one host, host name, otherwise empty                                                      |
 | `duration_s`        | Duration of the segment in seconds                                                                |
 | `objects_per_op`    | Objects per operation                                                                             |
-| `bytes`             | Total bytes of operations (*distributed*)                                                         |
+| `bytes`             | Total bytes of operations (_distributed_)                                                         |
 | `full_ops`          | Operations completely contained within segment                                                    |
 | `partial_ops`       | Operations that either started or ended outside the segment, but was also executed during segment |
 | `ops_started`       | Operations started within segment                                                                 |
 | `ops_ended`         | Operations ended within the segment                                                               |
 | `errors`            | Errors logged on operations ending within the segment                                             |
-| `mb_per_sec`        | MiB/s of operations within the segment (*distributed*)                                            |
+| `mb_per_sec`        | MiB/s of operations within the segment (_distributed_)                                            |
 | `ops_ended_per_sec` | Operations that ended within the segment per second                                               |
-| `objs_per_sec`      | Objects per second processed in the segment (*distributed*)                                       |
+| `objs_per_sec`      | Objects per second processed in the segment (_distributed_)                                       |
 | `start_time`        | Absolute start time of the segment                                                                |
 | `end_time`          | Absolute end time of the segment                                                                  |
 
-Some of these fields are *distributed*. 
-This means that the data of partial operations have been distributed across the segments they occur in. 
+Some of these fields are _distributed_.
+This means that the data of partial operations have been distributed across the segments they occur in.
 The bigger a percentage of the operation is within a segment the larger part of it has been attributed there.
 
-This is why there can be a partial object attributed to a segment, 
+This is why there can be a partial object attributed to a segment,
 because only a part of the operation took place in the segment.
 
 ## Comparing Benchmarks
@@ -1003,6 +955,7 @@ There is no need for 'before' to be chronologically before 'after', but the diff
 as change from 'before' to 'after'.
 
 An example:
+
 ```
 λ warp cmp warp-get-2019-11-29[125341]-7ylR.csv.zst warp-get-2019-202011-29[124533]-HOhm.csv.zst
 -------------------
@@ -1039,14 +992,13 @@ The main reason for running the benchmark on several clients would be to help el
 
 It is important to note that only data that strictly overlaps in absolute time will be considered for analysis.
 
-
 ## InfluxDB Output
 
 Warp allows realtime statistics to be pushed to InfluxDB v2 or later.
 
 This can be combined with the `--stress` parameter, which will allow to have long-running tests without consuming memory and still get access to performance numbers.
 
-Warp does not provide any analysis on the data sent to InfluxDB. 
+Warp does not provide any analysis on the data sent to InfluxDB.
 
 ### Configuring
 
@@ -1055,7 +1007,7 @@ InfluxDB is enabled via a the `--influxdb` parameter. Alternatively the paramete
 The value must be formatted like a URL: `<schema>://<token>@<hostname>:<port>/<bucket>/<org>?<tag=value>`
 
 | Part          |                                                                               |
-|---------------|-------------------------------------------------------------------------------|
+| ------------- | ----------------------------------------------------------------------------- |
 | `<schema>`    | Connection type. Replace with `http` or `https`                               |
 | `<token>`     | Replace with the token needed to access the server                            |
 | `<hostname>`  | Replace with the host name or IP address of your server                       |
@@ -1081,35 +1033,34 @@ For distributed benchmarking all clients will be sending data, so hosts like loc
 All in-run measurements are of type `warp`.
 
 | Tag        | Value                                                                                                                                                         |
-|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `warp_id`  | Contains a random string value, unique per client.<br/>This can be used to identify individual runs or single warp clients when using distributed benchmarks. |
 | `op`       | Contains the operation type, for example GET, PUT, DELETE, etc.                                                                                               |
 | `endpoint` | Endpoint is the endpoint to which the operation was sent.<br/>Measurements without this value is total for the warp client.                                   |
 
-
 Fields are sent as accumulated totals per run per operation type.
 
 New metrics are sent as each operation (request) completes. There is no inter-operation progress logged.
-This means that bigger objects (meaning less requests) will create bigger fluctuations. That is important to note when analyzing. 
+This means that bigger objects (meaning less requests) will create bigger fluctuations. That is important to note when analyzing.
 
-| Field                     | Value                                                                          |
-|---------------------------|--------------------------------------------------------------------------------|
-| `requests`                | Total number of requests performed                                             |
-| `objects`                 | Total number of objects affected                                               |
-| `bytes_total`             | Total number of bytes affected                                                 |
-| `errors`                  | Total errors encountered                                                       |
-| `request_total_secs`      | Total request time in seconds                                                  |
-| `request_ttfb_total_secs` | Total time to first byte in seconds for relevant operations                    |
+| Field                     | Value                                                       |
+| ------------------------- | ----------------------------------------------------------- |
+| `requests`                | Total number of requests performed                          |
+| `objects`                 | Total number of objects affected                            |
+| `bytes_total`             | Total number of bytes affected                              |
+| `errors`                  | Total errors encountered                                    |
+| `request_total_secs`      | Total request time in seconds                               |
+| `request_ttfb_total_secs` | Total time to first byte in seconds for relevant operations |
 
-The statistics provided means that to get "rates over time" the numbers must be calculated as differences (increase/positive derivatives). 
+The statistics provided means that to get "rates over time" the numbers must be calculated as differences (increase/positive derivatives).
 
 ### Summary
 
-When a run has finished a summary will be sent. This will be a `warp_run_summary` measurement type. 
+When a run has finished a summary will be sent. This will be a `warp_run_summary` measurement type.
 In addition to the fields above it will contain:
 
 | Field                   | Value                             |
-|-------------------------|-----------------------------------|
+| ----------------------- | --------------------------------- |
 | `request_avg_secs`      | Average Request Time              |
 | `request_max_secs`      | Longest Request Time              |
 | `request_min_secs`      | Shortest Request Time             |
@@ -1119,26 +1070,26 @@ In addition to the fields above it will contain:
 
 All times are in float point seconds.
 
-The summary will be sent for each host and operation type. 
+The summary will be sent for each host and operation type.
 
 # Server Profiling
 
 When running against a MinIO server it is possible to enable profiling while the benchmark is running.
 
-This is done by adding `--serverprof=type` parameter with the type of profile you would like. 
+This is done by adding `--serverprof=type` parameter with the type of profile you would like.
 This requires that the credentials allows admin access for the first host.
 
 | Type    | Description                                                                                                                                |
-|---------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `cpu`   | CPU profile determines where a program spends its time while actively consuming CPU cycles (as opposed while sleeping or waiting for I/O). |
 | `mem`   | Heap profile reports the currently live allocations; used to monitor current memory usage or check for memory leaks.                       |
 | `block` | Block profile show where goroutines block waiting on synchronization primitives (including timer channels).                                |
 | `mutex` | Mutex profile reports the lock contentions. When you think your CPU is not fully utilized due to a mutex contention, use this profile.     |
 | `trace` | A detailed trace of execution of the current program. This will include information about goroutine scheduling and garbage collection.     |
 
-Profiles for all cluster members will be downloaded as a zip file. 
+Profiles for all cluster members will be downloaded as a zip file.
 
-Analyzing the profiles requires the Go tools to be installed. 
-See [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) for basic usage of the profile tools 
-and an introduction to the [Go execution tracer](https://blog.gopheracademy.com/advent-2017/go-execution-tracer/) 
+Analyzing the profiles requires the Go tools to be installed.
+See [Profiling Go Programs](https://blog.golang.org/profiling-go-programs) for basic usage of the profile tools
+and an introduction to the [Go execution tracer](https://blog.gopheracademy.com/advent-2017/go-execution-tracer/)
 for more information.
