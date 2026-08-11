@@ -108,7 +108,7 @@ if [ ! -d "${WORK}/vcpkg" ]; then
 	git clone --depth 1 --branch "${VCPKG_REF}" https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
 fi
 if [ ! -d "${WORK}/minio-cpp" ]; then
-	git clone --depth 1 --branch "${MINIO_CPP_REF:-main}" \
+	git clone --depth 1 --branch "${MINIO_CPP_REF:-v0.5.0}" \
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}" "${WORK}/minio-cpp"
 fi
 
@@ -119,7 +119,7 @@ echo ">>> building libminiocpp with RDMA"
 	"${WORK}/vcpkg/vcpkg" install
 	cmake . -B ./build \
 		-DCMAKE_BUILD_TYPE=Release \
-		-DBUILD_SHARED_LIBS=ON \
+		-DBUILD_SHARED_LIBS=OFF \
 		-DCMAKE_INSTALL_PREFIX="${PREFIX}" \
 		-DCMAKE_TOOLCHAIN_FILE="${WORK}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
 		-DMINIO_CPP_ENABLE_RDMA:BOOL=ON
@@ -127,10 +127,18 @@ echo ">>> building libminiocpp with RDMA"
 	cmake --install ./build
 	mkdir -p "${PREFIX}/lib"
 	cp -P vendor/cuobj/lib/"${CUOBJ_ARCH}"/* "${PREFIX}/lib/"
+	# Collect vcpkg's static dependencies next to libminiocpp.a so the whole
+	# static link resolves from one -L. cmake --install only places libminiocpp.
+	cp -P vcpkg_installed/*/lib/*.a "${PREFIX}/lib/"
 )
 
 TAGS="kqueue,rdma"
 NAME="warp-rdma"
+
+# Static libminiocpp plus its transitive vcpkg archives, then the cuObj shared
+# objects. Kept in one file because .goreleaser/qreleaser.yaml and the CI
+# workflows have to link exactly the same way.
+RDMA_LINK_LIBS="$(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")"
 
 STAGE="${WORK}/stage/${NAME}"
 rm -rf "${STAGE}"
@@ -144,24 +152,26 @@ LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.Version=${VERSION}"
 LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.CommitID=${COMMIT}"
 LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.ShortCommitID=${COMMIT:0:12}"
 # --disable-new-dtags emits DT_RPATH rather than DT_RUNPATH. Only DT_RPATH is
-# inherited by the dependencies of libminiocpp, which is how the bundled cuObj
-# libraries get found without LD_LIBRARY_PATH.
+# inherited by the dependencies of the cuObj libraries, which is how the bundled
+# copies get found without LD_LIBRARY_PATH.
 LDFLAGS="${LDFLAGS} -extldflags=-Wl,-rpath,\$ORIGIN/lib,--disable-new-dtags"
 
 (
 	cd "${REPO_DIR}"
-	# -rpath-link lets the linker resolve libminiocpp's own cuObj dependencies;
-	# -L alone is not consulted for a shared library's DT_NEEDED entries.
+	# libminiocpp is static, so cgo -- which links with gcc, not g++ -- has to be
+	# told about the C++ runtime and every transitive vcpkg archive by name. Only
+	# the cuObj libraries stay dynamic; they ship as vendor shared objects.
 	# Pre-set CGO_CFLAGS/CGO_LDFLAGS are kept, so a CUDA install outside the
 	# default search paths can be pointed at with -I/-L.
 	CGO_ENABLED=1 \
 		CGO_CFLAGS="${CGO_CFLAGS:-} -I${PREFIX}/include" \
-		CGO_LDFLAGS="${CGO_LDFLAGS:-} -L${PREFIX}/lib -Wl,-rpath-link,${PREFIX}/lib" \
+		CGO_LDFLAGS="${CGO_LDFLAGS:-} -L${PREFIX}/lib -Wl,-rpath-link,${PREFIX}/lib ${RDMA_LINK_LIBS}" \
 		go build -trimpath -tags="${TAGS}" \
 		-ldflags "${LDFLAGS}" -o "${STAGE}/warp" .
 )
 
-cp -P "${PREFIX}"/lib/libminiocpp.so* "${STAGE}/lib/"
+# libminiocpp is linked statically, so only the cuObj libraries are bundled:
+# they are vendor shared objects with no static form.
 cp -P "${PREFIX}"/lib/libcufile*.so* "${PREFIX}"/lib/libcuobj*.so* "${STAGE}/lib/"
 cp "${REPO_DIR}/README.md" "${REPO_DIR}/LICENSE" "${STAGE}/"
 

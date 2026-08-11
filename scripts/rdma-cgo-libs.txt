@@ -1,0 +1,1 @@
+-lminiocpp -lcuobjclient -lcufile -lcurlpp -lcurl -lssl -lcrypto -lINIReader -linih -lpugixml -lz -lstdc++ -lm -ldl -lpthread
