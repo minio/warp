@@ -6,10 +6,10 @@ binary_name: warp
 goreleaser_config: .goreleaser/qreleaser.yaml
 
 # Versioning - warp uses semantic versions (v1.4.0) not date-based
-use_semver: true  # Requires Q_VERSION_TAG env var
+use_semver: true # Requires Q_VERSION_TAG env var
 
 # Distribution
-dl_upload_enabled: true  # Upload binaries to dl.min.io
+dl_upload_enabled: true # Upload binaries to dl.min.io
 
 # Container images
 containers:

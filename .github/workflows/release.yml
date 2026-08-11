@@ -2,47 +2,40 @@ name: goreleaser
 
 on:
   pull_request:
-    types: [ opened, reopened, synchronize ]
+    types: [opened, reopened, synchronize]
     branches:
-      - 'master'
+      - "master"
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v5
-      -
-        name: Unshallow
+      - name: Unshallow
         run: git fetch --prune --unshallow
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: 1.25.x
-      -
-        name: Run GoReleaser
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --clean --skip=publish --snapshot
-      -
-        name: Upload Win64 Binaries
+      - name: Upload Win64 Binaries
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-Win64
           path: dist/warp_windows_amd64_v1
-      -
-        name: Upload Linux Binaries
+      - name: Upload Linux Binaries
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Warp-Snapshot-Build-Linux-amd64
           path: dist/warp_linux_amd64_v1
-      -
-        name: Upload MacOS Binaries
+      - name: Upload MacOS Binaries
         uses: actions/upload-artifact@v4
         if: success()
         with:
