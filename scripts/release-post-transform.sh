@@ -76,11 +76,15 @@ for arch in amd64 arm64; do
 		--ignore
 
 	# pkger names the packages after the app, so rename on the way out to keep
-	# them distinct from the stock warp packages already in the layout.
+	# them distinct from the stock warp packages already in the layout. Its own
+	# checksums are written against the pre-rename names, so regenerate them
+	# here rather than carrying across files that no longer match.
 	for pkg in "${pkg_dir}"/warp_*.deb "${pkg_dir}"/warp-*.rpm "${pkg_dir}"/warp_*.apk; do
 		[ -e "${pkg}" ] || continue
 		base="$(basename "${pkg}")"
-		mv "${pkg}" "${layout_dir}/${base/warp/warp-rdma}"
+		renamed="${base/warp/warp-rdma}"
+		mv "${pkg}" "${layout_dir}/${renamed}"
+		(cd "${layout_dir}" && sha256sum "${renamed}" >"${renamed}.sha256sum")
 	done
 
 	echo "post-transform: RDMA packages placed in ${layout_dir}:"

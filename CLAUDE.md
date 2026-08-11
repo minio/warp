@@ -9,6 +9,7 @@ Warp is a high-performance S3 benchmarking tool for testing object storage syste
 ## Build and Test Commands
 
 ### Building
+
 ```bash
 # Build the binary
 go build
@@ -25,6 +26,7 @@ dependencies and packages the tarball; `.github/workflows/go-rdma.yml` keeps the
 tagged build compiling.
 
 ### Testing
+
 ```bash
 # Run all tests with race detection
 go test -v -race ./...
@@ -35,6 +37,7 @@ go test -v ./pkg/aggregate
 ```
 
 ### Linting and Formatting
+
 ```bash
 # Run golangci-lint (requires installation)
 golangci-lint run --timeout=5m --config ./.golangci.yml
@@ -72,10 +75,12 @@ gofmt -w .
 The packages follow a layered dependency structure:
 
 **pkg/generator/** - Test data generation (base package with no warp dependencies)
+
 - Random data generation for benchmark objects
 - Supports fixed size, random sizes, and bucketed sizes
 
 **pkg/bench/** - Benchmark implementations (imports pkg/generator)
+
 - `benchmark.go` - Core `Benchmark` interface with `Prepare()`, `Start()`, `Cleanup()` methods
 - `Common` struct contains shared configuration (bucket, concurrency, clients, etc.)
 - Each operation type implements the Benchmark interface (get.go, put.go, mixed.go, etc.)
@@ -83,6 +88,7 @@ The packages follow a layered dependency structure:
 - `collector.go` - Real-time operation statistics collection
 
 **pkg/aggregate/** - Data aggregation and analysis (imports pkg/bench)
+
 - `aggregate.go` - Aggregates raw operation data into statistics
 - `throughput.go` - Throughput calculations and statistics
 - `requests.go` - Per-request statistics (latency, TTFB, percentiles)
@@ -90,9 +96,11 @@ The packages follow a layered dependency structure:
 - `live.go` - Live statistics updates during benchmark runs
 
 **api/** - HTTP API for benchmark status and control (imports pkg/bench and pkg/aggregate)
+
 - `api.go` - Provides HTTP endpoints for monitoring running benchmarks
 
 **cli/** - Command-line interface layer (imports api, pkg/aggregate, pkg/bench, pkg/generator)
+
 - Each benchmark type has its own file (get.go, put.go, delete.go, etc.)
 - `benchmark.go` - Main benchmark execution logic (`runBench`, `runServerBenchmark`, `runClientBenchmark`)
 - `benchserver.go` / `benchclient.go` - Distributed benchmarking coordination
@@ -104,6 +112,7 @@ The packages follow a layered dependency structure:
 ### Key Patterns
 
 **Benchmark Execution Flow:**
+
 1. CLI parses flags and creates benchmark instance
 2. `Prepare()` - Creates buckets, uploads initial objects if needed
 3. `Start()` - Runs concurrent operations until duration expires or autoterm triggers
@@ -112,6 +121,7 @@ The packages follow a layered dependency structure:
 6. Analysis runs on recorded data, outputs statistics
 
 **Distributed Benchmarking:**
+
 - Server mode: Coordinates multiple clients, merges their results
 - Client mode: Runs `warp client [address]` to listen for benchmark commands
 - Server sends benchmark configuration to all clients
@@ -119,6 +129,7 @@ The packages follow a layered dependency structure:
 - Results collected and merged by server
 
 **Operation Collection:**
+
 - Each operation creates an `Operation` struct with timing, size, endpoint, error info
 - Sent to `Collector` which batches and compresses to `.csv.zst` files
 - Format: Tab-separated values with fields like idx, thread, op, client_id, n_objects, bytes, etc.
@@ -142,12 +153,14 @@ The packages follow a layered dependency structure:
 ### Testing S3 Compatibility
 
 Warp is designed to test any S3-compatible storage. Connection configured via:
+
 - Flags: `--host`, `--access-key`, `--secret-key`, `--tls`, `--region`
 - Environment: `WARP_HOST`, `WARP_ACCESS_KEY`, `WARP_SECRET_KEY`, `WARP_TLS`, `WARP_REGION`
 
 ### YAML Configuration
 
 Benchmarks can be configured via YAML files in `yml-samples/`. Run with:
+
 ```bash
 warp run <file.yml>
 ```
@@ -157,6 +170,7 @@ Variables can be injected: `warp run file.yml -var VarName=Value`
 ### Output Data Format
 
 Benchmark data saved to `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`:
+
 - Zstandard compressed CSV
 - Can be analyzed with `warp analyze <file>`
 - Can be compared with `warp cmp <before> <after>`
@@ -172,6 +186,7 @@ Benchmark data saved to `warp-operation-yyyy-mm-dd[hhmmss]-xxxx.csv.zst`:
 ### Auto-termination
 
 When `--autoterm` enabled:
+
 - Continuously samples throughput into 25 time blocks
 - Checks if last 7 blocks are within `--autoterm.pct` threshold (default 7.5%)
 - Must maintain stability for `--autoterm.dur` (default 15s)
@@ -180,10 +195,13 @@ When `--autoterm` enabled:
 ## Common Issues
 
 ### 32-bit Architectures
+
 Be careful with 64-bit atomic operations - use `atomic.AddUint64` with proper alignment (see commit 042a9fc for context).
 
 ### TLS and Kernel TLS
+
 The project supports HTTP/2 and Kernel TLS (kTLS) for improved performance on Linux. See `cli/client_ktls.go` and `cli/client_transport.go`.
 
 ### InfluxDB Integration
+
 Real-time metrics can be pushed to InfluxDB v2+ using `--influxdb` flag. Connection string format: `<schema>://<token>@<hostname>:<port>/<bucket>/<org>?<tag=value>`
