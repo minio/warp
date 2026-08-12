@@ -70,7 +70,7 @@ while [ $# -gt 0 ]; do
 		VERIFY_ONLY=1
 		;;
 	-h | --help)
-		sed -n '2,42p' "$0"
+		sed -n '2,38p' "$0"
 		exit 0
 		;;
 	*)
@@ -117,6 +117,11 @@ if [ "${CROSS}" = 1 ]; then
 	else
 		echo ">>> cross-building amd64 from ${HOST_ARCH} is not supported; provisioning ${HOST_ARCH} only" >&2
 	fi
+else
+	# qreleaser publishes both architectures from one build and goreleaser cannot
+	# skip just one of them, so a half-provisioned release host fails the release.
+	echo ">>> --no-cross: provisioning ${HOST_ARCH} only. A release host needs both" >&2
+	echo ">>> architectures, or WARP_SKIP_RDMA=true to drop the RDMA build entirely" >&2
 fi
 
 arch_prefix() {
@@ -178,6 +183,13 @@ arch_cc() {
 	case "$1" in
 	arm64) [ "${HOST_ARCH}" = arm64 ] && echo gcc || echo aarch64-linux-gnu-gcc ;;
 	amd64) [ "${HOST_ARCH}" = amd64 ] && echo gcc || echo x86_64-linux-gnu-gcc ;;
+	esac
+}
+
+arch_cxx() {
+	case "$1" in
+	arm64) [ "${HOST_ARCH}" = arm64 ] && echo g++ || echo aarch64-linux-gnu-g++ ;;
+	amd64) [ "${HOST_ARCH}" = amd64 ] && echo g++ || echo x86_64-linux-gnu-g++ ;;
 	esac
 }
 
@@ -274,10 +286,16 @@ if command -v apt-get >/dev/null 2>&1; then
 		# The amd64 archive carries no arm64 packages; they live on ports.ubuntu.com.
 		# Its arm64 index then 404s harmlessly, so update stays tolerant.
 		if [ ! -f /etc/apt/sources.list.d/arm64-ports.list ]; then
-			codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
-			printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s main universe\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s-updates main universe\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s-security main universe\n' \
-				"${codename}" "${codename}" "${codename}" |
-				run_privileged tee /etc/apt/sources.list.d/arm64-ports.list >/dev/null
+			distro="$(. /etc/os-release && echo "${ID:-}")"
+			codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+			# Only Ubuntu splits arm64 onto a separate mirror; Debian serves every
+			# architecture from its own archive, so adding this there would mix
+			# distributions on a host that keeps the file.
+			if [ "${distro}" = ubuntu ] && [ -n "${codename}" ]; then
+				printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s main universe\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s-updates main universe\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports %s-security main universe\n' \
+					"${codename}" "${codename}" "${codename}" |
+					run_privileged tee /etc/apt/sources.list.d/arm64-ports.list >/dev/null
+			fi
 		fi
 		run_privileged apt-get -qq update || true
 		# libibverbs-dev and friends are Multi-Arch: same -- install both arches
@@ -318,6 +336,10 @@ sync_checkout() {
 		before="$(git -C "${dir}" rev-parse HEAD)"
 		git -C "${dir}" remote set-url origin "${repo}"
 		git -C "${dir}" fetch --depth 1 origin "${ref}"
+		# A tracked file modified in place would make the checkout below refuse to
+		# run. Untracked build output is left alone: it is what makes a rerun
+		# incremental, and a moved ref drops it explicitly.
+		git -C "${dir}" reset --hard -q HEAD
 		git -C "${dir}" checkout --detach FETCH_HEAD
 	else
 		rm -rf "${dir}"
@@ -447,6 +469,7 @@ smoke_build() {
 	CGO_ENABLED=1 \
 		GOOS=linux GOARCH="${arch}" \
 		CC="$(arch_cc "${arch}")" \
+		CXX="$(arch_cxx "${arch}")" \
 		CGO_CFLAGS="-I${prefix}/include" \
 		CGO_LDFLAGS="-L${prefix}/lib -Wl,-rpath-link,${prefix}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")" \
 		go build -trimpath -tags=kqueue,rdma -o "${out}" .
@@ -491,11 +514,12 @@ if command -v go >/dev/null 2>&1 && [ -f "${REPO_DIR}/go.mod" ]; then
 	SMOKE_BUILT=1
 else
 	echo ">>> WARNING: no Go toolchain or no go.mod under ${REPO_DIR}; skipped the smoke build" >&2
-	echo ">>> run --verify-only from a warp checkout to link-test before releasing" >&2
+	echo ">>> rerun from a warp checkout to link-test before releasing; --verify-only" >&2
+	echo ">>> rechecks the prefixes and links nothing" >&2
 fi
 
 if [ "${SMOKE_BUILT}" = 1 ]; then
 	echo ">>> release host provisioned and link-tested for: ${TARGETS[*]}"
 else
-	echo ">>> release host provisioned for: ${TARGETS[*]}, smoke build SKIPPED"
+	echo ">>> release host provisioned for: ${TARGETS[*]}; link compatibility UNVERIFIED"
 fi

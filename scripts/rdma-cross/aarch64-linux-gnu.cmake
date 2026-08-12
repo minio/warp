@@ -19,5 +19,9 @@ set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
 # cmake only searches when told the library architecture.
 set(CMAKE_LIBRARY_ARCHITECTURE aarch64-linux-gnu)
 
-# Host tools stay executable; nothing else should come from the host.
+# Host build tools stay executable. Libraries and headers are not confined to a
+# find-root path, because Debian shares /usr/include across architectures;
+# CMAKE_LIBRARY_ARCHITECTURE above is what steers library lookups to the arm64
+# directory, and verify_prefix in scripts/setup-rdma-release-host.sh checks the
+# ELF machine of what comes out.
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

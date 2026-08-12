@@ -56,6 +56,11 @@ builds:
   # WARP_SKIP_RDMA=true to drop the build from a release when the host is not
   # provisioned for it.
   #
+  # skip covers the whole build and goreleaser has no per-architecture equivalent,
+  # so a host provisioned for one architecture only (--no-cross) fails the release
+  # rather than publishing the architecture it can. Such a host has to set
+  # WARP_SKIP_RDMA=true.
+  #
   # Note this binary resolves libminiocpp and the cuObj libraries from the host
   # at run time. The self-contained archive with those bundled is built
   # separately by scripts/build-rdma.sh.

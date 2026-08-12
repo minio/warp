@@ -23,7 +23,8 @@ as if they were RDMA numbers.
 
 RDMA support is compiled in, and the standard warp binaries are built without
 cgo, so they refuse `--rdma` at startup. Use one of the builds below instead.
-They are published for linux/amd64 and linux/arm64.
+The packages and binaries are published for linux/amd64 and linux/arm64. The
+archive is built per host, so only the amd64 one is published.
 
 ### Package
 
