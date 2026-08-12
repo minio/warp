@@ -35,61 +35,28 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # The release builds the warp-rdma variant, which links libminiocpp
-      # through cgo, so the runner needs the same RDMA prerequisites as a real
-      # release host. Without them the pipeline fails on miniocpp/c_api.h.
-      - name: Checkout minio-cpp
-        uses: actions/checkout@v4
-        with:
-          repository: minio/minio-cpp
-          path: "minio-cpp"
-          persist-credentials: false
-
-      # Pinned: vcpkg's port scripts track the newest CMake, and a floating
-      # checkout breaks against whatever CMake the runner image ships.
-      - name: Checkout vcpkg
-        uses: actions/checkout@v4
-        with:
-          repository: microsoft/vcpkg
-          ref: "2026.07.29"
-          path: "vcpkg"
-          persist-credentials: false
-
-      - name: Install RDMA dependencies
-        run: |
-          sudo apt-get -qy update
-          sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev
-
       - name: Set up CMake
         uses: lukka/get-cmake@v4.4.2
 
-      - name: Build and install libminiocpp.so with RDMA
-        shell: bash
-        run: |
-          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-          cd minio-cpp
-          ../vcpkg/vcpkg install
-          cmake . -B ./build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
-            -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
-          cmake --build ./build --config Release -j 4
-          sudo cmake --install ./build
-          sudo cp -P vendor/cuobj/lib/x86_64/* /usr/local/lib/
-          # libminiocpp is static; its vcpkg archives must sit beside it to link.
-          sudo cp -P vcpkg_installed/*/lib/*.a /usr/local/lib/
-          sudo ldconfig
-          # The libraries are installed system-wide now, and the workspace is
-          # what qreleaser releases from, so leave no extra trees behind in it.
-          cd "${GITHUB_WORKSPACE}" && rm -rf minio-cpp vcpkg
-
+      # Go before the prefixes: the provisioning script link-tests each
+      # architecture with a smoke build when a toolchain is available.
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
           cache: false
+
+      # The release builds warp-rdma for linux/amd64 and linux/arm64, and both
+      # link libminiocpp through cgo, so the runner needs the same prefixes as a
+      # real release host. Without them the pipeline fails on miniocpp/c_api.h,
+      # or on the missing aarch64 compiler.
+      #
+      # Running the release-host script rather than repeating its steps keeps CI
+      # from drifting away from how the host is actually provisioned, and covers
+      # the arm64 cross build on every PR. It keeps its checkouts outside the
+      # workspace, which is what qreleaser releases from.
+      - name: Provision the RDMA prefixes
+        run: ./scripts/setup-rdma-release-host.sh
 
       - name: Configure git
         run: |
@@ -184,6 +151,32 @@ jobs:
             (cd "${ARCH_DIR}" && sha256sum -c "$(basename "${pkg}").sha256sum")
           done
           [ "${found}" = 1 ] || { echo "no RDMA packages in ${ARCH_DIR}" >&2; exit 1; }
+
+      - name: Verify arm64 RDMA Artifacts
+        env:
+          ARM_DIR: ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-arm64
+        run: |
+          # The arm64 flavor is cross-built and cannot run here, so assert the ELF
+          # target instead. Both architectures are named warp inside their dist
+          # directories, so without this the arm64 flavor could be an amd64 binary
+          # and nothing would notice.
+          readelf -h "${ARM_DIR}/warp.rdma" | grep -q AArch64
+
+          found=0
+          for pkg in "${ARM_DIR}"/warp-rdma*.deb \
+                     "${ARM_DIR}"/warp-rdma*.rpm \
+                     "${ARM_DIR}"/warp-rdma*.apk; do
+            [ -e "${pkg}" ] || continue
+            found=1
+            (cd "${ARM_DIR}" && sha256sum -c "$(basename "${pkg}").sha256sum")
+          done
+          [ "${found}" = 1 ] || { echo "no arm64 RDMA packages in ${ARM_DIR}" >&2; exit 1; }
+
+          # The bundled cuObj libraries come from a per-architecture prefix, so
+          # check the payload too rather than trusting the package name.
+          dpkg-deb -x "${ARM_DIR}"/warp-rdma*.deb /tmp/armdeb
+          readelf -h /tmp/armdeb/usr/lib/warp/libcuobjclient.so.1.2.0 | grep -q AArch64
+          readelf -h /tmp/armdeb/usr/local/bin/warp | grep -q AArch64
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

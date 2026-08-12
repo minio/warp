@@ -23,8 +23,7 @@ as if they were RDMA numbers.
 
 RDMA support is compiled in, and the standard warp binaries are built without
 cgo, so they refuse `--rdma` at startup. Use one of the builds below instead.
-All of them are linux/amd64: the RDMA build links libminiocpp through cgo, so it
-cannot be cross-compiled.
+They are published for linux/amd64 and linux/arm64.
 
 ### Package
 
@@ -43,6 +42,9 @@ Then install:
 λ sudo apk add --allow-untrusted warp-rdma_<version>_x86_64.apk
 ```
 
+On arm64 hosts the same packages are named `warp-rdma-<version>-1.aarch64.rpm`,
+`warp-rdma_<version>_arm64.deb` and `warp-rdma_<version>_aarch64.apk`.
+
 apk needs `--allow-untrusted` because the package is not signed with a key in
 the host keyring. Verify the checksum above before using it. The published
 binaries also carry `.minisig` and `.asc` signatures if you want to check those
@@ -55,7 +57,7 @@ the same as the standard package, so install one or the other rather than both.
 ### Archive
 
 ```bash
-λ tar xzf warp-rdma_linux_amd64.tar.gz
+λ tar xzf warp-rdma_linux_amd64.tar.gz   # or warp-rdma_linux_arm64.tar.gz
 λ ./warp-rdma/warp --version
 ```
 

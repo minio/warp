@@ -50,12 +50,19 @@ for arch in amd64 arm64; do
 	layout_dir="warp-release/${RELEASE_TYPE}/linux-${arch}"
 	binary="${layout_dir}/warp.${VERSION_TAG}.rdma"
 
-	# The RDMA build is limited to the release host's own architecture, so the
-	# other one is legitimately absent rather than an error.
+	# A release host provisioned for only one architecture legitimately produces
+	# only that binary, so a missing one is a skip rather than an error.
 	if [ ! -f "${binary}" ]; then
 		echo "post-transform: no RDMA binary for linux-${arch}, skipping"
 		continue
 	fi
+
+	# arm64 is cross-built against its own prefix; see
+	# scripts/setup-rdma-release-host.sh and .goreleaser/qreleaser.yaml.
+	case "${arch}" in
+	arm64) arch_prefix="${MINIOCPP_PREFIX}/aarch64-linux-gnu" ;;
+	*) arch_prefix="${MINIOCPP_PREFIX}" ;;
+	esac
 
 	# pkger reads <releaseDir>/<goos>-<goarch>/<binary-name>.<version>, while the
 	# q layout names the flavor <binary>.<version>.rdma. Stage a copy under the
@@ -64,9 +71,9 @@ for arch in amd64 arm64; do
 	pkg_dir="${STAGE_DIR}/release/linux-${arch}"
 	mkdir -p "${pkg_dir}" "${STAGE_DIR}/lib/${arch}"
 	cp -p "${binary}" "${pkg_dir}/warp.rdma.${VERSION_TAG}"
-	cp -P "${MINIOCPP_PREFIX}"/lib/libcuobjclient.so* \
-		"${MINIOCPP_PREFIX}"/lib/libcufile.so* \
-		"${MINIOCPP_PREFIX}"/lib/libcufile_rdma.so* "${STAGE_DIR}/lib/${arch}/"
+	cp -P "${arch_prefix}"/lib/libcuobjclient.so* \
+		"${arch_prefix}"/lib/libcufile.so* \
+		"${arch_prefix}"/lib/libcufile_rdma.so* "${STAGE_DIR}/lib/${arch}/"
 
 	echo "post-transform: packaging RDMA artifacts for linux-${arch} (${VERSION_TAG})"
 	pkger -a warp --binary-name warp.rdma -r "${VERSION_TAG}" -l AGPLv3 \
