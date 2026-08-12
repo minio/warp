@@ -43,15 +43,18 @@ builds:
   # the binary stays warp, and the release directory ends up with warp.rdma and
   # warp.<version>.rdma next to the stock warp.
   #
-  # It links libminiocpp through cgo, so unlike the build above it cannot be
-  # cross-compiled and is limited to the release host's own architecture. CUDA
-  # is loaded at run time rather than linked, so one binary serves --rdma=cpu
-  # and --rdma=gpu and no CUDA package is needed to build.
+  # It links libminiocpp through cgo, so unlike the build above it needs the C++
+  # side present for every architecture it publishes. CUDA is loaded at run time
+  # rather than linked, so one binary serves --rdma=cpu and --rdma=gpu and no
+  # CUDA package is needed to build.
   #
-  # The release host needs libminiocpp built with RDMA plus libibverbs,
-  # librdmacm and libnuma. Point MINIOCPP_PREFIX at the install prefix if it is
-  # not /usr/local. Set WARP_SKIP_RDMA=true to drop the build from a release
-  # when the host is not provisioned for it.
+  # The release host is expected to be amd64 with both prefixes provisioned by
+  # scripts/setup-rdma-release-host.sh: amd64 natively at MINIOCPP_PREFIX, arm64
+  # cross-built at MINIOCPP_PREFIX/aarch64-linux-gnu (see the arm64 override
+  # below). It also needs libibverbs, librdmacm and libnuma for both. Point
+  # MINIOCPP_PREFIX at the install prefix if it is not /usr/local, and set
+  # WARP_SKIP_RDMA=true to drop the build from a release when the host is not
+  # provisioned for it.
   #
   # Note this binary resolves libminiocpp and the cuObj libraries from the host
   # at run time. The self-contained archive with those bundled is built
@@ -79,6 +82,20 @@ builds:
       - linux
     goarch:
       - amd64
+      - arm64
+    # arm64 is cross-built: cgo needs the aarch64 compiler and the arm64
+    # libminiocpp prefix, which is a subdirectory of MINIOCPP_PREFIX rather than
+    # the prefix itself. An override rather than {{ .Arch }} templating so the
+    # amd64 link line stays byte for byte what it was before arm64 was added.
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=aarch64-linux-gnu-gcc
+          - CXX=aarch64-linux-gnu-g++
+          - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/include
+          - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags {{ mustReadFile "scripts/rdma-cgo-libs.txt" }}
     flags:
       - -trimpath
       - --tags=kqueue,rdma
