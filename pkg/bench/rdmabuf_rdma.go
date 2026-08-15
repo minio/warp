@@ -156,12 +156,17 @@ func cudaVersion(v int) string {
 func cudaErr(rc C.int) string { return C.GoString(C.warp_cuda_error(rc)) }
 
 // bindGPUThread makes the primary CUDA context current on the calling OS
-// thread. cuFileBufRegister resolves the device via cuCtxGetDevice, which
-// fails with CUDA_ERROR_INVALID_CONTEXT on any thread that has never issued a
-// CUDA call — and cgo runs a goroutine's calls on whatever thread it likes, so
-// registration lands on a context-less thread and the whole transfer falls
-// back. Callers must runtime.LockOSThread() first so the binding still holds
-// when the RDMA dispatch reaches libcufile.
+// thread. This dates from the cuFile transport, where cuFileBufRegister
+// resolved the device through cuCtxGetDevice and failed with
+// CUDA_ERROR_INVALID_CONTEXT on any thread that had never issued a CUDA call —
+// and cgo runs a goroutine's calls on whatever thread it likes, so registration
+// landed on a context-less thread and the whole transfer fell back. Callers
+// must runtime.LockOSThread() first so the binding still holds when the RDMA
+// dispatch reaches the transport.
+//
+// libs3rdma registers with ibv_reg_mr and classifies the pointer through the
+// CUDA driver API, so it may not need a bound context at all. That has not been
+// measured; the binding is cheap and it stays until someone does.
 func bindGPUThread() error {
 	if !cudaLoad() {
 		return errRDMAGPUUnsupported

@@ -1,31 +1,16 @@
 # Extra files for the warp RDMA package, consumed by pkger --contents.
 #
-# libminiocpp and its vcpkg dependencies are linked statically, so only the
-# cuObj libraries need shipping: they are NVIDIA vendor shared objects with no
-# static form. scripts/release-post-transform.sh stages them under
+# libminiocpp and its vcpkg dependencies are linked statically, so only
+# libs3rdma needs shipping: minio-cpp vendors it as a shared object with no
+# static form. scripts/release-post-transform.sh stages it under
 # .rdma-pkg/lib/${ARCH} before invoking pkger, and the RDMA binary carries an
-# rpath of /usr/lib/warp so it finds them once installed.
-- src: .rdma-pkg/lib/${ARCH}/libcuobjclient.so.1.2.0
-  dst: /usr/lib/warp/libcuobjclient.so.1.2.0
-- src: libcuobjclient.so.1.2.0
-  dst: /usr/lib/warp/libcuobjclient.so.1
-  type: symlink
-- src: libcuobjclient.so.1.2.0
-  dst: /usr/lib/warp/libcuobjclient.so
-  type: symlink
-- src: .rdma-pkg/lib/${ARCH}/libcufile.so.1.18.0
-  dst: /usr/lib/warp/libcufile.so.1.18.0
-- src: libcufile.so.1.18.0
-  dst: /usr/lib/warp/libcufile.so.0
-  type: symlink
-- src: libcufile.so.1.18.0
-  dst: /usr/lib/warp/libcufile.so
-  type: symlink
-- src: .rdma-pkg/lib/${ARCH}/libcufile_rdma.so.1.18.0
-  dst: /usr/lib/warp/libcufile_rdma.so.1.18.0
-- src: libcufile_rdma.so.1.18.0
-  dst: /usr/lib/warp/libcufile_rdma.so.1
-  type: symlink
-- src: libcufile_rdma.so.1.18.0
-  dst: /usr/lib/warp/libcufile_rdma.so
+# rpath of /usr/lib/warp so it finds it once installed.
+#
+# Named by soname with a bare .so link beside it, and no version in either.
+# The loader asks for the soname, so a version in a filename was only ever one
+# more place to forget on a bump -- which is how this manifest last broke.
+- src: .rdma-pkg/lib/${ARCH}/libs3rdma.so.0
+  dst: /usr/lib/warp/libs3rdma.so.0
+- src: libs3rdma.so.0
+  dst: /usr/lib/warp/libs3rdma.so
   type: symlink

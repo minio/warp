@@ -172,10 +172,10 @@ jobs:
           done
           [ "${found}" = 1 ] || { echo "no arm64 RDMA packages in ${ARM_DIR}" >&2; exit 1; }
 
-          # The bundled cuObj libraries come from a per-architecture prefix, so
-          # check the payload too rather than trusting the package name.
+          # The bundled libs3rdma comes from a per-architecture prefix, so check
+          # the payload too rather than trusting the package name.
           dpkg-deb -x "${ARM_DIR}"/warp-rdma*.deb /tmp/armdeb
-          readelf -h /tmp/armdeb/usr/lib/warp/libcuobjclient.so.1.2.0 | grep -q AArch64
+          readelf -h /tmp/armdeb/usr/lib/warp/libs3rdma.so.0 | grep -q AArch64
           readelf -h /tmp/armdeb/usr/local/bin/warp | grep -q AArch64
 
       - name: Upload Artifacts
