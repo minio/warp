@@ -121,11 +121,8 @@ from running concurrent operations. At `--concurrent=1` the cards are still used
 in turn, but only one transfer is ever in flight, so the run measures a single
 card's bandwidth however many are installed.
 
-Whether more cards raise throughput depends on where the bottleneck is. If the
-client NIC is not the limit, spreading across two will not beat pinning to one,
-and multiple cards are then worth having for redundancy rather than for
-bandwidth: a card that fails a transfer is taken out of rotation until it
-recovers, so a NIC dying mid-run costs throughput instead of ending the run.
+A card that fails a transfer is taken out of rotation until it recovers, so a
+NIC dying mid-run costs throughput rather than ending the run.
 
 ## Run
 
