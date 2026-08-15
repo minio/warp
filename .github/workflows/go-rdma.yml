@@ -33,10 +33,16 @@ jobs:
           path: "warp"
           persist-credentials: false
 
+      # Pinned in lockstep with scripts/build-rdma.sh and
+      # scripts/setup-rdma-release-host.sh: this job copies vendor/s3rdma out of
+      # the checkout, so a floating main makes the build race whatever landed
+      # there. A commit rather than a tag -- the RDMA transport moved to
+      # libs3rdma after v0.5.0 and no release carries it yet.
       - name: Checkout minio-cpp
         uses: actions/checkout@v5
         with:
           repository: minio/minio-cpp
+          ref: 1fc511519a6f9ff55420d25cdf14b1ab3f764690
           path: "minio-cpp"
           persist-credentials: false
 
@@ -62,6 +68,8 @@ jobs:
 
       - name: Build and install libminiocpp.so with RDMA
         shell: bash
+        env:
+          MATRIX_ARCH: ${{ matrix.config.arch }}
         run: |
           ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
           cd minio-cpp
@@ -74,8 +82,12 @@ jobs:
             -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
           cmake --build ./build --config Release -j 4
           sudo cmake --install ./build
-          cuobj_arch=$([ "${{ matrix.config.arch }}" = "amd64" ] && echo x86_64 || echo aarch64)
-          sudo cp -P vendor/cuobj/lib/${cuobj_arch}/* /usr/local/lib/
+          case "$MATRIX_ARCH" in
+            amd64) s3rdma_arch=x86_64 ;;
+            arm64) s3rdma_arch=aarch64 ;;
+            *) echo "unsupported architecture: $MATRIX_ARCH" >&2; exit 1 ;;
+          esac
+          sudo cp -P "vendor/s3rdma/lib/${s3rdma_arch}"/* /usr/local/lib/
           # libminiocpp is static; its vcpkg archives must sit beside it to link.
           sudo cp -P vcpkg_installed/*/lib/*.a /usr/local/lib/
           sudo ldconfig

@@ -212,12 +212,11 @@ func (g *Get) Start(ctx context.Context, wait chan struct{}) error {
 			opts := g.GetOpts
 			done := ctx.Done()
 
-			// GPU buffers are registered by libcufile from whichever OS
-			// thread cgo happens to use, and registration resolves the device
-			// through the thread's current CUDA context. Pin the worker to one
-			// thread and bind the context there, or registration intermittently
-			// fails with CUDA_ERROR_INVALID_CONTEXT and every such GET silently
-			// degrades to the non-RDMA path.
+			// GPU buffers are registered from whichever OS thread cgo happens
+			// to use. Pin the worker to one thread and bind a CUDA context
+			// there -- see bindGPUThread, including what is no longer certain
+			// about it now that libs3rdma does the registering. Get this wrong
+			// and every such GET silently degrades to the non-RDMA path.
 			//
 			// Registered before the buffer cleanup below so that, defers being
 			// LIFO, the thread stays locked until after cudaFree has run.

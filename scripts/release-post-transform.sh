@@ -71,9 +71,7 @@ for arch in amd64 arm64; do
 	pkg_dir="${STAGE_DIR}/release/linux-${arch}"
 	mkdir -p "${pkg_dir}" "${STAGE_DIR}/lib/${arch}"
 	cp -p "${binary}" "${pkg_dir}/warp.rdma.${VERSION_TAG}"
-	cp -P "${arch_prefix}"/lib/libcuobjclient.so* \
-		"${arch_prefix}"/lib/libcufile.so* \
-		"${arch_prefix}"/lib/libcufile_rdma.so* "${STAGE_DIR}/lib/${arch}/"
+	cp -P "${arch_prefix}"/lib/libs3rdma.so* "${STAGE_DIR}/lib/${arch}/"
 
 	echo "post-transform: packaging RDMA artifacts for linux-${arch} (${VERSION_TAG})"
 	pkger -a warp --binary-name warp.rdma -r "${VERSION_TAG}" -l AGPLv3 \

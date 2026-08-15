@@ -16,7 +16,7 @@
 #
 # Each holds libminiocpp.a built with RDMA enabled plus its headers, the vcpkg
 # static archives it links against (scripts/rdma-cgo-libs.txt), and the vendored
-# cuObj/cuFile shared objects the release packaging copies out. The arm64 prefix
+# libs3rdma shared object the release packaging copies out. The arm64 prefix
 # path is fixed rather than host-dependent because qreleaser.yaml has to name it
 # in a static override.
 #
@@ -104,7 +104,9 @@ esac
 # Pinned in lockstep with scripts/build-rdma.sh and .github/workflows/go-rdma.yml:
 # a floating minio-cpp is what leaves a host with headers too old for the
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
-MINIO_CPP_REF="${MINIO_CPP_REF:-v0.5.0}"
+# A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and
+# no release carries it yet. Move this to the tag once one does.
+MINIO_CPP_REF="${MINIO_CPP_REF:-1fc511519a6f9ff55420d25cdf14b1ab3f764690}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
 CMAKE_MIN="3.31"
@@ -133,7 +135,7 @@ arch_prefix() {
 	esac
 }
 
-arch_cuobj() {
+arch_uname() {
 	case "$1" in
 	amd64) echo x86_64 ;;
 	arm64) echo aarch64 ;;
@@ -164,16 +166,16 @@ elf_machine() {
 }
 
 # scripts/rdma-cgo-libs.txt names three kinds of library: the toolchain's own,
-# the cuObj vendor shared objects that cannot be static, and everything else,
-# which must come from an archive. A published binary that picks one of the last
-# group up dynamically has a runtime dependency the package neither declares nor
-# bundles, and fails to start on a customer host.
+# libs3rdma, which minio-cpp vendors as a shared object with no static form, and
+# everything else, which must come from an archive. A published binary that
+# picks one of the last group up dynamically has a runtime dependency the
+# package neither declares nor bundles, and fails to start on a customer host.
 static_libs() {
 	local lib
 	for lib in $(tr ' ' '\n' <"${REPO_DIR}/scripts/rdma-cgo-libs.txt" | sed -n 's/^-l//p'); do
 		case "${lib}" in
 		stdc++ | m | dl | pthread) ;;
-		cuobjclient | cufile | cufile_rdma) ;;
+		s3rdma) ;;
 		*) echo "${lib}" ;;
 		esac
 	done
@@ -239,8 +241,8 @@ verify_prefix() {
 		fi
 	done
 
-	# scripts/release-post-transform.sh copies these out of the prefix by name.
-	for name in libcuobjclient.so libcufile.so libcufile_rdma.so; do
+	# scripts/release-post-transform.sh copies this out of the prefix by name.
+	for name in libs3rdma.so; do
 		if ! compgen -G "${prefix}/lib/${name}*" >/dev/null; then
 			echo "MISSING: ${prefix}/lib/${name}* (${arch}, needed by release packaging)" >&2
 			missing=1
@@ -317,10 +319,10 @@ mkdir -p "${WORK}"
 host_cmake="$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || true)"
 if [ -z "${host_cmake}" ] ||
 	[ "$(printf '%s\n%s\n' "${host_cmake%.*}" "${CMAKE_MIN}" | sort -V | head -1)" != "${CMAKE_MIN}" ]; then
-	cmake_dir="${WORK}/cmake-${CMAKE_VERSION}-linux-$(arch_cuobj "${HOST_ARCH}")"
+	cmake_dir="${WORK}/cmake-${CMAKE_VERSION}-linux-$(arch_uname "${HOST_ARCH}")"
 	if [ ! -x "${cmake_dir}/bin/cmake" ]; then
 		echo ">>> cmake ${host_cmake:-none} is older than ${CMAKE_MIN}; fetching ${CMAKE_VERSION}"
-		curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(arch_cuobj "${HOST_ARCH}").tar.gz" |
+		curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-$(arch_uname "${HOST_ARCH}").tar.gz" |
 			tar -xz -C "${WORK}"
 	fi
 	PATH="${cmake_dir}/bin:${PATH}"
@@ -335,16 +337,20 @@ sync_checkout() {
 	if [ -d "${dir}/.git" ]; then
 		before="$(git -C "${dir}" rev-parse HEAD)"
 		git -C "${dir}" remote set-url origin "${repo}"
-		git -C "${dir}" fetch --depth 1 origin "${ref}"
 		# A tracked file modified in place would make the checkout below refuse to
 		# run. Untracked build output is left alone: it is what makes a rerun
 		# incremental, and a moved ref drops it explicitly.
+		git -C "${dir}" fetch --depth 1 origin "${ref}"
 		git -C "${dir}" reset --hard -q HEAD
-		git -C "${dir}" checkout --detach FETCH_HEAD
 	else
+		# init + fetch rather than `clone --branch`, which only accepts a branch
+		# or tag. Refs here are pinned, and minio-cpp's pin is a commit.
 		rm -rf "${dir}"
-		git clone --depth 1 --branch "${ref}" "${repo}" "${dir}"
+		git init -q "${dir}"
+		git -C "${dir}" remote add origin "${repo}"
+		git -C "${dir}" fetch --depth 1 origin "${ref}"
 	fi
+	git -C "${dir}" checkout --detach FETCH_HEAD
 	CHECKOUT_CHANGED=0
 	[ "${before}" = "$(git -C "${dir}" rev-parse HEAD)" ] || CHECKOUT_CHANGED=1
 }
@@ -357,11 +363,11 @@ sync_checkout "${WORK}/vcpkg" https://github.com/microsoft/vcpkg "${VCPKG_REF}"
 # out of there by glob.
 build_target() {
 	local arch="$1"
-	local src prefix triplet cuobj vcpkg_args=() cmake_args=()
+	local src prefix triplet uarch vcpkg_args=() cmake_args=()
 	src="${WORK}/minio-cpp-${arch}"
 	prefix="$(arch_prefix "${arch}")"
 	triplet="$(arch_triplet "${arch}")"
-	cuobj="$(arch_cuobj "${arch}")"
+	uarch="$(arch_uname "${arch}")"
 
 	sync_checkout "${src}" "${MINIO_CPP_REPO}" "${MINIO_CPP_REF}"
 	# Otherwise the install step copies the previous ref's artifacts into the prefix.
@@ -445,11 +451,11 @@ build_target() {
 	echo ">>> installing ${arch} into ${prefix}"
 	as_root cmake --install ./build
 	as_root mkdir -p "${prefix}/lib"
-	# The cuObj/cuFile libraries ship prebuilt in the checkout and have no static
-	# form; libminiocpp is static, so its transitive vcpkg archives have to sit
+	# libs3rdma ships prebuilt in the checkout and has no static form;
+	# libminiocpp is static, so its transitive vcpkg archives have to sit
 	# beside it for the cgo link to resolve from one -L. The triplet is named
 	# explicitly so a stray second triplet directory cannot be picked up.
-	as_root cp -P vendor/cuobj/lib/"${cuobj}"/* "${prefix}/lib/"
+	as_root cp -P vendor/s3rdma/lib/"${uarch}"/* "${prefix}/lib/"
 	as_root cp -P vcpkg_installed/"${triplet}"/lib/*.a "${prefix}/lib/"
 	command -v ldconfig >/dev/null 2>&1 && as_root ldconfig || true
 
@@ -485,7 +491,7 @@ smoke_build() {
 		return 1
 	}
 
-	# The published binary may only need the cuObj libraries it ships and the base
+	# The published binary may only need the libs3rdma it ships and the base
 	# C/C++ runtime. Anything else here is a dependency the package does not
 	# declare, so the binary would fail to start on a customer host.
 	local needed lib

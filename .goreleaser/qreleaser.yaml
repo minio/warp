@@ -61,9 +61,10 @@ builds:
   # rather than publishing the architecture it can. Such a host has to set
   # WARP_SKIP_RDMA=true.
   #
-  # Note this binary resolves libminiocpp and the cuObj libraries from the host
-  # at run time. The self-contained archive with those bundled is built
-  # separately by scripts/build-rdma.sh.
+  # Note the prefix supplies libminiocpp at build time -- it is linked
+  # statically, see below -- so only libs3rdma has to be present at run time.
+  # The self-contained archive with it bundled is built separately by
+  # scripts/build-rdma.sh.
   - id: warp-rdma
     main: ./
     binary: warp
@@ -76,9 +77,9 @@ builds:
       # libminiocpp is linked statically, together with its vcpkg dependencies,
       # so the published binary needs neither on the target host. cgo links
       # with gcc rather than g++, so the C++ runtime and every transitive
-      # archive have to be named explicitly. Only the cuObj libraries stay
-      # dynamic -- they are vendor shared objects with no static form -- and
-      # the /usr/lib/warp rpath is where the RDMA package installs them.
+      # archive have to be named explicitly. Only libs3rdma stays dynamic --
+      # minio-cpp vendors it as a shared object with no static form -- and the
+      # /usr/lib/warp rpath is where the RDMA package installs it.
       # The library list lives in scripts/rdma-cgo-libs.txt so this config, the
       # build script and the CI workflows cannot drift apart.
       - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include

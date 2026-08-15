@@ -1,9 +1,9 @@
 # Runtime dependencies for the warp RDMA package, consumed by pkger --deps.
 #
-# The binary itself is static apart from the bundled cuObj libraries and the
-# base C/C++ runtime. What it cannot bundle is the host's RDMA stack: the cuObj
-# libraries load libibverbs, librdmacm and libnuma, and the vendor provider
-# (libmlx5 and friends) has to match the host kernel driver.
+# The binary itself is static apart from the bundled libs3rdma and the base
+# C/C++ runtime. What it cannot bundle is the host's RDMA stack: libs3rdma loads
+# libibverbs, librdmacm and libnuma, and the vendor provider (libmlx5 and
+# friends) has to match the host kernel driver.
 #
 # CUDA is deliberately absent. The runtime is dlopened and only --rdma=gpu
 # needs it, so the package installs and runs --rdma=cpu on a host without it.

@@ -50,7 +50,7 @@ the host keyring. Verify the checksum above before using it. The published
 binaries also carry `.minisig` and `.asc` signatures if you want to check those
 against the MinIO release keys.
 
-The package installs `/usr/local/bin/warp` and the cuObj libraries it needs
+The package installs `/usr/local/bin/warp` and the libs3rdma it needs
 under `/usr/lib/warp`. It is a **drop-in replacement**: the command is `warp`,
 the same as the standard package, so install one or the other rather than both.
 
@@ -67,7 +67,7 @@ Use it when you cannot install packages, or want several versions side by side.
 
 ### Host requirements
 
-The package bundles the cuObj libraries and links everything else statically, so
+The package bundles libs3rdma and links everything else statically, so
 it needs only these from the host:
 
 - the base C and C++ runtime, `libc` and `libstdc++`, present on any
@@ -81,69 +81,48 @@ loaded on demand and only `--rdma=gpu` needs it.
 
 ## Configure the client
 
-The cuObj client reads its settings from `cuobj.json`. Warp does not install
-this file, and without one that names your NIC, transfers fall back to HTTP
-instead of using RDMA.
+There is nothing to configure on the client. libs3rdma opens every RDMA device
+whose port is ACTIVE and spreads transfers across them, so a host with two cards
+uses both without being told about either: no configuration file to install and
+no address to write down.
 
-Point cuObj at a file with `CUFILE_ENV_PATH_JSON`:
+The rest of the prerequisites still apply. The vendor provider for your card has
+to be installed (see [Host requirements](#host-requirements)), and the storage
+server has to have S3 over RDMA enabled and be reachable over that fabric.
 
-```bash
-λ export CUFILE_ENV_PATH_JSON=/etc/warp/cuobj.json
-```
-
-### Find your NIC address
-
-`rdma_dev_addr_list` takes the IPv4 address of the RDMA NIC to run over. Map the
-RDMA devices to interfaces, then read the address of the one on the same fabric
-as the storage server:
+List the devices the host offers:
 
 ```bash
 λ ibdev2netdev
 mlx5_0 port 1 ==> enp27s0np0 (Up)
 mlx5_1 port 1 ==> enp157s0np0 (Up)
-
-λ ip -4 -o addr show enp157s0np0
-enp157s0np0    inet 10.0.1.241/24 ...
 ```
 
-### Write the file
+Any device reported `Up` is a candidate, and warp needs nothing further from you
+to use it.
 
-This is the shape a working client uses:
+### Restricting to one NIC
 
-```json
-{
-  "logging": { "level": "ERROR" },
-  "execution": { "parallel_io": false },
-  "properties": {
-    "allow_compat_mode": true,
-    "use_pci_p2pdma": true,
-    "rdma_peer_type": "dmabuf",
-    "rdma_dev_addr_list": ["10.0.1.241"],
-    "rdma_multipath_enabled": false
-  }
-}
+Set `S3RDMA_DEVICE` to a device name to use only that one. This is worth doing
+when a host has cards on different fabrics and only one of them reaches the
+storage server:
+
+```bash
+λ export S3RDMA_DEVICE=mlx5_1
 ```
 
-| Setting                  | What it does                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------ |
-| `rdma_dev_addr_list`     | The NIC to run RDMA over. Required; without it transfers fall back to HTTP           |
-| `allow_compat_mode`      | Falls back to a compatible path when the `nvidia-fs` driver is absent                |
-| `use_pci_p2pdma`         | Lets the NIC move data across PCIe straight to the GPU, for `--rdma=gpu`             |
-| `rdma_peer_type`         | How GPU memory is registered with the NIC; `dmabuf` on current drivers               |
-| `rdma_multipath_enabled` | Failover across several NICs. Off when pinning one, which is what benchmark hosts do |
-| `logging.level`          | `NOTICE`, `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`                                |
-| `logging.dir`            | Where `cufile.log` is written; the current directory when unset                      |
+When `S3RDMA_DEVICE` is unset, every device with an ACTIVE port is used.
 
-Two notes on the sample that ships with
-[minio-cpp](https://github.com/minio/minio-cpp/blob/main/vendor/cuobj/cuobj.json).
-Its `rdma_dev_addr_list` is a `<client-nic-ip>` placeholder, so copying it
-without editing leaves RDMA unconfigured. It also logs at `TRACE`, which is
-useful while bringing a host up and noisy afterwards; deployed clients run at
-`ERROR` or `INFO`.
+### Several NICs
 
-Multipath is worth enabling only when you list several NICs and want failover.
-The sample documents `rdma_max_backup_devices`, `rdma_io_retry_count`,
-`rdma_failback_enabled` and `rdma_health_check_interval_ms` for that case.
+A card is chosen per transfer, round-robin, and each transfer rides exactly one
+of them. One object is never striped across cards, so aggregate throughput comes
+from running concurrent operations. At `--concurrent=1` the cards are still used
+in turn, but only one transfer is ever in flight, so the run measures a single
+card's bandwidth however many are installed.
+
+A card that fails a transfer is taken out of rotation until it recovers, so a
+NIC dying mid-run costs throughput rather than ending the run.
 
 ## Run
 
@@ -182,20 +161,24 @@ reports the closest one so the message names the smallest upgrade that helps.
 
 No CUDA runtime is installed. `--rdma=cpu` still works.
 
-**`error while loading shared libraries: libcuobjclient.so.1`**
+**`error while loading shared libraries: libs3rdma.so.0`**
 
-The binary cannot find the cuObj libraries. With the package they live in
+The binary cannot find libs3rdma. With the package it lives in
 `/usr/lib/warp`; with the archive, run the binary from where you unpacked it so
 the bundled `lib` directory sits beside it.
 
 **Throughput looks like plain HTTP**
 
-RDMA failures fall back to HTTP silently, so warp's output looks normal. The
-usual cause is client configuration: no `cuobj.json`, or one whose
-`rdma_dev_addr_list` still holds the `<client-nic-ip>` placeholder. See
-[Configure the client](#configure-the-client). Raise `logging.level` to `DEBUG`
-to see what cuObj attempted, and confirm from the server's counters rather than
-from warp.
+RDMA failures fall back to HTTP silently, so warp's output looks normal.
+
+Check the fabric first: `ibdev2netdev` should report a port `Up`, and the server
+must have S3 over RDMA enabled and be reachable over that fabric. If
+`S3RDMA_DEVICE` is set, confirm it names a device that reaches the server rather
+than one on another fabric.
+
+A run at `--concurrent=1` uses one NIC by design, so a dual-NIC host reaching
+roughly half its expected throughput is usually concurrency rather than a fault.
+Confirm from the server's counters rather than from warp.
 
 ## Build from source
 
@@ -236,8 +219,8 @@ libminiocpp is linked statically, so cgo, which links with `gcc` rather than
 `g++`, has to be told about the C++ runtime and every transitive archive by
 name. That list lives in `scripts/rdma-cgo-libs.txt`.
 
-The binary this produces still loads the cuObj libraries at run time, and
-nothing tells it where they are. Choose one:
+The binary this produces still loads libs3rdma at run time, and nothing tells
+it where to find it. Choose one:
 
 ```bash
 λ sudo ldconfig                                  # if they are in a system path

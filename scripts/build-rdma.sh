@@ -3,9 +3,9 @@
 # Build warp with S3-over-RDMA support.
 #
 # Builds libminiocpp with RDMA enabled, then builds warp against it and
-# packages a tarball: the binary resolves its bundled libminiocpp and cuObj
-# shared objects through an $ORIGIN/lib rpath, so those need no
-# LD_LIBRARY_PATH or system-wide install.
+# packages a tarball: the binary resolves its bundled libminiocpp and libs3rdma
+# through an $ORIGIN/lib rpath, so those need no LD_LIBRARY_PATH or system-wide
+# install.
 #
 # The target host still supplies the rest of the RDMA stack -- libibverbs,
 # librdmacm, libnuma and the vendor provider such as libmlx5 -- because those
@@ -76,16 +76,16 @@ VERSION="${VERSION:-$(git -C "${REPO_DIR}" describe --tags --always --dirty 2>/d
 PREFIX="${WORK}/prefix"
 mkdir -p "${WORK}" "${PREFIX}"
 
-# The cuObj libraries are picked by the host architecture, so the Go build has
-# to target it too. Derive both from uname rather than the ambient GOARCH/GOOS,
-# which would otherwise mislabel the archive or cross-build against host libs.
+# libs3rdma is picked by the host architecture, so the Go build has to target it
+# too. Derive both from uname rather than the ambient GOARCH/GOOS, which would
+# otherwise mislabel the archive or cross-build against host libs.
 case "$(uname -m)" in
 x86_64)
-	CUOBJ_ARCH=x86_64
+	S3RDMA_ARCH=x86_64
 	GOARCH=amd64
 	;;
 aarch64 | arm64)
-	CUOBJ_ARCH=aarch64
+	S3RDMA_ARCH=aarch64
 	GOARCH=arm64
 	;;
 *)
@@ -107,15 +107,32 @@ fi
 if [ ! -d "${WORK}/vcpkg" ]; then
 	git clone --depth 1 --branch "${VCPKG_REF}" https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
 fi
-if [ ! -d "${WORK}/minio-cpp" ]; then
-	git clone --depth 1 --branch "${MINIO_CPP_REF:-v0.5.0}" \
-		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}" "${WORK}/minio-cpp"
+# A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and no
+# release carries it yet. Move this to the tag once one does. init + fetch
+# rather than `clone --branch`, which only accepts a branch or tag.
+#
+# The fetch and checkout run on every invocation, not just the first. WORK
+# persists between runs to keep them incremental, so a checkout left at an
+# earlier ref would otherwise be built as-is -- and the failure surfaces as a
+# missing vendor/s3rdma rather than as a stale tree.
+MINIO_CPP_DIR="${WORK}/minio-cpp"
+if [ ! -d "${MINIO_CPP_DIR}/.git" ]; then
+	rm -rf "${MINIO_CPP_DIR}"
+	git init -q "${MINIO_CPP_DIR}"
+	git -C "${MINIO_CPP_DIR}" remote add origin \
+		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
+else
+	git -C "${MINIO_CPP_DIR}" remote set-url origin \
+		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
+git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
+	"${MINIO_CPP_REF:-1fc511519a6f9ff55420d25cdf14b1ab3f764690}"
+git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"
 "${WORK}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
 (
-	cd "${WORK}/minio-cpp"
+	cd "${MINIO_CPP_DIR}"
 	"${WORK}/vcpkg/vcpkg" install
 	cmake . -B ./build \
 		-DCMAKE_BUILD_TYPE=Release \
@@ -126,7 +143,7 @@ echo ">>> building libminiocpp with RDMA"
 	cmake --build ./build --config Release -j "$(nproc)"
 	cmake --install ./build
 	mkdir -p "${PREFIX}/lib"
-	cp -P vendor/cuobj/lib/"${CUOBJ_ARCH}"/* "${PREFIX}/lib/"
+	cp -P vendor/s3rdma/lib/"${S3RDMA_ARCH}"/* "${PREFIX}/lib/"
 	# Collect vcpkg's static dependencies next to libminiocpp.a so the whole
 	# static link resolves from one -L. cmake --install only places libminiocpp.
 	cp -P vcpkg_installed/*/lib/*.a "${PREFIX}/lib/"
@@ -135,9 +152,9 @@ echo ">>> building libminiocpp with RDMA"
 TAGS="kqueue,rdma"
 NAME="warp-rdma"
 
-# Static libminiocpp plus its transitive vcpkg archives, then the cuObj shared
-# objects. Kept in one file because .goreleaser/qreleaser.yaml and the CI
-# workflows have to link exactly the same way.
+# Static libminiocpp plus its transitive vcpkg archives, then libs3rdma. Kept in
+# one file because .goreleaser/qreleaser.yaml and the CI workflows have to link
+# exactly the same way.
 RDMA_LINK_LIBS="$(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")"
 
 STAGE="${WORK}/stage/${NAME}"
@@ -152,15 +169,17 @@ LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.Version=${VERSION}"
 LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.CommitID=${COMMIT}"
 LDFLAGS="${LDFLAGS} -X github.com/minio/warp/pkg.ShortCommitID=${COMMIT:0:12}"
 # --disable-new-dtags emits DT_RPATH rather than DT_RUNPATH. Only DT_RPATH is
-# inherited by the dependencies of the cuObj libraries, which is how the bundled
-# copies get found without LD_LIBRARY_PATH.
+# inherited by a bundled library's own dependencies, which is how anything
+# libs3rdma pulls in by DT_NEEDED is found without LD_LIBRARY_PATH. It resolves
+# libibverbs from the host and libcuda through dlopen, so this matters less than
+# the rpath on the binary itself, but the two have to agree.
 LDFLAGS="${LDFLAGS} -extldflags=-Wl,-rpath,\$ORIGIN/lib,--disable-new-dtags"
 
 (
 	cd "${REPO_DIR}"
 	# libminiocpp is static, so cgo -- which links with gcc, not g++ -- has to be
 	# told about the C++ runtime and every transitive vcpkg archive by name. Only
-	# the cuObj libraries stay dynamic; they ship as vendor shared objects.
+	# libs3rdma stays dynamic; minio-cpp vendors it as a shared object.
 	# Pre-set CGO_CFLAGS/CGO_LDFLAGS are kept, so a CUDA install outside the
 	# default search paths can be pointed at with -I/-L.
 	CGO_ENABLED=1 \
@@ -170,9 +189,9 @@ LDFLAGS="${LDFLAGS} -extldflags=-Wl,-rpath,\$ORIGIN/lib,--disable-new-dtags"
 		-ldflags "${LDFLAGS}" -o "${STAGE}/warp" .
 )
 
-# libminiocpp is linked statically, so only the cuObj libraries are bundled:
-# they are vendor shared objects with no static form.
-cp -P "${PREFIX}"/lib/libcufile*.so* "${PREFIX}"/lib/libcuobj*.so* "${STAGE}/lib/"
+# libminiocpp is linked statically, so only libs3rdma is bundled: minio-cpp
+# vendors it as a shared object with no static form.
+cp -P "${PREFIX}"/lib/libs3rdma.so* "${STAGE}/lib/"
 cp "${REPO_DIR}/README.md" "${REPO_DIR}/LICENSE" "${STAGE}/"
 
 TARBALL="${OUT}/${NAME}_linux_${GOARCH}.tar.gz"
