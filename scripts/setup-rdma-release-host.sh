@@ -106,7 +106,7 @@ esac
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
 # A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and
 # no release carries it yet. Move this to the tag once one does.
-MINIO_CPP_REF="${MINIO_CPP_REF:-f89cc4d25d30057f30a0c3adabe2244c9e222486}"
+MINIO_CPP_REF="${MINIO_CPP_REF:-edba72c940b5372afb60817bb5a14124b572135b}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
 CMAKE_MIN="3.31"
