@@ -55,6 +55,7 @@ type Put struct {
 	PostObject bool
 	prefixes   map[string]struct{}
 	cl         *http.Client
+	rdmaPool   *rdmaPool
 }
 
 // Prepare will create an empty bucket or delete any content already there.
@@ -64,7 +65,39 @@ func (u *Put) Prepare(ctx context.Context) error {
 			Transport: u.Transport,
 		}
 	}
+	if err := u.prepareRDMAPool(); err != nil {
+		return err
+	}
 	return u.createEmptyBucket(ctx)
+}
+
+// prepareRDMAPool sizes and allocates the pinned buffers before the run.
+//
+// One buffer per worker, sized to hold a whole object when a descriptor can
+// name one, and to a fixed window when it cannot -- past that size the upload
+// streams as multipart and the buffer only selects the RDMA path rather than
+// carrying the object.
+func (u *Put) prepareRDMAPool() error {
+	if u.RDMAMode == RDMAModeOff {
+		return nil
+	}
+	size := int(u.ObjSize)
+	if u.streamsRDMA() {
+		size = rdmaWindowOrDefault(u.RDMAWindow)
+	}
+	pool, err := newRDMAPool(u.RDMAMode, u.Concurrency, size)
+	if err != nil {
+		return err
+	}
+	u.rdmaPool = pool
+	return nil
+}
+
+// streamsRDMA reports whether uploads go out as a multipart stream rather than
+// a single RDMA transfer: either the caller asked for it, or the object is
+// larger than one descriptor can name.
+func (u *Put) streamsRDMA() bool {
+	return u.RDMAWindow > 0 || u.ObjSize > MaxRDMADescriptorSize
 }
 
 // Start will execute the main benchmark.
@@ -113,14 +146,11 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 				}
 			}
 
-			// One source buffer per worker, reused for every op and grown only
-			// when a larger object turns up, so an upload costs no allocation.
-			var wbuf *rdmaBuf
-			defer func() {
-				if wbuf != nil {
-					freeRDMABuf(wbuf)
-				}
-			}()
+			// One pinned buffer per worker, taken from the pool allocated in
+			// Prepare. Allocating here would charge the first operation of
+			// every worker for a page-aligned allocation and the ibv_reg_mr
+			// that pins it -- work unrelated to the transfer being measured.
+			wbuf := u.rdmaPool.Get(i)
 
 			<-wait
 			for {
@@ -154,15 +184,40 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 						// Stage generator output into a CPU or GPU buffer
 						// (per --rdma) so minio-go's RDMA dispatch path can
 						// RDMA-WRITE it directly.
-						if wbuf == nil || wbuf.size < int(obj.Size) {
+						//
+						// With --rdma.window the buffer is a fixed staging
+						// window instead of the whole object: the reader goes
+						// to minio-go, which streams it as an RDMA multipart
+						// upload and pins one part at a time. That is what
+						// carries objects past the 4 GiB an RDMA descriptor
+						// can address, and it keeps a 16 GiB run from asking
+						// for 16 GiB of pinned memory per worker.
+						// A single RDMA transfer cannot name more than a
+						// descriptor's 32-bit size field, so anything larger
+						// has to stream as multipart whether or not it was
+						// asked for. Deciding here rather than letting the
+						// SDK reject it keeps warp from pinning an object's
+						// worth of memory only to fail on every operation.
+						stream := u.streamsRDMA() || obj.Size > MaxRDMADescriptorSize
+						bufSize := int(obj.Size)
+						if stream {
+							bufSize = rdmaWindowOrDefault(u.RDMAWindow)
+						}
+						// The pool is sized from the configured object size, so
+						// this only fires if the generator produced something
+						// larger than advertised.
+						if wbuf == nil || wbuf.size < bufSize {
 							if wbuf != nil {
 								freeRDMABuf(wbuf)
-								wbuf = nil
 							}
-							wbuf, err = allocRDMABuf(u.RDMAMode, int(obj.Size))
+							wbuf, err = allocRDMABuf(u.RDMAMode, bufSize)
 						}
 						if err == nil {
-							if serr := stageToRDMABuf(wbuf, obj.Reader, int(obj.Size)); serr != nil {
+							if stream {
+								opts.RDMABuffer = wbuf.ptr
+								opts.RDMABufferSize = bufSize
+								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+							} else if serr := stageToRDMABuf(wbuf, obj.Reader, int(obj.Size)); serr != nil {
 								err = fmt.Errorf("rdma upload prep: %w", serr)
 							} else {
 								opts.RDMABuffer = wbuf.ptr
@@ -209,6 +264,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 
 // Cleanup deletes everything uploaded to the bucket.
 func (u *Put) Cleanup(ctx context.Context) {
+	u.rdmaPool.Free()
 	pf := make([]string, 0, len(u.prefixes))
 	for p := range u.prefixes {
 		pf = append(pf, p)
