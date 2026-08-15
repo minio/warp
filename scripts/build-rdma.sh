@@ -126,7 +126,7 @@ else
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
 git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
-	"${MINIO_CPP_REF:-1fc511519a6f9ff55420d25cdf14b1ab3f764690}"
+	"${MINIO_CPP_REF:-f89cc4d25d30057f30a0c3adabe2244c9e222486}"
 git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"

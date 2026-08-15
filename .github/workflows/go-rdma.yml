@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: minio/minio-cpp
-          ref: 1fc511519a6f9ff55420d25cdf14b1ab3f764690
+          ref: f89cc4d25d30057f30a0c3adabe2244c9e222486
           path: "minio-cpp"
           persist-credentials: false
 
