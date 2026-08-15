@@ -104,9 +104,8 @@ esac
 # Pinned in lockstep with scripts/build-rdma.sh and .github/workflows/go-rdma.yml:
 # a floating minio-cpp is what leaves a host with headers too old for the
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
-# A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and
-# no release carries it yet. Move this to the tag once one does.
-MINIO_CPP_REF="${MINIO_CPP_REF:-f89cc4d25d30057f30a0c3adabe2244c9e222486}"
+# v0.6.0 is the first release carrying the libs3rdma RDMA transport.
+MINIO_CPP_REF="${MINIO_CPP_REF:-v0.6.0}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
 CMAKE_MIN="3.31"
@@ -343,8 +342,8 @@ sync_checkout() {
 		git -C "${dir}" fetch --depth 1 origin "${ref}"
 		git -C "${dir}" reset --hard -q HEAD
 	else
-		# init + fetch rather than `clone --branch`, which only accepts a branch
-		# or tag. Refs here are pinned, and minio-cpp's pin is a commit.
+		# init + fetch rather than `clone --branch`, so a ref here can be a
+		# release tag or a commit. MINIO_CPP_REF selects either.
 		rm -rf "${dir}"
 		git init -q "${dir}"
 		git -C "${dir}" remote add origin "${repo}"

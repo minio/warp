@@ -19,6 +19,7 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -189,6 +190,12 @@ var ioFlags = []cli.Flag{
 		Value:  "",
 	},
 	cli.StringFlag{
+		Name:   "rdma.window",
+		Usage:  "Stage RDMA PUTs through a pinned window of this size instead of pinning the whole object, e.g. \"64MiB\". Objects upload as multipart, so the ETag gains a -N suffix. Empty pins the whole object.",
+		EnvVar: appNameUC + "_RDMA_WINDOW",
+		Value:  "",
+	},
+	cli.StringFlag{
 		Name:   "region",
 		Usage:  "Specify a custom region",
 		EnvVar: appNameUC + "_REGION",
@@ -348,6 +355,20 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	noOps := ctx.Bool("stress")
 
 	rdmaMode := ctx.String("rdma")
+	var rdmaWindow int64
+	if w := ctx.String("rdma.window"); w != "" {
+		sz, err := toSize(w)
+		if err != nil {
+			console.Fatalf("error parsing --rdma.window: %v\n", err)
+		}
+		// toSize returns uint64; anything past MaxInt64 would wrap negative,
+		// and a negative window reads as "not set" -- silently ignoring what
+		// was asked for rather than rejecting it.
+		if sz > math.MaxInt64 {
+			console.Fatalf("--rdma.window %s is too large\n", w)
+		}
+		rdmaWindow = int64(sz)
+	}
 	switch rdmaMode {
 	case bench.RDMAModeOff:
 	case bench.RDMAModeCPU:
@@ -394,6 +415,8 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts,
 		RDMAMode:      rdmaMode,
+		RDMAWindow:    rdmaWindow,
+		ObjSize:       objSize(ctx),
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,

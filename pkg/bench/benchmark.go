@@ -59,6 +59,18 @@ type Common struct {
 	// at build time) and lets the NIC GPU-Direct RDMA into it.
 	RDMAMode string
 
+	// ObjSize is the nominal object size the generator was configured with.
+	// It exists so the RDMA buffer pool can be sized before the run rather
+	// than growing inside it; the generator remains the authority on the size
+	// of any individual object.
+	ObjSize int64
+
+	// RDMAWindow, when non-zero, stages a PUT through a pinned buffer of this
+	// size rather than pinning the whole object. minio-go then streams it as
+	// an RDMA multipart upload, so pinned memory is one part rather than one
+	// object and objects past the 4 GiB an RDMA descriptor can address work.
+	RDMAWindow int64
+
 	PrepareProgress chan float64
 
 	// Custom is returned to server if set by clients.

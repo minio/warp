@@ -107,9 +107,8 @@ fi
 if [ ! -d "${WORK}/vcpkg" ]; then
 	git clone --depth 1 --branch "${VCPKG_REF}" https://github.com/microsoft/vcpkg "${WORK}/vcpkg"
 fi
-# A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and no
-# release carries it yet. Move this to the tag once one does. init + fetch
-# rather than `clone --branch`, which only accepts a branch or tag.
+# init + fetch rather than `clone --branch`, so this accepts a tag or a commit
+# and a hotfix can be pinned without reworking the script.
 #
 # The fetch and checkout run on every invocation, not just the first. WORK
 # persists between runs to keep them incremental, so a checkout left at an
@@ -126,7 +125,7 @@ else
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
 git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
-	"${MINIO_CPP_REF:-f89cc4d25d30057f30a0c3adabe2244c9e222486}"
+	"${MINIO_CPP_REF:-v0.6.0}"
 git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"
