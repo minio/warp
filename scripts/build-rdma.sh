@@ -110,19 +110,29 @@ fi
 # A commit, not a tag: the RDMA transport moved to libs3rdma after v0.5.0 and no
 # release carries it yet. Move this to the tag once one does. init + fetch
 # rather than `clone --branch`, which only accepts a branch or tag.
-if [ ! -d "${WORK}/minio-cpp" ]; then
-	git init -q "${WORK}/minio-cpp"
-	git -C "${WORK}/minio-cpp" remote add origin \
+#
+# The fetch and checkout run on every invocation, not just the first. WORK
+# persists between runs to keep them incremental, so a checkout left at an
+# earlier ref would otherwise be built as-is -- and the failure surfaces as a
+# missing vendor/s3rdma rather than as a stale tree.
+MINIO_CPP_DIR="${WORK}/minio-cpp"
+if [ ! -d "${MINIO_CPP_DIR}/.git" ]; then
+	rm -rf "${MINIO_CPP_DIR}"
+	git init -q "${MINIO_CPP_DIR}"
+	git -C "${MINIO_CPP_DIR}" remote add origin \
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
-	git -C "${WORK}/minio-cpp" fetch --depth 1 origin \
-		"${MINIO_CPP_REF:-1fc511519a6f9ff55420d25cdf14b1ab3f764690}"
-	git -C "${WORK}/minio-cpp" checkout --detach FETCH_HEAD
+else
+	git -C "${MINIO_CPP_DIR}" remote set-url origin \
+		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
+git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
+	"${MINIO_CPP_REF:-1fc511519a6f9ff55420d25cdf14b1ab3f764690}"
+git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"
 "${WORK}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
 (
-	cd "${WORK}/minio-cpp"
+	cd "${MINIO_CPP_DIR}"
 	"${WORK}/vcpkg/vcpkg" install
 	cmake . -B ./build \
 		-DCMAKE_BUILD_TYPE=Release \

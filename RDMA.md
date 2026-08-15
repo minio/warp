@@ -81,12 +81,16 @@ loaded on demand and only `--rdma=gpu` needs it.
 
 ## Configure the client
 
-Nothing to configure. libs3rdma opens every RDMA device whose port is ACTIVE and
-spreads transfers across them, so a host with two cards uses both without being
-told about either. There is no configuration file to install and no address to
-write down.
+There is nothing to configure on the client. libs3rdma opens every RDMA device
+whose port is ACTIVE and spreads transfers across them, so a host with two cards
+uses both without being told about either: no configuration file to install and
+no address to write down.
 
-Confirm the host has usable devices:
+The rest of the prerequisites still apply. The vendor provider for your card has
+to be installed (see [Host requirements](#host-requirements)), and the storage
+server has to have S3 over RDMA enabled and be reachable over that fabric.
+
+List the devices the host offers:
 
 ```bash
 λ ibdev2netdev
@@ -94,7 +98,8 @@ mlx5_0 port 1 ==> enp27s0np0 (Up)
 mlx5_1 port 1 ==> enp157s0np0 (Up)
 ```
 
-Both ports `Up` is the whole requirement.
+Any device reported `Up` is a candidate, and warp needs nothing further from you
+to use it.
 
 ### Restricting to one NIC
 
@@ -106,18 +111,21 @@ storage server:
 λ export S3RDMA_DEVICE=mlx5_1
 ```
 
-Unset, every device with an ACTIVE port is used.
+When `S3RDMA_DEVICE` is unset, every device with an ACTIVE port is used.
 
 ### Several NICs
 
-Transfers are spread round-robin over the devices found, and each individual
-transfer rides exactly one of them. Aggregate throughput therefore comes from
-running concurrent operations, not from striping one object across cards: a run
-at `--concurrent=1` exercises a single NIC however many are installed, which is
-the usual reason a dual-NIC host appears to be using one.
+A card is chosen per transfer, round-robin, and each transfer rides exactly one
+of them. One object is never striped across cards, so aggregate throughput comes
+from running concurrent operations. At `--concurrent=1` the cards are still used
+in turn, but only one transfer is ever in flight, so the run measures a single
+card's bandwidth however many are installed.
 
-A card that fails a transfer is taken out of rotation until it recovers, so a
-NIC dying mid-run costs throughput rather than ending the run.
+Whether more cards raise throughput depends on where the bottleneck is. If the
+client NIC is not the limit, spreading across two will not beat pinning to one,
+and multiple cards are then worth having for redundancy rather than for
+bandwidth: a card that fails a transfer is taken out of rotation until it
+recovers, so a NIC dying mid-run costs throughput instead of ending the run.
 
 ## Run
 

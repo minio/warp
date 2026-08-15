@@ -61,8 +61,9 @@ builds:
   # rather than publishing the architecture it can. Such a host has to set
   # WARP_SKIP_RDMA=true.
   #
-  # Note this binary resolves libminiocpp and libs3rdma from the host at run
-  # time. The self-contained archive with those bundled is built separately by
+  # Note the prefix supplies libminiocpp at build time -- it is linked
+  # statically, see below -- so only libs3rdma has to be present at run time.
+  # The self-contained archive with it bundled is built separately by
   # scripts/build-rdma.sh.
   - id: warp-rdma
     main: ./
