@@ -19,6 +19,7 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -359,6 +360,12 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		sz, err := toSize(w)
 		if err != nil {
 			console.Fatalf("error parsing --rdma.window: %v\n", err)
+		}
+		// toSize returns uint64; anything past MaxInt64 would wrap negative,
+		// and a negative window reads as "not set" -- silently ignoring what
+		// was asked for rather than rejecting it.
+		if sz > math.MaxInt64 {
+			console.Fatalf("--rdma.window %s is too large\n", w)
 		}
 		rdmaWindow = int64(sz)
 	}

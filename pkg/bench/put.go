@@ -68,7 +68,14 @@ func (u *Put) Prepare(ctx context.Context) error {
 	if err := u.prepareRDMAPool(); err != nil {
 		return err
 	}
-	return u.createEmptyBucket(ctx)
+	if err := u.createEmptyBucket(ctx); err != nil {
+		// A failed Prepare returns without the runner calling Cleanup, so the
+		// pool allocated above would stay pinned for the life of the process.
+		u.rdmaPool.Free()
+		u.rdmaPool = nil
+		return err
+	}
+	return nil
 }
 
 // prepareRDMAPool sizes and allocates the pinned buffers before the run.
@@ -111,9 +118,6 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
 
-	// Non-terminating context.
-	nonTerm := context.Background()
-
 	for i := 0; i < u.Concurrency; i++ {
 		src := u.Source()
 		u.prefixes[src.Prefix()] = struct{}{}
@@ -151,6 +155,16 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 			// every worker for a page-aligned allocation and the ibv_reg_mr
 			// that pins it -- work unrelated to the transfer being measured.
 			wbuf := u.rdmaPool.Get(i)
+
+			// A buffer the worker had to allocate for itself is not in the
+			// pool, so Cleanup will not free it. Track which kind this is:
+			// releasing a pooled buffer here would free it twice.
+			pooled := wbuf != nil
+			defer func() {
+				if wbuf != nil && !pooled {
+					freeRDMABuf(wbuf)
+				}
+			}()
 
 			<-wait
 			for {
@@ -207,26 +221,27 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 						// this only fires if the generator produced something
 						// larger than advertised.
 						if wbuf == nil || wbuf.size < bufSize {
-							if wbuf != nil {
+							if wbuf != nil && !pooled {
 								freeRDMABuf(wbuf)
 							}
+							pooled = false
 							wbuf, err = allocRDMABuf(u.RDMAMode, bufSize)
 						}
 						if err == nil {
 							if stream {
 								opts.RDMABuffer = wbuf.ptr
 								opts.RDMABufferSize = bufSize
-								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+								res, err = client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 							} else if serr := stageToRDMABuf(wbuf, obj.Reader, int(obj.Size)); serr != nil {
 								err = fmt.Errorf("rdma upload prep: %w", serr)
 							} else {
 								opts.RDMABuffer = wbuf.ptr
 								opts.RDMABufferSize = int(obj.Size)
-								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, nil, obj.Size, opts)
+								res, err = client.PutObject(ctx, u.Bucket, obj.Name, nil, obj.Size, opts)
 							}
 						}
 					} else {
-						res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+						res, err = client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 					}
 				} else {
 					op.OpType = http.MethodPost

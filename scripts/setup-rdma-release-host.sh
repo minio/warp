@@ -342,8 +342,8 @@ sync_checkout() {
 		git -C "${dir}" fetch --depth 1 origin "${ref}"
 		git -C "${dir}" reset --hard -q HEAD
 	else
-		# init + fetch rather than `clone --branch`, which only accepts a branch
-		# or tag. Refs here are pinned, and minio-cpp's pin is a commit.
+		# init + fetch rather than `clone --branch`, so a ref here can be a
+		# release tag or a commit. MINIO_CPP_REF selects either.
 		rm -rf "${dir}"
 		git init -q "${dir}"
 		git -C "${dir}" remote add origin "${repo}"
