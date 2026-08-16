@@ -117,6 +117,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 		ctx = c.AutoTerm(ctx, http.MethodPut, u.AutoTermScale, autoTermCheck, autoTermSamples, u.AutoTermDur)
 	}
 	u.prefixes = make(map[string]struct{}, u.Concurrency)
+	nonTerm := context.Background()
 
 	for i := 0; i < u.Concurrency; i++ {
 		src := u.Source()
@@ -231,17 +232,17 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 							if stream {
 								opts.RDMABuffer = wbuf.ptr
 								opts.RDMABufferSize = bufSize
-								res, err = client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 							} else if serr := stageToRDMABuf(wbuf, obj.Reader, int(obj.Size)); serr != nil {
 								err = fmt.Errorf("rdma upload prep: %w", serr)
 							} else {
 								opts.RDMABuffer = wbuf.ptr
 								opts.RDMABufferSize = int(obj.Size)
-								res, err = client.PutObject(ctx, u.Bucket, obj.Name, nil, obj.Size, opts)
+								res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, nil, obj.Size, opts)
 							}
 						}
 					} else {
-						res, err = client.PutObject(ctx, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+						res, err = client.PutObject(nonTerm, u.Bucket, obj.Name, obj.Reader, obj.Size, opts)
 					}
 				} else {
 					op.OpType = http.MethodPost
