@@ -2,7 +2,7 @@ module github.com/minio/warp
 
 go 1.25.5
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
