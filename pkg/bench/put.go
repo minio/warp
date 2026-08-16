@@ -254,7 +254,16 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 					}
 				}
 				op.End = time.Now()
-				op.LastByte = obj.Reader.LastByte()
+				// LastByte drives the reported TTFB, as End-LastByte. That only
+				// means anything while the request body streams: the RDMA path
+				// drains the reader into the staging buffer before the transfer
+				// starts, so LastByte would land at the head of the operation and
+				// TTFB would report the whole transfer. Leave it unset and the
+				// column is dropped rather than filled with a number that invites
+				// comparison against the HTTP path.
+				if u.RDMAMode == RDMAModeOff {
+					op.LastByte = obj.Reader.LastByte()
+				}
 				if err != nil {
 					u.Error("upload error: ", err)
 					op.Err = err.Error()
