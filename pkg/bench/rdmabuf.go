@@ -39,7 +39,11 @@ const MaxRDMADescriptorSize = 1<<32 - 1
 // rdmabuf_gpu.go. Both live outside the Go heap: minio-go retains the
 // pointer across the cgo boundary, which Go memory may not do.
 type rdmaBuf struct {
-	ptr  unsafe.Pointer
+	ptr unsafe.Pointer
+	// host is the pinned staging buffer PUT reads into before the copy to
+	// device. GPU mode only, so it is used solely from rdmabuf_rdma.go and
+	// is unused without -tags=rdma.
+	host unsafe.Pointer //nolint:unused
 	size int
 	mode string
 }
@@ -69,9 +73,9 @@ func allocRDMABuf(mode string, size int) (*rdmaBuf, error) {
 
 // stageToRDMABuf reads n bytes from src into the front of the buffer, which
 // may be larger because it is reused across operations. For CPU buffers this
-// is a straight ReadFull. For GPU buffers the bytes are first read into a CPU
-// bounce buffer and then uploaded via cudaMemcpy host-to-device (see
-// rdmabuf_gpu.go).
+// is a straight ReadFull. For GPU buffers the bytes go into the buffer's pinned
+// host staging area and are then uploaded via cudaMemcpy host-to-device (see
+// rdmabuf_rdma.go).
 func stageToRDMABuf(b *rdmaBuf, src io.Reader, n int) error {
 	if b == nil || n <= 0 || src == nil {
 		return nil

@@ -29,6 +29,8 @@ package bench
 // static warp_set_device_fn warp_set_device;
 // static warp_malloc_fn warp_malloc;
 // static warp_free_fn warp_free;
+// static warp_malloc_fn warp_malloc_host;
+// static warp_free_fn warp_free_host;
 // static warp_memcpy_fn warp_memcpy;
 // static warp_error_string_fn warp_error_string;
 //
@@ -53,11 +55,14 @@ package bench
 //     warp_set_device = (warp_set_device_fn)dlsym(h, "cudaSetDevice");
 //     warp_malloc = (warp_malloc_fn)dlsym(h, "cudaMalloc");
 //     warp_free = (warp_free_fn)dlsym(h, "cudaFree");
+//     warp_malloc_host = (warp_malloc_fn)dlsym(h, "cudaMallocHost");
+//     warp_free_host = (warp_free_fn)dlsym(h, "cudaFreeHost");
 //     warp_memcpy = (warp_memcpy_fn)dlsym(h, "cudaMemcpy");
 //     warp_error_string = (warp_error_string_fn)dlsym(h, "cudaGetErrorString");
 //     driver_version = (warp_get_version_fn)dlsym(h, "cudaDriverGetVersion");
 //     runtime_version = (warp_get_version_fn)dlsym(h, "cudaRuntimeGetVersion");
 //     if (warp_set_device == NULL || warp_malloc == NULL || warp_free == NULL ||
+//         warp_malloc_host == NULL || warp_free_host == NULL ||
 //         warp_memcpy == NULL || warp_error_string == NULL ||
 //         driver_version == NULL || runtime_version == NULL) {
 //         dlclose(h);
@@ -73,6 +78,8 @@ package bench
 //         warp_set_device = NULL;
 //         warp_malloc = NULL;
 //         warp_free = NULL;
+//         warp_malloc_host = NULL;
+//         warp_free_host = NULL;
 //         warp_memcpy = NULL;
 //         warp_error_string = NULL;
 //         dlclose(h);
@@ -105,6 +112,8 @@ package bench
 // static int warp_cuda_set_device(int device) { return warp_set_device(device); }
 // static int warp_cuda_malloc(void **p, size_t n) { return warp_malloc(p, n); }
 // static int warp_cuda_free(void *p) { return warp_free(p); }
+// static int warp_cuda_malloc_host(void **p, size_t n) { return warp_malloc_host(p, n); }
+// static int warp_cuda_free_host(void *p) { return warp_free_host(p); }
 // // 1 is cudaMemcpyHostToDevice, fixed by the CUDA runtime ABI.
 // static int warp_cuda_memcpy_h2d(void *dst, const void *src, size_t n) {
 //     return warp_memcpy(dst, src, n, 1);
@@ -182,9 +191,16 @@ func bindGPUThread() error {
 	return nil
 }
 
-// allocRDMAGPU allocates a CUDA device buffer of size bytes. The
-// returned rdmaBuf carries the device pointer in ptr; the NIC GPU-
-// Direct RDMA-writes / reads into it via minio-go's RDMA dispatch.
+// allocRDMAGPU allocates a CUDA device buffer of size bytes, plus the pinned
+// host buffer that PUT stages through. The returned rdmaBuf carries the device
+// pointer in ptr; the NIC GPU-Direct RDMA-writes / reads into it via minio-go's
+// RDMA dispatch.
+//
+// The staging buffer is page-locked because cudaMemcpy out of pageable memory
+// cannot DMA directly -- the runtime copies through its own internal pinned
+// buffers first. Allocating it here, with the pool, keeps both the allocation
+// and the page-locking off the timed path. GET leaves it unused: the server
+// writes to the device pointer.
 func allocRDMAGPU(size int) (*rdmaBuf, error) {
 	if !cudaLoad() {
 		return nil, errRDMAGPUUnsupported
@@ -196,31 +212,45 @@ func allocRDMAGPU(size int) (*rdmaBuf, error) {
 	if rc := C.warp_cuda_malloc(&devPtr, C.size_t(size)); rc != 0 {
 		return nil, fmt.Errorf("cudaMalloc(%d): %s", size, cudaErr(rc))
 	}
-	return &rdmaBuf{ptr: devPtr, size: size, mode: RDMAModeGPU}, nil
+	var hostPtr unsafe.Pointer
+	if rc := C.warp_cuda_malloc_host(&hostPtr, C.size_t(size)); rc != 0 {
+		C.warp_cuda_free(devPtr)
+		return nil, fmt.Errorf("cudaMallocHost(%d): %s", size, cudaErr(rc))
+	}
+	return &rdmaBuf{ptr: devPtr, host: hostPtr, size: size, mode: RDMAModeGPU}, nil
 }
 
-// stageToGPU reads n bytes from src into a CPU bounce buffer, then
-// cudaMemcpys host-to-device into the registered GPU buffer. The bounce
-// buffer is allocated per call at n bytes; for very large objects this
-// means the full object size is resident in host memory during staging.
+// stageToGPU reads n bytes from src into the buffer's pinned host staging
+// area, then cudaMemcpys host-to-device into the registered GPU buffer. Both
+// buffers come from allocRDMAGPU and are reused for the life of the worker.
 func stageToGPU(b *rdmaBuf, src io.Reader, n int) error {
 	if b == nil || n <= 0 || src == nil {
 		return nil
 	}
-	host := make([]byte, n)
-	if _, err := io.ReadFull(src, host); err != nil {
+	if b.host == nil {
+		return fmt.Errorf("rdma: gpu buffer of %d bytes has no host staging buffer", b.size)
+	}
+	if _, err := io.ReadFull(src, unsafe.Slice((*byte)(b.host), n)); err != nil {
 		return err
 	}
-	rc := C.warp_cuda_memcpy_h2d(b.ptr, unsafe.Pointer(&host[0]), C.size_t(n))
+	rc := C.warp_cuda_memcpy_h2d(b.ptr, b.host, C.size_t(n))
 	if rc != 0 {
 		return fmt.Errorf("cudaMemcpy H2D: %s", cudaErr(rc))
 	}
 	return nil
 }
 
-// freeRDMAGPU releases the CUDA device buffer.
+// freeRDMAGPU releases the CUDA device buffer and its pinned host staging
+// buffer.
 func freeRDMAGPU(b *rdmaBuf) {
-	if b == nil || b.ptr == nil {
+	if b == nil {
+		return
+	}
+	if b.host != nil {
+		C.warp_cuda_free_host(b.host)
+		b.host = nil
+	}
+	if b.ptr == nil {
 		return
 	}
 	C.warp_cuda_free(b.ptr)
