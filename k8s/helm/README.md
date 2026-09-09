@@ -35,7 +35,7 @@ pin the buffers it registers.
 image:
   # There is no rolling latest.rdma tag, so name a release. The chart appends
   # the .rdma suffix and switches to quay.io/minio/aistor/warp.
-  version: v1.5.0
+  version: v1.6.1
 
 rdma:
   enabled: true
