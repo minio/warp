@@ -92,6 +92,17 @@ Example mapping:
 - `warpJobArgs.duration` → `warp.params.duration`
 - `warpJobArgs.objects` → `warp.params.objects`
 
+## S3 over RDMA
+
+RDMA is configured through the `rdma` section of `values.yaml`, not through
+either method above. The chart passes the settings to warp as environment
+variables (`WARP_RDMA`, `WARP_RDMA_WINDOW`, `S3RDMA_DEVICE`), so they apply
+whichever configuration method you use, and there is no need to add `rdma` under
+`advanced` in a `configFile` — doing so would override `rdma.mode` for the
+server while leaving the rest of the chart's RDMA setup in place.
+
+See [S3 over RDMA](./README.md#s3-over-rdma).
+
 ## Option 2: Using `warpConfiguration` (Legacy Method)
 
 The traditional method uses individual configuration fields in `values.yaml`, simpler for basic setups where the hostname is compatible with elipsis notation:

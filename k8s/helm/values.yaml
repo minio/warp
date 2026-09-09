@@ -15,6 +15,67 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# S3 over RDMA. See https://github.com/minio/warp/blob/master/RDMA.md
+#
+# RDMA needs the RDMA build of warp, which every release publishes as its own
+# image flavor rather than as part of the stock one. Enabling this switches both
+# the server Job and the client StatefulSet onto that image, points warp at the
+# fabric, and gives the containers the capability they need to pin buffers. It
+# does not provision the fabric itself: see `hostNetwork`, `podAnnotations` and
+# `resources` below for the three ways a cluster hands an RDMA device to a pod.
+rdma:
+  enabled: false
+
+  # Transport buffer: "cpu" for host memory, "gpu" for GPU-Direct.
+  #
+  # "gpu" needs an NVIDIA GPU and a driver on every warp pod, the server
+  # included: it probes the CUDA runtime while parsing flags and refuses to
+  # start without one.
+  mode: cpu
+
+  # Stage PUTs through a pinned window of this size instead of pinning the whole
+  # object, e.g. "64MiB". Objects then upload as multipart, so their ETag gains
+  # a -N suffix. Empty pins the whole object.
+  window: ""
+
+  # Use only this RDMA device, e.g. "mlx5_1". Worth setting when the nodes have
+  # cards on more than one fabric and only one of them reaches the storage
+  # server. Empty uses every device with an ACTIVE port.
+  device: ""
+
+  image:
+    # Where the RDMA images are published. Defaults to image.repository when
+    # empty, for a mirror that carries both flavors.
+    repository: quay.io/minio/aistor/warp
+    # Defaults to "<image.version>.rdma". `latest` never resolves to an RDMA
+    # image, so image.version has to name a release -- or this has to name the
+    # tag outright.
+    version: ""
+
+  # How the pods reach the fabric. Pick whichever your cluster provides:
+  #
+  #  * RDMA shared device plugin: request "rdma/hca: 1" under `resources` below.
+  #  * SR-IOV with Multus: name the network attachment in `podAnnotations`,
+  #    e.g. k8s.v1.cni.cncf.io/networks: sriov-rdma
+  #  * The node's own network: set `hostNetwork` true. It needs no plugin, but
+  #    the pods then share the node's ports, so only one warp pod per node can
+  #    bind service.port.
+  hostNetwork: false
+  podAnnotations: {}
+
+  # Merged over clientResources and serverResources, so the fabric and GPU
+  # requests are declared once for both roles:
+  #   limits:
+  #     rdma/hca: 1
+  #     nvidia.com/gpu: 1
+  # Extended resources need no matching `requests`; Kubernetes copies the limit.
+  resources: {}
+
+  # Registering memory with the NIC pins it, which the node's default memlock
+  # limit caps at a few megabytes. Adds CAP_IPC_LOCK to the warp containers.
+  # Turn off only on nodes configured with an unlimited memlock.
+  ipcLock: true
+
 # Option 1: Define warp configuration inline (legacy method - commented out by default)
 # Uncomment and use this section if you prefer the legacy configuration method
 # warpConfiguration:

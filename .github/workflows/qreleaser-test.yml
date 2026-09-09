@@ -178,6 +178,48 @@ jobs:
           readelf -h /tmp/armdeb/usr/lib/warp/libs3rdma.so.0 | grep -q AArch64
           readelf -h /tmp/armdeb/usr/local/bin/warp | grep -q AArch64
 
+      # The pipeline's container-build stage builds both flavors for both
+      # architectures into the buildx cache, where nothing can run them. Rebuild
+      # the RDMA image for this runner's architecture with --load and start it:
+      # a base image whose glibc is older than the release host's, or a
+      # libs3rdma that never got staged, only surfaces here.
+      - name: Verify RDMA container image
+        env:
+          RELEASE: ${{ steps.release-type.outputs.version }}
+          RELEASE_TYPE: ${{ steps.release-type.outputs.type_dir }}
+        run: |
+          docker buildx build --load \
+            --platform=linux/amd64 \
+            --build-arg RELEASE="${RELEASE}" \
+            --build-arg RELEASE_TYPE="${RELEASE_TYPE}" \
+            --build-arg BINARY_SUFFIX=.rdma \
+            --build-arg RDMA=1 \
+            -f Dockerfile.v2.release \
+            -t warp-rdma:ci .
+
+          docker run --rm warp-rdma:ci --version
+
+          # The bundled library has to resolve through the binary's rpath, not
+          # merely be present in the image.
+          docker run --rm --entrypoint /bin/sh warp-rdma:ci \
+            -c 'ldd /warp' | tee /tmp/ldd.log
+          grep -q 'libs3rdma.so.0 => /usr/lib/warp/libs3rdma.so.0' /tmp/ldd.log
+          if grep -q 'not found' /tmp/ldd.log; then
+            echo "unresolved shared libraries in the RDMA image" >&2
+            exit 1
+          fi
+
+          # And it has to be the RDMA build: past the --rdma gate, failing at
+          # the network, so a stock binary in an RDMA image cannot pass.
+          docker run --rm warp-rdma:ci put --rdma=cpu --host 127.0.0.1:9000 \
+            >/tmp/image.log 2>&1 || true
+          cat /tmp/image.log
+          if grep -q "requires the RDMA build" /tmp/image.log; then
+            echo "the RDMA image does not carry the RDMA build" >&2
+            exit 1
+          fi
+          grep -q "Error preparing server" /tmp/image.log
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()

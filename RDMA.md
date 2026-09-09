@@ -54,6 +54,39 @@ The package installs `/usr/local/bin/warp` and the libs3rdma it needs
 under `/usr/lib/warp`. It is a **drop-in replacement**: the command is `warp`,
 the same as the standard package, so install one or the other rather than both.
 
+### Container
+
+Each release publishes an RDMA image beside the stock one, tagged with the
+`.rdma` suffix:
+
+```bash
+λ docker pull quay.io/minio/aistor/warp:<version>.rdma
+```
+
+`latest` deliberately never resolves to it, so name a version.
+
+The image carries the binary, the libs3rdma it needs, and the RDMA stack from
+its own distribution. What it cannot carry is the fabric: the container needs an
+RDMA device from the host, and `CAP_IPC_LOCK` so the NIC can pin the buffers it
+registers.
+
+```bash
+λ docker run --rm \
+    --device /dev/infiniband \
+    --cap-add IPC_LOCK \
+    --network host \
+    quay.io/minio/aistor/warp:<version>.rdma \
+    get --rdma=cpu --host=s3-server:9000 --access-key=minio --secret-key=minio123
+```
+
+The bundled vendor providers come from the image's distribution, so a host
+running a vendor OFED stack should mount its own over `/usr/lib/*/libibverbs`.
+For `--rdma=gpu`, add the NVIDIA container runtime (`--gpus all`).
+
+On Kubernetes the [Helm chart](k8s/helm/README.md#s3-over-rdma) wires this up:
+`rdma.enabled` switches both roles onto the image, adds the capability, and has
+a knob for each of the ways a cluster hands an RDMA device to a pod.
+
 ### Archive
 
 ```bash

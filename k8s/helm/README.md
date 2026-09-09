@@ -24,6 +24,75 @@ The chart supports two configuration methods:
 
 For detailed information about both methods, see the [Configuration Guide](./CONFIG.md).
 
+### S3 over RDMA
+
+Set `rdma.enabled` to run the benchmark over RDMA instead of HTTP. The chart
+then switches both the server Job and the client StatefulSet onto warp's RDMA
+image, passes the mode through to warp, and adds `CAP_IPC_LOCK` so the NIC can
+pin the buffers it registers.
+
+```yaml
+image:
+  # There is no rolling latest.rdma tag, so name a release. The chart appends
+  # the .rdma suffix and switches to quay.io/minio/aistor/warp.
+  version: v1.5.0
+
+rdma:
+  enabled: true
+  mode: cpu          # or "gpu" for GPU-Direct
+  resources:
+    limits:
+      rdma/hca: 1    # see "Reaching the fabric" below
+```
+
+`k8s/helm/values-rdma-example.yaml` is a complete example. See
+[RDMA.md](../../RDMA.md) for what S3 over RDMA is and what it needs from a host.
+
+#### Reaching the fabric
+
+The chart configures warp; it does not give a pod an RDMA device. Kubernetes
+offers three ways to do that, and `values.yaml` has a knob for each:
+
+| Cluster provides | Set |
+| ---------------- | --- |
+| RDMA shared device plugin | `rdma.resources.limits."rdma/hca": 1` |
+| SR-IOV with Multus | `rdma.podAnnotations."k8s.v1.cni.cncf.io/networks": <attachment>` |
+| Nothing — use the node's own devices | `rdma.hostNetwork: true` |
+
+`rdma.hostNetwork` also sets `dnsPolicy: ClusterFirstWithHostNet`, without which
+the pods could not resolve the headless service the server addresses them
+through. It puts the pods on the node's ports, so schedule at most one warp pod
+per node — otherwise the second one fails to bind `service.port`.
+
+#### GPU-Direct
+
+`rdma.mode: gpu` needs an NVIDIA GPU and driver on **every** warp pod, the
+server included: warp probes the CUDA runtime while parsing flags and refuses to
+start when it cannot load one. Request the GPU alongside the fabric:
+
+```yaml
+rdma:
+  enabled: true
+  mode: gpu
+  resources:
+    limits:
+      rdma/hca: 1
+      nvidia.com/gpu: 1
+```
+
+#### Notes
+
+- Only the `get` and `put` benchmarks accept RDMA. Warp rejects the others at
+  startup rather than reporting HTTP numbers as if they were RDMA numbers.
+- Warp cannot tell you whether a transfer actually used RDMA: a setup failure
+  falls back to HTTP and the operation still succeeds. Confirm from the storage
+  server's S3 over RDMA counters.
+- `securityContext.readOnlyRootFilesystem` is on by default, so warp cannot
+  write its `warp-operation-*.csv.zst` data file (the results still print to the
+  Job log), and libcufile cannot write `cufile.log` under `rdma.mode: gpu`.
+  Neither is fatal. To keep the data file, give the pod a writable directory and
+  point `--benchdata` at it.
+
 ### Installing the Chart
 
 After configuring the `values.yaml` file, install this chart using:
