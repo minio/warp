@@ -1,1 +1,0 @@
--lminio -ls3rdma -lssl -lcrypto -lINIReader -linih -lpugixml -lbrotlienc -lbrotlidec -lbrotlicommon -lz -lstdc++ -lm -ldl -lpthread

@@ -15,8 +15,10 @@
 #   arm64  ${PREFIX}/aarch64-linux-gnu      (cross-built)
 #
 # Each holds libminio.a built with RDMA enabled plus its headers, the vcpkg
-# static archives it links against (scripts/rdma-cgo-libs.txt), and the vendored
-# libs3rdma shared object the release packaging copies out. The arm64 prefix
+# static archives it links against, the derived cgo link line
+# (lib/warp-rdma-cgo-libs.txt, which qreleaser.yaml reads because goreleaser
+# cannot run a command), and the vendored libs3rdma shared object the release
+# packaging copies out. The arm64 prefix
 # path is fixed rather than host-dependent because qreleaser.yaml has to name it
 # in a static override.
 #
@@ -104,10 +106,17 @@ esac
 # Pinned in lockstep with scripts/build-rdma.sh and .github/workflows/go-rdma.yml:
 # a floating minio-cpp is what leaves a host with headers too old for the
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
-# v1.0.0 installs the library as libminio with a stable soname.
-MINIO_CPP_REF="${MINIO_CPP_REF:-v1.0.0}"
+# minio-cpp is pinned to a commit rather than a tag: the pkg-config fix
+# that lets the link line be derived landed after v1.0.0 and is not yet
+# tagged. Move this to v1.0.1 once it is cut.
+MINIO_CPP_REF="${MINIO_CPP_REF:-92d8b2c3ec6ac2c82012590de572c55f3591f338}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
+
+# Written into each prefix at provisioning time and read back by qreleaser.yaml,
+# smoke_build and verify_prefix. The qreleaser checkout is wiped per run, so a
+# file generated into the repo would not survive to the build.
+LINK_LIBS_NAME="warp-rdma-cgo-libs.txt"
 CMAKE_MIN="3.31"
 CMAKE_VERSION="${CMAKE_VERSION:-3.31.6}"
 
@@ -164,14 +173,24 @@ elf_machine() {
 	readelf -h "$1" 2>/dev/null | sed -n 's/^ *Machine: *//p' | head -1
 }
 
-# scripts/rdma-cgo-libs.txt names three kinds of library: the toolchain's own,
+# The derived link line names three kinds of library: the toolchain's own,
 # libs3rdma, which minio-cpp vendors as a shared object with no static form, and
 # everything else, which must come from an archive. A published binary that
 # picks one of the last group up dynamically has a runtime dependency the
 # package neither declares nor bundles, and fails to start on a customer host.
+#
+# Reading the list from the prefix rather than from a file in this repo is what
+# makes a dependency minio-cpp newly pulls in fail loudly: it appears here, and
+# verify_prefix then demands an archive for it.
 static_libs() {
+	local prefix="$1"
 	local lib
-	for lib in $(tr ' ' '\n' <"${REPO_DIR}/scripts/rdma-cgo-libs.txt" | sed -n 's/^-l//p'); do
+	# Absent on a first provisioning: build_target sweeps shadowing objects
+	# before installing, and a prefix with no list has nothing to shadow. On a
+	# re-provision this is the previous install's list, which is the right one
+	# to sweep against.
+	[ -f "${prefix}/lib/${LINK_LIBS_NAME}" ] || return 0
+	for lib in $(tr ' ' '\n' <"${prefix}/lib/${LINK_LIBS_NAME}" | sed -n 's/^-l//p'); do
 		case "${lib}" in
 		stdc++ | m | dl | pthread) ;;
 		# zlib is a system library here: minio-cpp 1.0.0 takes vcpkg's only on
@@ -229,7 +248,14 @@ verify_prefix() {
 		missing=1
 	fi
 
-	for lib in $(static_libs); do
+	# qreleaser.yaml reads this out of the prefix; without it a release links
+	# with an empty library list instead of failing here.
+	if [ ! -f "${prefix}/lib/${LINK_LIBS_NAME}" ]; then
+		echo "MISSING: ${prefix}/lib/${LINK_LIBS_NAME} (${arch}, needed by qreleaser.yaml)" >&2
+		missing=1
+	fi
+
+	for lib in $(static_libs "${prefix}"); do
 		name="lib${lib}"
 		if ! compgen -G "${prefix}/lib/${name}.a" >/dev/null; then
 			echo "MISSING: ${prefix}/lib/${name}.a (${arch})" >&2
@@ -453,7 +479,7 @@ build_target() {
 	# Shared objects that shadow the archives we install. ld picks these over the
 	# .a in the same -L, which is how a release ends up depending on a library it
 	# neither bundles nor declares.
-	for lib in $(static_libs); do
+	for lib in $(static_libs "${prefix}"); do
 		for f in "${prefix}"/lib/"lib${lib}".so*; do
 			if [ -e "${f}" ]; then
 				stale+=("${f}")
@@ -481,6 +507,12 @@ build_target() {
 	as_root cp -P vcpkg_installed/"${triplet}"/lib/*.a "${prefix}/lib/"
 	command -v ldconfig >/dev/null 2>&1 && as_root ldconfig || true
 
+	# Derive the link line from the miniocpp.pc just installed and leave it in
+	# the prefix: goreleaser cannot run a command, and the checkout it builds
+	# from is wiped per run, so the prefix is the only place this can live.
+	"${REPO_DIR}/scripts/rdma-link-libs.sh" "${prefix}" "${src}" |
+		as_root tee "${prefix}/lib/${LINK_LIBS_NAME}" >/dev/null
+
 	verify_prefix "${arch}"
 }
 
@@ -499,7 +531,7 @@ smoke_build() {
 		CC="$(arch_cc "${arch}")" \
 		CXX="$(arch_cxx "${arch}")" \
 		CGO_CFLAGS="-I${prefix}/include" \
-		CGO_LDFLAGS="-L${prefix}/lib -Wl,-rpath-link,${prefix}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")" \
+		CGO_LDFLAGS="-L${prefix}/lib -Wl,-rpath-link,${prefix}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${prefix}/lib/${LINK_LIBS_NAME}")" \
 		go build -trimpath -tags=kqueue,rdma -o "${out}" .
 
 	local machine
@@ -518,7 +550,7 @@ smoke_build() {
 	# declare, so the binary would fail to start on a customer host.
 	local needed lib
 	needed="$(readelf -d "${out}" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p')"
-	for lib in $(static_libs); do
+	for lib in $(static_libs "${prefix}"); do
 		if printf '%s\n' "${needed}" | grep -q "^lib${lib}\.so"; then
 			echo "smoke build links lib${lib} dynamically; something in $(arch_prefix "${arch}")/lib shadows lib${lib}.a" >&2
 			return 1

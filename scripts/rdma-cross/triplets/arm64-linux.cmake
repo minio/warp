@@ -9,7 +9,7 @@ set(VCPKG_TARGET_ARCHITECTURE arm64)
 set(VCPKG_CRT_LINKAGE dynamic)
 
 # libminiocpp is linked statically into warp, so its dependencies must be static
-# too; see scripts/rdma-cgo-libs.txt for the resulting link line.
+# too; scripts/rdma-link-libs.sh derives the resulting link line.
 set(VCPKG_LIBRARY_LINKAGE static)
 
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)

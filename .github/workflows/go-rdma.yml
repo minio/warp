@@ -36,12 +36,14 @@ jobs:
       # Pinned in lockstep with scripts/build-rdma.sh and
       # scripts/setup-rdma-release-host.sh: this job copies vendor/s3rdma out of
       # the checkout, so a floating main makes the build race whatever landed
-      # there. v1.0.0 installs the library as libminio with a stable soname.
+      # there. Pinned to a commit rather than a tag: the pkg-config fix that
+      # lets the link line be derived landed after v1.0.0 and is not yet
+      # tagged. Move this to v1.0.1 once it is cut.
       - name: Checkout minio-cpp
         uses: actions/checkout@v5
         with:
           repository: minio/minio-cpp
-          ref: v1.0.0
+          ref: 92d8b2c3ec6ac2c82012590de572c55f3591f338
           path: "minio-cpp"
           persist-credentials: false
 
@@ -102,9 +104,10 @@ jobs:
           CGO_ENABLED: "1"
         run: |
           # The library is static, so minio-go's own -lminio no longer drags in
-          # the C++ runtime or the vcpkg archives; name them from the one list the
-          # build script and goreleaser config also use.
-          export CGO_LDFLAGS="-L/usr/local/lib $(cat scripts/rdma-cgo-libs.txt)"
+          # the C++ runtime or the vcpkg archives; derive them from the
+          # miniocpp.pc that was just installed, the same way the build script
+          # and the release host do.
+          export CGO_LDFLAGS="-L/usr/local/lib $(scripts/rdma-link-libs.sh /usr/local ../minio-cpp)"
           go build -tags=rdma -o /tmp/warp .
           go vet -tags=rdma ./...
           go test -race -tags=rdma ./...

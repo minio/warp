@@ -211,13 +211,17 @@ the same library list the release uses:
 ```bash
 λ export CGO_ENABLED=1
 λ export CGO_CFLAGS="-I/usr/local/include"
-λ export CGO_LDFLAGS="-L/usr/local/lib $(cat scripts/rdma-cgo-libs.txt)"
+λ export CGO_LDFLAGS="-L/usr/local/lib $(scripts/rdma-link-libs.sh /usr/local /path/to/minio-cpp)"
 λ go build -tags=kqueue,rdma
 ```
 
 libminiocpp is linked statically, so cgo, which links with `gcc` rather than
 `g++`, has to be told about the C++ runtime and every transitive archive by
-name. That list lives in `scripts/rdma-cgo-libs.txt`.
+name. `scripts/rdma-link-libs.sh` derives that list from the installed
+`miniocpp.pc`, so it tracks whatever minio-cpp actually links against. It needs
+the minio-cpp source tree only to find the `.pc` files of the private
+dependencies under `vcpkg_installed/`; if those are already on
+`PKG_CONFIG_PATH`, the prefix alone is enough.
 
 The binary this produces still loads libs3rdma at run time, and nothing tells
 it where to find it. Choose one:
