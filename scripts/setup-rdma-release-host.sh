@@ -189,7 +189,7 @@ static_libs() {
 	# before installing, and a prefix with no list has nothing to shadow. On a
 	# re-provision this is the previous install's list, which is the right one
 	# to sweep against.
-	[ -f "${prefix}/lib/${LINK_LIBS_NAME}" ] || return 0
+	[ -s "${prefix}/lib/${LINK_LIBS_NAME}" ] || return 0
 	for lib in $(tr ' ' '\n' <"${prefix}/lib/${LINK_LIBS_NAME}" | sed -n 's/^-l//p'); do
 		case "${lib}" in
 		stdc++ | m | dl | pthread) ;;
@@ -250,7 +250,7 @@ verify_prefix() {
 
 	# qreleaser.yaml reads this out of the prefix; without it a release links
 	# with an empty library list instead of failing here.
-	if [ ! -f "${prefix}/lib/${LINK_LIBS_NAME}" ]; then
+	if [ ! -s "${prefix}/lib/${LINK_LIBS_NAME}" ]; then
 		echo "MISSING: ${prefix}/lib/${LINK_LIBS_NAME} (${arch}, needed by qreleaser.yaml)" >&2
 		missing=1
 	fi
@@ -510,7 +510,15 @@ build_target() {
 	# Derive the link line from the miniocpp.pc just installed and leave it in
 	# the prefix: goreleaser cannot run a command, and the checkout it builds
 	# from is wiped per run, so the prefix is the only place this can live.
-	"${REPO_DIR}/scripts/rdma-link-libs.sh" "${prefix}" "${src}" |
+	#
+	# Derived into a variable first. Piping straight into tee would truncate a
+	# previously good list before the derivation's exit status is known, and an
+	# empty list makes every check that reads it vacuous. Declared separately
+	# from the assignment on purpose: `local x="$(...)"` returns local's status,
+	# which would swallow the failure this guards against.
+	local link_libs
+	link_libs="$("${REPO_DIR}/scripts/rdma-link-libs.sh" "${prefix}" "${src}")"
+	printf '%s\n' "${link_libs}" |
 		as_root tee "${prefix}/lib/${LINK_LIBS_NAME}" >/dev/null
 
 	verify_prefix "${arch}"
