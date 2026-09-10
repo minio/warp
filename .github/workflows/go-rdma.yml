@@ -36,12 +36,12 @@ jobs:
       # Pinned in lockstep with scripts/build-rdma.sh and
       # scripts/setup-rdma-release-host.sh: this job copies vendor/s3rdma out of
       # the checkout, so a floating main makes the build race whatever landed
-      # there. v0.6.0 is the first release carrying the libs3rdma transport.
+      # there. v1.0.0 installs the library as libminio with a stable soname.
       - name: Checkout minio-cpp
         uses: actions/checkout@v5
         with:
           repository: minio/minio-cpp
-          ref: v0.6.0
+          ref: v1.0.0
           path: "minio-cpp"
           persist-credentials: false
 
@@ -58,14 +58,14 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get -qy update
-          sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev
+          sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev zlib1g-dev
 
       # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
       # own on arm64, so provision it explicitly on both architectures.
       - name: Set up CMake
         uses: lukka/get-cmake@v4.4.2
 
-      - name: Build and install libminiocpp.so with RDMA
+      - name: Build and install libminio with RDMA
         shell: bash
         env:
           MATRIX_ARCH: ${{ matrix.config.arch }}
@@ -101,7 +101,7 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          # libminiocpp is static, so minio-go's own -lminiocpp no longer drags in
+          # The library is static, so minio-go's own -lminio no longer drags in
           # the C++ runtime or the vcpkg archives; name them from the one list the
           # build script and goreleaser config also use.
           export CGO_LDFLAGS="-L/usr/local/lib $(cat scripts/rdma-cgo-libs.txt)"

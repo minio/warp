@@ -125,7 +125,7 @@ else
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
 git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
-	"${MINIO_CPP_REF:-v0.6.0}"
+	"${MINIO_CPP_REF:-v1.0.0}"
 git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"
@@ -143,7 +143,7 @@ echo ">>> building libminiocpp with RDMA"
 	cmake --install ./build
 	mkdir -p "${PREFIX}/lib"
 	cp -P vendor/s3rdma/lib/"${S3RDMA_ARCH}"/* "${PREFIX}/lib/"
-	# Collect vcpkg's static dependencies next to libminiocpp.a so the whole
+	# Collect vcpkg's static dependencies next to libminio.a so the whole
 	# static link resolves from one -L. cmake --install only places libminiocpp.
 	cp -P vcpkg_installed/*/lib/*.a "${PREFIX}/lib/"
 )

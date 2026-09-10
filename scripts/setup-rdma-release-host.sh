@@ -14,7 +14,7 @@
 #   amd64  ${PREFIX}                        (default /usr/local, built natively)
 #   arm64  ${PREFIX}/aarch64-linux-gnu      (cross-built)
 #
-# Each holds libminiocpp.a built with RDMA enabled plus its headers, the vcpkg
+# Each holds libminio.a built with RDMA enabled plus its headers, the vcpkg
 # static archives it links against (scripts/rdma-cgo-libs.txt), and the vendored
 # libs3rdma shared object the release packaging copies out. The arm64 prefix
 # path is fixed rather than host-dependent because qreleaser.yaml has to name it
@@ -104,8 +104,8 @@ esac
 # Pinned in lockstep with scripts/build-rdma.sh and .github/workflows/go-rdma.yml:
 # a floating minio-cpp is what leaves a host with headers too old for the
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
-# v0.6.0 is the first release carrying the libs3rdma RDMA transport.
-MINIO_CPP_REF="${MINIO_CPP_REF:-v0.6.0}"
+# v1.0.0 installs the library as libminio with a stable soname.
+MINIO_CPP_REF="${MINIO_CPP_REF:-v1.0.0}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
 CMAKE_MIN="3.31"
@@ -174,6 +174,9 @@ static_libs() {
 	for lib in $(tr ' ' '\n' <"${REPO_DIR}/scripts/rdma-cgo-libs.txt" | sed -n 's/^-l//p'); do
 		case "${lib}" in
 		stdc++ | m | dl | pthread) ;;
+		# zlib is a system library here: minio-cpp 1.0.0 takes vcpkg's only on
+		# Windows, so the prefix neither holds nor needs an archive for it.
+		z) ;;
 		s3rdma) ;;
 		*) echo "${lib}" ;;
 		esac
@@ -250,8 +253,8 @@ verify_prefix() {
 
 	# Name checks alone cannot tell a cross prefix from one holding host-built
 	# archives, which is the failure a shared vcpkg checkout invites. Check both
-	# libminiocpp and a vcpkg archive, since they are produced by separate builds.
-	for name in libminiocpp.a libssl.a; do
+	# libminio and a vcpkg archive, since they are produced by separate builds.
+	for name in libminio.a libssl.a; do
 		[ -f "${prefix}/lib/${name}" ] || continue
 		found="$(elf_machine "${prefix}/lib/${name}")"
 		if [ "${found}" != "${machine}" ]; then
@@ -279,7 +282,7 @@ if command -v apt-get >/dev/null 2>&1; then
 	run_privileged apt-get -qq update || true
 	run_privileged apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
 		build-essential git curl zip unzip tar pkg-config \
-		libibverbs-dev librdmacm-dev libnuma-dev
+		libibverbs-dev librdmacm-dev libnuma-dev zlib1g-dev
 
 	if printf '%s\n' "${TARGETS[@]}" | grep -qx arm64 && [ "${HOST_ARCH}" != arm64 ]; then
 		echo ">>> installing the aarch64 cross toolchain and arm64 RDMA libraries"
@@ -301,10 +304,12 @@ if command -v apt-get >/dev/null 2>&1; then
 		run_privileged apt-get -qq update || true
 		# libibverbs-dev and friends are Multi-Arch: same -- install both arches
 		# together so adding :arm64 cannot drop :amd64 and break native builds.
+		# zlib joined them at minio-cpp 1.0.0, which takes it from the system on
+		# Linux rather than vcpkg, so the cross build needs the arm64 one too.
 		run_privileged apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
 			gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-			libibverbs-dev:amd64 librdmacm-dev:amd64 libnuma-dev:amd64 \
-			libibverbs-dev:arm64 librdmacm-dev:arm64 libnuma-dev:arm64
+			libibverbs-dev:amd64 librdmacm-dev:amd64 libnuma-dev:amd64 zlib1g-dev:amd64 \
+			libibverbs-dev:arm64 librdmacm-dev:arm64 libnuma-dev:arm64 zlib1g-dev:arm64
 	fi
 else
 	echo "no apt-get; ensure a C++ toolchain and libibverbs/librdmacm/libnuma -dev are installed" >&2
@@ -414,18 +419,33 @@ build_target() {
 	# An install this run would reproduce byte for byte is not older, and backing
 	# it up on every rerun would litter the prefix.
 	local stale=() f lib
-	if cmp -s "${src}/build/libminiocpp.a" "${prefix}/lib/libminiocpp.a"; then
+	if cmp -s "${src}/build/libminio.a" "${prefix}/lib/libminio.a"; then
 		echo ">>> ${prefix} already holds this ${arch} build"
 	else
 		if [ -e "${prefix}/include/miniocpp" ]; then
 			stale+=("${prefix}/include/miniocpp")
 		fi
-		for f in "${prefix}"/lib/libminiocpp.*; do
+		# libminiocpp.* is the pre-1.0.0 name of the same library, so a host
+		# provisioned before the rename has both here.
+		for f in "${prefix}"/lib/libminio.* "${prefix}"/lib/libminiocpp.*; do
 			if [ -e "${f}" ]; then
 				stale+=("${f}")
 			fi
 		done
 	fi
+
+	# Dependency archives a previous minio-cpp orphaned: 1.0.0 replaced curlpp
+	# with cpp-httplib and takes zlib from the system on Linux, so vcpkg no
+	# longer builds any of these. An orphaned libz.a is the one that misleads --
+	# it still satisfies -lz, so the link succeeds here and against the system
+	# zlib everywhere else, and the release would not match what CI built.
+	# Not conditional on the library having changed -- a prefix already holding
+	# this build can still carry the previous version's dependency set.
+	for f in "${prefix}"/lib/libcurlpp.* "${prefix}"/lib/libcurl.* "${prefix}"/lib/libz.*; do
+		if [ -e "${f}" ]; then
+			stale+=("${f}")
+		fi
+	done
 
 	# Shared objects that shadow the archives we install. ld picks these over the
 	# .a in the same -L, which is how a release ends up depending on a library it
