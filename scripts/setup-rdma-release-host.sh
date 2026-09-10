@@ -426,8 +426,11 @@ build_target() {
 			stale+=("${prefix}/include/miniocpp")
 		fi
 		# libminiocpp.* is the pre-1.0.0 name of the same library, so a host
-		# provisioned before the rename has both here.
-		for f in "${prefix}"/lib/libminio.* "${prefix}"/lib/libminiocpp.*; do
+		# provisioned before the rename has both here. Only the archive is swept
+		# under the current name: the shared-object sweep below already covers
+		# libminio.so*, and queueing one path twice makes the second mv fail on
+		# an already-moved source, which set -e turns into an aborted provision.
+		for f in "${prefix}"/lib/libminio.a "${prefix}"/lib/libminiocpp.*; do
 			if [ -e "${f}" ]; then
 				stale+=("${f}")
 			fi
