@@ -44,8 +44,14 @@ rdma:
   device: ""
 
   image:
-    # Where the RDMA images are published. Defaults to image.repository when
-    # empty, for a mirror that carries both flavors.
+    # Where the RDMA images are published. This is a separate registry, not a
+    # variant of image.repository: only quay.io/minio/aistor/warp carries .rdma
+    # tags, while image.repository defaults to minio/warp, which does not.
+    #
+    # So mirroring means overriding both. Changing image.repository alone leaves
+    # the RDMA pods pulling from quay.io, because a non-empty value here always
+    # wins. Set this to "" to follow image.repository instead, for a mirror that
+    # carries both flavors under one name.
     repository: quay.io/minio/aistor/warp
     # Defaults to "<image.version>.rdma". `latest` never resolves to an RDMA
     # image, so image.version has to name a release -- or this has to name the

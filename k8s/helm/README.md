@@ -48,6 +48,34 @@ rdma:
 `k8s/helm/values-rdma-example.yaml` is a complete example. See
 [RDMA.md](../../RDMA.md) for what S3 over RDMA is and what it needs from a host.
 
+#### Mirrored and air-gapped registries
+
+The RDMA image comes from a different registry than the stock one:
+`quay.io/minio/aistor/warp` publishes `.rdma` tags, `minio/warp` does not. The
+chart therefore reads `rdma.image.repository`, and a non-empty value there wins
+over `image.repository`.
+
+That means **mirroring requires overriding both**. Setting `image.repository`
+alone leaves the RDMA pods pulling from quay.io:
+
+```yaml
+# Wrong: the RDMA pods still pull quay.io/minio/aistor/warp
+image:
+  repository: registry.internal/warp
+
+# Right, when the mirror carries both flavors under one name
+image:
+  repository: registry.internal/warp
+rdma:
+  image:
+    repository: ""      # follow image.repository
+
+# Right, when the mirror keeps them apart
+rdma:
+  image:
+    repository: registry.internal/aistor/warp
+```
+
 #### Reaching the fabric
 
 The chart configures warp; it does not give a pod an RDMA device. Kubernetes
