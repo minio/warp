@@ -1,1 +1,0 @@
--lminiocpp -ls3rdma -lcurlpp -lcurl -lssl -lcrypto -lINIReader -linih -lpugixml -lz -lstdc++ -lm -ldl -lpthread

@@ -14,9 +14,11 @@
 #   amd64  ${PREFIX}                        (default /usr/local, built natively)
 #   arm64  ${PREFIX}/aarch64-linux-gnu      (cross-built)
 #
-# Each holds libminiocpp.a built with RDMA enabled plus its headers, the vcpkg
-# static archives it links against (scripts/rdma-cgo-libs.txt), and the vendored
-# libs3rdma shared object the release packaging copies out. The arm64 prefix
+# Each holds libminio.a built with RDMA enabled plus its headers, the vcpkg
+# static archives it links against, the derived cgo link line
+# (lib/warp-rdma-cgo-libs.txt, which qreleaser.yaml reads because goreleaser
+# cannot run a command), and the vendored libs3rdma shared object the release
+# packaging copies out. The arm64 prefix
 # path is fixed rather than host-dependent because qreleaser.yaml has to name it
 # in a static override.
 #
@@ -104,10 +106,17 @@ esac
 # Pinned in lockstep with scripts/build-rdma.sh and .github/workflows/go-rdma.yml:
 # a floating minio-cpp is what leaves a host with headers too old for the
 # minio-go revision in go.mod, and vcpkg's port scripts track the newest CMake.
-# v0.6.0 is the first release carrying the libs3rdma RDMA transport.
-MINIO_CPP_REF="${MINIO_CPP_REF:-v0.6.0}"
+# minio-cpp is pinned to a commit rather than a tag: the pkg-config fix
+# that lets the link line be derived landed after v1.0.0 and is not yet
+# tagged. Move this to v1.0.1 once it is cut.
+MINIO_CPP_REF="${MINIO_CPP_REF:-92d8b2c3ec6ac2c82012590de572c55f3591f338}"
 MINIO_CPP_REPO="${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 VCPKG_REF="${VCPKG_REF:-2026.07.29}"
+
+# Written into each prefix at provisioning time and read back by qreleaser.yaml,
+# smoke_build and verify_prefix. The qreleaser checkout is wiped per run, so a
+# file generated into the repo would not survive to the build.
+LINK_LIBS_NAME="warp-rdma-cgo-libs.txt"
 CMAKE_MIN="3.31"
 CMAKE_VERSION="${CMAKE_VERSION:-3.31.6}"
 
@@ -164,16 +173,29 @@ elf_machine() {
 	readelf -h "$1" 2>/dev/null | sed -n 's/^ *Machine: *//p' | head -1
 }
 
-# scripts/rdma-cgo-libs.txt names three kinds of library: the toolchain's own,
+# The derived link line names three kinds of library: the toolchain's own,
 # libs3rdma, which minio-cpp vendors as a shared object with no static form, and
 # everything else, which must come from an archive. A published binary that
 # picks one of the last group up dynamically has a runtime dependency the
 # package neither declares nor bundles, and fails to start on a customer host.
+#
+# Reading the list from the prefix rather than from a file in this repo is what
+# makes a dependency minio-cpp newly pulls in fail loudly: it appears here, and
+# verify_prefix then demands an archive for it.
 static_libs() {
+	local prefix="$1"
 	local lib
-	for lib in $(tr ' ' '\n' <"${REPO_DIR}/scripts/rdma-cgo-libs.txt" | sed -n 's/^-l//p'); do
+	# Absent on a first provisioning: build_target sweeps shadowing objects
+	# before installing, and a prefix with no list has nothing to shadow. On a
+	# re-provision this is the previous install's list, which is the right one
+	# to sweep against.
+	[ -s "${prefix}/lib/${LINK_LIBS_NAME}" ] || return 0
+	for lib in $(tr ' ' '\n' <"${prefix}/lib/${LINK_LIBS_NAME}" | sed -n 's/^-l//p'); do
 		case "${lib}" in
 		stdc++ | m | dl | pthread) ;;
+		# zlib is a system library here: minio-cpp 1.0.0 takes vcpkg's only on
+		# Windows, so the prefix neither holds nor needs an archive for it.
+		z) ;;
 		s3rdma) ;;
 		*) echo "${lib}" ;;
 		esac
@@ -226,7 +248,14 @@ verify_prefix() {
 		missing=1
 	fi
 
-	for lib in $(static_libs); do
+	# qreleaser.yaml reads this out of the prefix; without it a release links
+	# with an empty library list instead of failing here.
+	if [ ! -s "${prefix}/lib/${LINK_LIBS_NAME}" ]; then
+		echo "MISSING: ${prefix}/lib/${LINK_LIBS_NAME} (${arch}, needed by qreleaser.yaml)" >&2
+		missing=1
+	fi
+
+	for lib in $(static_libs "${prefix}"); do
 		name="lib${lib}"
 		if ! compgen -G "${prefix}/lib/${name}.a" >/dev/null; then
 			echo "MISSING: ${prefix}/lib/${name}.a (${arch})" >&2
@@ -250,8 +279,8 @@ verify_prefix() {
 
 	# Name checks alone cannot tell a cross prefix from one holding host-built
 	# archives, which is the failure a shared vcpkg checkout invites. Check both
-	# libminiocpp and a vcpkg archive, since they are produced by separate builds.
-	for name in libminiocpp.a libssl.a; do
+	# libminio and a vcpkg archive, since they are produced by separate builds.
+	for name in libminio.a libssl.a; do
 		[ -f "${prefix}/lib/${name}" ] || continue
 		found="$(elf_machine "${prefix}/lib/${name}")"
 		if [ "${found}" != "${machine}" ]; then
@@ -279,7 +308,7 @@ if command -v apt-get >/dev/null 2>&1; then
 	run_privileged apt-get -qq update || true
 	run_privileged apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
 		build-essential git curl zip unzip tar pkg-config \
-		libibverbs-dev librdmacm-dev libnuma-dev
+		libibverbs-dev librdmacm-dev libnuma-dev zlib1g-dev
 
 	if printf '%s\n' "${TARGETS[@]}" | grep -qx arm64 && [ "${HOST_ARCH}" != arm64 ]; then
 		echo ">>> installing the aarch64 cross toolchain and arm64 RDMA libraries"
@@ -301,10 +330,12 @@ if command -v apt-get >/dev/null 2>&1; then
 		run_privileged apt-get -qq update || true
 		# libibverbs-dev and friends are Multi-Arch: same -- install both arches
 		# together so adding :arm64 cannot drop :amd64 and break native builds.
+		# zlib joined them at minio-cpp 1.0.0, which takes it from the system on
+		# Linux rather than vcpkg, so the cross build needs the arm64 one too.
 		run_privileged apt-get -o DPkg::Lock::Timeout=600 -qy install --no-install-recommends \
 			gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-			libibverbs-dev:amd64 librdmacm-dev:amd64 libnuma-dev:amd64 \
-			libibverbs-dev:arm64 librdmacm-dev:arm64 libnuma-dev:arm64
+			libibverbs-dev:amd64 librdmacm-dev:amd64 libnuma-dev:amd64 zlib1g-dev:amd64 \
+			libibverbs-dev:arm64 librdmacm-dev:arm64 libnuma-dev:arm64 zlib1g-dev:arm64
 	fi
 else
 	echo "no apt-get; ensure a C++ toolchain and libibverbs/librdmacm/libnuma -dev are installed" >&2
@@ -414,23 +445,41 @@ build_target() {
 	# An install this run would reproduce byte for byte is not older, and backing
 	# it up on every rerun would litter the prefix.
 	local stale=() f lib
-	if cmp -s "${src}/build/libminiocpp.a" "${prefix}/lib/libminiocpp.a"; then
+	if cmp -s "${src}/build/libminio.a" "${prefix}/lib/libminio.a"; then
 		echo ">>> ${prefix} already holds this ${arch} build"
 	else
 		if [ -e "${prefix}/include/miniocpp" ]; then
 			stale+=("${prefix}/include/miniocpp")
 		fi
-		for f in "${prefix}"/lib/libminiocpp.*; do
+		# libminiocpp.* is the pre-1.0.0 name of the same library, so a host
+		# provisioned before the rename has both here. Only the archive is swept
+		# under the current name: the shared-object sweep below already covers
+		# libminio.so*, and queueing one path twice makes the second mv fail on
+		# an already-moved source, which set -e turns into an aborted provision.
+		for f in "${prefix}"/lib/libminio.a "${prefix}"/lib/libminiocpp.*; do
 			if [ -e "${f}" ]; then
 				stale+=("${f}")
 			fi
 		done
 	fi
 
+	# Dependency archives a previous minio-cpp orphaned: 1.0.0 replaced curlpp
+	# with cpp-httplib and takes zlib from the system on Linux, so vcpkg no
+	# longer builds any of these. An orphaned libz.a is the one that misleads --
+	# it still satisfies -lz, so the link succeeds here and against the system
+	# zlib everywhere else, and the release would not match what CI built.
+	# Not conditional on the library having changed -- a prefix already holding
+	# this build can still carry the previous version's dependency set.
+	for f in "${prefix}"/lib/libcurlpp.* "${prefix}"/lib/libcurl.* "${prefix}"/lib/libz.*; do
+		if [ -e "${f}" ]; then
+			stale+=("${f}")
+		fi
+	done
+
 	# Shared objects that shadow the archives we install. ld picks these over the
 	# .a in the same -L, which is how a release ends up depending on a library it
 	# neither bundles nor declares.
-	for lib in $(static_libs); do
+	for lib in $(static_libs "${prefix}"); do
 		for f in "${prefix}"/lib/"lib${lib}".so*; do
 			if [ -e "${f}" ]; then
 				stale+=("${f}")
@@ -458,6 +507,20 @@ build_target() {
 	as_root cp -P vcpkg_installed/"${triplet}"/lib/*.a "${prefix}/lib/"
 	command -v ldconfig >/dev/null 2>&1 && as_root ldconfig || true
 
+	# Derive the link line from the miniocpp.pc just installed and leave it in
+	# the prefix: goreleaser cannot run a command, and the checkout it builds
+	# from is wiped per run, so the prefix is the only place this can live.
+	#
+	# Derived into a variable first. Piping straight into tee would truncate a
+	# previously good list before the derivation's exit status is known, and an
+	# empty list makes every check that reads it vacuous. Declared separately
+	# from the assignment on purpose: `local x="$(...)"` returns local's status,
+	# which would swallow the failure this guards against.
+	local link_libs
+	link_libs="$("${REPO_DIR}/scripts/rdma-link-libs.sh" "${prefix}" "${src}")"
+	printf '%s\n' "${link_libs}" |
+		as_root tee "${prefix}/lib/${LINK_LIBS_NAME}" >/dev/null
+
 	verify_prefix "${arch}"
 }
 
@@ -476,7 +539,7 @@ smoke_build() {
 		CC="$(arch_cc "${arch}")" \
 		CXX="$(arch_cxx "${arch}")" \
 		CGO_CFLAGS="-I${prefix}/include" \
-		CGO_LDFLAGS="-L${prefix}/lib -Wl,-rpath-link,${prefix}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")" \
+		CGO_LDFLAGS="-L${prefix}/lib -Wl,-rpath-link,${prefix}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags $(cat "${prefix}/lib/${LINK_LIBS_NAME}")" \
 		go build -trimpath -tags=kqueue,rdma -o "${out}" .
 
 	local machine
@@ -495,7 +558,7 @@ smoke_build() {
 	# declare, so the binary would fail to start on a customer host.
 	local needed lib
 	needed="$(readelf -d "${out}" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p')"
-	for lib in $(static_libs); do
+	for lib in $(static_libs "${prefix}"); do
 		if printf '%s\n' "${needed}" | grep -q "^lib${lib}\.so"; then
 			echo "smoke build links lib${lib} dynamically; something in $(arch_prefix "${arch}")/lib shadows lib${lib}.a" >&2
 			return 1

@@ -125,7 +125,7 @@ else
 		"${MINIO_CPP_REPO:-https://github.com/minio/minio-cpp}"
 fi
 git -C "${MINIO_CPP_DIR}" fetch --depth 1 origin \
-	"${MINIO_CPP_REF:-v0.6.0}"
+	"${MINIO_CPP_REF:-92d8b2c3ec6ac2c82012590de572c55f3591f338}"
 git -C "${MINIO_CPP_DIR}" checkout --detach -f FETCH_HEAD
 
 echo ">>> building libminiocpp with RDMA"
@@ -143,7 +143,7 @@ echo ">>> building libminiocpp with RDMA"
 	cmake --install ./build
 	mkdir -p "${PREFIX}/lib"
 	cp -P vendor/s3rdma/lib/"${S3RDMA_ARCH}"/* "${PREFIX}/lib/"
-	# Collect vcpkg's static dependencies next to libminiocpp.a so the whole
+	# Collect vcpkg's static dependencies next to libminio.a so the whole
 	# static link resolves from one -L. cmake --install only places libminiocpp.
 	cp -P vcpkg_installed/*/lib/*.a "${PREFIX}/lib/"
 )
@@ -151,10 +151,9 @@ echo ">>> building libminiocpp with RDMA"
 TAGS="kqueue,rdma"
 NAME="warp-rdma"
 
-# Static libminiocpp plus its transitive vcpkg archives, then libs3rdma. Kept in
-# one file because .goreleaser/qreleaser.yaml and the CI workflows have to link
-# exactly the same way.
-RDMA_LINK_LIBS="$(cat "${REPO_DIR}/scripts/rdma-cgo-libs.txt")"
+# Static libminio plus its transitive vcpkg archives, then libs3rdma, derived
+# from the miniocpp.pc just installed so this cannot drift from what was built.
+RDMA_LINK_LIBS="$("${REPO_DIR}/scripts/rdma-link-libs.sh" "${PREFIX}" "${MINIO_CPP_DIR}")"
 
 STAGE="${WORK}/stage/${NAME}"
 rm -rf "${STAGE}"
