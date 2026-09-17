@@ -24,6 +24,13 @@
    - Configuration method: Legacy warpConfiguration
    {{- end }}
    - Job restart on upgrade: {{ .Values.job.restartOnUpgrade }}
+   {{- if .Values.rdma.enabled }}
+   - Transport: S3 over RDMA ({{ .Values.rdma.mode }}){{ if .Values.rdma.device }}, device {{ .Values.rdma.device }}{{ end }}
+   - Image: {{ include "warp.image" . }}
+   - Caveat: warp cannot report whether a transfer used RDMA. A setup failure
+     falls back to HTTP and the operation still succeeds, so confirm from the
+     storage server's S3 over RDMA counters.
+   {{- end }}
 
 {{- if .Values.configFile }}
 6. The benchmark is configured to run against:

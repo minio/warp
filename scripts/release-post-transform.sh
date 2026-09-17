@@ -11,7 +11,8 @@
 # suffix-named -- in the q layout the same way it handles FIPS:
 #   warp-release/<release-type>/linux-<arch>/warp.<version-tag>.rdma
 # So this hook only generates the deb/rpm/apk packages via pkger and drops them
-# alongside; it neither builds nor signs the binary.
+# alongside, and stages the bundled libs3rdma for the container image; it
+# neither builds nor signs the binary.
 #
 # The packages are drop-in: the payload is /usr/local/bin/warp, same as the
 # stock package, so a customer installs the RDMA build instead of the stock one
@@ -46,6 +47,16 @@ MINIOCPP_PREFIX="${MINIOCPP_PREFIX:-/usr/local}"
 STAGE_DIR=.rdma-pkg
 trap 'rm -rf "${STAGE_DIR}"' EXIT
 
+# libs3rdma has two consumers: pkger, which reads it through
+# pkg-scripts/rdma-contents.yaml, and the RDMA container image, whose
+# Dockerfile.v2.release copies it into /usr/lib/warp. So unlike STAGE_DIR this
+# outlives the hook -- qreleaser's container-build stage runs after the build
+# stage that invokes us, with the repository root as the docker build context.
+# Cleared up front instead, so a re-run in a workspace that was not wiped cannot
+# ship a library from the previous one.
+IMAGE_LIB_DIR=.rdma-image/lib
+rm -rf "${IMAGE_LIB_DIR}"
+
 for arch in amd64 arm64; do
 	layout_dir="warp-release/${RELEASE_TYPE}/linux-${arch}"
 	binary="${layout_dir}/warp.${VERSION_TAG}.rdma"
@@ -69,9 +80,9 @@ for arch in amd64 arm64; do
 	# name pkger expects, in a scratch dir so the published layout keeps only the
 	# suffix-named binary.
 	pkg_dir="${STAGE_DIR}/release/linux-${arch}"
-	mkdir -p "${pkg_dir}" "${STAGE_DIR}/lib/${arch}"
+	mkdir -p "${pkg_dir}" "${IMAGE_LIB_DIR}/${arch}"
 	cp -p "${binary}" "${pkg_dir}/warp.rdma.${VERSION_TAG}"
-	cp -P "${arch_prefix}"/lib/libs3rdma.so* "${STAGE_DIR}/lib/${arch}/"
+	cp -P "${arch_prefix}"/lib/libs3rdma.so* "${IMAGE_LIB_DIR}/${arch}/"
 
 	echo "post-transform: packaging RDMA artifacts for linux-${arch} (${VERSION_TAG})"
 	pkger -a warp --binary-name warp.rdma -r "${VERSION_TAG}" -l AGPLv3 \

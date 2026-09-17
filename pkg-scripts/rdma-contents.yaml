@@ -1,15 +1,16 @@
 # Extra files for the warp RDMA package, consumed by pkger --contents.
 #
-# libminiocpp and its vcpkg dependencies are linked statically, so only
+# libminio and its vcpkg dependencies are linked statically, so only
 # libs3rdma needs shipping: minio-cpp vendors it as a shared object with no
 # static form. scripts/release-post-transform.sh stages it under
-# .rdma-pkg/lib/${ARCH} before invoking pkger, and the RDMA binary carries an
-# rpath of /usr/lib/warp so it finds it once installed.
+# .rdma-image/lib/${ARCH} before invoking pkger -- the same directory the RDMA
+# container image copies from -- and the RDMA binary carries an rpath of
+# /usr/lib/warp so it finds it once installed.
 #
 # Named by soname with a bare .so link beside it, and no version in either.
 # The loader asks for the soname, so a version in a filename was only ever one
 # more place to forget on a bump -- which is how this manifest last broke.
-- src: .rdma-pkg/lib/${ARCH}/libs3rdma.so.0
+- src: .rdma-image/lib/${ARCH}/libs3rdma.so.0
   dst: /usr/lib/warp/libs3rdma.so.0
 - src: libs3rdma.so.0
   dst: /usr/lib/warp/libs3rdma.so

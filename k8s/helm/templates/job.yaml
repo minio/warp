@@ -16,10 +16,17 @@ spec:
     metadata:
       labels:
         {{- include "warp.selectorLabels" . | nindent 8 }}
-      {{- if .Values.job.restartOnUpgrade }}
+      {{- if or .Values.job.restartOnUpgrade (and .Values.rdma.enabled .Values.rdma.podAnnotations) }}
       annotations:
+        {{- if .Values.job.restartOnUpgrade }}
         # Force pod restart on upgrade by including a timestamp or revision
         rollme: {{ .Release.Revision | quote }}
+        {{- end }}
+        {{- if .Values.rdma.enabled }}
+        {{- with .Values.rdma.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
       {{- end }}
     spec:
       restartPolicy: Never
@@ -27,9 +34,15 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.rdma.enabled .Values.rdma.hostNetwork }}
+      hostNetwork: true
+      # Without this the pod loses cluster DNS and cannot resolve the headless
+      # service it addresses the clients through.
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
       containers:
       - name: {{ include "warp.fullname" . }}
-        image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
+        image: "{{ include "warp.image" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
         {{- if .Values.configFile }}
@@ -42,8 +55,9 @@ spec:
           - --{{ $k }}={{ $v }}
         {{- end }}
         {{- end }}
-        {{- if not .Values.configFile }}
+        {{- if or (not .Values.configFile) .Values.rdma.enabled }}
         env:
+        {{- if not .Values.configFile }}
           - name: WARP_HOST
             value: {{ .Values.warpConfiguration.s3ServerURL | quote }}
         {{- if .Values.warpConfiguration.s3ServerTLSEnabled }}
@@ -63,11 +77,17 @@ spec:
                 name: {{ include "warp.fullname" . }}-credentials
                 key: secret_key
         {{- end }}
-      {{- if .Values.serverResources }}
-        resources: {{- toYaml .Values.serverResources | nindent 12 }}
+        {{- with (include "warp.rdmaServerEnv" . | trim) }}
+        {{- . | nindent 10 }}
+        {{- end }}
+        {{- end }}
+      {{- with (include "warp.resources" (dict "ctx" $ "base" $.Values.serverResources)) }}
+        resources:
+          {{- . | nindent 10 }}
       {{- end }}
-      {{- if .Values.securityContext }}
-        securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- with (include "warp.securityContext" .) }}
+        securityContext:
+          {{- . | nindent 10 }}
       {{- end }}
       {{- if .Values.configFile }}
         volumeMounts:

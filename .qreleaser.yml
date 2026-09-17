@@ -12,11 +12,24 @@ use_semver: true # Requires Q_VERSION_TAG env var
 dl_upload_enabled: true # Upload binaries to dl.min.io
 
 # Container images
+#
+# The RDMA flavor is a second pass over the same Dockerfile, published as
+# quay.io/minio/aistor/warp:<version>.rdma. It carries no rolling tag: `latest`
+# must keep resolving to the stock image. qreleaser skips the pass for hotfixes,
+# matching scripts/release-post-transform.sh, which does not build RDMA
+# artifacts for one either.
+#
+# It needs a release host provisioned for both architectures (see
+# scripts/setup-rdma-release-host.sh). A host that sets WARP_SKIP_RDMA=true has
+# no warp.<version>.rdma for the image to copy, so such a release has to drop
+# rdma_enabled here as well.
 containers:
   - name: quay
     image: quay.io/minio/aistor/warp
     archs: [amd64, arm64]
     fips_enabled: false
+    rdma_enabled: true
+    rdma_archs: [amd64, arm64]
     dockerfile: Dockerfile.v2.release
     rolling_tags:
       stable: latest

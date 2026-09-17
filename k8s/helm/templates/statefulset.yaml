@@ -16,25 +16,41 @@ spec:
       name: {{ template "warp.fullname" . }}
       labels:
         {{- include "warp.selectorLabels" . | nindent 8 }}
+      {{- if and .Values.rdma.enabled .Values.rdma.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.rdma.podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.rdma.enabled .Values.rdma.hostNetwork }}
+      hostNetwork: true
+      # Without this the pods lose cluster DNS and cannot resolve the headless
+      # service the server addresses them through.
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ include "warp.imageVersion" . }}"
+          image: "{{ include "warp.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - client	  
+            - client
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
-          {{- if .Values.clientResources }}
-          resources: {{- toYaml .Values.clientResources | nindent 12 }}
+          {{- with (include "warp.rdmaClientEnv" . | trim) }}
+          env:
+            {{- . | nindent 12 }}
           {{- end }}
-          {{- if .Values.securityContext }}
-          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with (include "warp.resources" (dict "ctx" $ "base" $.Values.clientResources)) }}
+          resources:
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- with (include "warp.securityContext" .) }}
+          securityContext:
+            {{- . | nindent 12 }}
           {{- end }}
     {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "warp.serviceAccountName" . }}

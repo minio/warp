@@ -24,3 +24,9 @@ cufile.log
 # qreleaser state file
 .release-state.sh
 warp-release/
+
+# RDMA release staging: scripts/release-post-transform.sh puts the bundled
+# libs3rdma in .rdma-image for pkger and the container image build, and pkger's
+# own input in .rdma-pkg.
+.rdma-image/
+.rdma-pkg/
