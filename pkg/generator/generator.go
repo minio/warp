@@ -123,6 +123,18 @@ func New(opts ...Option) (Source, error) {
 	return options.src(options)
 }
 
+// SizeFn returns the object size picker the options configure, so a caller
+// can draw sizes from its own random source.
+func SizeFn(opts ...Option) (func(rng *rand.Rand) int64, error) {
+	options := defaultOptions()
+	for _, ofn := range opts {
+		if err := ofn(&options); err != nil {
+			return nil, err
+		}
+	}
+	return options.getSize, nil
+}
+
 // NewFn return data source.
 func NewFn(opts ...Option) (func() Source, error) {
 	options := defaultOptions()
@@ -175,7 +187,7 @@ func randASCIIBytes(dst []byte, rng *rand.Rand) {
 func GetExpRandSize(rng *rand.Rand, minSize, maxSize int64) int64 {
 	if maxSize-minSize < 10 {
 		if maxSize-minSize <= 0 {
-			return 0
+			return maxSize
 		}
 		return 1 + minSize + rng.Int63n(maxSize-minSize)
 	}

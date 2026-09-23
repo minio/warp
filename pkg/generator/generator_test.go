@@ -19,6 +19,7 @@ package generator
 
 import (
 	"io"
+	"math/rand"
 	"testing"
 )
 
@@ -164,5 +165,37 @@ func BenchmarkWithRandomData(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func TestSizeFn(t *testing.T) {
+	fixed, err := SizeFn(WithRandomData().Apply(), WithSize(1000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rng := rand.New(rand.NewSource(1))
+	if got := fixed(rng); got != 1000 {
+		t.Fatalf("fixed size %d", got)
+	}
+	random, err := SizeFn(WithRandomData().Apply(), WithMinMaxSize(500, 5000), WithRandomSize(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	equal, err := SizeFn(WithRandomData().Apply(), WithMinMaxSize(4096, 4096), WithRandomSize(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := equal(rng); got != 4096 {
+		t.Errorf("equal bounds gave size %d, want 4096", got)
+	}
+	a, b := rand.New(rand.NewSource(7)), rand.New(rand.NewSource(7))
+	for range 100 {
+		x, y := random(a), random(b)
+		if x != y {
+			t.Fatal("same random source gave different sizes")
+		}
+		if x < 500 || x > 5000 {
+			t.Fatalf("size %d outside 500-5000", x)
+		}
 	}
 }

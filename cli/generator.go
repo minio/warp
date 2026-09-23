@@ -45,6 +45,13 @@ var genFlags = []cli.Flag{
 
 // newGenSource returns a new generator
 func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
+	src, err := generator.NewFn(genOptions(ctx, sizeField)...)
+	fatalIf(probe.NewError(err), "Unable to create data generator")
+	return src
+}
+
+// genOptions returns the generator options set by the generator flags.
+func genOptions(ctx *cli.Context, sizeField string) []generator.Option {
 	prefixSize := 8
 	if ctx.Bool("noprefix") {
 		prefixSize = 0
@@ -94,10 +101,7 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 
 		opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
 	}
-
-	src, err := generator.NewFn(opts...)
-	fatalIf(probe.NewError(err), "Unable to create data generator")
-	return src
+	return opts
 }
 
 // toSize converts a size indication to bytes.
