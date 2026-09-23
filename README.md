@@ -791,6 +791,142 @@ The analysis throughput represents the object count and sizes as they are writte
 
 Request times shown with `--analyze.v` represents request time for each fan-out call.
 
+## ATOMIC
+
+The atomic benchmark checks whether an S3 server keeps the consistency
+guarantees that Amazon S3 has provided since December 2020:
+
+- An overwrite replaces the whole object at once.
+- A read that starts after a write succeeds sees that write.
+- A listing that starts after a PUT or DELETE succeeds shows that change.
+
+Many applications depend on these guarantees, for example the Hadoop S3A
+connector used by Spark. When a server breaks them, the application does not
+see an error. It reads old or partial data, or misses a file.
+
+Other warp benchmarks measure speed and check only object sizes. This benchmark
+checks the content, metadata, ETag and listing entry of every response.
+
+### Run the benchmark
+
+List each server directly with `--host`, not a load balancer in front of them.
+Warp can then send a write to one server and the next read to another:
+
+```
+λ warp atomic --host=10.0.0.{1...8}:9000 --host-select=roundrobin \
+    --objects=16 --obj.size=16MiB --obj.randsize --concurrent=64 --duration=5m
+```
+
+Use a bucket that holds no other data. Warp empties the bucket before the run,
+as it does for every benchmark. After the run, it deletes only the keys it wrote.
+
+### How warp tells which PUT a response came from
+
+Every 4 KiB block of an uploaded object starts with a stamp. The stamp names
+the PUT that wrote the object and the key it was written to. Warp also stores
+the PUT's name in the `X-Amz-Meta-Warp-Atomic` metadata. Warp can therefore
+look at any response on its own and tell which PUT produced each part of it.
+Uploads always use a single part.
+
+When the run starts, warp uploads one object and reads it back. It stops with
+an error in two cases:
+
+- The server does not return the `Warp-Atomic` metadata.
+- The ETag is not the MD5 of the body. Some servers use other ETags. Rerun
+  with `--no-etag-md5` for those servers.
+
+### Operations
+
+Warp picks each operation at random, in the proportions set by the
+`--*-distrib` flags:
+
+- **PUT** overwrites one of the keys. By default, warp then reads the key back
+  at once. When `--host` lists more than one server, the read goes to a
+  different server than the PUT.
+- **GET** reads a key and checks the body, metadata and ETag.
+- **STAT** reads a key's metadata and checks it.
+- **LIST** runs a cycle of five requests:
+  1. PUT a new key.
+  2. List the key's prefix. The new key must appear.
+  3. DELETE the new key.
+  4. List the prefix again. The key must be gone.
+  5. List the overwritten keys. Each entry must show a current PUT.
+
+  With more than one server in `--host`, steps 2 and 4 go to a different server
+  than the write before them.
+
+When the run ends, warp reads every key once more after all writes have stopped.
+
+### Violations
+
+Warp reports each failed check as an error that starts with
+`atomic <category>:`. The message names the server that answered the read and,
+where warp knows it, the server that took the write. If there were violations,
+warp prints the number in each category at the end of the run.
+
+A GET or STAT counts as a violation when it returns:
+
+| Category        | What the server returned                                    |
+| --------------- | ----------------------------------------------------------- |
+| `torn`          | a body made of blocks from two different PUTs               |
+| `corrupt`       | a block that no PUT wrote                                   |
+| `length`        | a body shorter or longer than the PUT that wrote it         |
+| `wrong-key`     | a body that was written to a different key                  |
+| `missing`       | `NoSuchKey` for a key that exists for the whole run         |
+| `meta-missing`  | an object without the `Warp-Atomic` metadata                |
+| `meta-mismatch` | metadata from one PUT with the body or size of another      |
+| `etag-mismatch` | an ETag different from the one the server gave for that PUT |
+| `etag-md5`      | an ETag that is not the MD5 of the body                     |
+| `stale`         | a PUT that another PUT replaced before the read started     |
+| `phantom`       | a PUT that this warp process never sent                     |
+
+A listing counts as a violation when it shows:
+
+| Category       | What the listing showed                                        |
+| -------------- | -------------------------------------------------------------- |
+| `list-missing` | no entry for a key whose PUT succeeded                         |
+| `list-deleted` | an entry for a key whose DELETE succeeded                      |
+| `list-size`    | a size that belongs to a different PUT than the listed ETag    |
+| `list-etag`    | an ETag different from the one the server gave for the new key |
+| `list-stale`   | a PUT that another PUT replaced before the listing started     |
+
+### When a read counts as stale
+
+Warp flags a read as `stale` only when it is certain that the returned data was
+already replaced. That is the case when another PUT to the same key did both of
+these things:
+
+- It started after the returned PUT succeeded.
+- It succeeded before the read started.
+
+Warp does not flag these cases:
+
+- The read overlaps two PUTs. The server may apply concurrent writes in either
+  order.
+- The read returns a PUT that failed. A failed PUT may still have been applied.
+
+Warp judges staleness only against PUTs sent by the same warp process, because
+it compares their times. In distributed mode, each client checks its own PUTs.
+The body, metadata and ETag checks apply to every read.
+
+### Parameters
+
+- `--objects=N` sets the number of keys. The default is 16. Fewer keys means
+  more writes to each key.
+- `--obj.size=N` sets the object size. The default is 4MiB. Add `--obj.randsize`
+  so that an overwrite also changes the size.
+- `--block.size=N` sets how often the stamp repeats. The default is 4096 bytes.
+- `--put-distrib`, `--get-distrib`, `--stat-distrib` and `--list-distrib` set the
+  mix of operations. The defaults are 40, 45, 15 and 10.
+- `--read-after-write` reads each key back straight after a successful PUT. It
+  is on by default. Turn it off with `--read-after-write=false`.
+- `--seed=N` sets the seed for each thread's choice of key, operation and object
+  size. The default, 0, picks a random seed. Every violation and the final
+  summary show the seed. Rerunning with the same seed, concurrency and number
+  of clients repeats each thread's sequence of operations. It does not repeat
+  the timing between threads and servers, so a violation may not recur.
+- `--no-etag-md5` turns off the check that the ETag is the MD5 of the body.
+
 # Analysis
 
 When benchmarks have finished all request data will be saved to a file and an analysis will be shown.
