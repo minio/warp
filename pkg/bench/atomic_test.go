@@ -356,3 +356,13 @@ func TestAtomicClientAvoiding(t *testing.T) {
 		done()
 	}
 }
+
+func TestAtomicClientViolations(t *testing.T) {
+	custom := map[string]string{"atomic.0.stale": "2", "atomic.1.stale": "3", "atomic.1.torn": "1", "upload-id": "x"}
+	if got, want := (&Atomic{}).ClientViolations(custom), "atomic violations: stale=5 torn=1"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := (&Atomic{}).ClientViolations(map[string]string{"upload-id": "x"}); got != "" {
+		t.Fatalf("got %q, want empty", got)
+	}
+}

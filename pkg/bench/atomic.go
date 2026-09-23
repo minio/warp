@@ -1040,11 +1040,15 @@ func (g *Atomic) finalPass() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	g.UpdateStatus("Verifying final state of all keys")
+	rcv := g.Collector.Receiver()
 	for i := range g.Keys {
 		client, clDone := g.Client()
-		op := Operation{File: g.keyName(i), Endpoint: client.EndpointURL().String(), Start: time.Now()}
+		op := Operation{OpType: http.MethodGet, ObjPerOp: 1, File: g.keyName(i), Endpoint: client.EndpointURL().String(), Start: time.Now()}
 		g.verifyGet(ctx, client, &op)
 		clDone()
+		if op.Err != "" {
+			rcv <- op
+		}
 	}
 	g.summary()
 }
@@ -1055,16 +1059,43 @@ func (g *Atomic) summary() {
 	if len(g.counts) == 0 {
 		return
 	}
-	kinds := make([]string, 0, len(g.counts))
-	for k := range g.counts {
+	if g.Custom == nil {
+		g.Custom = make(map[string]string, len(g.counts))
+	}
+	for k, n := range g.counts {
+		g.Custom[fmt.Sprintf("atomic.%d.%s", g.ClientIdx, k)] = strconv.FormatInt(n, 10)
+	}
+	g.Error(violationSummary(g.counts) + " seed=" + strconv.FormatUint(g.Seed, 10))
+}
+
+// ClientViolations adds up the violation counts returned by every client.
+func (g *Atomic) ClientViolations(custom map[string]string) string {
+	counts := make(map[string]int64)
+	for k, v := range custom {
+		rest, ok := strings.CutPrefix(k, "atomic.")
+		_, kind, found := strings.Cut(rest, ".")
+		n, err := strconv.ParseInt(v, 10, 64)
+		if ok && found && err == nil {
+			counts[kind] += n
+		}
+	}
+	if len(counts) == 0 {
+		return ""
+	}
+	return violationSummary(counts)
+}
+
+func violationSummary(counts map[string]int64) string {
+	kinds := make([]string, 0, len(counts))
+	for k := range counts {
 		kinds = append(kinds, k)
 	}
 	sort.Strings(kinds)
 	var sb strings.Builder
 	for _, k := range kinds {
-		fmt.Fprintf(&sb, " %s=%d", k, g.counts[k])
+		fmt.Fprintf(&sb, " %s=%d", k, counts[k])
 	}
-	g.Error("atomic violations:" + sb.String() + " seed=" + strconv.FormatUint(g.Seed, 10))
+	return "atomic violations:" + sb.String()
 }
 
 // Cleanup deletes the keys this benchmark wrote and nothing else.
