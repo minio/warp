@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/rand"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
@@ -242,56 +241,6 @@ func TestAtomicHistoryPrune(t *testing.T) {
 	}
 }
 
-func TestAtomicCheckListed(t *testing.T) {
-	base := time.Unix(1000, 0)
-	at := func(ms int) time.Time { return base.Add(time.Duration(ms) * time.Millisecond) }
-	const owner = 2
-	id := func(gen uint64) AtomicID { return AtomicID{Writer: owner<<32 | 1, Gen: gen} }
-	const k = "key"
-
-	h := newAtomicHistory(owner)
-	h.begin(k, id(1), at(0), 100, "http://a")
-	h.finish(k, id(1), at(10), true, "e1")
-	h.begin(k, id(2), at(20), 200, "http://b")
-	h.finish(k, id(2), at(30), true, "e2")
-	h.begin(k, id(3), at(40), 300, "http://c")
-
-	tests := []struct {
-		name  string
-		etag  string
-		size  int64
-		start time.Time
-		want  string
-	}{
-		{"current", "e2", 200, at(35), ""},
-		{"replaced before listing", "e1", 100, at(35), AtomicListStale},
-		{"listing overlaps overwrite", "e1", 100, at(25), ""},
-		{"size of another write", "e2", 100, at(35), AtomicListSize},
-		{"in flight, ETag unknown", "e3", 300, at(45), ""},
-	}
-	for _, tc := range tests {
-		if got, detail := h.checkListed(k, tc.etag, tc.size, tc.start); got != tc.want {
-			t.Errorf("%s: %q (%s), want %q", tc.name, got, detail, tc.want)
-		}
-	}
-
-	for g := uint64(4); g <= 80; g++ {
-		ms := int(g) * 100
-		h.begin(k, id(g), at(ms), 1, "")
-		h.finish(k, id(g), at(ms+5), true, "e"+strconv.FormatUint(g, 10))
-	}
-	if _, ok := h.keys[k].writes[id(1)]; ok {
-		t.Fatal("write 1 was not pruned")
-	}
-	if got, _ := h.checkListed(k, "e1", 100, at(100000)); got != AtomicListStale {
-		t.Errorf("pruned ETag: %q, want %q", got, AtomicListStale)
-	}
-	h.forget(k)
-	if _, ok := h.keys[k]; ok {
-		t.Error("forget kept the key")
-	}
-}
-
 func TestAtomicSeed(t *testing.T) {
 	sizes := func(g *Atomic, thread uint64) []int64 {
 		rng := g.threadRNG(thread)
@@ -331,7 +280,7 @@ func TestAtomicClientAvoiding(t *testing.T) {
 		}
 		clients = append(clients, cl)
 	}
-	running := []int{0, 5}
+	running := []int{0, 30}
 	leastRunning := func() (*minio.Client, func()) {
 		idx := 0
 		if running[1] < running[0] {
@@ -340,14 +289,14 @@ func TestAtomicClientAvoiding(t *testing.T) {
 		running[idx]++
 		return clients[idx], func() { running[idx]-- }
 	}
-	g := &Atomic{Common: Common{Client: leastRunning}}
+	g := &Atomic{Common: Common{Client: leastRunning, Concurrency: 30}}
 	avoid := clients[0].EndpointURL().String()
 	cl, done := g.clientAvoiding(avoid)
 	if cl.EndpointURL().String() == avoid {
 		t.Fatal("returned the avoided host")
 	}
 	done()
-	if running[0] != 0 || running[1] != 5 {
+	if running[0] != 0 || running[1] != 30 {
 		t.Errorf("clients not released: running %v", running)
 	}
 	if cl, done := g.clientAvoiding(""); cl != clients[0] {

@@ -318,13 +318,7 @@ type atomicKeyHistory struct {
 	// A writer issues one PUT at a time, so every lower generation of that
 	// writer on the key was superseded too.
 	pruned map[uint64]uint64
-	// prunedETags maps the ETags of recently pruned writes to their IDs, so
-	// a listing that still shows one can be named stale.
-	prunedETags     map[string]AtomicID
-	prunedETagOrder []string
 }
-
-const atomicPrunedETags = 4096
 
 // atomicHistory records the real-time interval of every PUT this process
 // issued, to decide whether a read returned data that was already overwritten.
@@ -351,9 +345,8 @@ func (h *atomicHistory) key(k string) *atomicKeyHistory {
 	kh := h.keys[k]
 	if kh == nil {
 		kh = &atomicKeyHistory{
-			writes:      make(map[AtomicID]*atomicWrite),
-			pruned:      make(map[uint64]uint64),
-			prunedETags: make(map[string]AtomicID),
+			writes: make(map[AtomicID]*atomicWrite),
+			pruned: make(map[uint64]uint64),
 		}
 		h.keys[k] = kh
 	}
@@ -454,12 +447,6 @@ func (h *atomicHistory) pruneLocked(k string, now time.Time) {
 		if id.Gen > kh.pruned[id.Writer] {
 			kh.pruned[id.Writer] = id.Gen
 		}
-		kh.prunedETags[w.etag] = id
-		kh.prunedETagOrder = append(kh.prunedETagOrder, w.etag)
-		if len(kh.prunedETagOrder) > atomicPrunedETags {
-			delete(kh.prunedETags, kh.prunedETagOrder[0])
-			kh.prunedETagOrder = kh.prunedETagOrder[1:]
-		}
 	}
 }
 
@@ -468,32 +455,6 @@ func (h *atomicHistory) forget(k string) {
 	delete(h.keys, k)
 	delete(h.sincePrun, k)
 	h.mu.Unlock()
-}
-
-// checkListed classifies a listing entry of key k by the ETag and size it
-// shows. Entries whose ETag this process never saw acknowledged are not
-// judged: they may belong to a PUT still in flight or to another client.
-func (h *atomicHistory) checkListed(k, etag string, size int64, listStart time.Time) (kind, detail string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	kh := h.key(k)
-	for id, w := range kh.writes {
-		if !w.acked || w.etag != etag {
-			continue
-		}
-		if w.size != size {
-			return AtomicListSize, fmt.Sprintf("listed ETag %s of %s (%d bytes) with size %d", etag, id, w.size, size)
-		}
-		if aid, a := supersededBefore(kh, listStart, id); w.end.Before(a.start) {
-			return AtomicListStale, fmt.Sprintf("listed %s, but %s (written via %s) was acknowledged %s before the listing started",
-				id, aid, a.endpoint, listStart.Sub(a.end).Round(time.Microsecond))
-		}
-		return "", ""
-	}
-	if id, ok := kh.prunedETags[etag]; ok {
-		return AtomicListStale, fmt.Sprintf("listed %s, which a later acknowledged PUT replaced", id)
-	}
-	return "", ""
 }
 
 // etag returns the ETag the server acknowledged for id, if known.
@@ -725,8 +686,8 @@ func (g *Atomic) Start(ctx context.Context, wait chan struct{}) error {
 				case pick < g.PutWeight+g.GetWeight+g.StatWeight:
 					rcv <- g.stat(nonTerm, uint32(i), key)
 				default:
-					gen++
-					g.listCycle(nonTerm, uint32(i), rng, AtomicID{Writer: writer, Gen: gen}, rcv)
+					gen += 2
+					g.listCycle(nonTerm, uint32(i), rng, AtomicID{Writer: writer, Gen: gen - 1}, rcv)
 				}
 			}
 		}(i)
@@ -764,7 +725,8 @@ func (g *Atomic) put(ctx context.Context, thread uint32, st atomicStamp, key str
 
 // clientAvoiding returns a client for a host other than avoid when there
 // is more than one host. Rejected clients stay checked out until it returns,
-// so a selector that favors idle hosts moves off the avoided one.
+// so a selector that favors idle hosts moves off the avoided one once it
+// holds more leases than any other host.
 func (g *Atomic) clientAvoiding(avoid string) (*minio.Client, func()) {
 	var rejected []func()
 	defer func() {
@@ -772,7 +734,7 @@ func (g *Atomic) clientAvoiding(avoid string) (*minio.Client, func()) {
 			done()
 		}
 	}()
-	for range 16 {
+	for range 2*g.Concurrency + 2 {
 		client, clDone := g.Client()
 		if avoid == "" || client.EndpointURL().String() != avoid {
 			return client, clDone
@@ -922,62 +884,50 @@ func (g *Atomic) listDir() string {
 	return g.Prefix + "atomic.list/"
 }
 
-// listCycle checks list-after-write and list-after-delete on a new key, then
-// that a listing of the overwritten keys shows no replaced PUT. Each listing
-// goes to a host other than the one that took the preceding write.
-func (g *Atomic) listCycle(ctx context.Context, thread uint32, rng *rand.Rand, id AtomicID, rcv chan<- Operation) {
-	dir := g.listDir() + strconv.FormatUint(id.Writer, 16) + "/"
-	key := dir + strconv.FormatUint(id.Gen, 16)
+// listCycle PUTs a new key, overwrites it and deletes it, and after each
+// acknowledged request lists the key from a host other than the one that
+// took the request. Only this writer touches the key, so no other PUT to it
+// can be in flight during a listing.
+func (g *Atomic) listCycle(ctx context.Context, thread uint32, rng *rand.Rand, first AtomicID, rcv chan<- Operation) {
+	dir := g.listDir() + strconv.FormatUint(first.Writer, 16) + "/"
+	key := dir + strconv.FormatUint(first.Gen, 16)
 	defer g.hist.forget(key)
 
-	put := g.put(ctx, thread, g.stamp(rng, key, id), key)
-	rcv <- put
-	if put.Err != "" {
-		return
-	}
-	etag, size, _ := g.hist.etag(key, id)
-	op, objs, release := g.list(ctx, thread, dir, put.Endpoint)
-	if op.Err == "" {
-		switch obj, ok := objs[key]; {
-		case !ok:
-			g.violation(&op, AtomicListMissing, fmt.Sprintf("%s acknowledged via %s is not listed", id, put.Endpoint))
-		case obj.Size != size:
-			g.violation(&op, AtomicListSize, fmt.Sprintf("%s acknowledged via %s with %d bytes, listed with %d", id, put.Endpoint, size, obj.Size))
-		case obj.ETag != etag:
-			g.violation(&op, AtomicListETag, fmt.Sprintf("%s acknowledged via %s with ETag %s, listed with %s", id, put.Endpoint, etag, obj.ETag))
+	var prev AtomicID
+	var prevETag string
+	for _, id := range []AtomicID{first, {Writer: first.Writer, Gen: first.Gen + 1}} {
+		put := g.put(ctx, thread, g.stamp(rng, key, id), key)
+		rcv <- put
+		if put.Err != "" {
+			return
 		}
+		etag, size, _ := g.hist.etag(key, id)
+		op, objs, release := g.list(ctx, thread, dir, put.Endpoint)
+		if op.Err == "" {
+			switch obj, ok := objs[key]; {
+			case !ok:
+				g.violation(&op, AtomicListMissing, fmt.Sprintf("%s acknowledged via %s is not listed", id, put.Endpoint))
+			case prevETag != "" && obj.ETag == prevETag:
+				g.violation(&op, AtomicListStale, fmt.Sprintf("listed %s, but %s replaced it via %s before the listing started", prev, id, put.Endpoint))
+			case obj.ETag != etag:
+				g.violation(&op, AtomicListETag, fmt.Sprintf("%s acknowledged via %s with ETag %s, listed with %s", id, put.Endpoint, etag, obj.ETag))
+			case obj.Size != size:
+				g.violation(&op, AtomicListSize, fmt.Sprintf("%s acknowledged via %s with %d bytes, listed with %d", id, put.Endpoint, size, obj.Size))
+			}
+		}
+		release()
+		rcv <- op
+		prev, prevETag = id, etag
 	}
-	release()
-	rcv <- op
 
 	del := g.remove(ctx, thread, key)
 	rcv <- del
 	if del.Err != "" {
 		return
 	}
-	op, objs, release = g.list(ctx, thread, dir, del.Endpoint)
+	op, objs, release := g.list(ctx, thread, dir, del.Endpoint)
 	if _, ok := objs[key]; ok && op.Err == "" {
-		g.violation(&op, AtomicListDeleted, fmt.Sprintf("%s deleted via %s is still listed", id, del.Endpoint))
-	}
-	release()
-	rcv <- op
-
-	op, objs, release = g.list(ctx, thread, g.Prefix+"atomic-", "")
-	if op.Err == "" {
-		for i := range g.Keys {
-			k := g.keyName(i)
-			obj, ok := objs[k]
-			if !ok {
-				op.File = k
-				g.violation(&op, AtomicListMissing, "key written before the run is not listed")
-				break
-			}
-			if kind, detail := g.hist.checkListed(k, obj.ETag, obj.Size, op.Start); kind != "" {
-				op.File = k
-				g.violation(&op, kind, detail)
-				break
-			}
-		}
+		g.violation(&op, AtomicListDeleted, fmt.Sprintf("%s deleted via %s is still listed", prev, del.Endpoint))
 	}
 	release()
 	rcv <- op
