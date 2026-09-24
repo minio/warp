@@ -69,6 +69,10 @@ type AfterPreparer interface {
 	AfterPrepare(ctx context.Context) error
 }
 
+type ViolationReporter interface {
+	ClientViolations(custom map[string]string) string
+}
+
 // validate the serverinfo.
 func (s serverInfo) validate() error {
 	if s.ID == "" {
@@ -348,6 +352,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		ui.Wait()
 		fmt.Println("")
 		fmt.Println(rep)
+	}
+
+	if a, ok := b.(ViolationReporter); ok {
+		if s := a.ClientViolations(common.Custom); s != "" {
+			errorLn(s)
+		}
 	}
 
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
