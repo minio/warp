@@ -845,15 +845,23 @@ Warp picks each operation at random, in the proportions set by the
   different server than the PUT.
 - **GET** reads a key and checks the body, metadata and ETag.
 - **STAT** reads a key's metadata and checks it.
-- **LIST** runs a cycle of five requests:
-  1. PUT a new key.
-  2. List the key's prefix. The new key must appear.
-  3. DELETE the new key.
-  4. List the prefix again. The key must be gone.
-  5. List the overwritten keys. Each entry must show a current PUT.
+- **LIST** runs a cycle of six requests on a new key that only this thread
+  writes:
+  1. PUT the new key.
+  2. List the key's prefix. The key must appear, with the ETag and size of the
+     PUT.
+  3. Overwrite the key.
+  4. List the prefix again. The key must appear, with the ETag and size of the
+     overwrite.
+  5. DELETE the key.
+  6. List the prefix again. The key must be gone.
 
-  With more than one server in `--host`, steps 2 and 4 go to a different server
-  than the write before them.
+  Every listing is list-after-write: it starts only after the PUT or DELETE
+  before it returned success. No other PUT to the key can be in flight, so the
+  listing must show the change. S3 does not require a listing to show a key
+  while an overwrite of it is in flight, and warp does not check that case.
+  With more than one server in `--host`, each listing goes to a different
+  server than the write before it. If a PUT fails, the cycle stops.
 
 When the run ends, warp reads every key once more after all writes have stopped.
 
@@ -886,9 +894,9 @@ A listing counts as a violation when it shows:
 | -------------- | -------------------------------------------------------------- |
 | `list-missing` | no entry for a key whose PUT succeeded                         |
 | `list-deleted` | an entry for a key whose DELETE succeeded                      |
-| `list-size`    | a size that belongs to a different PUT than the listed ETag    |
-| `list-etag`    | an ETag different from the one the server gave for the new key |
-| `list-stale`   | a PUT that another PUT replaced before the listing started     |
+| `list-size`    | the ETag of the PUT, with a different size                     |
+| `list-etag`    | an ETag different from the one the server gave for the PUT     |
+| `list-stale`   | the first PUT, after the overwrite succeeded                   |
 
 ### When a read counts as stale
 

@@ -61,7 +61,7 @@ var atomicFlags = []cli.Flag{
 	},
 	cli.Float64Flag{
 		Name:  "list-distrib",
-		Usage: "The amount of LIST cycles. Each PUTs a new key, lists it, deletes it, lists again, and lists the overwritten keys.",
+		Usage: "The amount of LIST cycles. Each PUTs a new key, lists it, overwrites it, lists it, deletes it and lists it again.",
 		Value: 10,
 	},
 	cli.BoolTFlag{
@@ -97,8 +97,10 @@ Every PUT writes a body in which each block names the PUT it belongs to,
 and records that name in object metadata. Every GET and STAT checks that
 body, length, metadata and ETag all belong to one PUT, and that the PUT
 had not already been overwritten when the read started. With
---list-distrib, LIST cycles check list-after-write and list-after-delete
-on new keys, and that listings of the overwritten keys are not stale.
+--list-distrib, LIST cycles PUT a new key, overwrite it and delete it.
+After each request succeeds, the key's prefix is listed and must show that
+change. When --host lists several servers, the listing goes to a different
+server than the request.
 Violations are reported as errors prefixed with "atomic <category>:".
 
 Staleness is judged only against PUTs issued by the same warp process;
