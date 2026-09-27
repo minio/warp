@@ -18,16 +18,16 @@
 package cli
 
 import (
-	stdHttp "net/http"
+	"context"
+	"net"
+	"net/http"
 	"os"
-	"time"
 
 	"github.com/minio/cli"
-	"gitlab.com/go-extension/http"
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 	// Keep TLS config.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
@@ -38,54 +38,31 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 		InsecureSkipVerify: ctx.Bool("insecure"),
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
-		// Extra configs
-		KernelTX: true,
-		// Disable RX offload by default due to severe performance regressions and issues
-		// https://github.com/golang/go/issues/44506#issuecomment-2387977030
-		// https://github.com/golang/go/issues/44506#issuecomment-2765047544
-		KernelRX: false,
 		// We don't care about the size.
 		CertificateCompressionDisabled: true,
 	}
+	setupKTLS(tlsConfig)
 
 	if ctx.Bool("debug") {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	netD := makeDialer(localIP)
+	dialer := makeDialer(localIP)
+	dialTLSContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		serverName, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
 
-	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
-	// It can improve performance by not using a compatibility layer.
-	if !ctx.Bool("http2") {
-		dialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		conn, err := dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig := tlsConfig.Clone()
+		tlsConfig.ServerName = serverName
+		return tls.Client(conn, tlsConfig).Compatible(), nil
 	}
 
-	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netD.DialContext,
-		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
-		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
-		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
-		ResponseHeaderTimeout: 2 * time.Minute,
-		// Set this value so that the underlying transport round-tripper
-		// doesn't try to auto decode the body of objects with
-		// content-encoding set to `gzip`.
-		//
-		// Refer:
-		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
-		DisableCompression: true,
-		DisableKeepAlives:  ctx.Bool("disable-http-keepalive"),
-		// Because we create a custom TLSClientConfig, we have to opt-in to HTTP/2.
-		// See https://github.com/golang/go/issues/14275
-		ForceAttemptHTTP2: true,
-
-		// Extra config
-		TLSClientConfig: tlsConfig,
-	}
-
-	return &http.CompatableTransport{Transport: tr}
+	return newClientTransport(ctx, withDialTLSContext(dialTLSContext), withLocalAddr(localIP))
 }
