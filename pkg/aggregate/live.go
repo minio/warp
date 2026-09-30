@@ -400,7 +400,7 @@ func (l LiveAggregate) Report(op string, o ReportOptions) string {
 		printfColor(color.FgHiWhite, "Throughput by client:\n")
 		for _, client := range data.Clients.Slice() {
 			tp := data.ThroughputByClient[client]
-			printfColor(color.FgWhite, "Client %s throughput: ", client)
+			printfColor(color.FgWhite, "Client %q throughput: ", client)
 			printfColor(color.FgHiWhite, "%s\n", tp.StringDetails(o.Details))
 			if o.SkipReqs || !o.Details {
 				continue
