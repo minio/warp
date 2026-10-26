@@ -736,6 +736,8 @@ func benchDataName(ctx *cli.Context) string {
 // clientID returns an ID for this warp instance, prefixed with the hostname when available.
 func clientID() string {
 	if h, err := os.Hostname(); err == nil && h != "" {
+		// The ID is part of the benchdata filename; keep it a single path component.
+		h = strings.NewReplacer("/", "-", "\\", "-").Replace(h)
 		return h + "-" + pRandASCII(4)
 	}
 	return pRandASCII(6)
