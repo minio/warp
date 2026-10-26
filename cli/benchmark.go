@@ -726,7 +726,9 @@ func pRandASCII(n int) string {
 func benchDataName(ctx *cli.Context) string {
 	name := ctx.String("benchdata")
 	for _, ext := range []string{".json.zst", ".csv.zst", ".profiles.zip"} {
-		name = strings.TrimSuffix(name, ext)
+		if strings.HasSuffix(name, ext) {
+			return strings.TrimSuffix(name, ext)
+		}
 	}
 	return name
 }
