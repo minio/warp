@@ -264,7 +264,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		errorLn("Failed to keep connection to all clients", err)
 	}
 
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandASCII(4))
 	}
