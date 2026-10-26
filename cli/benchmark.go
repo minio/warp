@@ -216,7 +216,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(start)
 	}()
 
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	cID := pRandASCII(4)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
@@ -486,7 +486,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 		cancel()
 	}()
 
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	cID := pRandASCII(6)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
@@ -719,4 +719,14 @@ func pRandASCII(n int) string {
 		rnd *= 2654435761
 	}
 	return string(dst)
+}
+
+// benchDataName returns --benchdata without the extensions warp adds to it,
+// so "--benchdata out.json.zst" writes out.json.zst, not out.json.zst.json.zst.
+func benchDataName(ctx *cli.Context) string {
+	name := ctx.String("benchdata")
+	for _, ext := range []string{".json.zst", ".csv.zst", ".profiles.zip"} {
+		name = strings.TrimSuffix(name, ext)
+	}
+	return name
 }
