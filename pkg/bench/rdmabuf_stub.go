@@ -11,8 +11,16 @@ package bench
 import "io"
 
 // HasRDMA reports whether warp was built with -tags=rdma, i.e. whether
-// GPU-Direct RDMA (--rdma=gpu) is available.
+// S3-over-RDMA dispatch is available. It requires libminiocpp at build and
+// run time.
 const HasRDMA = false
+
+// HasRDMAGPU reports whether --rdma=gpu can work on this host. Without
+// -tags=rdma there is no RDMA dispatch at all, GPU or otherwise.
+func HasRDMAGPU() bool { return false }
+
+// RDMAGPUUnavailable explains why HasRDMAGPU is false.
+func RDMAGPUUnavailable() string { return "this warp binary was built without RDMA support" }
 
 // bindGPUThread is a no-op without -tags=rdma; there is no CUDA context.
 func bindGPUThread() error { return nil }
@@ -24,7 +32,7 @@ func allocRDMAGPU(int) (*rdmaBuf, error) {
 	return nil, errRDMAGPUUnsupported
 }
 
-func stageToGPU(*rdmaBuf, io.Reader) error {
+func stageToGPU(*rdmaBuf, io.Reader, int) error {
 	return errRDMAGPUUnsupported
 }
 

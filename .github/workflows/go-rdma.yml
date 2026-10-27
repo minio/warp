@@ -1,0 +1,124 @@
+name: Build (RDMA)
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build rdma (${{ matrix.config.arch }})
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { os: ubuntu-latest, arch: "amd64" }
+          - { os: ubuntu-24.04-arm, arch: "arm64" }
+
+    steps:
+      - name: Checkout warp
+        uses: actions/checkout@v5
+        with:
+          path: "warp"
+          persist-credentials: false
+
+      # Pinned in lockstep with scripts/build-rdma.sh and
+      # scripts/setup-rdma-release-host.sh: this job copies vendor/s3rdma out of
+      # the checkout, so a floating main makes the build race whatever landed
+      # there. Pinned to a commit rather than a tag: the pkg-config fix that
+      # lets the link line be derived landed after v1.0.0 and is not yet
+      # tagged. Move this to v1.0.1 once it is cut.
+      - name: Checkout minio-cpp
+        uses: actions/checkout@v5
+        with:
+          repository: minio/minio-cpp
+          ref: 92d8b2c3ec6ac2c82012590de572c55f3591f338
+          path: "minio-cpp"
+          persist-credentials: false
+
+      # Pinned: vcpkg's port scripts track the newest CMake, and a floating
+      # checkout breaks against whatever CMake the runner image ships.
+      - name: Checkout vcpkg
+        uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: "2026.07.29"
+          path: "vcpkg"
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get -qy update
+          sudo apt-get -qy install libibverbs-dev librdmacm-dev libnuma-dev zlib1g-dev
+
+      # Ubuntu's cmake is older than vcpkg needs, and vcpkg does not fetch its
+      # own on arm64, so provision it explicitly on both architectures.
+      - name: Set up CMake
+        uses: lukka/get-cmake@v4.4.2
+
+      - name: Build and install libminio with RDMA
+        shell: bash
+        env:
+          MATRIX_ARCH: ${{ matrix.config.arch }}
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          cd minio-cpp
+          ../vcpkg/vcpkg install
+          cmake . -B ./build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DMINIO_CPP_ENABLE_RDMA:BOOL=ON
+          cmake --build ./build --config Release -j 4
+          sudo cmake --install ./build
+          case "$MATRIX_ARCH" in
+            amd64) s3rdma_arch=x86_64 ;;
+            arm64) s3rdma_arch=aarch64 ;;
+            *) echo "unsupported architecture: $MATRIX_ARCH" >&2; exit 1 ;;
+          esac
+          sudo cp -P "vendor/s3rdma/lib/${s3rdma_arch}"/* /usr/local/lib/
+          # libminiocpp is static; its vcpkg archives must sit beside it to link.
+          sudo cp -P vcpkg_installed/*/lib/*.a /usr/local/lib/
+          sudo ldconfig
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "warp/go.mod"
+
+      - name: Build and vet with -tags=rdma
+        working-directory: warp
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          # The library is static, so minio-go's own -lminio no longer drags in
+          # the C++ runtime or the vcpkg archives; derive them from the
+          # miniocpp.pc that was just installed, the same way the build script
+          # and the release host do.
+          export CGO_LDFLAGS="-L/usr/local/lib $(scripts/rdma-link-libs.sh /usr/local ../minio-cpp)"
+          go build -tags=rdma -o /tmp/warp .
+          go vet -tags=rdma ./...
+          go test -race -tags=rdma ./...
+          /tmp/warp --version
+          # CUDA is dlopened, so the binary must still start on this CUDA-less
+          # runner and reject --rdma=gpu with a diagnosis rather than failing to
+          # load. This is the property that lets one binary serve both modes.
+          if /tmp/warp put --rdma=gpu --host 127.0.0.1:9000 >/tmp/gpu.log 2>&1; then
+            echo "expected --rdma=gpu to fail on a host without CUDA" >&2
+            cat /tmp/gpu.log
+            exit 1
+          fi
+          cat /tmp/gpu.log
+          grep -q "CUDA runtime" /tmp/gpu.log

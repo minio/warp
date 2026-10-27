@@ -1,25 +1,83 @@
-FROM alpine:latest
+# BASE_IMAGE and RDMA_BASE_IMAGE are global ARGs so they can be named in FROM.
+#
+# The stock warp binary is built with CGO_ENABLED=0 and runs anywhere, so its
+# image stays on Alpine. The RDMA binary links libminio through cgo and is
+# built on the Debian/Ubuntu release host that scripts/setup-rdma-release-host.sh
+# provisions, so it needs glibc -- musl will not load it -- from a base at least
+# as new as that host's. Ubuntu LTS is the closest match; override it with
+# dockerfile_build_args in .qreleaser.yml if the release host ever moves.
+ARG BASE_IMAGE=alpine:latest
+ARG RDMA_BASE_IMAGE=ubuntu:24.04
+
+# RDMA selects the final image: 0 (default) is the stock image, 1 is the
+# S3-over-RDMA image. qreleaser passes RDMA=1 only on the ".rdma" pass, so the
+# stock image never pulls the RDMA stages into its graph.
+ARG RDMA=0
+
+# Resolve the Q layout paths once, under fixed names, so the two finals cannot
+# drift apart. BINARY_SUFFIX is "" for the stock build and ".rdma" for the RDMA
+# one; qreleaser sets it per pass.
+# Expected context: warp-release/{release,edge}/linux-{amd64,arm64}/
+FROM scratch AS staged
 
 ARG TARGETARCH
 ARG RELEASE
 ARG RELEASE_TYPE=release
+ARG BINARY_SUFFIX=""
+
+COPY --chmod=755 warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}${BINARY_SUFFIX} /out/warp
+COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}${BINARY_SUFFIX}.sha256sum /out/warp.sha256sum
+COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}${BINARY_SUFFIX}.minisig /out/warp.minisig
+
+# Stock variant: a static binary and the certificates it verifies TLS with.
+FROM ${BASE_IMAGE} AS final-0
+
+RUN apk add -U --no-cache ca-certificates
+
+COPY --from=staged /out/ /
+
+# RDMA variant. libminio and its vcpkg dependencies are linked statically, so
+# the host side is the C++ runtime, zlib, and the RDMA stack: libibverbs,
+# librdmacm and libnuma, with ibverbs-providers for the vendor provider (libmlx5
+# and friends). A provider has to match the node's kernel driver, so a cluster
+# running a vendor OFED stack should mount its own over these.
+#
+# zlib is dynamic on purpose: minio-cpp takes vcpkg's copy only on Windows, so
+# no libz.a ever reaches the prefix the release links against, and
+# scripts/setup-rdma-release-host.sh exempts it from the archives it otherwise
+# demands. It and libstdc++6 are both in the base image already, and are named
+# anyway because the binary links them directly -- a base that stopped shipping
+# one should fail here rather than at the first `warp --version`.
+FROM ${RDMA_BASE_IMAGE} AS final-1
+
+ARG TARGETARCH
+
+RUN apt-get -qq update \
+ && DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends \
+      ca-certificates ibverbs-providers libibverbs1 libnuma1 librdmacm1 \
+      libstdc++6 zlib1g \
+ && rm -rf /var/lib/apt/lists/*
+
+# libs3rdma is the one library minio-cpp ships only as a shared object, so it
+# travels with the binary. scripts/release-post-transform.sh stages it here per
+# architecture, and the binary's rpath is /usr/lib/warp -- the same path the
+# deb/rpm/apk install it to.
+COPY .rdma-image/lib/${TARGETARCH}/ /usr/lib/warp/
+
+COPY --from=staged /out/ /
+
+FROM final-${RDMA}
+
+ARG RELEASE
+ARG BINARY_SUFFIX=""
 
 LABEL name="Warp" \
       vendor="MinIO Inc <dev@min.io>" \
       maintainer="MinIO Inc <dev@min.io>" \
-      version="${RELEASE}" \
+      version="${RELEASE}${BINARY_SUFFIX}" \
       org.opencontainers.image.source="https://github.com/minio/warp" \
       summary="Warp is a S3 API Benchmark Tool" \
       description="Warp is a high-performance S3 benchmarking tool for testing object storage systems."
-
-# Install ca-certificates
-RUN apk add -U --no-cache ca-certificates
-
-# Copy warp binary and signature files from local Q layout
-# Expected context: warp-release/{release,edge}/linux-{amd64,arm64}/
-COPY --chmod=755 warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE} /warp
-COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}.sha256sum /warp.sha256sum
-COPY warp-release/${RELEASE_TYPE}/linux-${TARGETARCH}/warp.${RELEASE}.minisig /warp.minisig
 
 EXPOSE 7761
 

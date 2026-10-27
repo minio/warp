@@ -103,7 +103,7 @@ func mergeJSON(ctx *cli.Context, args []string) error {
 	}
 	merged.Final = true
 
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
 	}
@@ -157,7 +157,7 @@ func mergeCSV(ctx *cli.Context, args []string) error {
 	if len(allOps) == 0 {
 		return errors.New("benchmark files contains no data")
 	}
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"))
 	}

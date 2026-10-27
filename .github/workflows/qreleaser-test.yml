@@ -35,11 +35,28 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      - name: Set up CMake
+        uses: lukka/get-cmake@v4.4.2
+
+      # Go before the prefixes: the provisioning script link-tests each
+      # architecture with a smoke build when a toolchain is available.
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
           cache: false
+
+      # The release builds warp-rdma for linux/amd64 and linux/arm64, and both
+      # link libminiocpp through cgo, so the runner needs the same prefixes as a
+      # real release host. Without them the pipeline fails on miniocpp/c_api.h,
+      # or on the missing aarch64 compiler.
+      #
+      # Running the release-host script rather than repeating its steps keeps CI
+      # from drifting away from how the host is actually provisioned, and covers
+      # the arm64 cross build on every PR. It keeps its checkouts outside the
+      # workspace, which is what qreleaser releases from.
+      - name: Provision the RDMA prefixes
+        run: ./scripts/setup-rdma-release-host.sh
 
       - name: Configure git
         run: |
@@ -89,9 +106,119 @@ jobs:
           qreleaser main ${{ github.repository }} ${{ steps.release-type.outputs.type }}
 
       - name: Verify Release Artifacts
+        env:
+          ARCH_DIR: ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-amd64
         run: |
           find ${{ github.workspace }}/warp-release -type f
-          ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-amd64/warp --version
+          "${ARCH_DIR}/warp" --version
+          # The RDMA flavor must land beside the stock binary rather than
+          # replacing it, and must actually run.
+          "${ARCH_DIR}/warp.rdma" --version
+          # It is the RDMA build, so it accepts --rdma=cpu where the stock
+          # binary refuses it. Both are named warp inside their dist directories,
+          # so without this the flavor could silently be a copy of the stock
+          # binary and nothing would notice.
+          if "${ARCH_DIR}/warp" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/stock.log 2>&1; then
+            echo "stock warp unexpectedly accepted --rdma=cpu" >&2
+            exit 1
+          fi
+          cat /tmp/stock.log
+          grep -q "requires the RDMA build of warp" /tmp/stock.log
+
+          # Require a specific outcome from the flavor, not merely the absence
+          # of the refusal above: it has to get past the RDMA gate and fail at
+          # the network instead, so a crash or an unrelated error cannot pass.
+          "${ARCH_DIR}/warp.rdma" put --rdma=cpu --host 127.0.0.1:9000 >/tmp/rdma.log 2>&1 || true
+          cat /tmp/rdma.log
+          if grep -q "requires the RDMA build" /tmp/rdma.log; then
+            echo "warp.rdma is not an RDMA build" >&2
+            exit 1
+          fi
+          grep -q "Error preparing server" /tmp/rdma.log
+
+          # The post-transform hook renames the packages after pkger builds
+          # them, so their checksums are regenerated rather than carried over.
+          # Walk the packages rather than the manifests, so a package that lost
+          # its checksum fails here instead of passing unnoticed.
+          found=0
+          for pkg in "${ARCH_DIR}"/warp-rdma*.deb \
+                     "${ARCH_DIR}"/warp-rdma*.rpm \
+                     "${ARCH_DIR}"/warp-rdma*.apk; do
+            [ -e "${pkg}" ] || continue
+            found=1
+            # sha256sum -c fails when the manifest is missing, so this also
+            # requires every package to have one.
+            (cd "${ARCH_DIR}" && sha256sum -c "$(basename "${pkg}").sha256sum")
+          done
+          [ "${found}" = 1 ] || { echo "no RDMA packages in ${ARCH_DIR}" >&2; exit 1; }
+
+      - name: Verify arm64 RDMA Artifacts
+        env:
+          ARM_DIR: ${{ github.workspace }}/warp-release/${{ steps.release-type.outputs.type_dir }}/linux-arm64
+        run: |
+          # The arm64 flavor is cross-built and cannot run here, so assert the ELF
+          # target instead. Both architectures are named warp inside their dist
+          # directories, so without this the arm64 flavor could be an amd64 binary
+          # and nothing would notice.
+          readelf -h "${ARM_DIR}/warp.rdma" | grep -q AArch64
+
+          found=0
+          for pkg in "${ARM_DIR}"/warp-rdma*.deb \
+                     "${ARM_DIR}"/warp-rdma*.rpm \
+                     "${ARM_DIR}"/warp-rdma*.apk; do
+            [ -e "${pkg}" ] || continue
+            found=1
+            (cd "${ARM_DIR}" && sha256sum -c "$(basename "${pkg}").sha256sum")
+          done
+          [ "${found}" = 1 ] || { echo "no arm64 RDMA packages in ${ARM_DIR}" >&2; exit 1; }
+
+          # The bundled libs3rdma comes from a per-architecture prefix, so check
+          # the payload too rather than trusting the package name.
+          dpkg-deb -x "${ARM_DIR}"/warp-rdma*.deb /tmp/armdeb
+          readelf -h /tmp/armdeb/usr/lib/warp/libs3rdma.so.0 | grep -q AArch64
+          readelf -h /tmp/armdeb/usr/local/bin/warp | grep -q AArch64
+
+      # The pipeline's container-build stage builds both flavors for both
+      # architectures into the buildx cache, where nothing can run them. Rebuild
+      # the RDMA image for this runner's architecture with --load and start it:
+      # a base image whose glibc is older than the release host's, or a
+      # libs3rdma that never got staged, only surfaces here.
+      - name: Verify RDMA container image
+        env:
+          RELEASE: ${{ steps.release-type.outputs.version }}
+          RELEASE_TYPE: ${{ steps.release-type.outputs.type_dir }}
+        run: |
+          docker buildx build --load \
+            --platform=linux/amd64 \
+            --build-arg RELEASE="${RELEASE}" \
+            --build-arg RELEASE_TYPE="${RELEASE_TYPE}" \
+            --build-arg BINARY_SUFFIX=.rdma \
+            --build-arg RDMA=1 \
+            -f Dockerfile.v2.release \
+            -t warp-rdma:ci .
+
+          docker run --rm warp-rdma:ci --version
+
+          # The bundled library has to resolve through the binary's rpath, not
+          # merely be present in the image.
+          docker run --rm --entrypoint /bin/sh warp-rdma:ci \
+            -c 'ldd /warp' | tee /tmp/ldd.log
+          grep -q 'libs3rdma.so.0 => /usr/lib/warp/libs3rdma.so.0' /tmp/ldd.log
+          if grep -q 'not found' /tmp/ldd.log; then
+            echo "unresolved shared libraries in the RDMA image" >&2
+            exit 1
+          fi
+
+          # And it has to be the RDMA build: past the --rdma gate, failing at
+          # the network, so a stock binary in an RDMA image cannot pass.
+          docker run --rm warp-rdma:ci put --rdma=cpu --host 127.0.0.1:9000 \
+            >/tmp/image.log 2>&1 || true
+          cat /tmp/image.log
+          if grep -q "requires the RDMA build" /tmp/image.log; then
+            echo "the RDMA image does not carry the RDMA build" >&2
+            exit 1
+          fi
+          grep -q "Error preparing server" /tmp/image.log
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

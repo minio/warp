@@ -3,8 +3,7 @@
 project_name: warp
 
 builds:
-  -
-    goos:
+  - goos:
       - freebsd
       - windows
       - linux
@@ -23,8 +22,7 @@ builds:
     ldflags:
       - -s -w -X github.com/minio/warp/pkg.ReleaseTag={{.Tag}} -X github.com/minio/warp/pkg.CommitID={{.FullCommit}} -X github.com/minio/warp/pkg.Version={{.Version}} -X github.com/minio/warp/pkg.ShortCommitID={{.ShortCommit}} -X github.com/minio/warp/pkg.ReleaseTime={{.Date}}
 archives:
-  -
-    name_template: >-
+  - name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
@@ -38,18 +36,17 @@ archives:
       - LICENSE
       - warp_logo.png
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"
 snapshot:
   name_template: 'snapshot-{{ time "2006-01-02" }}'
 changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
+      - "^docs:"
+      - "^test:"
 nfpms:
-  -
-    vendor: MinIO Inc.
+  - vendor: MinIO Inc.
     homepage: https://github.com/minio/warp
     maintainer: MinIO <minio@minio.io>
     description: S3 API Benchmark Tool
@@ -68,8 +65,7 @@ nfpms:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
 dockers:
-  -
-    # GOOS of the built binary that should be used.
+  - # GOOS of the built binary that should be used.
     goos: linux
     # GOARCH of the built binary that should be used.
     goarch: amd64

@@ -70,6 +70,7 @@ helm install my-warp ./k8s/helm --set-file configFile=my-warp-config.yml
 ### Sample Configuration Files
 
 For complete examples of YAML configuration files, see:
+
 - [Warp YAML Samples](https://github.com/minio/warp/tree/master/yml-samples)
 - `values-configfile-example.yaml` in this directory
 
@@ -83,12 +84,24 @@ To migrate from `warpConfiguration` to `configFile`:
 4. Set the `configFile` value in your values.yaml
 
 Example mapping:
+
 - `warpConfiguration.s3ServerURL` → `warp.remote.host`
 - `warpConfiguration.s3AccessKey` → `warp.remote.access-key`
 - `warpConfiguration.s3SecretKey` → `warp.remote.secret-key`
 - `warpConfiguration.operationToBenchmark` → `warp.benchmark`
 - `warpJobArgs.duration` → `warp.params.duration`
 - `warpJobArgs.objects` → `warp.params.objects`
+
+## S3 over RDMA
+
+RDMA is configured through the `rdma` section of `values.yaml`, not through
+either method above. The chart passes the settings to warp as environment
+variables (`WARP_RDMA`, `WARP_RDMA_WINDOW`, `S3RDMA_DEVICE`), so they apply
+whichever configuration method you use, and there is no need to add `rdma` under
+`advanced` in a `configFile` — doing so would override `rdma.mode` for the
+server while leaving the rest of the chart's RDMA setup in place.
+
+See [S3 over RDMA](./README.md#s3-over-rdma).
 
 ## Option 2: Using `warpConfiguration` (Legacy Method)
 

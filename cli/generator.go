@@ -45,6 +45,13 @@ var genFlags = []cli.Flag{
 
 // newGenSource returns a new generator
 func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
+	src, err := generator.NewFn(genOptions(ctx, sizeField)...)
+	fatalIf(probe.NewError(err), "Unable to create data generator")
+	return src
+}
+
+// genOptions returns the generator options set by the generator flags.
+func genOptions(ctx *cli.Context, sizeField string) []generator.Option {
 	prefixSize := 8
 	if ctx.Bool("noprefix") {
 		prefixSize = 0
@@ -94,13 +101,34 @@ func newGenSource(ctx *cli.Context, sizeField string) func() generator.Source {
 
 		opts = append([]generator.Option{g.Apply()}, append(opts, generator.WithRandomSize(ctx.Bool("obj.randsize")))...)
 	}
-
-	src, err := generator.NewFn(opts...)
-	fatalIf(probe.NewError(err), "Unable to create data generator")
-	return src
+	return opts
 }
 
 // toSize converts a size indication to bytes.
 func toSize(size string) (uint64, error) {
 	return humanize.ParseBytes(size)
+}
+
+// objSize reports the largest object the generator may produce, so a buffer
+// pool can be sized before the run. Ranges and histograms report their upper
+// bound: a pool sized to the largest object never has to grow mid-run, which
+// is the whole point of allocating it up front. Returns 0 when the size cannot
+// be determined, leaving the caller to fall back.
+func objSize(ctx *cli.Context) int64 {
+	field := "obj.size"
+	if !ctx.IsSet(field) && ctx.String(field) == "" {
+		return 0
+	}
+	tokens := strings.Split(ctx.String(field), ",")
+	var largest int64
+	for _, t := range tokens {
+		sz, err := toSize(strings.TrimSpace(t))
+		if err != nil {
+			return 0
+		}
+		if int64(sz) > largest {
+			largest = int64(sz)
+		}
+	}
+	return largest
 }

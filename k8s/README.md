@@ -1,11 +1,11 @@
-# Running *warp* on kubernetes
+# Running _warp_ on kubernetes
 
-This document describes with simple examples on how to automate running *warp* on Kubernetes with `yaml` files. You can also use [Warp Helm Chart](./helm) to
+This document describes with simple examples on how to automate running _warp_ on Kubernetes with `yaml` files. You can also use [Warp Helm Chart](./helm) to
 deploy Warp with advanced configuration options. For details on Helm chart based deployment, refer the [document here](./helm/README.md).
 
-## Create *warp* client listeners
+## Create _warp_ client listeners
 
-Create *warp* client listeners to run distributed *warp* benchmark, here we will run them as stateful sets across client nodes.
+Create _warp_ client listeners to run distributed _warp_ benchmark, here we will run them as stateful sets across client nodes.
 
 ```
 ~ kubectl create -f warp.yaml
@@ -20,7 +20,8 @@ warp-2   1/1     Running   0          7m8s
 warp-3   1/1     Running   0          7m17s
 ```
 
-Now prepare your *warp-job.yaml* (we have included a sample please edit for your needs) to benchmark your MinIO cluster
+Now prepare your _warp-job.yaml_ (we have included a sample please edit for your needs) to benchmark your MinIO cluster
+
 ```
 ~ kubectl create -f warp-job.yaml
 ```
@@ -32,6 +33,7 @@ warp-job-6xt5k   0/1     Completed   0          8m53s
 ```
 
 To obtain the console output look at the job logs
+
 ```
 ~ kubectl logs warp-job-6xt5k
 ...
@@ -71,7 +73,9 @@ Aggregated Throughput, split into 268 x 1s time segments:
 The Warp Helm chart now supports two configuration methods:
 
 ### Method 1: Traditional Configuration (Simple)
+
 Edit `values.yaml` with basic configuration:
+
 ```yaml
 warpConfiguration:
   s3ServerURL: minio-{0...3}.minio.default.svc.cluster.local:9000
@@ -81,7 +85,9 @@ warpConfiguration:
 ```
 
 ### Method 2: Full YAML Configuration File (Advanced)
+
 Use the `configFile` option in `values.yaml` for complete control over Warp configuration:
+
 ```yaml
 configFile: |
   warp:
@@ -104,6 +110,7 @@ configFile: |
 ```
 
 This method provides access to all Warp YAML configuration options including:
+
 - Advanced IO settings
 - Auto-termination
 - Analysis configuration
@@ -111,6 +118,7 @@ This method provides access to all Warp YAML configuration options including:
 - And more
 
 For complete configuration examples, see:
+
 - [Warp YAML Samples](https://github.com/minio/warp/tree/master/yml-samples)
 - [Helm Configuration Guide](./helm/CONFIG.md)
 - [Example values file](./helm/values-configfile-example.yaml)

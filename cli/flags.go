@@ -19,12 +19,14 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/minio/cli"
 	"github.com/minio/mc/pkg/probe"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/pkg/v3/console"
 	"github.com/minio/warp/pkg/bench"
 	"github.com/minio/warp/pkg/generator"
@@ -183,8 +185,14 @@ var ioFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:   "rdma",
-		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct, requires -tags=rdma + libcudart). Empty disables RDMA.",
+		Usage:  "Use S3-over-RDMA dispatch for PUT/GET. Values: \"cpu\" (host memory) or \"gpu\" (GPU-Direct). Requires an RDMA build of warp. Empty disables RDMA.",
 		EnvVar: appNameUC + "_RDMA",
+		Value:  "",
+	},
+	cli.StringFlag{
+		Name:   "rdma.window",
+		Usage:  "Stage RDMA PUTs through a pinned window of this size instead of pinning the whole object, e.g. \"64MiB\". Objects upload as multipart, so the ETag gains a -N suffix. Empty pins the whole object.",
+		EnvVar: appNameUC + "_RDMA_WINDOW",
 		Value:  "",
 	},
 	cli.StringFlag{
@@ -347,14 +355,48 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	noOps := ctx.Bool("stress")
 
 	rdmaMode := ctx.String("rdma")
+	var rdmaWindow int64
+	if w := ctx.String("rdma.window"); w != "" {
+		sz, err := toSize(w)
+		if err != nil {
+			console.Fatalf("error parsing --rdma.window: %v\n", err)
+		}
+		// toSize returns uint64; anything past MaxInt64 would wrap negative,
+		// and a negative window reads as "not set" -- silently ignoring what
+		// was asked for rather than rejecting it.
+		if sz > math.MaxInt64 {
+			console.Fatalf("--rdma.window %s is too large\n", w)
+		}
+		rdmaWindow = int64(sz)
+	}
 	switch rdmaMode {
-	case bench.RDMAModeOff, bench.RDMAModeCPU:
+	case bench.RDMAModeOff:
+	case bench.RDMAModeCPU:
+		if !bench.HasRDMA {
+			fatalIf(errDummy(), "--rdma=cpu requires the RDMA build of warp (built with -tags=rdma against libminiocpp)")
+		}
 	case bench.RDMAModeGPU:
 		if !bench.HasRDMA {
-			fatalIf(errDummy(), "--rdma=gpu requires building warp with -tags=rdma (libcudart + libminiocpp)")
+			fatalIf(errDummy(), "--rdma=gpu requires the RDMA build of warp (built with -tags=rdma against libminiocpp)")
+		}
+		if !bench.HasRDMAGPU() {
+			fatalIf(errDummy(), "--rdma=gpu is unavailable: %s", bench.RDMAGPUUnavailable())
 		}
 	default:
 		fatalIf(errDummy(), `--rdma must be "cpu", "gpu", or empty (got %q)`, rdmaMode)
+	}
+	// Only GET and PUT allocate a registered buffer and hand it to minio-go's
+	// RDMA dispatch. Any other benchmark would run entirely over HTTP and
+	// report the result as if RDMA had been used.
+	if rdmaMode != bench.RDMAModeOff {
+		switch ctx.Command.Name {
+		case "get", "put":
+		default:
+			fatalIf(errDummy(), "--rdma is only supported by the get and put benchmarks (got %q)", ctx.Command.Name)
+		}
+	}
+	if rdmaMode != bench.RDMAModeOff && !minio.IsRDMAAvailable() {
+		console.Infoln("Warning: RDMA requested but no S3 over RDMA connection was detected; transfers may fail or fall back")
 	}
 
 	rpsLimit := ctx.Float64("rps-limit")
@@ -373,6 +415,8 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 		Location:      ctx.String("region"),
 		PutOpts:       putOpts,
 		RDMAMode:      rdmaMode,
+		RDMAWindow:    rdmaWindow,
+		ObjSize:       objSize(ctx),
 		DiscardOutput: noOps,
 		ExtraOut:      extra,
 		RpsLimiter:    rpsLimiter,

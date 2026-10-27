@@ -1,0 +1,75 @@
+# Example values file for an S3-over-RDMA benchmark.
+#
+# Only the RDMA-specific parts are shown; everything else follows
+# values.yaml. See https://github.com/minio/warp/blob/master/RDMA.md for what
+# RDMA needs from the host, and ./README.md#s3-over-rdma for what it needs from
+# the cluster.
+#
+#   helm install warp ./k8s/helm -f k8s/helm/values-rdma-example.yaml
+
+replicaCount: 4
+
+image:
+  repository: minio/warp
+  pullPolicy: IfNotPresent
+  # The RDMA image is tagged <version>.rdma and there is no rolling
+  # latest.rdma, so a release has to be named. The chart appends the suffix.
+  version: v1.6.1
+
+rdma:
+  enabled: true
+
+  # Host memory. Switch to "gpu" for GPU-Direct, which additionally needs an
+  # NVIDIA GPU on every warp pod including the server.
+  mode: cpu
+
+  # Every device with an ACTIVE port is used. Name one, e.g. "mlx5_1", when the
+  # nodes have cards on more than one fabric.
+  device: ""
+
+  # This example uses the RDMA shared device plugin, which advertises rdma/hca.
+  # For SR-IOV with Multus, drop the resource and name the attachment instead:
+  #
+  #   podAnnotations:
+  #     k8s.v1.cni.cncf.io/networks: sriov-rdma
+  #
+  # For neither, set hostNetwork: true and put one warp pod per node.
+  resources:
+    limits:
+      rdma/hca: 1
+
+configFile: |
+  warp:
+    api: v1
+    # Only get and put accept --rdma; warp refuses the flag on the others
+    # rather than reporting HTTP numbers as if they were RDMA numbers.
+    benchmark: get
+    quiet: false
+    no-color: false
+    json: false
+
+    remote:
+      region: us-east-1
+      access-key: 'minioadmin'
+      secret-key: 'minioadmin'
+      host:
+        - 'minio-{0...3}.minio.default.svc.cluster.local:9000'
+      tls: true
+      insecure: true
+
+    params:
+      duration: 5m
+      # RDMA rides one card per transfer, so aggregate throughput on a
+      # multi-card host comes from concurrency.
+      concurrent: 16
+      objects: 2500
+      obj:
+        size: 64MiB
+
+clientResources:
+  limits:
+    cpu: 8
+    memory: 8Gi
+  requests:
+    cpu: 2
+    memory: 4Gi

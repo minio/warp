@@ -35,6 +35,90 @@ builds:
     hooks:
       post: sh -c "cd $(dirname {{ .Path }}) && sha256sum $(basename {{ .Path }}) > $(basename {{ .Path }}).sha256sum"
 
+  # S3-over-RDMA build, published alongside the stock binary as warp.rdma.
+  #
+  # qreleaser treats "-rdma" in a build id the way it treats "-fips": it strips
+  # the flavor to find the project, expects the binary inside to carry the
+  # plain name, and suffixes the published files. So the id is warp-rdma while
+  # the binary stays warp, and the release directory ends up with warp.rdma and
+  # warp.<version>.rdma next to the stock warp.
+  #
+  # It links libminiocpp through cgo, so unlike the build above it needs the C++
+  # side present for every architecture it publishes. CUDA is loaded at run time
+  # rather than linked, so one binary serves --rdma=cpu and --rdma=gpu and no
+  # CUDA package is needed to build.
+  #
+  # The release host is expected to be amd64 with both prefixes provisioned by
+  # scripts/setup-rdma-release-host.sh: amd64 natively at MINIOCPP_PREFIX, arm64
+  # cross-built at MINIOCPP_PREFIX/aarch64-linux-gnu (see the arm64 override
+  # below). It also needs libibverbs, librdmacm and libnuma for both. Point
+  # MINIOCPP_PREFIX at the install prefix if it is not /usr/local, and set
+  # WARP_SKIP_RDMA=true to drop the build from a release when the host is not
+  # provisioned for it.
+  #
+  # skip covers the whole build and goreleaser has no per-architecture equivalent,
+  # so a host provisioned for one architecture only (--no-cross) fails the release
+  # rather than publishing the architecture it can. Such a host has to set
+  # WARP_SKIP_RDMA=true.
+  #
+  # Note the prefix supplies libminiocpp at build time -- it is linked
+  # statically, see below -- so only libs3rdma has to be present at run time.
+  # The self-contained archive with it bundled is built separately by
+  # scripts/build-rdma.sh.
+  - id: warp-rdma
+    main: ./
+    binary: warp
+    skip: '{{ envOrDefault "WARP_SKIP_RDMA" "false" }}'
+    env:
+      - CGO_ENABLED=1
+      # goreleaser replaces same-named variables rather than merging them, so
+      # carry any flags the release host already set.
+      #
+      # libminiocpp is linked statically, together with its vcpkg dependencies,
+      # so the published binary needs neither on the target host. cgo links
+      # with gcc rather than g++, so the C++ runtime and every transitive
+      # archive have to be named explicitly. Only libs3rdma stays dynamic --
+      # minio-cpp vendors it as a shared object with no static form -- and the
+      # /usr/lib/warp rpath is where the RDMA package installs it.
+      # The library list is derived from the installed miniocpp.pc by
+      # scripts/rdma-link-libs.sh and left in the prefix at provisioning time.
+      # goreleaser cannot run a command, and the checkout it builds from is
+      # wiped per run, so reading it out of the prefix is what keeps this
+      # config, the build script and the CI workflows from drifting apart. A
+      # prefix that was never provisioned fails loudly here.
+      - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/include
+      - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags {{ mustReadFile (printf "%s/lib/warp-rdma-cgo-libs.txt" (envOrDefault "MINIOCPP_PREFIX" "/usr/local")) }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # arm64 is cross-built: cgo needs the aarch64 compiler and the arm64
+    # libminiocpp prefix, which is a subdirectory of MINIOCPP_PREFIX rather than
+    # the prefix itself. An override rather than {{ .Arch }} templating so the
+    # amd64 link line stays byte for byte what it was before arm64 was added.
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=aarch64-linux-gnu-gcc
+          - CXX=aarch64-linux-gnu-g++
+          - CGO_CFLAGS={{ envOrDefault "CGO_CFLAGS" "" }} -I{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/include
+          - CGO_LDFLAGS={{ envOrDefault "CGO_LDFLAGS" "" }} -L{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/lib -Wl,-rpath-link,{{ envOrDefault "MINIOCPP_PREFIX" "/usr/local" }}/aarch64-linux-gnu/lib -Wl,-rpath,/usr/lib/warp -Wl,--enable-new-dtags {{ mustReadFile (printf "%s/aarch64-linux-gnu/lib/warp-rdma-cgo-libs.txt" (envOrDefault "MINIOCPP_PREFIX" "/usr/local")) }}
+    flags:
+      - -trimpath
+      - --tags=kqueue,rdma
+    ldflags:
+      - -s -w
+      - -X github.com/minio/warp/pkg.ReleaseTag={{ .Version }}
+      - -X github.com/minio/warp/pkg.CommitID={{ .FullCommit }}
+      - -X github.com/minio/warp/pkg.Version={{ .Version }}
+      - -X github.com/minio/warp/pkg.ShortCommitID={{ .ShortCommit }}
+      - -X github.com/minio/warp/pkg.ReleaseTime={{ .Date }}
+    hooks:
+      post: sh -c "cd $(dirname {{ .Path }}) && sha256sum $(basename {{ .Path }}) > $(basename {{ .Path }}).sha256sum"
+
 archives:
   - id: warp-archive
     formats: [binary]

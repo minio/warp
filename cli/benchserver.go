@@ -69,6 +69,10 @@ type AfterPreparer interface {
 	AfterPrepare(ctx context.Context) error
 }
 
+type ViolationReporter interface {
+	ClientViolations(custom map[string]string) string
+}
+
 // validate the serverinfo.
 func (s serverInfo) validate() error {
 	if s.ID == "" {
@@ -260,7 +264,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		errorLn("Failed to keep connection to all clients", err)
 	}
 
-	fileName := ctx.String("benchdata")
+	fileName := benchDataName(ctx)
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, "remote", time.Now().Format("2006-01-02[150405]"), pRandASCII(4))
 	}
@@ -348,6 +352,12 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		ui.Wait()
 		fmt.Println("")
 		fmt.Println(rep)
+	}
+
+	if a, ok := b.(ViolationReporter); ok {
+		if s := a.ClientViolations(common.Custom); s != "" {
+			errorLn(s)
+		}
 	}
 
 	if !ctx.Bool("keep-data") && !ctx.Bool("noclear") {
