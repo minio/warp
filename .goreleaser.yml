@@ -54,6 +54,7 @@ nfpms:
     formats:
       - deb
       - rpm
+    bindir: /usr/local/bin
     contents:
       # Basic file that applies to all packagers
       - src: systemd/warp.service

@@ -15,3 +15,5 @@
 - src: libs3rdma.so.0
   dst: /usr/lib/warp/libs3rdma.so
   type: symlink
+- src: systemd/warp.service
+  dst: /lib/systemd/system/warp.service
