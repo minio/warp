@@ -58,7 +58,7 @@ nfpms:
     contents:
       # Basic file that applies to all packagers
       - src: systemd/warp.service
-        dst: /etc/systemd/system/warp.service
+        dst: /lib/systemd/system/warp.service
     file_name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
