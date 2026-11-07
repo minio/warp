@@ -96,6 +96,13 @@ func mainExec(ctx *cli.Context) error {
 		yFile = dst.Bytes()
 	}
 
+	ctx2, benchCmd := benchContextFromYAML(ctx, yFile)
+	return runCommand(ctx2, benchCmd)
+}
+
+// benchContextFromYAML turns a warp run file into the benchmark command and a
+// context that carries its flags, as if they had been given on the command line.
+func benchContextFromYAML(ctx *cli.Context, yFile []byte) (*cli.Context, *cli.Command) {
 	// Unmarshal into map.
 	var doc map[string]any
 	err := yaml.Unmarshal(yFile, &doc)
@@ -257,7 +264,13 @@ func mainExec(ctx *cli.Context) error {
 		}
 	}
 
-	return runCommand(ctx2, benchCmd)
+	// json, quiet, no-color and debug are kept in globals that the Before hook
+	// read from the command line, before this file was parsed. Read them again
+	// so the same keys in the YAML take effect (issue 460).
+	if err := setGlobalsFromContext(ctx2); err != nil {
+		fatal(probe.NewError(err), "error setting flags")
+	}
+	return ctx2, benchCmd
 }
 
 func parseDoc(doc map[string]any, prefixStack, printStack *[]string, setFlag func(key string, value any)) {
