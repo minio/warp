@@ -82,8 +82,8 @@ warp:
 	parent := cli.NewContext(app, flag.NewFlagSet("run", flag.ContinueOnError), nil)
 	benchContextFromYAML(parent, yFile)
 
-	if globalJSON || globalQuiet || globalNoColor {
-		t.Errorf("globals turned on without the keys: json=%v quiet=%v no-color=%v", globalJSON, globalQuiet, globalNoColor)
+	if globalJSON || globalQuiet || globalNoColor || globalDebug {
+		t.Errorf("globals turned on without the keys: json=%v quiet=%v no-color=%v debug=%v", globalJSON, globalQuiet, globalNoColor, globalDebug)
 	}
 }
 
@@ -92,7 +92,10 @@ func TestMainExecRunsTheBenchmarkFromTheFile(t *testing.T) {
 	saved := [4]bool{globalQuiet, globalDebug, globalJSON, globalNoColor}
 	t.Cleanup(func() { globalQuiet, globalDebug, globalJSON, globalNoColor = saved[0], saved[1], saved[2], saved[3] })
 
+	globalJSON = false
+
 	var ran string
+	var jsonAtDispatch bool
 	for i := range benchCmds {
 		if benchCmds[i].Name != "get" {
 			continue
@@ -102,6 +105,7 @@ func TestMainExecRunsTheBenchmarkFromTheFile(t *testing.T) {
 		benchCmds[i].After = nil
 		benchCmds[i].Action = func(ctx *cli.Context) error {
 			ran = ctx.Command.Name
+			jsonAtDispatch = globalJSON
 			return nil
 		}
 	}
@@ -111,6 +115,7 @@ func TestMainExecRunsTheBenchmarkFromTheFile(t *testing.T) {
 warp:
   api: v1
   benchmark: get
+  json: true
   remote:
     host:
       - localhost:9000
@@ -129,5 +134,8 @@ warp:
 	}
 	if ran != "get" {
 		t.Fatalf("benchmark action ran for %q, want get", ran)
+	}
+	if !jsonAtDispatch {
+		t.Error("json: true in the run file was not set when the benchmark ran")
 	}
 }
