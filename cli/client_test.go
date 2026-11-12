@@ -307,6 +307,29 @@ func TestBuildCatalogURLs(t *testing.T) {
 	}
 }
 
+func TestClientEndpoint(t *testing.T) {
+	tests := []struct {
+		name         string
+		resolved     string
+		originalHost string
+		rdma         bool
+		want         string
+	}{
+		{name: "no resolve-host", resolved: "s3.example.com:9000", want: "s3.example.com:9000"},
+		{name: "no resolve-host with rdma", resolved: "s3.example.com:9000", rdma: true, want: "s3.example.com:9000"},
+		{name: "resolve-host uses hostname", resolved: "10.0.0.1:9000", originalHost: "s3.example.com:9000", want: "s3.example.com:9000"},
+		// libminiocpp dials the endpoint itself, so RDMA must keep the pinned IP.
+		{name: "resolve-host with rdma keeps IP", resolved: "10.0.0.1:9000", originalHost: "s3.example.com:9000", rdma: true, want: "10.0.0.1:9000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := clientEndpoint(tt.resolved, tt.originalHost, tt.rdma); got != tt.want {
+				t.Errorf("clientEndpoint(%q, %q, %v) = %q, want %q", tt.resolved, tt.originalHost, tt.rdma, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolveHostProxy(t *testing.T) {
 	pairs := []hostPair{
 		{resolved: "10.0.0.1:9000", originalHost: "s3.example.com:9000"},

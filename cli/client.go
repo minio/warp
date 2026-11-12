@@ -63,6 +63,10 @@ func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	pairs := parseHostPairs(ctx.String("host"), ctx.Bool("resolve-host"))
 	if ctx.Bool("resolve-host") {
 		warnResolveHostProxy(pairs, ctx.Bool("tls") || ctx.Bool("ktls"))
+		if ctx.String("rdma") != "" {
+			console.Infoln("Warning: with --rdma, --resolve-host connects to the resolved IPs as endpoints; " +
+				"TLS SNI and request signing use the IP, so TLS may need --insecure")
+		}
 	}
 
 	switch len(pairs) {
@@ -180,10 +184,7 @@ func getClient(ctx *cli.Context, host, originalHost string) (*minio.Client, erro
 	if localIP == "" {
 		localIP = detectLocalIP(host)
 	}
-	endpoint := host
-	if originalHost != "" {
-		endpoint = originalHost
-	}
+	endpoint := clientEndpoint(host, originalHost, ctx.String("rdma") != "")
 	transport := clientTransportWithLocalIP(ctx, localIP, host, originalHost)
 	switch strings.ToUpper(ctx.String("signature")) {
 	case "S3V4":
@@ -382,6 +383,19 @@ func parseHostPairs(h string, resolveDNS bool) []hostPair {
 		}
 	}
 	return pairs
+}
+
+// clientEndpoint returns the endpoint a client is created with.
+// With --resolve-host (originalHost set) it is the original hostname, so request
+// signing, the Host header and TLS SNI use it while the transport dials the
+// resolved IP. RDMA transfers are made by libminiocpp over its own connections,
+// which only see the endpoint, not our transport. With --rdma the resolved IP is
+// therefore kept as the endpoint, so each client stays pinned to its gateway.
+func clientEndpoint(resolved, originalHost string, rdma bool) string {
+	if originalHost == "" || rdma {
+		return resolved
+	}
+	return originalHost
 }
 
 // warnResolveHostProxy prints a warning when an HTTP(S) proxy from the
