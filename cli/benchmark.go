@@ -487,7 +487,7 @@ func runClientBenchmark(ctx *cli.Context, b bench.Benchmark, cb *clientBenchmark
 	}()
 
 	fileName := benchDataName(ctx)
-	cID := pRandASCII(6)
+	cID := clientID()
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s-%s-%s-%s", appName, ctx.Command.Name, time.Now().Format("2006-01-02[150405]"), cID)
 	}
@@ -572,7 +572,7 @@ func addCollector(ctx *cli.Context, b bench.Benchmark) (bench.OpsCollector, chan
 
 	if !ctx.Bool("full") {
 		updates := make(chan aggregate.UpdateReq, 1000)
-		c := aggregate.LiveCollector(context.Background(), updates, pRandASCII(4), common.ExtraOut)
+		c := aggregate.LiveCollector(context.Background(), updates, clientID(), common.ExtraOut)
 		common.Collector = c
 		return bench.EmptyOpsCollector, updates
 	}
@@ -731,4 +731,14 @@ func benchDataName(ctx *cli.Context) string {
 		}
 	}
 	return name
+}
+
+// clientID returns an ID for this warp instance, prefixed with the hostname when available.
+func clientID() string {
+	if h, err := os.Hostname(); err == nil && h != "" {
+		// The ID is part of the benchdata filename; keep it a single path component.
+		h = strings.NewReplacer("/", "-", "\\", "-").Replace(h)
+		return h + "-" + pRandASCII(4)
+	}
+	return pRandASCII(6)
 }

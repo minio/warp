@@ -1119,7 +1119,6 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 		fieldIdx[s] = i
 	}
 	clientMap := make(map[string]string, 16)
-	cb := byte('a')
 	getClient := func(c string) string {
 		if !analyzeOnly {
 			return c
@@ -1127,8 +1126,7 @@ func StreamOperationsFromCSV(r io.Reader, analyzeOnly bool, offset, limit int, l
 		if v, ok := clientMap[c]; ok {
 			return v
 		}
-		clientMap[c] = string([]byte{cb})
-		cb++
+		clientMap[c] = strings.Clone(c)
 		return clientMap[c]
 	}
 	fileMap := func(s string) string {
