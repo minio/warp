@@ -30,8 +30,9 @@ import (
 )
 
 func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) stdHttp.RoundTripper {
-	sni := sniFromHost(originalHost)
 	// Keep TLS config.
+	// ServerName is left empty here; see the dialers below for how SNI is set
+	// when --resolve-host dials a resolved IP.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -39,7 +40,6 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
-		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 
 		// Extra configs
@@ -58,45 +58,39 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 
 	netD := makeDialer(localIP)
 
-	// origHostname is the bare hostname used to identify which dial addresses
-	// should be rewritten to the resolved IP. Proxy addresses won't match.
-	origHostname := sniFromHost(originalHost)
-	getDialAddr := func(addr string) string {
-		if originalHost == "" || resolvedHost == "" {
-			return addr
-		}
-		host, port, err := net.SplitHostPort(addr)
-		if err != nil {
-			host = addr
-			port = "443"
-		}
-		targetHost, _, err := net.SplitHostPort(resolvedHost)
-		if err != nil {
-			targetHost = resolvedHost
-		}
-		// Only rewrite when the target is our original hostname.
-		// Proxy addresses won't match and are left untouched.
-		if host == origHostname {
-			return net.JoinHostPort(targetHost, port)
-		}
-		return addr
-	}
+	// pinner is nil (never rewrites) unless --resolve-host is active.
+	// Only addresses for the original hostname (or bucket.<hostname>) are
+	// rewritten; proxy addresses are left untouched.
+	pinner := newResolvePinner(resolvedHost, originalHost)
 
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
 		tlsDialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
 		h1Dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-			dialAddr := getDialAddr(addr)
-			return tlsDialer.DialContext(ctx, network, dialAddr)
+			dialAddr, pinned := pinner.dialAddr(addr, "443")
+			if !pinned {
+				// The TLS dialer derives ServerName from addr.
+				return tlsDialer.DialContext(ctx, network, addr)
+			}
+			// We dial an IP, so the TLS dialer can no longer derive ServerName
+			// from the address. Set it from the requested hostname instead, so
+			// SNI and certificate checks use it (bucket.<hostname> included).
+			cfg := tlsConfig.Clone()
+			cfg.ServerName = hostOnly(addr)
+			pinnedDialer := &tls.Dialer{NetDialer: netD, Config: cfg}
+			return pinnedDialer.DialContext(ctx, network, dialAddr)
 		}
 		return newClientTransport(ctx, withDialTLSContext(h1Dialer))
 	}
 
 	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
+		// With http2 the transport does the TLS handshake itself and takes
+		// ServerName from the request URL host, so only the dial address
+		// needs rewriting.
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			dialAddr := getDialAddr(addr)
+			dialAddr, _ := pinner.dialAddr(addr, "443")
 			return netD.DialContext(ctx, network, dialAddr)
 		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),

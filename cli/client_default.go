@@ -24,9 +24,11 @@ import (
 )
 
 func clientTransportDefault(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
-	dialer := makeDialer(localIP)
-	if resolvedHost != "" {
-		return newClientTransport(ctx, withResolveHost(resolvedHost, originalHost, dialer, false))
+	// originalHost is only set when --resolve-host is active. resolvedHost is
+	// always set, so it must not be used to decide whether to pin; doing so
+	// would skip withLocalAddr and lose the source-IP binding.
+	if originalHost != "" {
+		return newClientTransport(ctx, withResolveHost(resolvedHost, originalHost, makeDialer(localIP), false))
 	}
 	return newClientTransport(ctx, withLocalAddr(localIP))
 }

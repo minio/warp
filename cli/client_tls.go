@@ -26,8 +26,10 @@ import (
 )
 
 func clientTransportTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
-	sni := sniFromHost(originalHost)
 	// Keep TLS config.
+	// ServerName is deliberately left empty: http.Transport sets it from the
+	// request URL host, which stays the hostname (or bucket.<hostname>) even
+	// when --resolve-host dials a resolved IP.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -35,7 +37,6 @@ func clientTransportTLS(ctx *cli.Context, localIP, resolvedHost, originalHost st
 		// Can't use TLSv1.1 because of RC4 cipher usage
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: ctx.Bool("insecure"),
-		ServerName:         sni,
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024), // up to 1024 nodes
 	}
 

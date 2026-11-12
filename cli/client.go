@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -60,6 +61,9 @@ type hostPair struct {
 
 func newClient(ctx *cli.Context) func() (cl *minio.Client, done func()) {
 	pairs := parseHostPairs(ctx.String("host"), ctx.Bool("resolve-host"))
+	if ctx.Bool("resolve-host") {
+		warnResolveHostProxy(pairs, ctx.Bool("tls") || ctx.Bool("ktls"))
+	}
 
 	switch len(pairs) {
 	case 0:
@@ -158,7 +162,8 @@ func detectLocalIP(host string) string {
 	if err != nil || h == "" {
 		h = host
 	}
-	conn, err := net.Dial("udp", h+":9")
+	// net.JoinHostPort brackets IPv6 addresses; "::1"+":9" would be invalid.
+	conn, err := net.Dial("udp", net.JoinHostPort(h, "9"))
 	if err != nil {
 		return ""
 	}
@@ -335,7 +340,8 @@ func parseHosts(h string, resolveDNS bool) []string {
 			if port == "" {
 				resolved = append(resolved, ip.String())
 			} else {
-				resolved = append(resolved, ip.String()+":"+port)
+				// net.JoinHostPort adds the brackets IPv6 needs ("[::1]:9000").
+				resolved = append(resolved, net.JoinHostPort(ip.String(), port))
 			}
 		}
 	}
@@ -376,6 +382,35 @@ func parseHostPairs(h string, resolveDNS bool) []hostPair {
 		}
 	}
 	return pairs
+}
+
+// warnResolveHostProxy prints a warning when an HTTP(S) proxy from the
+// environment applies to the hosts. Proxied connections are not pinned to the
+// resolved IPs, so --resolve-host has no effect on how they are spread.
+func warnResolveHostProxy(pairs []hostPair, secure bool) {
+	if proxy := resolveHostProxy(pairs, secure, http.ProxyFromEnvironment); proxy != "" {
+		console.Infoln("Warning: --resolve-host has no effect on connections through proxy " + proxy +
+			"; they are not pinned to resolved IPs. Unset HTTP(S)_PROXY or add the host to NO_PROXY.")
+	}
+}
+
+// resolveHostProxy returns the host of the first proxy that applies to any of
+// the original hosts, or "" when none does.
+func resolveHostProxy(pairs []hostPair, secure bool, proxyFn func(*http.Request) (*url.URL, error)) string {
+	scheme := "http"
+	if secure {
+		scheme = "https"
+	}
+	for _, p := range pairs {
+		if p.originalHost == "" {
+			continue
+		}
+		req := &http.Request{URL: &url.URL{Scheme: scheme, Host: p.originalHost}}
+		if u, err := proxyFn(req); err == nil && u != nil {
+			return u.Host
+		}
+	}
+	return ""
 }
 
 // mustGetSystemCertPool - return system CAs or empty pool in case of error (or windows)
@@ -424,6 +459,11 @@ func buildCatalogURLs(hosts []string, useTLS bool, externalCatalog iceberg.Exter
 
 	urls := make([]string, len(hosts))
 	for i, host := range hosts {
+		// A bare IPv6 address (from --resolve-host without a port) must be
+		// bracketed to form a valid URL.
+		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+			host = "[" + host + "]"
+		}
 		urls[i] = scheme + "://" + host + catalogPath
 	}
 	return urls

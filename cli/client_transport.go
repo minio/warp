@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/minio/cli"
@@ -69,50 +70,86 @@ func withDialTLSContext(dialer func(ctx context.Context, network, addr string) (
 	}
 }
 
-// sniFromHost extracts the bare hostname from a host:port string for use as
-// TLS ServerName (SNI). Returns "" if originalHost is empty, which lets Go
-// derive SNI automatically from the dial address.
-func sniFromHost(originalHost string) string {
-	if originalHost == "" {
-		return ""
-	}
-	if h, _, err := net.SplitHostPort(originalHost); err == nil {
+// hostOnly returns the host part of a "host:port" string, without brackets for
+// IPv6. Input without a port (including a bare IPv6 address) is returned as is.
+func hostOnly(hostport string) string {
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
 		return h
 	}
-	return originalHost
+	return hostport
+}
+
+// shouldPin reports whether a connection to host must be pinned to the
+// resolved IP of origHostname. It matches the original hostname itself and
+// any subdomain of it, so virtual-host style requests (bucket.<host>, used
+// with --lookup=host) are pinned too. Hostnames are case-insensitive.
+// Anything else, such as a proxy address, is not pinned.
+func shouldPin(host, origHostname string) bool {
+	if host == "" || origHostname == "" {
+		return false
+	}
+	if strings.EqualFold(host, origHostname) {
+		return true
+	}
+	n := len(host) - len(origHostname)
+	return n > 1 && host[n-1] == '.' && strings.EqualFold(host[n:], origHostname)
+}
+
+// resolvePinner rewrites dial addresses that target the original hostname to
+// the IP it was resolved to at startup (--resolve-host).
+// A nil *resolvePinner never rewrites.
+type resolvePinner struct {
+	targetIP     string // resolved IP to dial, without port
+	origHostname string // original hostname, without port
+}
+
+// newResolvePinner returns a pinner, or nil when --resolve-host is not active
+// for this host (originalHost is empty).
+func newResolvePinner(resolvedHost, originalHost string) *resolvePinner {
+	if resolvedHost == "" || originalHost == "" {
+		return nil
+	}
+	return &resolvePinner{
+		targetIP:     hostOnly(resolvedHost),
+		origHostname: hostOnly(originalHost),
+	}
+}
+
+// dialAddr returns the address to dial for addr, and whether it was rewritten
+// to the pinned IP. defaultPort is used when addr has no port.
+func (p *resolvePinner) dialAddr(addr, defaultPort string) (string, bool) {
+	if p == nil {
+		return addr, false
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		host, port = addr, defaultPort
+	}
+	if !shouldPin(host, p.origHostname) {
+		return addr, false
+	}
+	return net.JoinHostPort(p.targetIP, port), true
 }
 
 // withResolveHost rewrites the dial address from the logical hostname to the
 // resolved IP when --resolve-host is active. Only activates when originalHost != "".
-// Proxy connections are not rewritten: only connections whose target matches the
-// original hostname are rewritten; proxy addresses are left unchanged.
+// Only connections to the original hostname (or a subdomain of it) are rewritten;
+// proxy addresses are left unchanged, so proxied connections are not pinned.
+//
+// TLS needs no extra handling here: http.Transport takes the TLS ServerName from
+// the request URL host, which is still the hostname, not from the dialed address.
 func withResolveHost(resolvedHost, originalHost string, dialer *net.Dialer, isTLS bool) transportOption {
 	return func(transport *http.Transport) {
-		if originalHost == "" || resolvedHost == "" {
+		pinner := newResolvePinner(resolvedHost, originalHost)
+		if pinner == nil {
 			return
 		}
-		targetHost, _, err := net.SplitHostPort(resolvedHost)
-		if err != nil {
-			targetHost = resolvedHost
+		defaultPort := "80"
+		if isTLS {
+			defaultPort = "443"
 		}
-		// Extract the bare original hostname once, outside the closure,
-		// so we can correctly identify which connections to rewrite.
-		origHostname := sniFromHost(originalHost)
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				host = addr
-				port = "80"
-				if isTLS {
-					port = "443"
-				}
-			}
-			dialAddr := addr
-			// Only rewrite when the target is our original hostname.
-			// Proxy addresses won't match and are left untouched.
-			if host == origHostname {
-				dialAddr = net.JoinHostPort(targetHost, port)
-			}
+			dialAddr, _ := pinner.dialAddr(addr, defaultPort)
 			return dialer.DialContext(ctx, network, dialAddr)
 		}
 	}

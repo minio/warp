@@ -231,7 +231,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:   "resolve-host",
-		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records)",
+		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). S3 requests keep the hostname for TLS and signing. Iceberg catalog requests still connect by IP, so their TLS certificate checks can fail",
 		Hidden: true,
 	},
 	cli.IntFlag{
