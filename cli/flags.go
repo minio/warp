@@ -231,7 +231,7 @@ var ioFlags = []cli.Flag{
 	},
 	cli.BoolFlag{
 		Name:   "resolve-host",
-		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). This can break SSL certificates, use --insecure if so",
+		Usage:  "Resolve the host(s) ip(s) (including multiple A/AAAA records). S3 requests keep the hostname for TLS and signing. Iceberg catalog requests still connect by IP, so their TLS certificate checks can fail",
 		Hidden: true,
 	},
 	cli.IntFlag{
@@ -408,20 +408,22 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	// Create put options now, so ensure that trailing headers are set.
 	putOpts := putOpts(ctx)
 	return bench.Common{
-		Client:        newClient(ctx),
-		Concurrency:   ctx.Int("concurrent"),
-		Source:        src,
-		Bucket:        ctx.String("bucket"),
-		Location:      ctx.String("region"),
-		PutOpts:       putOpts,
-		RDMAMode:      rdmaMode,
-		RDMAWindow:    rdmaWindow,
-		ObjSize:       objSize(ctx),
-		DiscardOutput: noOps,
-		ExtraOut:      extra,
-		RpsLimiter:    rpsLimiter,
-		Transport:     clientTransport(ctx),
-		UpdateStatus:  statusln,
-		TotalClients:  1, // Default to 1 for single-client mode
+		Client:          newClient(ctx),
+		ClientEndpoint:  pinnedClientEndpoint,
+		ClientTransport: pinnedClientTransport,
+		Concurrency:     ctx.Int("concurrent"),
+		Source:          src,
+		Bucket:          ctx.String("bucket"),
+		Location:        ctx.String("region"),
+		PutOpts:         putOpts,
+		RDMAMode:        rdmaMode,
+		RDMAWindow:      rdmaWindow,
+		ObjSize:         objSize(ctx),
+		DiscardOutput:   noOps,
+		ExtraOut:        extra,
+		RpsLimiter:      rpsLimiter,
+		Transport:       clientTransport(ctx),
+		UpdateStatus:    statusln,
+		TotalClients:    1, // Default to 1 for single-client mode
 	}
 }

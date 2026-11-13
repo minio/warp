@@ -18,8 +18,11 @@
 package cli
 
 import (
+	"context"
+	"net"
 	stdHttp "net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/minio/cli"
@@ -27,8 +30,10 @@ import (
 	"gitlab.com/go-extension/tls"
 )
 
-func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper {
+func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) stdHttp.RoundTripper {
 	// Keep TLS config.
+	// ServerName is left empty here; see the dialers below for how SNI is set
+	// when --resolve-host dials a resolved IP.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -54,16 +59,49 @@ func clientTransportKTLS(ctx *cli.Context, localIP string) stdHttp.RoundTripper 
 
 	netD := makeDialer(localIP)
 
+	// pinner is nil (never rewrites) unless --resolve-host is active.
+	// Only addresses for the original hostname (or bucket.<hostname>) are
+	// rewritten; proxy addresses are left untouched.
+	pinner := newResolvePinner(resolvedHost, originalHost)
+
 	// If we don't enable http/2, then using a custom DialTLSConext is the best choice.
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
-		dialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
-		return newClientTransport(ctx, withDialTLSContext(dialer.DialContext))
+		tlsDialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
+		// One dialer per server name used for pinned connections, so the TLS
+		// config is not cloned for every connection. There are only a few
+		// names: the hostname, plus bucket.<hostname> with --lookup=host.
+		var pinnedDialers sync.Map // server name -> *tls.Dialer
+		h1Dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr, pinned := pinner.dialAddr(addr, "443")
+			if !pinned {
+				// The TLS dialer derives ServerName from addr.
+				return tlsDialer.DialContext(ctx, network, addr)
+			}
+			// We dial an IP, so the TLS dialer can no longer derive ServerName
+			// from the address. Set it from the requested hostname instead, so
+			// SNI and certificate checks use it (bucket.<hostname> included).
+			serverName := hostOnly(addr)
+			d, ok := pinnedDialers.Load(serverName)
+			if !ok {
+				cfg := tlsConfig.Clone()
+				cfg.ServerName = serverName
+				d, _ = pinnedDialers.LoadOrStore(serverName, &tls.Dialer{NetDialer: netD, Config: cfg})
+			}
+			return d.(*tls.Dialer).DialContext(ctx, network, dialAddr)
+		}
+		return newClientTransport(ctx, withDialTLSContext(h1Dialer))
 	}
 
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           netD.DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		// With http2 the transport does the TLS handshake itself and takes
+		// ServerName from the request URL host, so only the dial address
+		// needs rewriting.
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialAddr, _ := pinner.dialAddr(addr, "443")
+			return netD.DialContext(ctx, network, dialAddr)
+		},
 		MaxIdleConnsPerHost:   ctx.Int("concurrent"),
 		WriteBufferSize:       ctx.Int("sndbuf"), // Configure beyond 4KiB default buffer size.
 		ReadBufferSize:        ctx.Int("rcvbuf"), // Configure beyond 4KiB default buffer size.

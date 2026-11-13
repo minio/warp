@@ -25,8 +25,11 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
+func clientTransportTLS(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
 	// Keep TLS config.
+	// ServerName is deliberately left empty: http.Transport sets it from the
+	// request URL host, which stays the hostname (or bucket.<hostname>) even
+	// when --resolve-host dials a resolved IP.
 	tlsConfig := &tls.Config{
 		RootCAs: mustGetSystemCertPool(),
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -41,5 +44,12 @@ func clientTransportTLS(ctx *cli.Context, localIP string) http.RoundTripper {
 		tlsConfig.KeyLogWriter = os.Stdout
 	}
 
-	return newClientTransport(ctx, withTLSConfig(tlsConfig), withLocalAddr(localIP))
+	dialer := makeDialer(localIP)
+	opts := []transportOption{withTLSConfig(tlsConfig)}
+	if originalHost != "" {
+		opts = append(opts, withResolveHost(resolvedHost, originalHost, dialer, true))
+	} else {
+		opts = append(opts, withLocalAddr(localIP))
+	}
+	return newClientTransport(ctx, opts...)
 }

@@ -23,6 +23,12 @@ import (
 	"github.com/minio/cli"
 )
 
-func clientTransportDefault(ctx *cli.Context, localIP string) http.RoundTripper {
+func clientTransportDefault(ctx *cli.Context, localIP, resolvedHost, originalHost string) http.RoundTripper {
+	// originalHost is only set when --resolve-host is active. resolvedHost is
+	// always set, so it must not be used to decide whether to pin; doing so
+	// would skip withLocalAddr and lose the source-IP binding.
+	if originalHost != "" {
+		return newClientTransport(ctx, withResolveHost(resolvedHost, originalHost, makeDialer(localIP), false))
+	}
 	return newClientTransport(ctx, withLocalAddr(localIP))
 }
