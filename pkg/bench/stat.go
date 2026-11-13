@@ -124,7 +124,7 @@ func (g *Stat) Prepare(ctx context.Context) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 
 					opts.ContentType = obj.ContentType
@@ -208,7 +208,7 @@ func (g *Stat) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     0,
 					File:     obj.Name,
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: g.endpointOf(client),
 				}
 
 				op.Start = time.Now()

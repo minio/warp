@@ -22,6 +22,7 @@ import (
 	"net"
 	stdHttp "net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/minio/cli"
@@ -67,6 +68,10 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 	// It can improve performance by not using a compatibility layer.
 	if !ctx.Bool("http2") {
 		tlsDialer := &tls.Dialer{NetDialer: netD, Config: tlsConfig}
+		// One dialer per server name used for pinned connections, so the TLS
+		// config is not cloned for every connection. There are only a few
+		// names: the hostname, plus bucket.<hostname> with --lookup=host.
+		var pinnedDialers sync.Map // server name -> *tls.Dialer
 		h1Dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			dialAddr, pinned := pinner.dialAddr(addr, "443")
 			if !pinned {
@@ -76,10 +81,14 @@ func clientTransportKTLS(ctx *cli.Context, localIP, resolvedHost, originalHost s
 			// We dial an IP, so the TLS dialer can no longer derive ServerName
 			// from the address. Set it from the requested hostname instead, so
 			// SNI and certificate checks use it (bucket.<hostname> included).
-			cfg := tlsConfig.Clone()
-			cfg.ServerName = hostOnly(addr)
-			pinnedDialer := &tls.Dialer{NetDialer: netD, Config: cfg}
-			return pinnedDialer.DialContext(ctx, network, dialAddr)
+			serverName := hostOnly(addr)
+			d, ok := pinnedDialers.Load(serverName)
+			if !ok {
+				cfg := tlsConfig.Clone()
+				cfg.ServerName = serverName
+				d, _ = pinnedDialers.LoadOrStore(serverName, &tls.Dialer{NetDialer: netD, Config: cfg})
+			}
+			return d.(*tls.Dialer).DialContext(ctx, network, dialAddr)
 		}
 		return newClientTransport(ctx, withDialTLSContext(h1Dialer))
 	}

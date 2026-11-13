@@ -252,8 +252,52 @@ func getClient(ctx *cli.Context, host, originalHost string) (*minio.Client, erro
 	if ctx.Bool("debug") {
 		cl.TraceOn(os.Stderr)
 	}
+	if originalHost != "" {
+		recordPinnedClient(cl, host, transport)
+	}
 
 	return cl, nil
+}
+
+// pinnedClient is what a --resolve-host client cannot report itself: its
+// minio endpoint is the shared hostname, but it dials one resolved IP.
+type pinnedClient struct {
+	endpoint  string            // endpoint URL with the resolved IP, e.g. https://10.0.0.1:9000
+	transport http.RoundTripper // the client's pinned transport
+}
+
+// pinnedClients maps *minio.Client to pinnedClient for --resolve-host clients.
+var pinnedClients sync.Map
+
+// recordPinnedClient remembers the resolved address and transport of cl, so
+// operations can be attributed to the IP (per-host analysis, atomic's
+// cross-host reads) and presigned POSTs can use the pinned transport.
+func recordPinnedClient(cl *minio.Client, resolved string, transport http.RoundTripper) {
+	u := *cl.EndpointURL()
+	host := resolved
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		host = "[" + host + "]" // bare IPv6 without a port
+	}
+	u.Host = host
+	pinnedClients.Store(cl, pinnedClient{endpoint: u.String(), transport: transport})
+}
+
+// pinnedClientEndpoint returns the endpoint URL with the resolved IP for a
+// --resolve-host client, or "" for any other client.
+func pinnedClientEndpoint(cl *minio.Client) string {
+	if v, ok := pinnedClients.Load(cl); ok {
+		return v.(pinnedClient).endpoint
+	}
+	return ""
+}
+
+// pinnedClientTransport returns the pinned transport of a --resolve-host
+// client, or nil for any other client.
+func pinnedClientTransport(cl *minio.Client) http.RoundTripper {
+	if v, ok := pinnedClients.Load(cl); ok {
+		return v.(pinnedClient).transport
+	}
+	return nil
 }
 
 func clientTransport(ctx *cli.Context) http.RoundTripper {

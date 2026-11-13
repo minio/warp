@@ -109,7 +109,7 @@ func (u *Append) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     obj.Size,
 					ObjPerOp: 1,
 					File:     obj.Name,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: u.endpointOf(client),
 				}
 
 				op.Start = time.Now()

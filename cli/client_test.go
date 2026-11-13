@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/minio/cli"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/warp/pkg/iceberg"
 )
 
@@ -363,5 +364,97 @@ func TestResolveHostProxy(t *testing.T) {
 	resolveHostProxy(pairs, true, recordScheme)
 	if gotScheme != "https" {
 		t.Errorf("scheme for TLS = %q, want https", gotScheme)
+	}
+}
+
+func TestRecordPinnedClient(t *testing.T) {
+	newMinio := func(endpoint string, secure bool) *minio.Client {
+		t.Helper()
+		cl, err := minio.New(endpoint, &minio.Options{Secure: secure})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cl
+	}
+	tr := &http.Transport{}
+	tests := []struct {
+		name     string
+		endpoint string
+		secure   bool
+		resolved string
+		want     string
+	}{
+		{name: "ipv4 with port", endpoint: "s3.example.com:9000", resolved: "10.0.0.1:9000", want: "http://10.0.0.1:9000"},
+		{name: "tls keeps scheme", endpoint: "s3.example.com:9000", secure: true, resolved: "10.0.0.2:9000", want: "https://10.0.0.2:9000"},
+		{name: "ipv6 with port", endpoint: "s3.example.com:9000", resolved: "[2001:db8::1]:9000", want: "http://[2001:db8::1]:9000"},
+		{name: "bare ipv6", endpoint: "s3.example.com", resolved: "2001:db8::2", want: "http://[2001:db8::2]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := newMinio(tt.endpoint, tt.secure)
+			recordPinnedClient(cl, tt.resolved, tr)
+			if got := pinnedClientEndpoint(cl); got != tt.want {
+				t.Errorf("pinnedClientEndpoint = %q, want %q", got, tt.want)
+			}
+			if got := pinnedClientTransport(cl); got != tr {
+				t.Errorf("pinnedClientTransport = %v, want the recorded transport", got)
+			}
+			// The minio endpoint itself keeps the hostname.
+			if got := cl.EndpointURL().Host; got != tt.endpoint {
+				t.Errorf("EndpointURL().Host = %q, want %q", got, tt.endpoint)
+			}
+		})
+	}
+
+	other := newMinio("s3.example.com:9000", false)
+	if ep, tr := pinnedClientEndpoint(other), pinnedClientTransport(other); ep != "" || tr != nil {
+		t.Errorf("unrecorded client: endpoint %q, transport %v; want empty", ep, tr)
+	}
+}
+
+// newClientContext returns a context with the flags newClient/getClient read.
+func newClientContext(t *testing.T, hosts string, resolve bool) *cli.Context {
+	t.Helper()
+	set := flag.NewFlagSet(t.Name(), flag.ContinueOnError)
+	set.String("host", hosts, "")
+	set.Bool("resolve-host", resolve, "")
+	set.String("host-select", string(hostSelectTypeRoundrobin), "")
+	set.String("signature", "S3V4", "")
+	set.String("access-key", "minioadmin", "")
+	set.String("secret-key", "minioadmin", "")
+	return cli.NewContext(cli.NewApp(), set, nil)
+}
+
+// TestNewClientRecordsPinnedEndpoints checks that every --resolve-host client
+// reports its own resolved IP (used for per-host analysis and atomic's
+// cross-host reads) and gets its own pinned transport (used for --post).
+// IP literals resolve to themselves, so no DNS is needed.
+func TestNewClientRecordsPinnedEndpoints(t *testing.T) {
+	const hosts = "127.0.0.1:9000,127.0.0.2:9000,127.0.0.3:9000"
+	next := newClient(newClientContext(t, hosts, true))
+	endpoints := map[string]bool{}
+	transports := map[http.RoundTripper]bool{}
+	for range 3 {
+		cl, done := next()
+		done()
+		endpoints[pinnedClientEndpoint(cl)] = true
+		transports[pinnedClientTransport(cl)] = true
+	}
+	want := map[string]bool{"http://127.0.0.1:9000": true, "http://127.0.0.2:9000": true, "http://127.0.0.3:9000": true}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Errorf("recorded endpoints = %v, want %v", endpoints, want)
+	}
+	if len(transports) != 3 || transports[nil] {
+		t.Errorf("want 3 distinct recorded transports, got %d (nil present: %v)", len(transports), transports[nil])
+	}
+
+	// Without --resolve-host nothing is recorded, so warp keeps using EndpointURL.
+	next = newClient(newClientContext(t, "127.0.0.4:9000,127.0.0.5:9000", false))
+	for range 2 {
+		cl, done := next()
+		done()
+		if ep := pinnedClientEndpoint(cl); ep != "" {
+			t.Errorf("client without --resolve-host recorded endpoint %q", ep)
+		}
 	}
 }

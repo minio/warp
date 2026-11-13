@@ -262,7 +262,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 
 					op.Start = time.Now()
@@ -305,7 +305,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 					op.Start = time.Now()
 					res, err := client.PutObject(nonTerm, g.Bucket, obj.Name, obj.Reader, obj.Size, putOpts)
@@ -338,7 +338,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 
 					op.Start = time.Now()
@@ -359,7 +359,7 @@ func (g *Mixed) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 					op.Start = time.Now()
 					var err error

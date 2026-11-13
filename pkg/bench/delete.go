@@ -112,7 +112,7 @@ func (d *Delete) Prepare(ctx context.Context) error {
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: d.endpointOf(client),
 				}
 
 				opts.ContentType = obj.ContentType
@@ -221,7 +221,7 @@ func (d *Delete) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     0,
 					File:     "",
 					ObjPerOp: len(objs),
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: d.endpointOf(client),
 				}
 				if d.DiscardOutput {
 					op.File = ""

@@ -408,20 +408,22 @@ func getCommon(ctx *cli.Context, src func() generator.Source) bench.Common {
 	// Create put options now, so ensure that trailing headers are set.
 	putOpts := putOpts(ctx)
 	return bench.Common{
-		Client:        newClient(ctx),
-		Concurrency:   ctx.Int("concurrent"),
-		Source:        src,
-		Bucket:        ctx.String("bucket"),
-		Location:      ctx.String("region"),
-		PutOpts:       putOpts,
-		RDMAMode:      rdmaMode,
-		RDMAWindow:    rdmaWindow,
-		ObjSize:       objSize(ctx),
-		DiscardOutput: noOps,
-		ExtraOut:      extra,
-		RpsLimiter:    rpsLimiter,
-		Transport:     clientTransport(ctx),
-		UpdateStatus:  statusln,
-		TotalClients:  1, // Default to 1 for single-client mode
+		Client:          newClient(ctx),
+		ClientEndpoint:  pinnedClientEndpoint,
+		ClientTransport: pinnedClientTransport,
+		Concurrency:     ctx.Int("concurrent"),
+		Source:          src,
+		Bucket:          ctx.String("bucket"),
+		Location:        ctx.String("region"),
+		PutOpts:         putOpts,
+		RDMAMode:        rdmaMode,
+		RDMAWindow:      rdmaWindow,
+		ObjSize:         objSize(ctx),
+		DiscardOutput:   noOps,
+		ExtraOut:        extra,
+		RpsLimiter:      rpsLimiter,
+		Transport:       clientTransport(ctx),
+		UpdateStatus:    statusln,
+		TotalClients:    1, // Default to 1 for single-client mode
 	}
 }

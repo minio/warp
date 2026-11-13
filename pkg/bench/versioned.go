@@ -163,7 +163,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 
 					op.Start = time.Now()
@@ -203,7 +203,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 
 					op.Start = time.Now()
@@ -240,7 +240,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 					op.Start = time.Now()
 					err := client.RemoveObject(nonTerm, g.Bucket, obj.Name, minio.RemoveObjectOptions{VersionID: obj.VersionID})
@@ -260,7 +260,7 @@ func (g *Versioned) Start(ctx context.Context, wait chan struct{}) error {
 						Size:     0,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: g.endpointOf(client),
 					}
 					op.Start = time.Now()
 					var err error
