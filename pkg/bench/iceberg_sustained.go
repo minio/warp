@@ -661,9 +661,9 @@ func (b *Iceberg) buildPreparedPaths() error {
 }
 
 func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpiceberg.TableInfo, paths []string, workerID uint32) {
-	client, cldone := b.Client()
-	endpoint := b.endpointOf(client)
-	cldone()
+	// Commits go to the catalog through the cached table, not through an S3
+	// client, so attribute them to the catalog like other catalog operations.
+	endpoint := b.TreeConfig.CatalogName
 
 	loadedTbl := b.getLoadedTable(tbl)
 	if loadedTbl == nil {
