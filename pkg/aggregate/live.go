@@ -54,6 +54,9 @@ type Realtime struct {
 	// Per-client aggregates for time-series visualization.
 	ByClient   map[string]*LiveAggregate         `json:"by_client,omitempty"`
 	ByCategory map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
+
+	// merged is set once Merge has received input, since inputs may have no requests.
+	merged bool
 }
 
 type LiveAggregate struct {
@@ -524,14 +527,15 @@ func (r *Realtime) Merge(other *Realtime) {
 	if other == nil {
 		return
 	}
-	empty := r.Total.TotalRequests == 0
+	first := !r.merged && r.Total.TotalRequests == 0
+	r.merged = true
 	mergeValues(&r.ByOpType, other.ByOpType)
 	mergeValues(&r.ByHost, other.ByHost)
 	mergeValues(&r.ByObjLog2Size, other.ByObjLog2Size)
 	mergeValues(&r.ByClient, other.ByClient)
 	mergeValues(&r.ByCategory, other.ByCategory)
 	r.Total.Merge(other.Total)
-	r.Final = other.Final && (r.Final || empty)
+	r.Final = other.Final && (r.Final || first)
 	setIfEmpty := func(dst *string, alt string) {
 		if dst == nil {
 			return

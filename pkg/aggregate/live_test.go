@@ -20,17 +20,20 @@ package aggregate
 import "testing"
 
 func TestRealtimeMergeFinal(t *testing.T) {
-	final := func() *Realtime { return &Realtime{Final: true, Total: LiveAggregate{TotalRequests: 1}} }
-	live := func() *Realtime { return &Realtime{Total: LiveAggregate{TotalRequests: 1}} }
+	final := func(n int) *Realtime { return &Realtime{Final: true, Total: LiveAggregate{TotalRequests: n}} }
+	live := func(n int) *Realtime { return &Realtime{Total: LiveAggregate{TotalRequests: n}} }
 	tests := []struct {
 		name string
 		in   []*Realtime
 		want bool
 	}{
-		{"final", []*Realtime{final()}, true},
-		{"all final", []*Realtime{final(), final()}, true},
-		{"final then live", []*Realtime{final(), live()}, false},
-		{"live then final", []*Realtime{live(), final()}, false},
+		{"final", []*Realtime{final(5)}, true},
+		{"all final", []*Realtime{final(5), final(5)}, true},
+		{"final then live", []*Realtime{final(5), live(5)}, false},
+		{"live then final", []*Realtime{live(5), final(5)}, false},
+		{"empty live then final", []*Realtime{live(0), final(5)}, false},
+		{"final then empty live", []*Realtime{final(5), live(0)}, false},
+		{"nil ignored", []*Realtime{nil, final(5), nil}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
