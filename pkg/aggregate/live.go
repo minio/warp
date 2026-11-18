@@ -524,13 +524,14 @@ func (r *Realtime) Merge(other *Realtime) {
 	if other == nil {
 		return
 	}
+	empty := r.Total.TotalRequests == 0
 	mergeValues(&r.ByOpType, other.ByOpType)
 	mergeValues(&r.ByHost, other.ByHost)
 	mergeValues(&r.ByObjLog2Size, other.ByObjLog2Size)
 	mergeValues(&r.ByClient, other.ByClient)
 	mergeValues(&r.ByCategory, other.ByCategory)
 	r.Total.Merge(other.Total)
-	r.Final = other.Final && (r.Final || r.Total.TotalRequests == 0)
+	r.Final = other.Final && (r.Final || empty)
 	setIfEmpty := func(dst *string, alt string) {
 		if dst == nil {
 			return

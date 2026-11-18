@@ -127,6 +127,9 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	conns.info = infoLn
 	conns.errLn = printError
 	defer conns.closeAll()
+	// The UI, web UI and API poll for updates until we return, including while monitor.Done waits.
+	updCtx, updCancel := context.WithCancel(context.Background())
+	defer updCancel()
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName), nil)
 	monitor.SetLnLoggers(infoLn, printError)
 	defer monitor.Done()
@@ -223,9 +226,6 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	showAddress := ""
 	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
-		// The UI, web UI and API keep polling until we return, so this must outlive the benchmark stage.
-		updCtx, updCancel := context.WithCancel(context.Background())
-		defer updCancel()
 		go conns.serveUpdates(updCtx, updates)
 		monitor.SetUpdate(updates)
 		if ctx.Bool("web") {
