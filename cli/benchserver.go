@@ -203,7 +203,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	defer cancel()
 
 	_ = conns.startStageAll(stagePrepare, time.Now().Add(time.Second), true)
-	err := conns.waitForStage(benchCtx, stagePrepare, true, common, nil)
+	err := conns.waitForStage(benchCtx, stagePrepare, true, common, false)
 	if benchCtx.Err() != nil {
 		return true, benchCtx.Err()
 	}
@@ -223,6 +223,10 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 	showAddress := ""
 	if !ctx.Bool("full") {
 		updates = make(chan aggregate.UpdateReq, 10)
+		// The UI, web UI and API keep polling until we return, so this must outlive the benchmark stage.
+		updCtx, updCancel := context.WithCancel(context.Background())
+		defer updCancel()
+		go conns.serveUpdates(updCtx, updates)
 		monitor.SetUpdate(updates)
 		if ctx.Bool("web") {
 			addr, err := srv.Start()
@@ -259,7 +263,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		}
 	}
 
-	err = conns.waitForStage(benchCtx, stageBenchmark, false, common, updates)
+	err = conns.waitForStage(benchCtx, stageBenchmark, false, common, updates != nil)
 	if err != nil {
 		errorLn("Failed to keep connection to all clients", err)
 	}
@@ -369,7 +373,7 @@ func runServerBenchmark(ctx *cli.Context, b bench.Benchmark) (bool, error) {
 		if err != nil {
 			errorLn("Failed to clean up all clients", err)
 		}
-		err = conns.waitForStage(context.Background(), stageCleanup, false, common, nil)
+		err = conns.waitForStage(context.Background(), stageCleanup, false, common, false)
 		if err != nil {
 			errorLn("Failed to keep connection to all clients", err)
 		}
@@ -392,6 +396,8 @@ type connections struct {
 	hosts []string
 	ws    []*websocket.Conn
 	si    serverInfo
+	// lastUpdate is the most recent live aggregate received from each client.
+	lastUpdate []atomic.Pointer[aggregate.Realtime]
 }
 
 // newConnections creates connections (but does not connect) to clients.
@@ -404,7 +410,24 @@ func newConnections(hosts []string) *connections {
 	}
 	c.hosts = hosts
 	c.ws = make([]*websocket.Conn, len(hosts))
+	c.lastUpdate = make([]atomic.Pointer[aggregate.Realtime], len(hosts))
 	return &c
+}
+
+// serveUpdates answers update requests with the merged last update of all clients until ctx is canceled.
+func (c *connections) serveUpdates(ctx context.Context, updates <-chan aggregate.UpdateReq) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case r := <-updates:
+			var m aggregate.Realtime
+			for i := range c.lastUpdate {
+				m.Merge(c.lastUpdate[i].Load())
+			}
+			r.C <- &m
+		}
+	}
 }
 
 func (c *connections) errorF(format string, data ...any) {
@@ -598,7 +621,7 @@ func (c *connections) downloadOps() []bench.Operations {
 			defer wg.Done()
 			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps})
 			if err != nil {
-				c.errorF("Client %v download returned error: %v\n", c.hostName(i), resp.Err)
+				c.errorF("Client %v download returned error: %v\n", c.hostName(i), err)
 				return
 			}
 			if resp.Err != "" {
@@ -632,7 +655,7 @@ func (c *connections) downloadAggr() aggregate.Realtime {
 			defer wg.Done()
 			resp, err := c.roundTrip(i, serverRequest{Operation: serverReqSendOps, Aggregate: true, UpdateReq: &aggregate.UpdateReq{Final: true}})
 			if err != nil {
-				c.errorF("Client %v download returned error: %v\n", c.hostName(i), resp.Err)
+				c.errorF("Client %v download returned error: %v\n", c.hostName(i), err)
 				return
 			}
 			if resp.Err != "" {
@@ -650,32 +673,10 @@ func (c *connections) downloadAggr() aggregate.Realtime {
 }
 
 // waitForStage will wait for stage completion on all clients.
-func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, failOnErr bool, common *bench.Common, updates <-chan aggregate.UpdateReq) error {
+// If wantUpdates is set, live aggregates are fetched into c.lastUpdate.
+func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, failOnErr bool, common *bench.Common, wantUpdates bool) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var lastUpdate []atomic.Pointer[aggregate.Realtime]
-	var done chan struct{}
-	if updates != nil {
-		lastUpdate = make([]atomic.Pointer[aggregate.Realtime], len(c.ws))
-		done = make(chan struct{})
-		defer close(done)
-		go func() {
-			for {
-				select {
-				case <-done:
-					return
-				case r := <-updates:
-					var m aggregate.Realtime
-					for i := range lastUpdate {
-						if u := lastUpdate[i].Load(); u != nil {
-							m.Merge(u)
-						}
-					}
-					r.C <- &m
-				}
-			}
-		}()
-	}
 	for i, conn := range c.ws {
 		if conn == nil {
 			// log?
@@ -707,9 +708,9 @@ func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, fa
 				req := serverRequest{
 					Operation: serverReqStageStatus,
 					Stage:     stage,
-					Aggregate: updates != nil,
+					Aggregate: wantUpdates,
 				}
-				if updates != nil {
+				if wantUpdates {
 					req.UpdateReq = &aggregate.UpdateReq{}
 				}
 				resp, err := c.roundTrip(i, req)
@@ -729,8 +730,8 @@ func (c *connections) waitForStage(ctx context.Context, stage benchmarkStage, fa
 					c.errorF("Client %v returned error: %v\n", c.hostName(i), resp.Err)
 					return
 				}
-				if updates != nil {
-					lastUpdate[i].Store(resp.Update)
+				if wantUpdates {
+					c.lastUpdate[i].Store(resp.Update)
 				}
 				if resp.StageInfo.Finished {
 					// Merge custom
