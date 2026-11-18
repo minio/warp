@@ -95,7 +95,7 @@ func mainCmp(ctx *cli.Context) error {
 	if log != nil {
 		log("Loading %q", args[1])
 	}
-	afterOps, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+	afterOps, err := bench.OperationsFromCSV(rc2, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 	fatalIf(probe.NewError(err), "Unable to parse input")
 
 	printCompareLegacy(ctx, beforeOps, afterOps)
