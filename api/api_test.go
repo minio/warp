@@ -44,7 +44,11 @@ func TestStatusCanceled(t *testing.T) {
 			}()
 			var r aggregate.UpdateReq
 			if accept {
-				r = <-ups
+				select {
+				case r = <-ups:
+				case <-time.After(5 * time.Second):
+					t.Fatal("handler did not send an update request")
+				}
 			}
 			cancel()
 			select {
