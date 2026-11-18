@@ -47,3 +47,34 @@ func TestRealtimeMergeFinal(t *testing.T) {
 		})
 	}
 }
+
+// TestRealtimeMergeKeepsInputs checks that cached snapshots can be merged repeatedly
+// without the merge writing into them.
+func TestRealtimeMergeKeepsInputs(t *testing.T) {
+	agg := func() LiveAggregate {
+		return LiveAggregate{
+			TotalRequests:      1,
+			ThroughputByHost:   map[string]Throughput{"h": {Operations: 1, Bytes: 10}},
+			ThroughputByClient: map[string]Throughput{"c": {Operations: 1, Bytes: 10}},
+		}
+	}
+	snapshot := func() *Realtime {
+		get := agg()
+		return &Realtime{Total: agg(), ByOpType: map[string]*LiveAggregate{"GET": &get}}
+	}
+	bytes := func(l LiveAggregate) float64 {
+		return l.ThroughputByHost["h"].Bytes + l.ThroughputByClient["c"].Bytes
+	}
+	a, b := snapshot(), snapshot()
+	for i := range 2 {
+		var r Realtime
+		r.Merge(a)
+		r.Merge(b)
+		if got := bytes(r.Total) + bytes(*r.ByOpType["GET"]); got != 80 {
+			t.Fatalf("merge %d: got %v bytes, want 80", i, got)
+		}
+	}
+	if got := bytes(a.Total) + bytes(*a.ByOpType["GET"]); got != 40 {
+		t.Fatalf("input changed: got %v bytes, want 40", got)
+	}
+}

@@ -189,23 +189,22 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 	if l2.EndTime.After(l.EndTime) {
 		l.EndTime = l2.EndTime
 	}
+	// Never adopt l2's maps: callers merge cached snapshots repeatedly.
 	if l.ThroughputByHost == nil && len(l2.ThroughputByHost) != 0 {
-		l.ThroughputByHost = l2.ThroughputByHost
-	} else {
-		for k, v := range l2.ThroughputByHost {
-			v0 := l.ThroughputByHost[k]
-			v0.Merge(v)
-			l.ThroughputByHost[k] = v0
-		}
+		l.ThroughputByHost = make(map[string]Throughput, len(l2.ThroughputByHost))
+	}
+	for k, v := range l2.ThroughputByHost {
+		v0 := l.ThroughputByHost[k]
+		v0.Merge(v)
+		l.ThroughputByHost[k] = v0
 	}
 	if l.ThroughputByClient == nil && len(l2.ThroughputByClient) != 0 {
-		l.ThroughputByClient = l2.ThroughputByClient
-	} else {
-		for k, v := range l2.ThroughputByClient {
-			v0 := l.ThroughputByClient[k]
-			v0.Merge(v)
-			l.ThroughputByClient[k] = v0
-		}
+		l.ThroughputByClient = make(map[string]Throughput, len(l2.ThroughputByClient))
+	}
+	for k, v := range l2.ThroughputByClient {
+		v0 := l.ThroughputByClient[k]
+		v0.Merge(v)
+		l.ThroughputByClient[k] = v0
 	}
 	if l.Title == "" && l2.Title != "" {
 		l.Title = l2.Title
