@@ -95,7 +95,7 @@ func mainCmp(ctx *cli.Context) error {
 	if log != nil {
 		log("Loading %q", args[1])
 	}
-	afterOps, err := bench.OperationsFromCSV(rc, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
+	afterOps, err := bench.OperationsFromCSV(rc2, true, ctx.Int("analyze.offset"), ctx.Int("analyze.limit"), log)
 	fatalIf(probe.NewError(err), "Unable to parse input")
 
 	printCompareLegacy(ctx, beforeOps, afterOps)
@@ -193,15 +193,16 @@ func printCompareLegacy(ctx *cli.Context, before, after bench.Operations) {
 		console.Println("Operation:", typ)
 		console.SetColor("Print", color.New(color.FgWhite))
 
-		cmp, err := bench.Compare(before, after, analysisDur(ctx, before.Duration()), !isMultiOp)
-		if err != nil {
-			console.Println(err)
-			continue
-		}
 		if bErrs, aErrs := before.NErrors(), after.NErrors(); bErrs+aErrs > 0 {
 			console.SetColor("Print", color.New(color.FgHiRed))
 			console.Println("Errors:", bErrs, "->", aErrs)
 			console.SetColor("Print", color.New(color.FgWhite))
+		}
+		// Size the interval for the shorter run, so both runs yield enough segments.
+		cmp, err := bench.Compare(before, after, analysisDur(ctx, min(before.Duration(), after.Duration())), !isMultiOp)
+		if err != nil {
+			console.Println(err)
+			continue
 		}
 		if len(before) != len(after) {
 			console.Println("Operations:", len(before), "->", len(after))

@@ -2,7 +2,7 @@ module github.com/minio/warp
 
 go 1.26.0
 
-toolchain go1.26.6
+toolchain go1.26.11
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
@@ -24,7 +24,7 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jfsmig/prng v0.0.2
-	github.com/klauspost/compress v1.19.2
+	github.com/klauspost/compress v1.20.4
 	github.com/minio/cli v1.24.2
 	github.com/minio/madmin-go/v4 v4.6.7
 	github.com/minio/mc v0.0.0-20251106162529-77f82e18b540
@@ -84,7 +84,7 @@ require (
 	github.com/alfatraining/structtag v1.0.0 // indirect
 	github.com/alingse/asasalint v0.0.11 // indirect
 	github.com/alingse/nilnesserr v0.2.0 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.3.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
