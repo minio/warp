@@ -19,6 +19,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,21 +28,38 @@ import (
 	"github.com/minio/warp/pkg/aggregate"
 )
 
-// TestStatusCanceledWithoutResponder checks that a status request does not hang
-// when nothing answers update requests.
-func TestStatusCanceledWithoutResponder(t *testing.T) {
-	s := &Server{updates: make(chan aggregate.UpdateReq)}
-	ctx, cancel := context.WithCancel(t.Context())
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/status", nil)
-	done := make(chan struct{})
-	go func() {
-		s.handleStatus(httptest.NewRecorder(), req)
-		close(done)
-	}()
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("handler did not return after the request was canceled")
+// TestStatusCanceled checks that a canceled status request returns, both when its
+// update request is never accepted and when it is accepted but never answered.
+func TestStatusCanceled(t *testing.T) {
+	for _, accept := range []bool{false, true} {
+		t.Run(fmt.Sprint("accept=", accept), func(t *testing.T) {
+			ups := make(chan aggregate.UpdateReq)
+			s := &Server{updates: ups}
+			ctx, cancel := context.WithCancel(t.Context())
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/status", nil)
+			done := make(chan struct{})
+			go func() {
+				s.handleStatus(httptest.NewRecorder(), req)
+				close(done)
+			}()
+			var r aggregate.UpdateReq
+			if accept {
+				r = <-ups
+			}
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("handler did not return after the request was canceled")
+			}
+			if accept {
+				// A late reply must not block the responder.
+				select {
+				case r.C <- &aggregate.Realtime{}:
+				default:
+					t.Fatal("late reply blocked")
+				}
+			}
+		})
 	}
 }
