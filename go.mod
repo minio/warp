@@ -136,7 +136,6 @@ require (
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/dave/dst v0.27.3 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
 	github.com/dgryski/go-camellia v0.0.0-20191119043421-69a8a13fb23d // indirect
@@ -267,7 +266,6 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pmorjan/kmod v1.1.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -313,7 +311,7 @@ require (
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.3.1 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/substrait-io/substrait v0.87.0 // indirect
 	github.com/substrait-io/substrait-go/v8 v8.1.0 // indirect
@@ -355,11 +353,12 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
-	go.opentelemetry.io/otel v1.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
-	go.opentelemetry.io/otel/trace v1.45.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
