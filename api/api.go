@@ -168,8 +168,16 @@ func (s *Server) handleStatus(w http.ResponseWriter, req *http.Request) {
 	s.mu.Unlock()
 	if ups != nil {
 		res := make(chan *aggregate.Realtime, 1)
-		ups <- aggregate.UpdateReq{C: res}
-		st.LiveData = <-res
+		select {
+		case ups <- aggregate.UpdateReq{C: res}:
+		case <-req.Context().Done():
+			return
+		}
+		select {
+		case st.LiveData = <-res:
+		case <-req.Context().Done():
+			return
+		}
 	}
 	b, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {

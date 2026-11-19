@@ -54,6 +54,9 @@ type Realtime struct {
 	// Per-client aggregates for time-series visualization.
 	ByClient   map[string]*LiveAggregate         `json:"by_client,omitempty"`
 	ByCategory map[bench.Category]*LiveAggregate `json:"by_category,omitempty"`
+
+	// merged is set once Merge has received input, since inputs may have no requests.
+	merged bool
 }
 
 type LiveAggregate struct {
@@ -186,23 +189,22 @@ func (l *LiveAggregate) Merge(l2 LiveAggregate) {
 	if l2.EndTime.After(l.EndTime) {
 		l.EndTime = l2.EndTime
 	}
+	// Never adopt l2's maps: callers merge cached snapshots repeatedly.
 	if l.ThroughputByHost == nil && len(l2.ThroughputByHost) != 0 {
-		l.ThroughputByHost = l2.ThroughputByHost
-	} else {
-		for k, v := range l2.ThroughputByHost {
-			v0 := l.ThroughputByHost[k]
-			v0.Merge(v)
-			l.ThroughputByHost[k] = v0
-		}
+		l.ThroughputByHost = make(map[string]Throughput, len(l2.ThroughputByHost))
+	}
+	for k, v := range l2.ThroughputByHost {
+		v0 := l.ThroughputByHost[k]
+		v0.Merge(v)
+		l.ThroughputByHost[k] = v0
 	}
 	if l.ThroughputByClient == nil && len(l2.ThroughputByClient) != 0 {
-		l.ThroughputByClient = l2.ThroughputByClient
-	} else {
-		for k, v := range l2.ThroughputByClient {
-			v0 := l.ThroughputByClient[k]
-			v0.Merge(v)
-			l.ThroughputByClient[k] = v0
-		}
+		l.ThroughputByClient = make(map[string]Throughput, len(l2.ThroughputByClient))
+	}
+	for k, v := range l2.ThroughputByClient {
+		v0 := l.ThroughputByClient[k]
+		v0.Merge(v)
+		l.ThroughputByClient[k] = v0
 	}
 	if l.Title == "" && l2.Title != "" {
 		l.Title = l2.Title
@@ -524,13 +526,15 @@ func (r *Realtime) Merge(other *Realtime) {
 	if other == nil {
 		return
 	}
+	first := !r.merged && r.Total.TotalRequests == 0
+	r.merged = true
 	mergeValues(&r.ByOpType, other.ByOpType)
 	mergeValues(&r.ByHost, other.ByHost)
 	mergeValues(&r.ByObjLog2Size, other.ByObjLog2Size)
 	mergeValues(&r.ByClient, other.ByClient)
 	mergeValues(&r.ByCategory, other.ByCategory)
 	r.Total.Merge(other.Total)
-	r.Final = other.Final && (r.Final || r.Total.TotalRequests == 0)
+	r.Final = other.Final && (r.Final || first)
 	setIfEmpty := func(dst *string, alt string) {
 		if dst == nil {
 			return
