@@ -1,0 +1,6 @@
+# Extra files for the warp package, consumed by pkger --contents.
+#
+# pkger only adds a systemd unit for the apps it knows (aistor, sidekick), so
+# warp ships its own from the tagged tree.
+- src: systemd/warp.service
+  dst: /lib/systemd/system/warp.service

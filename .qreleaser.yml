@@ -40,6 +40,4 @@ packaging:
   enabled: true
   app_name: warp
   license: "AGPLv3"
-  service_file:
-    url: https://raw.githubusercontent.com/minio/warp/master/systemd/warp.service
-    dest: warp.service
+  contents_file: pkg-scripts/contents.yaml
