@@ -98,7 +98,7 @@ func (u *Fanout) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     obj.Size * int64(u.Copies),
 					ObjPerOp: u.Copies,
 					File:     obj.Name,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: u.endpointOf(client),
 				}
 
 				op.Start = time.Now()

@@ -160,7 +160,7 @@ func (s *Snowball) Start(ctx context.Context, wait chan struct{}) error {
 				opts.DisableMultipart = true
 
 				client, cldone := s.Client()
-				op.Endpoint = client.EndpointURL().String()
+				op.Endpoint = s.endpointOf(client)
 				op.Start = time.Now()
 				tarLength := int64(buf.Len())
 				lbr := lastByteRecorder{r: &buf}

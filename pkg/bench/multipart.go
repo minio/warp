@@ -116,7 +116,7 @@ func (g *Multipart) Prepare(ctx context.Context) error {
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: g.endpointOf(client),
 				}
 				if g.DiscardOutput {
 					op.File = ""
@@ -230,7 +230,7 @@ func (g *Multipart) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: g.endpointOf(client),
 				}
 
 				op.Start = time.Now()

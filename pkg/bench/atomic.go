@@ -590,7 +590,7 @@ func (g *Atomic) Prepare(ctx context.Context) error {
 		st := g.stamp(rng, key, id)
 		cl, done := g.Client()
 		start := time.Now()
-		g.hist.begin(key, id, start, st.Size, cl.EndpointURL().String())
+		g.hist.begin(key, id, start, st.Size, g.endpointOf(cl))
 		res, err := cl.PutObject(ctx, g.Bucket, key, newAtomicReader(st, g.BlockSize), st.Size, g.putOpts(id))
 		if err == nil && i == 0 {
 			err = g.probe(ctx, cl, key, st, res.ETag)
@@ -708,7 +708,7 @@ func (g *Atomic) put(ctx context.Context, thread uint32, st atomicStamp, key str
 		Size:     st.Size,
 		File:     key,
 		ObjPerOp: 1,
-		Endpoint: client.EndpointURL().String(),
+		Endpoint: g.endpointOf(client),
 	}
 	op.Start = time.Now()
 	g.hist.begin(key, id, op.Start, st.Size, op.Endpoint)
@@ -736,7 +736,7 @@ func (g *Atomic) clientAvoiding(avoid string) (*minio.Client, func()) {
 	}()
 	for range 2*g.Concurrency + 2 {
 		client, clDone := g.Client()
-		if avoid == "" || client.EndpointURL().String() != avoid {
+		if avoid == "" || g.endpointOf(client) != avoid {
 			return client, clDone
 		}
 		rejected = append(rejected, clDone)
@@ -752,7 +752,7 @@ func (g *Atomic) get(ctx context.Context, thread uint32, key, avoid string) Oper
 		Thread:   thread,
 		File:     key,
 		ObjPerOp: 1,
-		Endpoint: client.EndpointURL().String(),
+		Endpoint: g.endpointOf(client),
 	}
 	var t uint64
 	t, op.Start = g.hist.readBegin()
@@ -843,7 +843,7 @@ func (g *Atomic) stat(ctx context.Context, thread uint32, key string) Operation 
 		Thread:   thread,
 		File:     key,
 		ObjPerOp: 1,
-		Endpoint: client.EndpointURL().String(),
+		Endpoint: g.endpointOf(client),
 	}
 	var t uint64
 	t, op.Start = g.hist.readBegin()
@@ -942,7 +942,7 @@ func (g *Atomic) list(ctx context.Context, thread uint32, prefix, avoid string) 
 		OpType:   "LIST",
 		Thread:   thread,
 		File:     prefix,
-		Endpoint: client.EndpointURL().String(),
+		Endpoint: g.endpointOf(client),
 	}
 	var t uint64
 	t, op.Start = g.hist.readBegin()
@@ -972,7 +972,7 @@ func (g *Atomic) remove(ctx context.Context, thread uint32, key string) Operatio
 		Thread:   thread,
 		File:     key,
 		ObjPerOp: 1,
-		Endpoint: client.EndpointURL().String(),
+		Endpoint: g.endpointOf(client),
 	}
 	op.Start = time.Now()
 	err := client.RemoveObject(ctx, g.Bucket, key, minio.RemoveObjectOptions{})
@@ -993,7 +993,7 @@ func (g *Atomic) finalPass() {
 	rcv := g.Collector.Receiver()
 	for i := range g.Keys {
 		client, clDone := g.Client()
-		op := Operation{OpType: http.MethodGet, ObjPerOp: 1, File: g.keyName(i), Endpoint: client.EndpointURL().String(), Start: time.Now()}
+		op := Operation{OpType: http.MethodGet, ObjPerOp: 1, File: g.keyName(i), Endpoint: g.endpointOf(client), Start: time.Now()}
 		g.verifyGet(ctx, client, &op)
 		clDone()
 		if op.Err != "" {

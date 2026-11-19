@@ -528,7 +528,7 @@ func (b *Iceberg) Start(ctx context.Context, wait chan struct{}) error {
 							OpType:   "UPLOAD",
 							Thread:   uint32(workerID),
 							File:     objName,
-							Endpoint: client.EndpointURL().String(),
+							Endpoint: b.endpointOf(client),
 						}
 
 						f, err := os.Open(localFile)
@@ -661,9 +661,9 @@ func (b *Iceberg) buildPreparedPaths() error {
 }
 
 func (b *Iceberg) doCommit(ctx context.Context, rcv chan<- Operation, tbl warpiceberg.TableInfo, paths []string, workerID uint32) {
-	client, cldone := b.Client()
-	endpoint := client.EndpointURL().String()
-	cldone()
+	// Commits go to the catalog through the cached table, not through an S3
+	// client, so attribute them to the catalog like other catalog operations.
+	endpoint := b.TreeConfig.CatalogName
 
 	loadedTbl := b.getLoadedTable(tbl)
 	if loadedTbl == nil {

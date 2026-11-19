@@ -90,6 +90,17 @@ type Common struct {
 
 	Client func() (cl *minio.Client, done func())
 
+	// ClientEndpoint, if set, returns the endpoint to record for operations
+	// made with a client. With --resolve-host all clients share the hostname as
+	// their minio endpoint, so this reports the IP each client is pinned to.
+	// An empty result falls back to the client's EndpointURL.
+	ClientEndpoint func(cl *minio.Client) string
+
+	// ClientTransport, if set, returns the transport that belongs to a client,
+	// for requests made outside minio-go (presigned POST uploads), so they are
+	// pinned like the client's own requests. nil falls back to Transport.
+	ClientTransport func(cl *minio.Client) http.RoundTripper
+
 	Collector Collector
 
 	Location string
@@ -145,6 +156,27 @@ const (
 // GetCommon implements interface compatible implementation
 func (c *Common) GetCommon() *Common {
 	return c
+}
+
+// endpointOf returns the endpoint to record for operations made with cl.
+func (c *Common) endpointOf(cl *minio.Client) string {
+	if c.ClientEndpoint != nil {
+		if ep := c.ClientEndpoint(cl); ep != "" {
+			return ep
+		}
+	}
+	return cl.EndpointURL().String()
+}
+
+// transportOf returns the transport for requests made outside minio-go on
+// behalf of cl.
+func (c *Common) transportOf(cl *minio.Client) http.RoundTripper {
+	if c.ClientTransport != nil {
+		if tr := c.ClientTransport(cl); tr != nil {
+			return tr
+		}
+	}
+	return c.Transport
 }
 
 // ErrorF formatted error printer

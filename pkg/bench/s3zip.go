@@ -162,7 +162,7 @@ func (g *S3Zip) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     obj.Size,
 					File:     path.Join(g.ZipObjName, obj.Name),
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: g.endpointOf(client),
 				}
 
 				op.Start = time.Now()

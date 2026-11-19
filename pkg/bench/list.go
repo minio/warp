@@ -118,7 +118,7 @@ func (d *List) Prepare(ctx context.Context) error {
 						Size:     obj.Size,
 						File:     obj.Name,
 						ObjPerOp: 1,
-						Endpoint: client.EndpointURL().String(),
+						Endpoint: d.endpointOf(client),
 					}
 
 					opts.ContentType = obj.ContentType
@@ -212,7 +212,7 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) error {
 					OpType:   "LIST",
 					Thread:   uint32(i),
 					Size:     0,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: d.endpointOf(client),
 				}
 
 				op.Start = time.Now()

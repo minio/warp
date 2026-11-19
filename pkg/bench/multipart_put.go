@@ -132,7 +132,7 @@ func (g *MultipartPut) uploadParts(ctx context.Context, thread uint32, objectNam
 					Size:     obj.Size,
 					File:     obj.Name,
 					ObjPerOp: 1,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: g.endpointOf(client),
 				}
 				if g.DiscardOutput {
 					op.File = ""

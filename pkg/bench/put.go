@@ -188,7 +188,7 @@ func (u *Put) Start(ctx context.Context, wait chan struct{}) error {
 					Size:     obj.Size,
 					ObjPerOp: 1,
 					File:     obj.Name,
-					Endpoint: client.EndpointURL().String(),
+					Endpoint: u.endpointOf(client),
 				}
 
 				op.Start = time.Now()
@@ -299,6 +299,17 @@ func (u *Put) Cleanup(ctx context.Context) {
 	u.deleteAllInBucket(ctx, pf...)
 }
 
+// postClient returns the HTTP client for presigned POST uploads made on behalf
+// of c. With --resolve-host each minio client has its own pinned transport, and
+// the upload must use it rather than the shared one, or it would not be pinned.
+// The http.Client is a thin wrapper; connections are pooled by the transport.
+func (u *Put) postClient(c *minio.Client) *http.Client {
+	if tr := u.transportOf(c); tr != u.Transport {
+		return &http.Client{Transport: tr}
+	}
+	return u.cl
+}
+
 // postPolicy will upload using https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html API.
 func (u *Put) postPolicy(ctx context.Context, c *minio.Client, bucket string, obj *generator.Object) (versionID string, err error) {
 	pp := minio.NewPostPolicy()
@@ -347,7 +358,7 @@ func (u *Put) postPolicy(ctx context.Context, c *minio.Client, bucket string, ob
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	// make POST request with form data
-	resp, err := u.cl.Do(req)
+	resp, err := u.postClient(c).Do(req)
 	if err != nil {
 		return "", err
 	}

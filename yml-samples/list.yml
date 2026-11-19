@@ -182,8 +182,9 @@ warp:
     # Can be 'weighed' or 'roundrobin'
     host-select: weighed
 
-    # "Resolve the host(s) ip(s) (including multiple A/AAAA records).
-    # This can break SSL certificates, use --insecure if so
+    # Resolve the host(s) ip(s) (including multiple A/AAAA records).
+    # S3 requests keep the hostname for TLS and signing.
+    # Iceberg catalog requests still connect by IP, so their TLS certificate checks can fail.
     resolve-host: false
 
     # Specify custom write socket buffer size in bytes
